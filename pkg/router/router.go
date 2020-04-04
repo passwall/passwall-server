@@ -2,12 +2,14 @@ package router
 
 import (
 	"gpass/controller"
+	"gpass/pkg/config"
 	"gpass/pkg/middleware"
 
 	"github.com/gin-gonic/gin"
 )
 
 func Setup() *gin.Engine {
+	config := config.GetConfig()
 	r := gin.New()
 
 	// Middlewares
@@ -15,8 +17,14 @@ func Setup() *gin.Engine {
 	r.Use(gin.Recovery())
 	r.Use(middleware.CORS())
 
-	// Non-protected routes
-	logins := r.Group("/logins")
+	// gpass uses gin.BasicAuth() middleware to secure routes
+	// You can change username and password in config.yml
+	// Don't forget to add Basic Auth authorization to your HTTP requests
+	usersMap := map[string]string{
+		config.Server.Username: config.Server.Password,
+	}
+	authorized := r.Group("/", gin.BasicAuth(usersMap))
+	logins := authorized.Group("/logins")
 	{
 		logins.GET("/", controller.GetLogins)
 		logins.GET("/:id", controller.GetLogin)
@@ -24,18 +32,6 @@ func Setup() *gin.Engine {
 		logins.PUT("/:id", controller.UpdateLogin)
 		logins.DELETE("/:id", controller.DeleteLogin)
 	}
-
-	// Protected routes
-	// For authorized access, group protected routes using gin.BasicAuth() middleware
-	// gin.Accounts is a shortcut for map[string]string
-	authorized := r.Group("/admin", gin.BasicAuth(gin.Accounts{
-		"username1": "password1",
-		"username2": "password2",
-		"username3": "password3",
-	}))
-
-	// /admin/dashboard endpoint is now protected
-	authorized.GET("/dashboard", controller.Dashboard)
 
 	return r
 }

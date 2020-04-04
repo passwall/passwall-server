@@ -35,9 +35,9 @@ func read() {
 	for scanner.Scan() {
 		dizi := strings.Split(scanner.Text(), ",")
 		login := model.Login{
-			URL:      dizi[4],
-			Username: dizi[5],
-			Password: dizi[1],
+			URL:      dizi[4], // 1password URL field
+			Username: dizi[5], // 1password username field
+			Password: dizi[1], // 1password password field
 		}
 
 		db.Create(&login)

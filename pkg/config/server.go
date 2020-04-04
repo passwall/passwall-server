@@ -1,5 +1,7 @@
 package config
 
 type ServerConfiguration struct {
-	Port string
+	Port     string
+	Username string
+	Password string
 }

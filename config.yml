@@ -8,3 +8,6 @@ database:
 
 server:
   port: "8081"
+  username: "gpass"
+  password: "password"
+  
