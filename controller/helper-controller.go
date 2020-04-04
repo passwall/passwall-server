@@ -1,9 +1,11 @@
 package controller
 
 import (
+	"math/rand"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jinzhu/gorm"
 )
@@ -52,4 +54,18 @@ func ToSnakeCase(str string) string {
 	snake = matchAllCap.ReplaceAllString(snake, "${1}_${2}")
 
 	return strings.ToLower(snake)
+}
+
+func Password() string {
+	rand.Seed(time.Now().UnixNano())
+	chars := []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
+		"abcdefghijklmnopqrstuvwxyz" +
+		"0123456789" +
+		"=+%*/()[]{}/!@#$?|")
+	length := 16
+	var b strings.Builder
+	for i := 0; i < length; i++ {
+		b.WriteRune(chars[rand.Intn(len(chars))])
+	}
+	return b.String()
 }

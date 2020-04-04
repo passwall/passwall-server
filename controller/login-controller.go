@@ -3,9 +3,6 @@ package controller
 import (
 	"fmt"
 	"log"
-	"math/rand"
-	"strings"
-	"time"
 
 	"gpass/model"
 	"gpass/pkg/database"
@@ -33,7 +30,6 @@ func GetLogin(c *gin.Context) {
 		log.Println(err)
 		c.AbortWithStatus(404)
 		return
-
 	}
 
 	c.JSON(200, login)
@@ -93,7 +89,7 @@ func CreateLogin(c *gin.Context) {
 	c.BindJSON(&login)
 
 	if login.Password == "" {
-		login.Password = password()
+		login.Password = Password()
 	}
 
 	if err := db.Create(&login).Error; err != nil {
@@ -118,6 +114,10 @@ func UpdateLogin(c *gin.Context) {
 
 	c.BindJSON(&login)
 
+	if login.Password == "" {
+		login.Password = Password()
+	}
+
 	db.Save(&login)
 	c.JSON(200, login)
 }
@@ -134,18 +134,4 @@ func DeleteLogin(c *gin.Context) {
 	}
 
 	c.JSON(200, gin.H{"id#" + id: "deleted"})
-}
-
-func password() string {
-	rand.Seed(time.Now().UnixNano())
-	chars := []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
-		"abcdefghijklmnopqrstuvwxyz" +
-		"0123456789" +
-		"=+%*/()[]{}/!@#$?|")
-	length := 16
-	var b strings.Builder
-	for i := 0; i < length; i++ {
-		b.WriteRune(chars[rand.Intn(len(chars))])
-	}
-	return b.String()
 }
