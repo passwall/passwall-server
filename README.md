@@ -17,3 +17,7 @@ An admin can;
 - Delete login
     
 API documentation available at: https://documenter.getpostman.com/view/3658426/SzYbyHXj
+
+## Authentication
+
+This API uses **Basic Auth** to secure endpoints. So do not forget to update **config.yml** for user information and add **Basic Auth authorization** to your requests from clients like **Postman**.
