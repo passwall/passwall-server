@@ -36,8 +36,7 @@ func Setup() {
 	port := Config.Database.Port
 
 	if driver == "sqlite" {
-
-		db, err = gorm.Open("sqlite3", database+".db")
+		db, err = gorm.Open("sqlite3", "./"+database+".db")
 
 		if err != nil {
 			DBErr = err
