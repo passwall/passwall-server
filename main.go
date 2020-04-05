@@ -1,9 +1,9 @@
 package main
 
 import (
-	"gpass/pkg/config"
-	"gpass/pkg/database"
-	"gpass/pkg/router"
+	"github.com/yakuter/gpass/pkg/config"
+	"github.com/yakuter/gpass/pkg/database"
+	"github.com/yakuter/gpass/pkg/router"
 )
 
 func init() {

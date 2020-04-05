@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log"
 
-	"gpass/model"
-	"gpass/pkg/database"
+	"github.com/yakuter/gpass/model"
+	"github.com/yakuter/gpass/pkg/database"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
