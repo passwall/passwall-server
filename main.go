@@ -15,5 +15,5 @@ func main() {
 	config := config.GetConfig()
 
 	r := router.Setup()
-	r.Run("127.0.0.1:" + config.Server.Port)
+	r.Run("0.0.0.0:" + config.Server.Port)
 }
