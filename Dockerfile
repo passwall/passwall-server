@@ -1,7 +1,6 @@
 FROM golang:1.13-alpine AS builder
-
 WORKDIR /app
-
+RUN apk add gcc g++ --no-cache
 COPY go.mod .
 COPY go.sum .
 RUN go mod download
@@ -11,11 +10,10 @@ COPY ./controller ./controller
 COPY ./model ./model
 COPY ./pkg ./pkg
 
-RUN CGO_ENABLED=0 go build -a --installsuffix cgo --ldflags="-s" -o gpass
+RUN CGO_ENABLED=1 GOOS=linux go build -a --ldflags="-s" -o gpass
 
+FROM alpine:3.11
 
-FROM scratch
-
-COPY --from=builder /app .
+COPY --from=builder /app/gpass ./gpass
 
 ENTRYPOINT ["/gpass"]
