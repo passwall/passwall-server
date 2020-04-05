@@ -6,14 +6,15 @@ import (
 	"crypto/md5"
 	"crypto/rand"
 	"encoding/hex"
-	"gpass/model"
-	"gpass/pkg/config"
 	"io"
 	mathrand "math/rand"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/yakuter/gpass/model"
+	"github.com/yakuter/gpass/pkg/config"
 
 	"github.com/jinzhu/gorm"
 )
