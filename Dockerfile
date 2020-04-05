@@ -14,6 +14,7 @@ RUN CGO_ENABLED=1 GOOS=linux go build -a --ldflags="-s" -o gpass
 
 FROM alpine:3.11
 
-COPY --from=builder /app/gpass ./gpass
+COPY --from=builder /app/gpass /app/gpass
 
-ENTRYPOINT ["/gpass"]
+WORKDIR /app
+ENTRYPOINT ["/app/gpass"]

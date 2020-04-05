@@ -1,1 +1,0 @@
-docker run --rm --name gpass -d -v $(pwd)/config.yml:/config.yml -v $(pwd)/gpass.db:/gpass.db  -p 8081:8081 gpass

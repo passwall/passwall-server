@@ -16,6 +16,7 @@ config.yml
 /vendor/
 /Godeps/
 
+
 ### VisualStudioCode ###
 .vscode/*
 !.vscode/settings.json
@@ -35,7 +36,7 @@ config.yml
 .env
 
 ## SQLITE DATABASE ##
-*.db
+/store/gpass.db
 
 ## CONFIG FILE ##
-config.yml
+/store/config.yml

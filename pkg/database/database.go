@@ -1,7 +1,7 @@
 package database
 
 import (
-	"fmt"
+	"log"
 
 	"github.com/yakuter/gpass/model"
 	"github.com/yakuter/gpass/pkg/config"
@@ -36,11 +36,11 @@ func Setup() {
 	port := Config.Database.Port
 
 	if driver == "sqlite" {
-		db, err = gorm.Open("sqlite3", "./"+database+".db")
+		db, err = gorm.Open("sqlite3", "./store/"+database+".db")
 
 		if err != nil {
 			DBErr = err
-			fmt.Println("db err: ", err)
+			log.Fatalf("db err: ", err)
 		}
 
 	} else if driver == "postgres" {
@@ -48,7 +48,7 @@ func Setup() {
 		db, err = gorm.Open("postgres", "host="+host+" port="+port+" user="+username+" dbname="+database+"  sslmode=disable password="+password)
 		if err != nil {
 			DBErr = err
-			fmt.Println("db err: ", err)
+			log.Fatalf("db err: ", err)
 		}
 
 	} else if driver == "mysql" {
@@ -56,7 +56,7 @@ func Setup() {
 		db, err = gorm.Open("mysql", username+":"+password+"@tcp("+host+":"+port+")/"+database+"?charset=utf8&parseTime=True&loc=Local")
 		if err != nil {
 			DBErr = err
-			fmt.Println("db err: ", err)
+			log.Fatalf("db err: ", err)
 		}
 
 	}
@@ -75,7 +75,7 @@ func GetDB() *gorm.DB {
 	return DB
 }
 
-// GetDBErr helps you to get a connection
+// GetDBErr helps you check database connection health
 func GetDBErr() error {
 	return DBErr
 }
