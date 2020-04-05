@@ -1,7 +1,15 @@
 package controller
 
 import (
-	"math/rand"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/md5"
+	"crypto/rand"
+	"encoding/hex"
+	"gpass/model"
+	"gpass/pkg/config"
+	"io"
+	mathrand "math/rand"
 	"regexp"
 	"strconv"
 	"strings"
@@ -57,7 +65,7 @@ func ToSnakeCase(str string) string {
 }
 
 func Password() string {
-	rand.Seed(time.Now().UnixNano())
+	mathrand.Seed(time.Now().UnixNano())
 	chars := []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
 		"abcdefghijklmnopqrstuvwxyz" +
 		"0123456789" +
@@ -65,7 +73,58 @@ func Password() string {
 	length := 16
 	var b strings.Builder
 	for i := 0; i < length; i++ {
-		b.WriteRune(chars[rand.Intn(len(chars))])
+		b.WriteRune(chars[mathrand.Intn(len(chars))])
 	}
 	return b.String()
+}
+
+func createHash(key string) string {
+	hasher := md5.New()
+	hasher.Write([]byte(key))
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+func encrypt(dataStr string, passphrase string) string {
+	dataByte := []byte(dataStr)
+	block, _ := aes.NewCipher([]byte(createHash(passphrase)))
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		panic(err.Error())
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+		panic(err.Error())
+	}
+	cipherByte := gcm.Seal(nonce, nonce, dataByte, nil)
+	cipherStr := string(cipherByte[:])
+	return cipherStr
+}
+
+func decrypt(dataStr string, passphrase string) string {
+	dataByte := []byte(dataStr)
+	key := []byte(createHash(passphrase))
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		panic(err.Error())
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		panic(err.Error())
+	}
+	nonceSize := gcm.NonceSize()
+	nonce, ciphertext := dataByte[:nonceSize], dataByte[nonceSize:]
+	plainByte, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		panic(err.Error())
+	}
+	plainStr := string(plainByte[:])
+	return plainStr
+}
+
+func DecryptLoginPasswords(logins []model.Login) []model.Login {
+	config := config.GetConfig()
+	for i := range logins {
+		logins[i].Password = decrypt(logins[i].Password, config.Server.Salt)
+	}
+	return logins
 }

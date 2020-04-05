@@ -34,5 +34,8 @@
 ## ENVIRONMENT FILE ##
 .env
 
-## SQLLITE DATABASE ##
+## SQLITE DATABASE ##
 *.db
+
+## CONFIG FILE ##
+config.yml

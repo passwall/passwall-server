@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"gpass/model"
+	"gpass/pkg/config"
 	"gpass/pkg/database"
 
 	"github.com/gin-gonic/gin"
@@ -23,6 +24,7 @@ type Data struct {
 
 func GetLogin(c *gin.Context) {
 	db = database.GetDB()
+	config := config.GetConfig()
 	id := c.Params.ByName("id")
 	var login model.Login
 
@@ -31,6 +33,8 @@ func GetLogin(c *gin.Context) {
 		c.AbortWithStatus(404)
 		return
 	}
+
+	login.Password = decrypt(login.Password, config.Server.Salt)
 
 	c.JSON(200, login)
 }
@@ -77,13 +81,14 @@ func GetLogins(c *gin.Context) {
 	db.Table(table).Count(&data.TotalData)
 
 	// Set Data result
-	data.Data = logins
+	data.Data = DecryptLoginPasswords(logins)
 
 	c.JSON(200, data)
 }
 
 func CreateLogin(c *gin.Context) {
 	db = database.GetDB()
+	config := config.GetConfig()
 	var login model.Login
 
 	c.BindJSON(&login)
@@ -92,17 +97,22 @@ func CreateLogin(c *gin.Context) {
 		login.Password = Password()
 	}
 
+	login.Password = encrypt(login.Password, config.Server.Salt)
+
 	if err := db.Create(&login).Error; err != nil {
 		fmt.Println(err)
 		c.AbortWithStatus(404)
 		return
 	}
 
+	login.Password = decrypt(login.Password, config.Server.Salt)
+
 	c.JSON(200, login)
 }
 
 func UpdateLogin(c *gin.Context) {
 	db = database.GetDB()
+	config := config.GetConfig()
 	var login model.Login
 	id := c.Params.ByName("id")
 
@@ -117,6 +127,7 @@ func UpdateLogin(c *gin.Context) {
 	if login.Password == "" {
 		login.Password = Password()
 	}
+	login.Password = encrypt(login.Password, config.Server.Salt)
 
 	db.Save(&login)
 	c.JSON(200, login)
