@@ -21,3 +21,6 @@ API documentation available at: https://documenter.getpostman.com/view/3658426/S
 ## Authentication
 
 This API uses **Basic Auth** to secure endpoints. So do not forget to update **config.yml** for user information and add **Basic Auth authorization** to your requests from clients like **Postman**.
+
+## Installation
+Just change **config-sample.yml** to **config.yml** and update the content of this file for your usage. Then you can run API with standart command: 'go run main.go'
