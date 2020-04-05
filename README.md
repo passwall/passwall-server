@@ -24,3 +24,17 @@ This API uses **Basic Auth** to secure endpoints. So do not forget to update **c
 
 ## Installation
 Just change **config-sample.yml** to **config.yml** and update the content of this file for your usage. Then you can run API with standard command: 'go run main.go'
+
+## Docker usage
+
+To build 
+```
+docker build -t gpass .
+```
+
+To run 
+```
+cp config-sample.yml config.yml
+
+docker run --rm -it -v $(pwd)/config.yml:/config.yml -v $(pwd)/gpass.db:/gpass.db  -p 8081:8081 gpass
+```
