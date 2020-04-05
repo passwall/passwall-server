@@ -10,4 +10,5 @@ server:
   port: "8081"
   username: "gpass"
   password: "password"
+  salt: "-G84d}~Yr)H{c=Zx)>@VqM;d~o+$}x9y~X_Ma-otq|ifhP7]?s7OJBYXao,K]-+^"
   

@@ -16,6 +16,6 @@ type Login struct {
 {
 	"URL":"https://secure.nominet.org.uk/auth/login.html",
 	"Username": "yakuter@gmail.com",
-	"Password": ""
+	config.Server.Salt: ""
 }
 */
