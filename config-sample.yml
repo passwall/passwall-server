@@ -2,12 +2,13 @@ database:
   driver: "sqlite"
   dbname: "gpass"
   username: "user"
-  password: config.Server.Salt
+  password: "password"
   host: "localhost"
   port: "5432"
 
 server:
   port: "8081"
   username: "gpass"
-  password: config.Server.Salt
+  password: "password"
+  salt: "-G84d}~Yr)H{c=Zx)>@VqM;d~o+$}x9y~X_Ma-otq|ifhP7]?s7OJBYXao,K]-+^"
   
