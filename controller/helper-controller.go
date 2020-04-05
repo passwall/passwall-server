@@ -124,7 +124,7 @@ func decrypt(dataStr string, passphrase string) string {
 func DecryptLoginPasswords(logins []model.Login) []model.Login {
 	config := config.GetConfig()
 	for i := range logins {
-		logins[i].Password = decrypt(logins[i].Password, config.Server.Salt)
+		logins[i].Password = decrypt(logins[i].Password, config.Server.Passphrase)
 	}
 	return logins
 }

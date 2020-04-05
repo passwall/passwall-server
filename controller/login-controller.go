@@ -34,7 +34,7 @@ func GetLogin(c *gin.Context) {
 		return
 	}
 
-	login.Password = decrypt(login.Password, config.Server.Salt)
+	login.Password = decrypt(login.Password, config.Server.Passphrase)
 
 	c.JSON(200, login)
 }
@@ -60,7 +60,8 @@ func GetLogins(c *gin.Context) {
 	search := c.DefaultQuery("Search", "")
 
 	table := "logins"
-	query := db.Select(table + ".*")
+	query := db.Table(table)
+	query = query.Select(table + ".*")
 	query = query.Offset(Offset(offset))
 	query = query.Limit(Limit(limit))
 	query = query.Order(SortOrder(table, sort, order))
@@ -97,7 +98,7 @@ func CreateLogin(c *gin.Context) {
 		login.Password = Password()
 	}
 
-	login.Password = encrypt(login.Password, config.Server.Salt)
+	login.Password = encrypt(login.Password, config.Server.Passphrase)
 
 	if err := db.Create(&login).Error; err != nil {
 		fmt.Println(err)
@@ -105,7 +106,7 @@ func CreateLogin(c *gin.Context) {
 		return
 	}
 
-	login.Password = decrypt(login.Password, config.Server.Salt)
+	login.Password = decrypt(login.Password, config.Server.Passphrase)
 
 	c.JSON(200, login)
 }
@@ -127,7 +128,7 @@ func UpdateLogin(c *gin.Context) {
 	if login.Password == "" {
 		login.Password = Password()
 	}
-	login.Password = encrypt(login.Password, config.Server.Salt)
+	login.Password = encrypt(login.Password, config.Server.Passphrase)
 
 	db.Save(&login)
 	c.JSON(200, login)
