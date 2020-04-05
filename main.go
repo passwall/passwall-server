@@ -1,9 +1,9 @@
 package main
 
 import (
-	"gpass/pkg/config"
-	"gpass/pkg/database"
-	"gpass/pkg/router"
+	"github.com/yakuter/gpass/pkg/config"
+	"github.com/yakuter/gpass/pkg/database"
+	"github.com/yakuter/gpass/pkg/router"
 )
 
 func init() {
@@ -15,5 +15,5 @@ func main() {
 	config := config.GetConfig()
 
 	r := router.Setup()
-	r.Run("127.0.0.1:" + config.Server.Port)
+	r.Run("0.0.0.0:" + config.Server.Port)
 }

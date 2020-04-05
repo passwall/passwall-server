@@ -1,9 +1,9 @@
 package router
 
 import (
-	"gpass/controller"
-	"gpass/pkg/config"
-	"gpass/pkg/middleware"
+	"github.com/yakuter/gpass/controller"
+	"github.com/yakuter/gpass/pkg/config"
+	"github.com/yakuter/gpass/pkg/middleware"
 
 	"github.com/gin-gonic/gin"
 )

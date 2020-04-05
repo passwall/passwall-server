@@ -2,8 +2,9 @@ package database
 
 import (
 	"fmt"
-	"gpass/model"
-	"gpass/pkg/config"
+
+	"github.com/yakuter/gpass/model"
+	"github.com/yakuter/gpass/pkg/config"
 
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/mysql"
