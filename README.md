@@ -58,3 +58,5 @@ Notes,Password,Title,Type,URL,Username,
 ,abcd123,My Empty Title,Login,https://dummyweb.com,dummywebuser,
 ```    
 User can upload csv file and add the matching fields at form.
+
+![gpass import](https://www.yakuter.com/wp-content/yuklemeler/gpass-import.png "Import Form nd Request Example")

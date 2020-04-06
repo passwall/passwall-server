@@ -35,6 +35,7 @@ func Import(c *gin.Context) {
 	url := c.DefaultPostForm("URL", "URL")
 	username := c.DefaultPostForm("Username", "Username")
 	password := c.DefaultPostForm("Password", "Password")
+	path := "./tmp/import/"
 
 	formFile, err := c.FormFile("File")
 	if err != nil {
@@ -46,7 +47,7 @@ func Import(c *gin.Context) {
 	filename := filepath.Base(formFile.Filename)
 
 	// Save file to ./tmp/import folder
-	if err := c.SaveUploadedFile(formFile, "./tmp/import/"+filename); err != nil {
+	if err := c.SaveUploadedFile(formFile, path+filename); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"Status":  "Error",
 			"Message": err.Error(),
@@ -55,7 +56,7 @@ func Import(c *gin.Context) {
 	}
 
 	// get file content
-	file, err := readFile(filename)
+	file, err := readFile(path + filename)
 	if err != nil {
 		log.Println(err)
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -78,6 +79,17 @@ func Import(c *gin.Context) {
 
 	// Read file content and add logins to db
 	err = addValues(urlIndex, usernameIndex, passwordIndex, file)
+	if err != nil {
+		log.Println(err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"Status":  "Error",
+			"Message": err.Error(),
+		})
+		return
+	}
+
+	// Delete imported file
+	err = os.Remove(path + filename)
 	if err != nil {
 		log.Println(err)
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -148,8 +160,8 @@ func addValues(urlIndex, usernameIndex, passwordIndex int, file *os.File) error 
 	return nil
 }
 
-func readFile(filename string) (*os.File, error) {
-	file, err := os.Open("./tmp/import/" + filename)
+func readFile(filepath string) (*os.File, error) {
+	file, err := os.Open(filepath)
 	if err != nil {
 		log.Fatal(err)
 	}
