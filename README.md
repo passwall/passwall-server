@@ -51,4 +51,10 @@ docker run --name gpass -d --restart=always -v $HOME/docker/volumes/gpass:/app/s
 ```
 
 ## Import
-User can upload a csv file and then import values to gpass. The important add field names which match with login fields (URL, Username, )
+There are different kinds of password managers. Almost all of them can export login information as csv file. For example, 1Password's normal export file content is below:
+```
+Notes,Password,Title,Type,URL,Username,
+,1234,My Blog Info,Login,https://dummyblog.com,dummyuser,
+,abcd123,My Empty Title,Login,https://dummyweb.com,dummywebuser,
+```    
+User can upload csv file and add the matching fields at form.
