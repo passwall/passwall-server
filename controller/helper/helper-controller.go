@@ -48,7 +48,6 @@ func Search(search string) func(db *gorm.DB) *gorm.DB {
 		if search != "" {
 			db = db.Where("url LIKE ?", "%"+search+"%")
 			db = db.Or("username LIKE ?", "%"+search+"%")
-			db = db.Or("password LIKE ?", "%"+search+"%")
 		}
 		return db
 	}
