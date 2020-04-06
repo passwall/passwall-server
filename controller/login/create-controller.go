@@ -1,6 +1,7 @@
 package login
 
 import (
+	"encoding/base64"
 	"fmt"
 
 	"github.com/yakuter/gpass/controller/helper"
@@ -22,7 +23,7 @@ func CreateLogin(c *gin.Context) {
 		login.Password = helper.Password()
 	}
 	rawPass = login.Password
-	login.Password = helper.Encrypt(login.Password, config.Server.Passphrase)
+	login.Password = base64.StdEncoding.EncodeToString(helper.Encrypt(login.Password, config.Server.Passphrase))
 
 	if err := db.Create(&login).Error; err != nil {
 		fmt.Println(err)
