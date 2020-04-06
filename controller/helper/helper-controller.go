@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/md5"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"io"
 	mathrand "math/rand"
@@ -48,7 +49,6 @@ func Search(search string) func(db *gorm.DB) *gorm.DB {
 		if search != "" {
 			db = db.Where("url LIKE ?", "%"+search+"%")
 			db = db.Or("username LIKE ?", "%"+search+"%")
-			db = db.Or("password LIKE ?", "%"+search+"%")
 		}
 		return db
 	}
@@ -85,7 +85,7 @@ func CreateHash(key string) string {
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
-func Encrypt(dataStr string, passphrase string) string {
+func Encrypt(dataStr string, passphrase string) []byte {
 	dataByte := []byte(dataStr)
 	block, _ := aes.NewCipher([]byte(CreateHash(passphrase)))
 	gcm, err := cipher.NewGCM(block)
@@ -97,8 +97,7 @@ func Encrypt(dataStr string, passphrase string) string {
 		panic(err.Error())
 	}
 	cipherByte := gcm.Seal(nonce, nonce, dataByte, nil)
-	cipherStr := string(cipherByte[:])
-	return cipherStr
+	return cipherByte
 }
 
 func Decrypt(dataStr string, passphrase string) string {
@@ -118,14 +117,15 @@ func Decrypt(dataStr string, passphrase string) string {
 	if err != nil {
 		panic(err.Error())
 	}
-	plainStr := string(plainByte[:])
-	return plainStr
+	return string(plainByte[:])
 }
 
 func DecryptLoginPasswords(logins []model.Login) []model.Login {
 	config := config.GetConfig()
 	for i := range logins {
-		logins[i].Password = Decrypt(logins[i].Password, config.Server.Passphrase)
+		passByte, _ := base64.StdEncoding.DecodeString(logins[i].Password)
+		passB64 := Decrypt(string(passByte[:]), config.Server.Passphrase)
+		logins[i].Password = passB64
 	}
 	return logins
 }

@@ -1,6 +1,7 @@
 package login
 
 import (
+	"encoding/base64"
 	"log"
 
 	"github.com/yakuter/gpass/controller/helper"
@@ -23,7 +24,9 @@ func Export(c *gin.Context) {
 		return
 	}
 
-	login.Password = helper.Decrypt(login.Password, config.Server.Passphrase)
+	passByte, _ := base64.StdEncoding.DecodeString(login.Password)
+	passB64 := helper.Decrypt(string(passByte[:]), config.Server.Passphrase)
+	login.Password = passB64
 
 	c.JSON(200, login)
 }

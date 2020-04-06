@@ -2,6 +2,7 @@ package login
 
 import (
 	"bufio"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log"
@@ -147,7 +148,7 @@ func addValues(urlIndex, usernameIndex, passwordIndex int, file *os.File) error 
 		login := model.Login{
 			URL:      dizi[urlIndex],
 			Username: dizi[usernameIndex],
-			Password: helper.Encrypt(dizi[passwordIndex], config.Server.Passphrase),
+			Password: base64.StdEncoding.EncodeToString(helper.Encrypt(dizi[passwordIndex], config.Server.Passphrase)),
 		}
 		db.Create(&login)
 	}
