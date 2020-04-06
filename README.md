@@ -16,7 +16,11 @@ An admin can;
 - Update login
 - Delete login
 
-API documentation available at: https://documenter.getpostman.com/view/3658426/SzYbyHXj
+
+## API Documentation
+API documentation available at:   
+[Click to see at Public Postman Templates](https://documenter.getpostman.com/view/3658426/SzYbyHXj)  
+[Clidk to download Postman JSON file](https://www.yakuter.com/wp-content/yuklemeler/gpass_postman_collection.json_.zip)
 
 ## Authentication
 
