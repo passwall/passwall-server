@@ -40,3 +40,5 @@ config.yml
 
 ## CONFIG FILE ##
 /store/config.yml
+
+/tmp/import/*
