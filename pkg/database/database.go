@@ -13,9 +13,8 @@ import (
 )
 
 var (
-	DB    *gorm.DB
-	err   error
-	DBErr error
+	DB  *gorm.DB
+	err error
 )
 
 type Database struct {
@@ -39,7 +38,6 @@ func Setup() {
 		db, err = gorm.Open("sqlite3", "./store/"+database+".db")
 
 		if err != nil {
-			DBErr = err
 			log.Fatalf("db err: ", err)
 		}
 
@@ -47,7 +45,6 @@ func Setup() {
 
 		db, err = gorm.Open("postgres", "host="+host+" port="+port+" user="+username+" dbname="+database+"  sslmode=disable password="+password)
 		if err != nil {
-			DBErr = err
 			log.Fatalf("db err: ", err)
 		}
 
@@ -55,7 +52,6 @@ func Setup() {
 
 		db, err = gorm.Open("mysql", username+":"+password+"@tcp("+host+":"+port+")/"+database+"?charset=utf8&parseTime=True&loc=Local")
 		if err != nil {
-			DBErr = err
 			log.Fatalf("db err: ", err)
 		}
 
@@ -73,9 +69,4 @@ func Setup() {
 // GetDB helps you to get a connection
 func GetDB() *gorm.DB {
 	return DB
-}
-
-// GetDBErr helps you check database connection health
-func GetDBErr() error {
-	return DBErr
 }
