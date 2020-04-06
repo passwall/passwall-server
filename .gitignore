@@ -6,6 +6,7 @@
 *.so
 *.dylib
 config.yml
+config-sample.yml
 # Test binary, built with `go test -c`
 *.test
 
@@ -40,3 +41,8 @@ config.yml
 
 ## CONFIG FILE ##
 /store/config.yml
+
+
+## FRONTEND ##
+node_modules
+.next
