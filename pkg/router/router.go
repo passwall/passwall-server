@@ -1,7 +1,7 @@
 package router
 
 import (
-	"github.com/yakuter/gpass/controller"
+	"github.com/yakuter/gpass/controller/login"
 	"github.com/yakuter/gpass/pkg/config"
 	"github.com/yakuter/gpass/pkg/middleware"
 
@@ -26,11 +26,11 @@ func Setup() *gin.Engine {
 	authorized := r.Group("/", gin.BasicAuth(usersMap))
 	logins := authorized.Group("/logins")
 	{
-		logins.GET("/", controller.GetLogins)
-		logins.GET("/:id", controller.GetLogin)
-		logins.POST("/", controller.CreateLogin)
-		logins.PUT("/:id", controller.UpdateLogin)
-		logins.DELETE("/:id", controller.DeleteLogin)
+		logins.GET("/", login.GetLogins)
+		logins.GET("/:id", login.GetLogin)
+		logins.POST("/", login.CreateLogin)
+		logins.PUT("/:id", login.UpdateLogin)
+		logins.DELETE("/:id", login.DeleteLogin)
 	}
 
 	return r

@@ -1,4 +1,4 @@
-package controller
+package helper
 
 import (
 	"crypto/aes"
@@ -79,15 +79,15 @@ func Password() string {
 	return b.String()
 }
 
-func createHash(key string) string {
+func CreateHash(key string) string {
 	hasher := md5.New()
 	hasher.Write([]byte(key))
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
-func encrypt(dataStr string, passphrase string) string {
+func Encrypt(dataStr string, passphrase string) string {
 	dataByte := []byte(dataStr)
-	block, _ := aes.NewCipher([]byte(createHash(passphrase)))
+	block, _ := aes.NewCipher([]byte(CreateHash(passphrase)))
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		panic(err.Error())
@@ -101,9 +101,9 @@ func encrypt(dataStr string, passphrase string) string {
 	return cipherStr
 }
 
-func decrypt(dataStr string, passphrase string) string {
+func Decrypt(dataStr string, passphrase string) string {
 	dataByte := []byte(dataStr)
-	key := []byte(createHash(passphrase))
+	key := []byte(CreateHash(passphrase))
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		panic(err.Error())
@@ -125,7 +125,7 @@ func decrypt(dataStr string, passphrase string) string {
 func DecryptLoginPasswords(logins []model.Login) []model.Login {
 	config := config.GetConfig()
 	for i := range logins {
-		logins[i].Password = decrypt(logins[i].Password, config.Server.Passphrase)
+		logins[i].Password = Decrypt(logins[i].Password, config.Server.Passphrase)
 	}
 	return logins
 }

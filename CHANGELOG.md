@@ -1,5 +1,10 @@
 # GPASS CHANGELOG
 
+## Version: [1.0.2] (2020-04-07)
+### Changed
+- Folder structure of controller
+
+
 ## Version: [1.0.1] (2020-04-06)
 ### Added
 - Two way strong encryption to stored passwords
