@@ -44,7 +44,7 @@ services:
     ports:
       - 3625:3625
     volumes:
-      - ./store/config.yml:/app/store/config.yml
+      - ./store:/app/store
 
 # Uncomment volumes section if you want to store persist data
 # volumes:
