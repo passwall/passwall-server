@@ -3,12 +3,27 @@ database:
   dbname: "gpass"
   username: "user"
   password: "password"
-  host: "localhost"
-  port: "5432"
+
+# Uncomment for mysql
+# database:
+#   driver: "mysql"
+#   dbname: "gpass"
+#   username: "user"
+#   password: "password"
+#   host: "localhost" # or compose service name
+#   port: "3306"
+
+# Uncomment for postgres
+# database:
+#   driver: "postgres"
+#   dbname: "gpass"
+#   username: "user"
+#   password: "password"
+#   host: "localhost" # or compose service name
+#   port: "5432"
 
 server:
   port: "3625"
   username: "gpass"
   password: "password"
   passphrase: "-G84d}~Yr)H{c=Zx)>@VqM;d~o+$}x9y~X_Ma-otq|ifhP7]?s7OJBYXao,K]-+^"
-  
