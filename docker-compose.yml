@@ -15,7 +15,7 @@ services:
   #     - 3306:3306
   #   # Uncomment volumes section if you want to store persist data
   #   # volumes:
-  #   #   - gpass-db:/var/lib/mysql
+  #   #   - gpass-mysql-db:/var/lib/mysql
 
   # Uncomment postgres service if you want to use postgres as database
   # postgres:
@@ -26,7 +26,7 @@ services:
   #     - POSTGRES_USER=user
   #     - POSTGRES_PASSWORD=password
   #   ports:
-  #     - 3306:3306
+  #     - 5432:5432
   #   # Uncomment volumes section if you want to store persist data
   #   # volumes:
   #   #   - gpass-postgres-db:/var/lib/postgresql/data
