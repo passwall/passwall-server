@@ -29,6 +29,7 @@ func Setup() *gin.Engine {
 		logins.GET("/", login.GetLogins)
 		logins.GET("/:id", login.GetLogin)
 		logins.POST("/", login.CreateLogin)
+		logins.POST("/:action", login.PostHandler)
 		logins.PUT("/:id", login.UpdateLogin)
 		logins.DELETE("/:id", login.DeleteLogin)
 	}

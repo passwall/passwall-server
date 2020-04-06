@@ -49,3 +49,6 @@ mkdir $HOME/docker/volumes/gpass
 cp ./store/config-sample.yml $HOME/docker/volumes/gpass/config.yml
 docker run --name gpass -d --restart=always -v $HOME/docker/volumes/gpass:/app/store -p 3625:3625 gpass
 ```
+
+## Import
+User can upload a csv file and then import values to gpass. The important add field names which match with login fields (URL, Username, )
