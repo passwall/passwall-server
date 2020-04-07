@@ -1,32 +1,42 @@
 package login
 
 import (
-	"encoding/base64"
+	"fmt"
 	"log"
+	"net/http"
+	"os"
 
-	"github.com/yakuter/gpass/controller/helper"
 	"github.com/yakuter/gpass/model"
-	"github.com/yakuter/gpass/pkg/config"
 	"github.com/yakuter/gpass/pkg/database"
 
 	"github.com/gin-gonic/gin"
 )
 
 func Export(c *gin.Context) {
-	db = database.GetDB()
-	config := config.GetConfig()
-	id := c.Params.ByName("id")
-	var login model.Login
+	db := database.GetDB()
 
-	if err := db.Where("id = ? ", id).First(&login).Error; err != nil {
+	var logins []model.Login
+
+	db.Find(&logins)
+
+	file, err := os.Create("store/export_temp.csv")
+	if err != nil {
 		log.Println(err)
-		c.AbortWithStatus(404)
-		return
 	}
 
-	passByte, _ := base64.StdEncoding.DecodeString(login.Password)
-	passB64 := helper.Decrypt(string(passByte[:]), config.Server.Passphrase)
-	login.Password = passB64
+	file.WriteString("URL,Username,Password\n")
 
-	c.JSON(200, login)
+	for _, login := range logins {
+		_, err := file.WriteString(fmt.Sprintf("%s,%s,%s\n", login.URL, login.Username, login.Password))
+
+		if err != nil {
+			log.Println(err)
+		}
+
+	}
+
+	c.File("store/export_temp.csv")
+	c.Status(http.StatusOK)
+
+	file.Close()
 }
