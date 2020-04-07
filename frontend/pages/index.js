@@ -1,4 +1,5 @@
 import useSWR from "swr"
+import { Button } from "antd"
 
 import fetch from "../libs/fetch"
 
@@ -7,9 +8,9 @@ function HomePage() {
 
   return data ? (
     <div>
-      <button type='button' onClick={() => revalidate()}>
+      <Button type='primary' onClick={() => revalidate()}>
         Refresh
-      </button>
+      </Button>
 
       <span>{data.TotalData}</span>
     </div>
