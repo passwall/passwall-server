@@ -26,6 +26,10 @@ func Offset(offset string) int {
 	if err != nil {
 		offsetInt = 0
 	}
+	// don't allow negative values
+	if offsetInt < 0 {
+		offsetInt = 0
+	}
 	return offsetInt
 }
 
