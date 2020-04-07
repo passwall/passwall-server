@@ -122,15 +122,17 @@ func addValues(url, username, password string, file *os.File) error {
 			continue
 		}
 
-		// Fill login struct with csv file content
-		login := model.Login{
-			URL:      fields[urlIndex],
-			Username: fields[usernameIndex],
-			Password: base64.StdEncoding.EncodeToString(helper.Encrypt(fields[passwordIndex], config.Server.Passphrase)),
-		}
+		if isRecordNotFound(fields[urlIndex], fields[usernameIndex], fields[usernameIndex]) {
+			// Fill login struct with csv file content
+			login := model.Login{
+				URL:      fields[urlIndex],
+				Username: fields[usernameIndex],
+				Password: base64.StdEncoding.EncodeToString(helper.Encrypt(fields[passwordIndex], config.Server.Passphrase)),
+			}
 
-		// Add to database
-		db.Create(&login)
+			// Add to database
+			db.Create(&login)
+		}
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -156,6 +158,19 @@ func findIndex(vs []string, t string) int {
 		}
 	}
 	return -1
+}
+
+func isRecordNotFound(url string, username string, password string) bool {
+	logins := []model.Login{}
+	if !db.Where("url = ? AND username = ?", url, username).Find(&logins).RecordNotFound() {
+		logins = helper.DecryptLoginPasswords(logins)
+		for _, eachLogin := range logins {
+			if eachLogin.Password == password {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 /* func matchIndex(url, username, password string, file *os.File) (int, int, int, error) {
