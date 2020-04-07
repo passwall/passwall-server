@@ -19,11 +19,6 @@ import (
 func TestGetMethod(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	// Setting variables
-	var data login.Data
-	var loginModel model.Login
-	var resultModel model.Result
-
 	// Set this value for an existing login ID
 	var ID int = 3
 	IDStr := strconv.Itoa(ID)
@@ -31,6 +26,11 @@ func TestGetMethod(t *testing.T) {
 	// Set this value for a non existing login ID
 	var nonID int = 999
 	nonIDStr := strconv.Itoa(nonID)
+
+	// Setting variables
+	var data login.Data
+	var loginModel model.Login
+	var resultModel model.Result
 
 	// Creating test table
 	var table = []struct {
