@@ -164,7 +164,7 @@ func addValues(urlIndex, usernameIndex, passwordIndex int, file *os.File) error 
 func readFile(filepath string) (*os.File, error) {
 	file, err := os.Open(filepath)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	return file, err
 }
