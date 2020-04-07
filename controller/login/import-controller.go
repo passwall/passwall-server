@@ -25,7 +25,7 @@ func PostHandler(c *gin.Context) {
 	case "import":
 		Import(c)
 	case "export":
-		Import(c)
+		Export(c)
 	default:
 		err = errors.New("Route not found")
 		c.AbortWithError(404, err)

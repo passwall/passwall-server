@@ -23,6 +23,7 @@ func Setup() *gin.Engine {
 	usersMap := map[string]string{
 		config.Server.Username: config.Server.Password,
 	}
+
 	authorized := r.Group("/", gin.BasicAuth(usersMap))
 	logins := authorized.Group("/logins")
 	{
