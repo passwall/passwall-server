@@ -4,7 +4,8 @@
 ### Added
 - Export logins feature
 - Get Method test for API GET endpoints
-- Check for Limit (5) and Offset (0)
+- Checking for Limit (5) and Offset (0)
+- Checking at if record exist on import
 
 ## Version: [1.0.3] (2020-04-07)
 ### Added

@@ -54,10 +54,19 @@ func SortOrder(table, sort, order string) string {
 
 // Search adds where to search keywords
 func Search(search string) func(db *gorm.DB) *gorm.DB {
+	config := config.GetConfig()
 	return func(db *gorm.DB) *gorm.DB {
 		if search != "" {
-			db = db.Where("url LIKE ?", "%"+search+"%")
-			db = db.Or("username LIKE ?", "%"+search+"%")
+
+			// Case insensitive is different in postgres and others (mysql,sqlite)
+			if config.Database.Driver == "postgres" {
+				db = db.Where("url ILIKE ?", "%"+search+"%")
+				db = db.Or("username ILIKE ?", "%"+search+"%")
+			} else {
+				db = db.Where("url LIKE ?", "%"+search+"%")
+				db = db.Or("username LIKE ?", "%"+search+"%")
+			}
+
 		}
 		return db
 	}
