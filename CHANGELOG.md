@@ -1,5 +1,10 @@
 # GPASS CHANGELOG
 
+## Version: [-.-.-] (0-0-0)
+### Added
+- Get Method test for API GET endpoints
+- Check for Limit (5) and Offset (0)
+
 ## Version: [1.0.3] (2020-04-07)
 ### Added
 - Import logins feature

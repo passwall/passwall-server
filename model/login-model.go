@@ -11,6 +11,11 @@ type Login struct {
 	Password string
 }
 
+type Result struct {
+	Status  string
+	Message string
+}
+
 // You can send this data to API /posts/ endpoint with POST method to create dummy content
 /*
 {
