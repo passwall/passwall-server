@@ -122,7 +122,7 @@ func addValues(url, username, password string, file *os.File) error {
 			continue
 		}
 
-		if isRecordNotFound(fields[urlIndex], fields[usernameIndex], fields[usernameIndex]) {
+		if isRecordNotFound(fields[urlIndex], fields[usernameIndex], fields[passwordIndex]) {
 			// Fill login struct with csv file content
 			login := model.Login{
 				URL:      fields[urlIndex],
@@ -172,29 +172,3 @@ func isRecordNotFound(url string, username string, password string) bool {
 	}
 	return true
 }
-
-/* func matchIndex(url, username, password string, file *os.File) (int, int, int, error) {
-	var urlIndex, usernameIndex, passwordIndex int
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		fields := strings.Split(scanner.Text(), ",")
-		urlIndex = findIndex(fields, url)
-		usernameIndex = findIndex(fields, username)
-		passwordIndex = findIndex(fields, password)
-
-		if urlIndex == -1 || usernameIndex == -1 || passwordIndex == -1 {
-			errorText := fmt.Sprintf("%s, %s or %s field couldn't found in %s file", url, username, password, filepath.Base(file.Name()))
-			err := errors.New(errorText)
-			return -1, -1, -1, err
-		}
-		break
-	}
-
-	if err := scanner.Err(); err != nil {
-		log.Println(err)
-		return -1, -1, -1, err
-	}
-
-	return urlIndex, usernameIndex, passwordIndex, nil
-}
-*/

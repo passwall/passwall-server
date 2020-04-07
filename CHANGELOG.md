@@ -2,6 +2,7 @@
 
 ## Version: [-.-.-] (0-0-0)
 ### Added
+- Export logins feature
 - Get Method test for API GET endpoints
 - Check for Limit (5) and Offset (0)
 
