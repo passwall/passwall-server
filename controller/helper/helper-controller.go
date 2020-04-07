@@ -39,6 +39,11 @@ func Limit(limit string) int {
 	if err != nil {
 		limitInt = 25
 	}
+
+	// min limit should be 5
+	if limitInt < 5 {
+		limitInt = 5
+	}
 	return limitInt
 }
 
