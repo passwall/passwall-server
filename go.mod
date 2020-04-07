@@ -1,4 +1,4 @@
-module github.com/batuberksahin/gpass
+module github.com/yakuter/gpass
 
 go 1.14
 
