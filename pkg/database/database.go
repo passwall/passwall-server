@@ -38,27 +38,27 @@ func Setup() {
 		db, err = gorm.Open("sqlite3", "./store/"+database+".db")
 
 		if err != nil {
-			log.Fatalf("db err: ", err)
+			log.Fatal("db err: ", err)
 		}
 
 	} else if driver == "postgres" {
 
 		db, err = gorm.Open("postgres", "host="+host+" port="+port+" user="+username+" dbname="+database+"  sslmode=disable password="+password)
 		if err != nil {
-			log.Fatalf("db err: ", err)
+			log.Fatal("db err: ", err)
 		}
 
 	} else if driver == "mysql" {
 
 		db, err = gorm.Open("mysql", username+":"+password+"@tcp("+host+":"+port+")/"+database+"?charset=utf8&parseTime=True&loc=Local")
 		if err != nil {
-			log.Fatalf("db err: ", err)
+			log.Fatal("db err: ", err)
 		}
 
 	}
 
 	// Change this to true if you want to see SQL queries
-	db.LogMode(false)
+	db.LogMode(true)
 
 	// Auto migrate project models
 	// db.DropTableIfExists(&model.Login{})

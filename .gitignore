@@ -40,7 +40,8 @@ config.yml
 
 ## CONFIG FILE ##
 /store/config.yml
-
+/store/export_temp.csv
+/tmp/import/*
 
 ## FRONTEND ##
 node_modules

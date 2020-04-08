@@ -1,5 +1,20 @@
 # GPASS CHANGELOG
 
+## Version: [-.-.-] (0-0-0)
+### Added
+- Export logins feature
+- Get Method test for API GET endpoints
+- Checking for Limit (5) and Offset (0)
+- Checking at if record exist on import
+
+## Version: [1.0.3] (2020-04-07)
+### Added
+- Import logins feature
+- docker-compose.yml
+### Fixed
+- login.Password database recording bug for postgresql and mysql
+- Upload imported file bug
+
 ## Version: [1.0.2] (2020-04-07)
 ### Changed
 - Folder structure of controller

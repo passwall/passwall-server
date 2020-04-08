@@ -1,29 +1,46 @@
 package login
 
 import (
+	"fmt"
 	"log"
+	"net/http"
+	"os"
 
 	"github.com/yakuter/gpass/controller/helper"
 	"github.com/yakuter/gpass/model"
-	"github.com/yakuter/gpass/pkg/config"
 	"github.com/yakuter/gpass/pkg/database"
 
 	"github.com/gin-gonic/gin"
 )
 
+// Export exports all logins as CSV file
 func Export(c *gin.Context) {
-	db = database.GetDB()
-	config := config.GetConfig()
-	id := c.Params.ByName("id")
-	var login model.Login
+	db := database.GetDB()
 
-	if err := db.Where("id = ? ", id).First(&login).Error; err != nil {
+	var logins []model.Login
+	filepath := "/tmp/gpass_export.csv"
+
+	db.Find(&logins)
+	logins = helper.DecryptLoginPasswords(logins)
+
+	file, err := os.Create(filepath)
+	if err != nil {
 		log.Println(err)
-		c.AbortWithStatus(404)
-		return
 	}
 
-	login.Password = helper.Decrypt(login.Password, config.Server.Passphrase)
+	file.WriteString("URL,Username,Password\n")
 
-	c.JSON(200, login)
+	for _, login := range logins {
+		_, err := file.WriteString(fmt.Sprintf("%s,%s,%s\n", login.URL, login.Username, login.Password))
+
+		if err != nil {
+			log.Println(err)
+		}
+
+	}
+
+	c.File(filepath)
+	c.Status(http.StatusOK)
+
+	file.Close()
 }

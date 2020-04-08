@@ -1,0 +1,51 @@
+version: '3.7'
+
+services:
+
+  # Uncomment mysql service if you want to use mysql as database
+  # mysql:
+  #   image: mysql:5.7
+  #   restart: on-failure
+  #   environment:
+  #     - MYSQL_DATABASE=gpass
+  #     - MYSQL_USER=user
+  #     - MYSQL_PASSWORD=password
+  #     - MYSQL_ROOT_PASSWORD=password
+  #   ports:
+  #     - 3306:3306
+  #   # Uncomment volumes section if you want to store persist data
+  #   # volumes:
+  #   #   - gpass-mysql-db:/var/lib/mysql
+
+  # Uncomment postgres service if you want to use postgres as database
+  # postgres:
+  #   image: postgres:alpine
+  #   restart: on-failure
+  #   environment:
+  #     - POSTGRES_DB=gpass
+  #     - POSTGRES_USER=user
+  #     - POSTGRES_PASSWORD=password
+  #   ports:
+  #     - 5432:5432
+  #   # Uncomment volumes section if you want to store persist data
+  #   # volumes:
+  #   #   - gpass-postgres-db:/var/lib/postgresql/data
+
+  gpass:
+    container_name: gpass
+    image: gpass:latest
+    restart: always
+    build:
+      context: .
+    # Uncomment a database service which one of you're using
+    # depends_on:
+      # - mysql
+      # - postgres
+    ports:
+      - 3625:3625
+    volumes:
+      - ./store:/app/store
+
+# Uncomment volumes section if you want to store persist data
+# volumes:
+#   gpass-db:
