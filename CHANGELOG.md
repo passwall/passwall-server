@@ -10,7 +10,7 @@
 - POST generate-password endpoint
 - Frontend written with React Native and Nextjs
 ### Fixed
-- Total and filtered count number, excluded soft deleted items
+- Excluded soft deleted items from total and filtered count number
 
 ## Version: [1.0.3] (2020-04-07)
 ### Added
