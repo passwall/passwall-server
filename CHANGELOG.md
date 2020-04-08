@@ -8,6 +8,9 @@
 - Checking at if record exist on import
 - Case insensitive search posgres
 - POST generate-password endpoint
+- Frontend written with React Native and Nextjs
+### Fixed
+- Total and filtered count number, excluded soft deleted items
 
 ## Version: [1.0.3] (2020-04-07)
 ### Added

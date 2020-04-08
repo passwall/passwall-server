@@ -54,10 +54,10 @@ func GetLogins(c *gin.Context) {
 	// We are resetting offset to 0 to return total number.
 	// This is a fix for Gorm offset issue
 	query = query.Offset(0)
-	query.Table(table).Count(&data.FilteredData)
+	query.Table(table).Where("deleted_at is NULL").Count(&data.FilteredData)
 
 	// Count total table
-	db.Table(table).Count(&data.TotalData)
+	db.Table(table).Where("deleted_at is NULL").Count(&data.TotalData)
 
 	// Set Data result
 	data.Data = helper.DecryptLoginPasswords(logins)
