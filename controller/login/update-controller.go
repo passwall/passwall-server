@@ -1,6 +1,7 @@
 package login
 
 import (
+	"encoding/base64"
 	"log"
 
 	"github.com/yakuter/gpass/controller/helper"
@@ -28,7 +29,7 @@ func UpdateLogin(c *gin.Context) {
 	if login.Password == "" {
 		login.Password = helper.Password()
 	}
-	login.Password = helper.Encrypt(login.Password, config.Server.Passphrase)
+	login.Password = base64.StdEncoding.EncodeToString(helper.Encrypt(login.Password, config.Server.Passphrase))
 
 	db.Save(&login)
 	c.JSON(200, login)

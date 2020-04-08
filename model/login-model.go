@@ -11,11 +11,16 @@ type Login struct {
 	Password string
 }
 
+type Result struct {
+	Status  string
+	Message string
+}
+
 // You can send this data to API /posts/ endpoint with POST method to create dummy content
 /*
 {
-	"URL":"https://secure.nominet.org.uk/auth/login.html",
-	"Username": "yakuter@gmail.com",
-	config.Server.Salt: ""
+	"URL":"http://dummywebsite.com",
+	"Username": "dummyuser",
+	"Password": "dummypassword"
 }
 */
