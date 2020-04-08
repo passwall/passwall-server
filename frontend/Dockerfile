@@ -1,17 +1,26 @@
-FROM node:12-alpine
+# Install npm packages
+FROM node:12-alpine as builder
 
-# Setting working directory. All the path will be relative to WORKDIR
 WORKDIR /app
 
-# Installing dependencies
-COPY package*.json ./
-RUN npm install
+COPY package.json .
 
-# Copying source files
-COPY . .
+RUN yarn install --prod
 
-# Building app
-RUN npm run build
 
-# Running the app
-CMD [ "npm", "start" ]
+# Push js files
+FROM node:12-alpine
+
+WORKDIR /app
+
+COPY --from=builder /app/ /app/
+
+COPY ./pages ./pages
+
+COPY ./components ./components
+
+COPY ./libs ./libs
+
+RUN yarn build
+
+CMD yarn start

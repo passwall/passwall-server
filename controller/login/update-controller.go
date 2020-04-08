@@ -2,6 +2,7 @@ package login
 
 import (
 	"encoding/base64"
+	"fmt"
 	"log"
 
 	"github.com/yakuter/gpass/controller/helper"
@@ -17,7 +18,7 @@ func UpdateLogin(c *gin.Context) {
 	config := config.GetConfig()
 	var login model.Login
 	id := c.Params.ByName("id")
-
+	var rawPass string
 	if err := db.Where("id = ?", id).First(&login).Error; err != nil {
 		log.Println(err)
 		c.AbortWithStatus(404)
@@ -29,8 +30,17 @@ func UpdateLogin(c *gin.Context) {
 	if login.Password == "" {
 		login.Password = helper.Password()
 	}
+	rawPass = login.Password
+
 	login.Password = base64.StdEncoding.EncodeToString(helper.Encrypt(login.Password, config.Server.Passphrase))
 
-	db.Save(&login)
+	if err := db.Save(&login).Error; err != nil {
+		fmt.Println(err)
+		c.AbortWithStatus(404)
+		return
+	}
+
+	login.Password = rawPass
+
 	c.JSON(200, login)
 }
