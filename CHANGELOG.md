@@ -6,6 +6,8 @@
 - Get Method test for API GET endpoints
 - Checking for Limit (5) and Offset (0)
 - Checking at if record exist on import
+- Case insensitive search posgres
+- POST generate-password endpoint
 
 ## Version: [1.0.3] (2020-04-07)
 ### Added

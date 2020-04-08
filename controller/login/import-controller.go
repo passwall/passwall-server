@@ -18,20 +18,6 @@ import (
 	"github.com/yakuter/gpass/pkg/database"
 )
 
-func PostHandler(c *gin.Context) {
-	action := c.Param("action")
-
-	switch action {
-	case "import":
-		Import(c)
-	case "export":
-		Export(c)
-	default:
-		err = errors.New("Route not found")
-		c.AbortWithError(404, err)
-	}
-}
-
 func Import(c *gin.Context) {
 	url := c.DefaultPostForm("URL", "URL")
 	username := c.DefaultPostForm("Username", "Username")
