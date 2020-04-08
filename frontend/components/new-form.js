@@ -1,30 +1,69 @@
-import { Modal, Form, Input, Button, Radio } from "antd"
+import * as React from "react"
+import { Modal } from "antd"
+import { Form, FormItem, Input, SubmitButton } from "formik-antd"
+import { Formik } from "formik"
 import { GlobalOutlined, UserOutlined, LockOutlined } from "@ant-design/icons"
 
 function NewForm({ visible, onNewOk, onNewCancel }) {
+  const formRef = React.useRef()
+
+  const handleSubmit = () => {
+    if (formRef.current) {
+      console.log("submit form")
+      //formRef.current.handleSubmit()
+    }
+  }
+
   return (
     <Modal
       title="Basic Modal"
       visible={visible}
-      onOk={onNewOk}
+      onOk={handleSubmit}
       onCancel={onNewCancel}
     >
-      <Form layout="vertical">
-        <Form.Item label="URL">
-          <Input
-            prefix={<GlobalOutlined />}
-            placeholder="https://example.com"
-          />
-        </Form.Item>
+      <Formik
+        innerRef={formRef}
+        initialValues={{ URL: "", Username: "", Password: "" }}
+        onSubmit={(values, actions) => {
+          message.info(JSON.stringify(values, null, 4))
+          actions.setSubmitting(false)
+          actions.resetForm()
+        }}
+        validate={(values) => {
+          if (!values.lastName) {
+            return { lastName: "required" }
+          }
+          return {}
+        }}
+      >
+        {() => (
+          <Form>
+            <FormItem label="URL" name="URL" required={true}>
+              <Input
+                name="URL"
+                prefix={<GlobalOutlined />}
+                placeholder="https://example.com"
+              />
+            </FormItem>
 
-        <Form.Item label="Username">
-          <Input prefix={<UserOutlined />} placeholder="Username or email" />
-        </Form.Item>
+            <FormItem label="Username" name="Username" required={true}>
+              <Input
+                name="Username"
+                prefix={<UserOutlined />}
+                placeholder="Username or email"
+              />
+            </FormItem>
 
-        <Form.Item label="Password">
-          <Input prefix={<LockOutlined />} placeholder="input placeholder" />
-        </Form.Item>
-      </Form>
+            <FormItem label="Password" name="Password" required={true}>
+              <Input.Password
+                name="Password"
+                prefix={<LockOutlined />}
+                placeholder="input placeholder"
+              />
+            </FormItem>
+          </Form>
+        )}
+      </Formik>
     </Modal>
   )
 }
