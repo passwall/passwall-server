@@ -18,8 +18,10 @@ function NewForm({ visible, onNewOk, onNewCancel }) {
     <Modal
       title="Basic Modal"
       visible={visible}
-      onOk={handleSubmit}
+      closable={false}
+      maskClosable={false}
       onCancel={onNewCancel}
+      onOk={handleSubmit}
     >
       <Formik
         innerRef={formRef}
