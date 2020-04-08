@@ -1,31 +1,39 @@
 import * as React from "react"
-import { Table } from "antd"
+import { Table, Typography } from "antd"
+
+const { Paragraph } = Typography
 
 const columns = [
   {
-    title: "URL",
-    key: "URL",
-    render: (text) => <a>{text}</a>,
+    title: "Url",
+    dataIndex: "URL",
+    ellipsis: true
   },
   {
     title: "Username",
-    key: "Username",
+    dataIndex: "Username"
   },
   {
     title: "Password",
-    key: "Password",
-  },
+    dataIndex: "Password",
+    render: (text) => (
+      <Paragraph style={{ marginBottom: 0 }} copyable>
+        {text}
+      </Paragraph>
+    )
+  }
 ]
 
-function Table({ loading, data }) {
+function PassTable({ loading, data }) {
   return (
     <Table
-      size="middle"
+      size="small"
       loading={loading}
       columns={columns}
+      rowKey="ID"
       dataSource={data}
     />
   )
 }
 
-export default Table
+export default PassTable

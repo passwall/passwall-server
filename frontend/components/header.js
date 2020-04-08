@@ -4,7 +4,7 @@ import { ReloadOutlined, PlusOutlined } from "@ant-design/icons"
 
 const { Title } = Typography
 
-function Header({ loading, onNewPass = () => {}, revalidate = () => {} }) {
+function Header({ loading, onModalOpen = () => {}, onDataRefresh = () => {} }) {
   return (
     <header className="header">
       <Space>
@@ -16,7 +16,7 @@ function Header({ loading, onNewPass = () => {}, revalidate = () => {} }) {
           shape="circle"
           loading={loading}
           icon={<ReloadOutlined />}
-          onClick={() => revalidate()}
+          onClick={() => onDataRefresh()}
         />
       </Space>
 
@@ -24,7 +24,7 @@ function Header({ loading, onNewPass = () => {}, revalidate = () => {} }) {
         shape="round"
         type="primary"
         icon={<PlusOutlined />}
-        onClick={onNewPass}
+        onClick={onModalOpen}
       >
         New Pass
       </Button>
