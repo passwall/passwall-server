@@ -46,6 +46,15 @@ services:
     volumes:
       - ./store:/app/store
 
+  gpass-frontend:
+    container_name: gpass-frontend
+    image: gpass-frontend:latest
+    restart: always
+    build:
+      context: frontend
+    ports:
+      - 3000:3000
+
 # Uncomment volumes section if you want to store persist data
 # volumes:
 #   gpass-db:
