@@ -37,7 +37,7 @@ function NewForm({ visible, onNewOk, onNewCancel }) {
         }}
       >
         {() => (
-          <Form>
+          <Form layout="vertical">
             <FormItem label="URL" name="URL" required={true}>
               <Input
                 name="URL"

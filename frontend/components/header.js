@@ -20,7 +20,12 @@ function Header({ loading, onNewPass = () => {}, revalidate = () => {} }) {
         />
       </Space>
 
-      <Button type="primary" icon={<PlusOutlined />} onClick={onNewPass}>
+      <Button
+        shape="round"
+        type="primary"
+        icon={<PlusOutlined />}
+        onClick={onNewPass}
+      >
         New Pass
       </Button>
 
