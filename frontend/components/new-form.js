@@ -1,40 +1,53 @@
 import * as React from "react"
-import { Modal } from "antd"
-import { Form, FormItem, Input, SubmitButton } from "formik-antd"
+import { Modal, Button } from "antd"
+import { Form, FormItem, Input } from "formik-antd"
 import { Formik } from "formik"
 import { GlobalOutlined, UserOutlined, LockOutlined } from "@ant-design/icons"
+import * as Yup from "yup"
 
-function NewForm({ visible, onNewOk, onNewCancel }) {
+const LoginSchema = Yup.object().shape({
+  URL: Yup.string().required("Required"),
+  Username: Yup.string().required("Required"),
+  Password: Yup.string()
+  // .min(6, "Too Short!")
+  // .max(128, "Too Long!")
+  // .required("Required"),
+})
+
+function NewForm({ visible, loading, onClose, onSubmit }) {
   const formRef = React.useRef()
 
-  const handleSubmit = () => {
-    if (formRef.current) {
-      console.log("submit form")
-      //formRef.current.handleSubmit()
-    }
+  const onTriggerSubmit = () => {
+    if (!formRef.current) return
+    formRef.current.handleSubmit()
   }
 
   return (
     <Modal
-      title="Basic Modal"
+      title="New Pass"
       visible={visible}
-      onOk={handleSubmit}
-      onCancel={onNewCancel}
+      closable={false}
+      maskClosable={false}
+      footer={[
+        <Button key="close" shape="round" onClick={onClose}>
+          Cancel
+        </Button>,
+        <Button
+          key="save"
+          shape="round"
+          type="primary"
+          loading={loading}
+          onClick={onTriggerSubmit}
+        >
+          Save
+        </Button>
+      ]}
     >
       <Formik
         innerRef={formRef}
         initialValues={{ URL: "", Username: "", Password: "" }}
-        onSubmit={(values, actions) => {
-          message.info(JSON.stringify(values, null, 4))
-          actions.setSubmitting(false)
-          actions.resetForm()
-        }}
-        validate={(values) => {
-          if (!values.lastName) {
-            return { lastName: "required" }
-          }
-          return {}
-        }}
+        validationSchema={LoginSchema}
+        onSubmit={onSubmit}
       >
         {() => (
           <Form layout="vertical">
@@ -54,13 +67,13 @@ function NewForm({ visible, onNewOk, onNewCancel }) {
               />
             </FormItem>
 
-            <FormItem label="Password" name="Password" required={true}>
+            {/* <FormItem label="Password" name="Password" required={true}>
               <Input.Password
                 name="Password"
                 prefix={<LockOutlined />}
                 placeholder="input placeholder"
               />
-            </FormItem>
+            </FormItem> */}
           </Form>
         )}
       </Formik>
