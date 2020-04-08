@@ -34,7 +34,7 @@ func UpdateLogin(c *gin.Context) {
 
 	login.Password = base64.StdEncoding.EncodeToString(helper.Encrypt(login.Password, config.Server.Passphrase))
 
-	if err := db.save(&login).Error; err != nil {
+	if err := db.Save(&login).Error; err != nil {
 		fmt.Println(err)
 		c.AbortWithStatus(404)
 		return
