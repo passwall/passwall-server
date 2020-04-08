@@ -3,7 +3,7 @@ import { Modal } from "antd"
 function NewForm({ visible, onNewOk, onNewCancel }) {
   return (
     <Modal
-      title='Basic Modal'
+      title="Basic Modal"
       visible={visible}
       onOk={onNewOk}
       onCancel={onNewCancel}
