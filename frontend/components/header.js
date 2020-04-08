@@ -1,5 +1,5 @@
 import { Space, Button, Typography } from "antd"
-import { SyncOutlined, PlusOutlined } from "@ant-design/icons"
+import { ReloadOutlined, PlusOutlined } from "@ant-design/icons"
 
 const { Title } = Typography
 
@@ -14,17 +14,12 @@ function Header({ loading, onNewPass = () => {}, revalidate = () => {} }) {
         <Button
           shape="circle"
           loading={loading}
-          icon={<SyncOutlined />}
+          icon={<ReloadOutlined />}
           onClick={() => revalidate()}
         />
       </Space>
 
-      <Button
-        shape="round"
-        type="primary"
-        icon={<PlusOutlined />}
-        onClick={onNewPass}
-      >
+      <Button type="primary" icon={<PlusOutlined />} onClick={onNewPass}>
         New Pass
       </Button>
 

@@ -44,6 +44,10 @@ function HomePage() {
         body {
           padding: 30px;
         }
+        .ant-input-prefix {
+          opacity: 0.5;
+          margin-right: 6px;
+        }
       `}</style>
 
       <style jsx>{`
