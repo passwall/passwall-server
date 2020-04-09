@@ -10,7 +10,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
-	"github.com/yakuter/gpass/controller/login"
 	"github.com/yakuter/gpass/model"
 	"github.com/yakuter/gpass/pkg/config"
 	"github.com/yakuter/gpass/pkg/router"
@@ -28,7 +27,7 @@ func TestGetMethod(t *testing.T) {
 	nonIDStr := strconv.Itoa(nonID)
 
 	// Setting variables
-	var data login.Data
+	var logins []model.Login
 	var loginModel model.Login
 	var resultModel model.Result
 
@@ -40,7 +39,7 @@ func TestGetMethod(t *testing.T) {
 		statusCode   int
 		returnObject interface{}
 	}{
-		{"GET All Logins", "GET", "/logins/", http.StatusOK, data},                                 // 200
+		{"GET All Logins", "GET", "/logins/", http.StatusOK, logins},                               // 200
 		{"Get Single Login", "GET", "/logins/" + IDStr, http.StatusOK, loginModel},                 // 200
 		{"Get False Single Login", "GET", "/logins/" + nonIDStr, http.StatusNotFound, resultModel}, // 404
 		{"Get Wrong ID Format", "GET", "/logins/xxx", http.StatusBadRequest, resultModel},          // 400
@@ -61,7 +60,7 @@ func TestGetMethod(t *testing.T) {
 
 			switch row.name {
 			case "GET All Logins":
-				result := row.returnObject.(login.Data)
+				result := row.returnObject.([]model.Login)
 				err = json.Unmarshal(body, &result)
 				assert.Nil(err)
 			case "Get Single Login":
