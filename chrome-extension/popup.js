@@ -14,9 +14,8 @@ document.addEventListener('DOMContentLoaded', function() {
 		xhr.onreadystatechange = function() {
 		
 			if (xhr.readyState == 4) {
-				varxhrjson = JSON.parse(xhr.responseText);
-				var metin = domain + "\n" + varxhrjson[0].Username + "\n" + varxhrjson[0].Password;
-				alert(metin);
+				var xhrjson = JSON.parse(xhr.responseText);
+				xhrjson.forEach(arrayFunction);
 				
 				// chrome.tabs.executeScript(null,{code:"document.getElementById('username').value = '"+varxhrjson[0].Username+"'"});
 				// chrome.tabs.executeScript(null,{code:"document.getElementById('password').value = '"+varxhrjson[0].Password+"'"});
@@ -25,3 +24,8 @@ document.addEventListener('DOMContentLoaded', function() {
 		xhr.send();
 	});
 });
+
+function arrayFunction(value, index, array) {
+	var metin = value.Username + "\n" + value.Password+ "\n";
+	alert(metin);
+}
