@@ -40,7 +40,7 @@ function HomePage() {
       />
 
       <div className="app-table">
-        <PassTable loading={isValidating} data={pass ? pass.Data : []} />
+        <PassTable loading={isValidating} data={pass ? pass : []} />
       </div>
 
       <NewForm
