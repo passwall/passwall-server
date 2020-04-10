@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
+
 	var queryInfo = {
 		active: true, 
 		currentWindow: true
@@ -26,6 +27,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function arrayFunction(value, index, array) {
-	var metin = value.Username + "\n" + value.Password+ "\n";
-	alert(metin);
+	var newRow=document.getElementById('matchedLogins').insertRow();
+	newRow.innerHTML = "<td>"+value.Username+"</td><td>"+value.Password+"</td></td>";
 }
+
