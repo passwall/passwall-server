@@ -7,7 +7,9 @@ const columns = [
   {
     title: "Url",
     dataIndex: "URL",
-    ellipsis: true
+    ellipsis: true,
+    sorter: (a, b) => a.URL.localeCompare(b.URL),
+    sortDirections: ["descend", "ascend"]
   },
   {
     title: "Username",
