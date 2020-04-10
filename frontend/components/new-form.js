@@ -28,6 +28,7 @@ function NewForm({ visible, loading, onClose, onSubmit }) {
       visible={visible}
       closable={false}
       maskClosable={false}
+      destroyOnClose={true}
       footer={[
         <Button key="close" shape="round" onClick={onClose}>
           Cancel
