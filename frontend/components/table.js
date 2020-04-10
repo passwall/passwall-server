@@ -1,8 +1,8 @@
 import * as React from "react"
-import { Table, Typography, Input } from "antd"
+import { Table, Input } from "antd"
 import Highlighter from "react-highlight-words"
 
-const { Paragraph } = Typography
+import PasswordField from "./password-field"
 
 function PassTable({ loading, data }) {
   const [searchText, setSearchText] = React.useState("")
@@ -51,11 +51,7 @@ function PassTable({ loading, data }) {
     {
       title: "Password",
       dataIndex: "Password",
-      render: (text) => (
-        <Paragraph style={{ marginBottom: 0 }} copyable>
-          {text}
-        </Paragraph>
-      )
+      render: (text) => <PasswordField>{text}</PasswordField>
     }
   ]
 
