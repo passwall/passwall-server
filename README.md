@@ -1,5 +1,9 @@
 # gpass
 
+![GitHub](https://img.shields.io/github/license/yakuter/gpass)
+![GitHub issues](https://img.shields.io/github/issues/yakuter/gpass)
+[![Build Status](https://travis-ci.org/yakuter/gpass.svg?branch=master)](https://travis-ci.org/yakuter/gpass)  
+
 **gpass** is an open source password manager API written with Go.
 
 By using this API you can store your passwords wherever you want and manage easily event with just Postman etc.
