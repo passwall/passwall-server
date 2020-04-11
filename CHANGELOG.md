@@ -1,5 +1,12 @@
 # GPASS CHANGELOG
 
+## Version: [1.0.5] (2020-04-12)
+### Added
+- JWT token for authentication
+- signin, refresh and check endpoints under auth group
+- secret key in config.yml to use in JWT token generation
+- timeout key in config.yml to define duration of JWT token
+
 ## Version: [1.0.4] (2020-04-11)
 ### Added
 - Export logins feature

@@ -5,4 +5,6 @@ type ServerConfiguration struct {
 	Username   string
 	Password   string
 	Passphrase string
+	Secret     string
+	Timeout    int
 }

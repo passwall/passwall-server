@@ -15,6 +15,7 @@ Currently, gpass is focused on storing URL, username and password which is basic
 
 An admin can;
 
+- Sign in and Refresh token
 - View all logins
 - View a specific login
 - Create login with automatically generated strong password
@@ -29,7 +30,9 @@ API documentation available at:
 
 ## Authentication
 
-This API uses **Basic Auth** to secure endpoints. So do not forget to update **config.yml** for user information and add **Basic Auth authorization** to your requests from clients like **Postman**.
+This API uses **JWT Token** to secure endpoints. So user must generate token with /auth/signin first. Then with generated token, all endpoints in API documentation can be reachable.  
+  
+User information for signin is in **config.yml** file.
 
 ## Development usage
 Just change **config-sample.yml** to **config.yml** in **store** folder and update the content of this file for your usage. Then you can run API with standard command:
