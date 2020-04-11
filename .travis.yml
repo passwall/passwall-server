@@ -1,0 +1,16 @@
+language: go
+
+cache:
+  directories:
+    - $HOME/.cache/go-build
+    - $GOPATH/pkg/mod
+
+script:
+  - go mod download
+  - cp store/{config-sample.yml,config.yml}
+  - go test
+
+notifications:
+  email:
+    on_success: change
+    on_failure: always
