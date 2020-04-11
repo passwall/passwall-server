@@ -6,6 +6,7 @@ cache:
     - $GOPATH/pkg/mod
 
 script:
+  - export GO111MODULE="on"
   - go mod download
   - cp store/{config-sample.yml,config.yml}
   - go test
