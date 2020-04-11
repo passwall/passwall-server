@@ -3,7 +3,7 @@ package router
 import (
 	"log"
 
-	jwt "github.com/yakuter/gin-jwt"
+	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/yakuter/gpass/controller/login"
 	"github.com/yakuter/gpass/pkg/middleware"
 

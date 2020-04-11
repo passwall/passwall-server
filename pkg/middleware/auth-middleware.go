@@ -7,8 +7,8 @@ import (
 
 	"github.com/yakuter/gpass/model"
 
+	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
-	jwt "github.com/yakuter/gin-jwt"
 	"github.com/yakuter/gpass/pkg/config"
 )
 
