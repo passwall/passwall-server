@@ -1,12 +1,14 @@
 language: go
 
+env:
+  - GO111MODULE=on
+
 cache:
   directories:
     - $HOME/.cache/go-build
     - $GOPATH/pkg/mod
 
 script:
-  - export GO111MODULE="on"
   - go mod download
   - cp store/{config-sample.yml,config.yml}
   - go test
