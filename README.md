@@ -3,6 +3,7 @@
 ![GitHub](https://img.shields.io/github/license/yakuter/gpass)
 ![GitHub issues](https://img.shields.io/github/issues/yakuter/gpass)
 [![Build Status](https://travis-ci.org/yakuter/gpass.svg?branch=master)](https://travis-ci.org/yakuter/gpass)  
+[![Coverage Status](https://coveralls.io/repos/github/yakuter/gpass/badge.svg?branch=master)](https://coveralls.io/github/yakuter/gpass?branch=master)
 
 **gpass** is an open source password manager API written with Go.
 
