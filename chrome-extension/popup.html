@@ -11,6 +11,27 @@
         font-family: "Segoe UI", "Lucida Grande", Tahoma, sans-serif;
         font-size: 12px;
       }
+      #loginsTable {
+        border-collapse: collapse;
+        width: 100%;
+      }
+
+      #loginsTable td, #loginsTable th {
+        border: 1px solid #ddd;
+        padding: 8px;
+      }
+
+      #loginsTable tr:nth-child(even){background-color: #f2f2f2;}
+
+      #loginsTable tr:hover {background-color: #ddd;}
+
+      #loginsTable th {
+        padding-top: 12px;
+        padding-bottom: 12px;
+        text-align: left;
+        background-color: #ffc069;
+        /* color: white; */
+      }
     </style>
     <!--
       - JavaScript and HTML must be in separate files
@@ -19,11 +40,13 @@
   </head>
   <body>
     <h3>gpass</h3>
-
-    <table id="matchedLogins" border="1" style="border:1px solid grey">
-      <tr>
-        <td><strong>Username</strong></td>
-        <td><strong>Password</strong></td>
+    <button id="kopyala">Kopyala</button>
+    <div id="veri">Benim</div>
+    <table id="loginsTable">
+      
+<tr>
+        <th><strong>Username</strong></th>
+        <th><strong>Password</strong></th>
       </tr>
      </table>
   </body>

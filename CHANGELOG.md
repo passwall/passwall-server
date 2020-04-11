@@ -1,6 +1,6 @@
 # GPASS CHANGELOG
 
-## Version: [-.-.-] (0-0-0)
+## Version: [1.0.4] (2020-04-11)
 ### Added
 - Export logins feature
 - Get Method test for API GET endpoints
@@ -9,6 +9,8 @@
 - Case insensitive search posgres
 - POST generate-password endpoint
 - Frontend written with React Native and Nextjs
+- Travis CI
+- Badges to README file including code coverage
 ### Fixed
 - Excluded soft deleted items from total and filtered count number
 

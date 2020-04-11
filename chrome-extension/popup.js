@@ -1,5 +1,21 @@
 document.addEventListener('DOMContentLoaded', function() {
 
+	var copyTextareaBtn = document.querySelector('#kopyala');
+
+	copyTextareaBtn.addEventListener('click', function(event) {
+		var copyTextarea = document.querySelector('#veri');
+		copyTextarea.focus();
+		copyTextarea.select();
+	  
+		try {
+		  var successful = document.execCommand('copy');
+		  var msg = successful ? 'successful' : 'unsuccessful';
+		  alert('Copying text command was ' + msg);
+		} catch (err) {
+		  alert('Oops, unable to copy');
+		}
+	  });
+
 	var queryInfo = {
 		active: true, 
 		currentWindow: true
@@ -27,7 +43,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function arrayFunction(value, index, array) {
-	var newRow=document.getElementById('matchedLogins').insertRow();
+	var newRow=document.getElementById('loginsTable').insertRow();
 	newRow.innerHTML = "<td>"+value.Username+"</td><td>"+value.Password+"</td></td>";
 }
 
