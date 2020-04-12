@@ -86,8 +86,8 @@ func makeGetRequest(method, url string) (*http.Request, *httptest.ResponseRecord
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(method, url, nil)
 	req.Header.Add("Authorization", "Bearer "+JWT_TOKEN)
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Add("Accept", "application/json")
+	req.Header.Add("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 	return req, w
 }
