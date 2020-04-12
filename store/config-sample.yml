@@ -27,3 +27,5 @@ server:
   username: "gpass"
   password: "password"
   passphrase: "-G84d}~Yr)H{c=Zx)>@VqM;d~o+$}x9y~X_Ma-otq|ifhP7]?s7OJBYXao,K]-+^"
+  secret: "JOa{+KBm5:hj]?k1 wsVJl?*HE(cEB<*WVXkL$qh}B2#Fry{C;j[k}-[|-9G:#b]"
+  timeout: 1 # Token duration in hours format. Positive integers allowed (1,2,3,6,12,24...)
