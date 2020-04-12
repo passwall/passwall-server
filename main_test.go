@@ -11,9 +11,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/yakuter/gpass/model"
-	"github.com/yakuter/gpass/pkg/config"
 	"github.com/yakuter/gpass/pkg/router"
 )
+
+const JWT_TOKEN string = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2MTc3NzI1NzIsIm9yaWdfaWF0IjoxNTg2NjY4NTcyLCJ1c2VybmFtZSI6ImdwYXNzIn0.LD8UmRLHoWMY7RDVQsxtePPWeDXmjcxs9uwHJAwEhL4"
 
 func TestGetMethod(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -81,11 +82,10 @@ func TestGetMethod(t *testing.T) {
 }
 
 func makeGetRequest(method, url string) (*http.Request, *httptest.ResponseRecorder) {
-	config := config.GetConfig()
 	r := router.Setup()
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(method, url, nil)
-	req.SetBasicAuth(config.Server.Username, config.Server.Password)
+	req.Header.Add("Authorization", "Bearer "+JWT_TOKEN)
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
