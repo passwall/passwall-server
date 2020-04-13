@@ -42,7 +42,7 @@ go run main.go
 
 ## docker-compose
 
-You can start PassWall API with a database by one line command:
+You can start PassWall API with a database with one line command:
 
 **P.S: You should uncomment database service sections**
 
