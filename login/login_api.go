@@ -2,10 +2,7 @@ package login
 
 import (
 	"encoding/base64"
-	"log"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -24,17 +21,33 @@ func NewLoginAPI(p LoginService) LoginAPI {
 
 // FindAll ...
 func (p *LoginAPI) FindAll(c *gin.Context) {
-	logins := p.LoginService.FindAll()
-	logins = DecryptLoginPasswords(logins)
+	logins, err := p.LoginService.FindAll()
+	if err != nil {
+		response := LoginResponse{"Error", err.Error()}
+		c.JSON(http.StatusNotFound, response)
+		return
+	}
 
+	logins = DecryptLoginPasswords(logins)
 	c.JSON(http.StatusOK, ToLoginDTOs(logins))
 }
 
 // FindByID ...
 func (p *LoginAPI) FindByID(c *gin.Context) {
 	config := config.GetConfig()
-	id, _ := strconv.Atoi(c.Param("id"))
-	login := p.LoginService.FindByID(uint(id))
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		response := LoginResponse{"Error", err.Error()}
+		c.JSON(http.StatusBadRequest, response)
+		return
+	}
+
+	login, err := p.LoginService.FindByID(uint(id))
+	if err != nil {
+		response := LoginResponse{"Error", err.Error()}
+		c.JSON(http.StatusNotFound, response)
+		return
+	}
 
 	passByte, _ := base64.StdEncoding.DecodeString(login.Password)
 	login.Password = Decrypt(string(passByte[:]), config.Server.Passphrase)
@@ -48,8 +61,8 @@ func (p *LoginAPI) Create(c *gin.Context) {
 	var loginDTO LoginDTO
 	err := c.BindJSON(&loginDTO)
 	if err != nil {
-		log.Println(err)
-		c.Status(http.StatusBadRequest)
+		response := LoginResponse{"Error", err.Error()}
+		c.JSON(http.StatusBadRequest, response)
 		return
 	}
 
@@ -60,7 +73,13 @@ func (p *LoginAPI) Create(c *gin.Context) {
 	rawPass := loginDTO.Password
 	loginDTO.Password = base64.StdEncoding.EncodeToString(Encrypt(loginDTO.Password, config.Server.Passphrase))
 
-	createdLogin := p.LoginService.Save(ToLogin(loginDTO))
+	createdLogin, err := p.LoginService.Save(ToLogin(loginDTO))
+	if err != nil {
+		response := LoginResponse{"Error", err.Error()}
+		c.JSON(http.StatusBadRequest, response)
+		return
+	}
+
 	createdLogin.Password = rawPass
 
 	c.JSON(http.StatusOK, ToLoginDTO(createdLogin))
@@ -71,100 +90,66 @@ func (p *LoginAPI) Update(c *gin.Context) {
 	var loginDTO LoginDTO
 	err := c.BindJSON(&loginDTO)
 	if err != nil {
-		log.Fatalln(err)
-		c.Status(http.StatusBadRequest)
+		response := LoginResponse{"Error", err.Error()}
+		c.JSON(http.StatusBadRequest, response)
 		return
 	}
 
-	id, _ := strconv.Atoi(c.Param("id"))
-	login := p.LoginService.FindByID(uint(id))
-	if login == (Login{}) {
-		c.Status(http.StatusBadRequest)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		response := LoginResponse{"Error", err.Error()}
+		c.JSON(http.StatusBadRequest, response)
+		return
+	}
+
+	login, err := p.LoginService.FindByID(uint(id))
+	if err != nil {
+		response := LoginResponse{"Error", err.Error()}
+		c.JSON(http.StatusNotFound, response)
 		return
 	}
 
 	login.URL = loginDTO.URL
 	login.Username = loginDTO.Username
 	login.Password = loginDTO.Password
-	p.LoginService.Save(login)
+	updatedLogin, err := p.LoginService.Save(login)
+	if err != nil {
+		response := LoginResponse{"Error", err.Error()}
+		c.JSON(http.StatusNotFound, response)
+		return
+	}
 
-	c.Status(http.StatusOK)
+	c.JSON(http.StatusOK, ToLoginDTO(updatedLogin))
 }
 
 // Delete ...
 func (p *LoginAPI) Delete(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
-	login := p.LoginService.FindByID(uint(id))
-	if login == (Login{}) {
-		c.Status(http.StatusBadRequest)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		response := LoginResponse{"Error", err.Error()}
+		c.JSON(http.StatusBadRequest, response)
 		return
 	}
 
-	p.LoginService.Delete(login.ID)
+	login, err := p.LoginService.FindByID(uint(id))
+	if err != nil {
+		response := LoginResponse{"Error", err.Error()}
+		c.JSON(http.StatusNotFound, response)
+		return
+	}
 
-	c.Status(http.StatusOK)
+	err = p.LoginService.Delete(login.ID)
+	if err != nil {
+		response := LoginResponse{"Error", err.Error()}
+		c.JSON(http.StatusNotFound, response)
+		return
+	}
+
+	response := LoginResponse{"Success", "Login deleted successfully!"}
+	c.JSON(http.StatusOK, response)
 }
 
-// Import ...
-func (p *LoginAPI) Import(c *gin.Context) {
-	url := c.DefaultPostForm("URL", "URL")
-	username := c.DefaultPostForm("Username", "Username")
-	password := c.DefaultPostForm("Password", "Password")
-	path := "/tmp/"
-
-	formFile, err := c.FormFile("File")
-	if err != nil {
-		log.Println(err)
-		c.JSON(http.StatusBadRequest, err)
-		return
-	}
-
-	filename := filepath.Base(formFile.Filename)
-
-	// Save file to ./tmp/import folder
-	if err := c.SaveUploadedFile(formFile, path+filename); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"Status":  "Error",
-			"Message": err.Error(),
-		})
-		return
-	}
-
-	file, err := os.Open(path + filename)
-	if err != nil {
-		log.Println(err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"Status":  "Error",
-			"Message": err.Error(),
-		})
-		return
-	}
-
-	// Read file content and add logins to db
-	err = AddValues(url, username, password, file)
-	if err != nil {
-		log.Println(err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"Status":  "Error",
-			"Message": err.Error(),
-		})
-		return
-	}
-
-	// Delete imported file
-	err = os.Remove(path + filename)
-	if err != nil {
-		log.Println(err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"Status":  "Error",
-			"Message": err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"Status":  "Success",
-		"Message": "Import finished successfully",
-	})
-
+// Migrate ...
+func (p *LoginAPI) Migrate() {
+	p.LoginService.Migrate()
 }

@@ -2,6 +2,7 @@ package login
 
 import "time"
 
+// Login ...
 type Login struct {
 	ID        uint `gorm:"primary_key"`
 	CreatedAt time.Time
@@ -12,7 +13,8 @@ type Login struct {
 	Password  string
 }
 
-type Result struct {
+// LoginResponse ...
+type LoginResponse struct {
 	Status  string
 	Message string
 }

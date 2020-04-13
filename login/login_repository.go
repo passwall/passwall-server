@@ -15,32 +15,29 @@ func NewLoginRepository(db *gorm.DB) LoginRepository {
 }
 
 // FindAll ...
-func (p *LoginRepository) FindAll() []Login {
+func (p *LoginRepository) FindAll() ([]Login, error) {
 	logins := []Login{}
 	err := p.DB.Find(&logins).Error
-	CheckErr(err)
-	return logins
+	return logins, err
 }
 
 // FindByID ...
-func (p *LoginRepository) FindByID(id uint) Login {
+func (p *LoginRepository) FindByID(id uint) (Login, error) {
 	login := Login{}
-	err := p.DB.First(&login, id).Error
-	CheckErr(err)
-	return login
+	err := p.DB.Where(`id = ?`, id).First(&login).Error
+	return login, err
 }
 
 // Save ...
-func (p *LoginRepository) Save(login Login) Login {
+func (p *LoginRepository) Save(login Login) (Login, error) {
 	err := p.DB.Save(&login).Error
-	CheckErr(err)
-	return login
+	return login, err
 }
 
 // Delete ...
-func (p *LoginRepository) Delete(id uint) {
+func (p *LoginRepository) Delete(id uint) error {
 	err := p.DB.Delete(&Login{ID: id}).Error
-	CheckErr(err)
+	return err
 }
 
 // Migrate ...

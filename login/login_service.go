@@ -11,23 +11,23 @@ func NewLoginService(p LoginRepository) LoginService {
 }
 
 // FindAll ...
-func (p *LoginService) FindAll() []Login {
+func (p *LoginService) FindAll() ([]Login, error) {
 	return p.LoginRepository.FindAll()
 }
 
 // FindByID ...
-func (p *LoginService) FindByID(id uint) Login {
+func (p *LoginService) FindByID(id uint) (Login, error) {
 	return p.LoginRepository.FindByID(id)
 }
 
 // Save ...
-func (p *LoginService) Save(login Login) Login {
+func (p *LoginService) Save(login Login) (Login, error) {
 	return p.LoginRepository.Save(login)
 }
 
 // Delete ...
-func (p *LoginService) Delete(id uint) {
-	p.LoginRepository.Delete(id)
+func (p *LoginService) Delete(id uint) error {
+	return p.LoginRepository.Delete(id)
 }
 
 // Migrate ...
