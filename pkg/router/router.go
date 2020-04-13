@@ -34,7 +34,16 @@ func Setup() *gin.Engine {
 		auth.POST("/refresh", authMW.MiddlewareFunc(), authMW.RefreshHandler)
 	}
 
-	// Refresh time can be longer than token timeout
+	// Endpoints for logins protected with JWT
+	logins := r.Group("/logins", authMW.MiddlewareFunc())
+	{
+		logins.GET("/", loginAPI.FindAll)
+		logins.GET("/:id", loginAPI.FindByID)
+		logins.POST("/", loginAPI.Create)
+		logins.POST("/:action", login.PostHandler)
+		logins.PUT("/:id", loginAPI.Update)
+		logins.DELETE("/:id", loginAPI.Delete)
+	}
 
 	// Protection for route/endpoint scaning
 	r.NoRoute(authMW.MiddlewareFunc(), func(c *gin.Context) {
@@ -42,17 +51,6 @@ func Setup() *gin.Engine {
 		log.Printf("NoRoute claims: %#v\n", claims)
 		c.JSON(404, gin.H{"code": "PAGE_NOT_FOUND", "message": "Page not found"})
 	})
-
-	// Endpoints for logins protected with JWT
-	logins := r.Group("/logins", authMW.MiddlewareFunc())
-	{
-		logins.GET("/", loginAPI.FindAll)
-		logins.GET("/:id", loginAPI.FindByID)
-		logins.POST("/", loginAPI.Create)
-		// logins.POST("/:action", loginAPI.PostHandler)
-		logins.PUT("/:id", loginAPI.Update)
-		logins.DELETE("/:id", loginAPI.Delete)
-	}
 
 	return r
 }

@@ -15,6 +15,11 @@ func (p *LoginService) FindAll() ([]Login, error) {
 	return p.LoginRepository.FindAll()
 }
 
+// Search ...
+func (p *LoginService) Search(keyword string) ([]Login, error) {
+	return p.LoginRepository.Search(keyword)
+}
+
 // FindByID ...
 func (p *LoginService) FindByID(id uint) (Login, error) {
 	return p.LoginRepository.FindByID(id)

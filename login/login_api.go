@@ -21,7 +21,16 @@ func NewLoginAPI(p LoginService) LoginAPI {
 
 // FindAll ...
 func (p *LoginAPI) FindAll(c *gin.Context) {
-	logins, err := p.LoginService.FindAll()
+	var err error
+	logins := []Login{}
+	search := c.DefaultQuery("Search", "")
+
+	if search != "" {
+		logins, err = p.LoginService.Search(search)
+	} else {
+		logins, err = p.LoginService.FindAll()
+	}
+
 	if err != nil {
 		response := LoginResponse{"Error", err.Error()}
 		c.JSON(http.StatusNotFound, response)

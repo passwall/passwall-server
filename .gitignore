@@ -37,6 +37,7 @@ config.yml
 
 ## SQLITE DATABASE ##
 /store/passwall.db
+/store/gpass.db
 
 ## CONFIG FILE ##
 /store/config.yml

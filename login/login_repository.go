@@ -21,6 +21,13 @@ func (p *LoginRepository) FindAll() ([]Login, error) {
 	return logins, err
 }
 
+// Search ...
+func (p *LoginRepository) Search(keyword string) ([]Login, error) {
+	logins := []Login{}
+	err := p.DB.Where("url LIKE ? OR username LIKE ?", "%"+keyword+"%", "%"+keyword+"%").Find(&logins).Error
+	return logins, err
+}
+
 // FindByID ...
 func (p *LoginRepository) FindByID(id uint) (Login, error) {
 	login := Login{}

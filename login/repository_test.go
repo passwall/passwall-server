@@ -35,6 +35,7 @@ var _ = Describe("Repository", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 	})
 
+	// FIND ALL TEST
 	Context("find all", func() {
 		It("empty", func() {
 			const sqlSelectAll = `SELECT * FROM "logins"`
@@ -45,10 +46,11 @@ var _ = Describe("Repository", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(l).Should(BeEmpty())
 		})
-
 	})
 
 	Context("find by id", func() {
+
+		// FOUND BY ID TEST
 		It("found", func() {
 			login := Login{
 				ID:        1,
@@ -75,6 +77,7 @@ var _ = Describe("Repository", func() {
 			Expect(dbLogin).Should(Equal(login))
 		})
 
+		// NOT FOUND BY ID TEST
 		It("not found", func() {
 			// ignore sql match
 			mock.ExpectQuery(`.+`).WillReturnRows(sqlmock.NewRows(nil))
@@ -86,7 +89,6 @@ var _ = Describe("Repository", func() {
 	Context("save", func() {
 		var login Login
 		BeforeEach(func() {
-			// t1, _ := time.Parse(time.RFC3339, "2012-11-01T22:08:41+00:00")
 			login = Login{
 				CreatedAt: time.Now(),
 				UpdatedAt: time.Now(),
@@ -97,6 +99,7 @@ var _ = Describe("Repository", func() {
 			}
 		})
 
+		// UPDATE TEST
 		It("update", func() {
 			const sqlUpdate = `UPDATE "logins" SET "created_at" = $1, "updated_at" = $2, "deleted_at" = $3, "url" = $4, "username" = $5, "password" = $6 WHERE "logins"."deleted_at" IS NULL AND "logins"."id" = $7`
 			const sqlSelectOne = `SELECT * FROM "logins" WHERE "logins"."deleted_at" IS NULL AND "logins"."id" = $1 ORDER BY "logins"."id" ASC LIMIT 1`
@@ -117,7 +120,8 @@ var _ = Describe("Repository", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
-		/* It("insert", func() {
+		// INSERT TEST
+		It("insert", func() {
 			// gorm use query instead of exec
 			// https://github.com/DATA-DOG/go-sqlmock/issues/118
 			const sqlInsert = `
@@ -132,69 +136,36 @@ var _ = Describe("Repository", func() {
 
 			Expect(login.ID).Should(BeZero())
 
-			_, err := repository.Save(login)
+			savedLogin, err := repository.Save(login)
 			Expect(err).ShouldNot(HaveOccurred())
-
-			Expect(login.ID).Should(BeEquivalentTo(newId))
-		}) */
+			Expect(savedLogin.ID).Should(BeEquivalentTo(newId))
+		})
 
 	})
 
-	/*
-		Context("list", func() {
-			It("found", func() {
-				rows := sqlmock.
-					NewRows([]string{"id", "title", "content", "tags", "created_at"}).
-					AddRow(1, "post 1", "hello 1", nil, time.Now()).
-					AddRow(2, "post 2", "hello 2", pq.StringArray{"go"}, time.Now())
+	Context("search", func() {
+		It("found", func() {
+			rows := sqlmock.
+				NewRows([]string{"id", "created_at", "updated_at", "deleted_at", "url", "username", "password"}).
+				AddRow(1, time.Now(), time.Now(), nil, "http://dummywebsite.com", "dummyuser", "dummypassword")
 
-				// limit/offset is not parameter
-				const sqlSelectFirstTen = `SELECT * FROM "blogs" LIMIT 10 OFFSET 0`
-				mock.ExpectQuery(regexp.QuoteMeta(sqlSelectFirstTen)).WillReturnRows(rows)
+			// limit/offset is not parameter
+			const sqlSearch = `SELECT * FROM "logins" WHERE "logins"."deleted_at" IS NULL AND ((url LIKE $1 OR username LIKE $2))`
 
-				l, err := repository.List(0, 10)
-				Expect(err).ShouldNot(HaveOccurred())
+			const q = "dummy"
 
-				Expect(l).Should(HaveLen(2))
-				Expect(l[0].Tags).Should(BeEmpty())
-				Expect(l[1].Tags).Should(Equal(pq.StringArray{"go"}))
-				Expect(l[1].ID).Should(BeEquivalentTo(2)) // use BeEquivalentTo
-			})
-			It("not found", func() {
-				// ignore sql match
-				mock.ExpectQuery(`.+`).WillReturnRows(sqlmock.NewRows(nil))
-				l, err := repository.List(0, 10)
-				Expect(err).ShouldNot(HaveOccurred())
-				Expect(l).Should(BeEmpty())
-			})
+			mock.ExpectQuery(regexp.QuoteMeta(sqlSearch)).
+				WithArgs("%"+q+"%", "%"+q+"%").
+				WillReturnRows(rows)
+
+			l, err := repository.Search(q)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			Expect(l).Should(HaveLen(1))
+			Expect(l[0].URL).Should(ContainSubstring(q))
+			Expect(l[0].Username).Should(ContainSubstring(q))
 		})
-
-
-
-		Context("search by title", func() {
-			It("found", func() {
-				rows := sqlmock.
-					NewRows([]string{"id", "title", "content", "tags", "created_at"}).
-					AddRow(1, "post 1", "hello 1", nil, time.Now())
-
-				// limit/offset is not parameter
-				const sqlSearch = `
-					SELECT * FROM "blogs"
-					WHERE (title like $1)
-					LIMIT 10 OFFSET 0`
-				const q = "os"
-
-				mock.ExpectQuery(regexp.QuoteMeta(sqlSearch)).
-					WithArgs("%" + q + "%").
-					WillReturnRows(rows)
-
-				l, err := repository.SearchByTitle(q, 0, 10)
-				Expect(err).ShouldNot(HaveOccurred())
-
-				Expect(l).Should(HaveLen(1))
-				Expect(l[0].Title).Should(ContainSubstring(q))
-			})
-		}) */
+	})
 })
 
 type AnyTime struct{}
