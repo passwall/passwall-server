@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/yakuter/gpass/controller/helper"
-	"github.com/yakuter/gpass/model"
-	"github.com/yakuter/gpass/pkg/config"
-	"github.com/yakuter/gpass/pkg/database"
+	"github.com/pass-wall/passwall-api/controller/helper"
+	"github.com/pass-wall/passwall-api/model"
+	"github.com/pass-wall/passwall-api/pkg/config"
+	"github.com/pass-wall/passwall-api/pkg/database"
 
 	"github.com/gin-gonic/gin"
 )

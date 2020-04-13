@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yakuter/gpass/model"
-	"github.com/yakuter/gpass/pkg/config"
+	"github.com/pass-wall/passwall-api/model"
+	"github.com/pass-wall/passwall-api/pkg/config"
 
 	"github.com/jinzhu/gorm"
 )

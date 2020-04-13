@@ -1,17 +1,17 @@
-# gpass
+# PassWall
 
-![GitHub](https://img.shields.io/github/license/yakuter/gpass)
-![GitHub issues](https://img.shields.io/github/issues/yakuter/gpass)
-[![Build Status](https://travis-ci.org/yakuter/gpass.svg?branch=master)](https://travis-ci.org/yakuter/gpass) 
-[![Coverage Status](https://coveralls.io/repos/github/yakuter/gpass/badge.svg?branch=master)](https://coveralls.io/github/yakuter/gpass?branch=master)
+![GitHub](https://img.shields.io/github/license/pass-wall/passwall-api)
+![GitHub issues](https://img.shields.io/github/issues/pass-wall/passwall-api)
+[![Build Status](https://travis-ci.org/pass-wall/passwall-api.svg?branch=master)](https://travis-ci.org/pass-wall/passwall-api) 
+[![Coverage Status](https://coveralls.io/repos/github/pass-wall/passwall-api/badge.svg?branch=master)](https://coveralls.io/github/pass-wall/passwall-api?branch=master)
 
-**gpass** is an open source password manager API written with Go.
+**PassWall** is an open source password manager API written with Go.
 
 By using this API you can store your passwords wherever you want and manage easily event with just Postman etc.
 
-## What's possible with gpass API?
+## What's possible with PassWall API?
 
-Currently, gpass is focused on storing URL, username and password which is basically called **Login** at gpass.
+Currently, this project is focused on storing URL, username and password which is basically called **Login** at PassWall API.
 
 An admin can;
 
@@ -26,7 +26,6 @@ An admin can;
 ## API Documentation
 API documentation available at:   
 [Click to see at Public Postman Templates](https://documenter.getpostman.com/view/3658426/SzYbyHXj)  
-[Clidk to download Postman JSON file](https://www.yakuter.com/wp-content/yuklemeler/gpass_postman_collection.json_.zip)
 
 ## Authentication
 
@@ -43,7 +42,7 @@ go run main.go
 
 ## docker-compose
 
-You can start gpass with a database by one line command:
+You can start PassWall API with a database by one line command:
 
 **P.S: You should uncomment database service sections**
 
@@ -56,20 +55,20 @@ First get into you project folder. Then:
 
 To build
 ```
-docker build -t gpass .
+docker build -t passwall-api .
 ```
 
 To run
 ```
 cp ./store/config-sample.yml ./store/config.yml
-docker run --name gpass --rm -v $(pwd)/store:/app/store -p 3625:3625 gpass
+docker run --name passwall-api --rm -v $(pwd)/store:/app/store -p 3625:3625 passwall-api
 ```
 
-To store persistent data (config.yml and gpass.db)
+To store persistent data (config.yml and passwall.db)
 ```
-mkdir $HOME/docker/volumes/gpass
-cp ./store/config-sample.yml $HOME/docker/volumes/gpass/config.yml
-docker run --name gpass -d --restart=always -v $HOME/docker/volumes/gpass:/app/store -p 3625:3625 gpass
+mkdir $HOME/docker/volumes/passwall-api
+cp ./store/config-sample.yml $HOME/docker/volumes/passwall-api/config.yml
+docker run --name passwall-api -d --restart=always -v $HOME/docker/volumes/passwall-api:/app/store -p 3625:3625 passwall-api
 ```
 
 ## Import
@@ -77,4 +76,4 @@ There are different kinds of password managers. Almost all of them can export lo
 ![example csv](https://www.yakuter.com/wp-content/yuklemeler/example-csv.png "Example CSV File")  
   
 You need to fill the import form as below picture.  
-![gpass import](https://www.yakuter.com/wp-content/yuklemeler/gpass-import-csv.png "Import Form and Request Example")
+![passwall-api import](https://www.yakuter.com/wp-content/yuklemeler/passwall-api-import-csv.png "Import Form and Request Example")

@@ -1,14 +1,15 @@
 package model
 
-import (
-	"github.com/jinzhu/gorm"
-)
+import "time"
 
 type Login struct {
-	gorm.Model
-	URL      string
-	Username string
-	Password string
+	ID        uint `gorm:"primary_key"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt *time.Time
+	URL       string
+	Username  string
+	Password  string
 }
 
 type Result struct {

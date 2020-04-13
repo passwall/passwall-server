@@ -3,8 +3,8 @@ package login
 import (
 	"log"
 
-	"github.com/yakuter/gpass/model"
-	"github.com/yakuter/gpass/pkg/database"
+	"github.com/pass-wall/passwall-api/model"
+	"github.com/pass-wall/passwall-api/pkg/database"
 
 	"github.com/gin-gonic/gin"
 )

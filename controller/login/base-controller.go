@@ -5,11 +5,18 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
-	"github.com/yakuter/gpass/model"
+	"github.com/pass-wall/passwall-api/model"
+	"github.com/pass-wall/passwall-api/pkg/database"
 )
 
 var db *gorm.DB
 var err error
+var repo *model.Repository
+
+func init() {
+	db = database.GetDB()
+	repo = model.NewRepository(db)
+}
 
 func PostHandler(c *gin.Context) {
 	action := c.Param("action")

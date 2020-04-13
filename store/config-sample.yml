@@ -1,13 +1,13 @@
 database:
   driver: "sqlite"
-  dbname: "gpass"
+  dbname: "passwall"
   username: "user"
   password: "password"
 
 # Uncomment for mysql
 # database:
 #   driver: "mysql"
-#   dbname: "gpass"
+#   dbname: "passwall"
 #   username: "user"
 #   password: "password"
 #   host: "localhost" # or compose service name
@@ -16,7 +16,7 @@ database:
 # Uncomment for postgres
 # database:
 #   driver: "postgres"
-#   dbname: "gpass"
+#   dbname: "passwall"
 #   username: "user"
 #   password: "password"
 #   host: "localhost" # or compose service name
@@ -24,7 +24,7 @@ database:
 
 server:
   port: "3625"
-  username: "gpass"
+  username: "passwall"
   password: "password"
   passphrase: "-G84d}~Yr)H{c=Zx)>@VqM;d~o+$}x9y~X_Ma-otq|ifhP7]?s7OJBYXao,K]-+^"
   secret: "JOa{+KBm5:hj]?k1 wsVJl?*HE(cEB<*WVXkL$qh}B2#Fry{C;j[k}-[|-9G:#b]"

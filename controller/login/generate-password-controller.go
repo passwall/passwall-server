@@ -3,8 +3,8 @@ package login
 import (
 	"net/http"
 
-	"github.com/yakuter/gpass/controller/helper"
-	"github.com/yakuter/gpass/model"
+	"github.com/pass-wall/passwall-api/controller/helper"
+	"github.com/pass-wall/passwall-api/model"
 
 	"github.com/gin-gonic/gin"
 )

@@ -10,11 +10,11 @@ COPY ./controller ./controller
 COPY ./model ./model
 COPY ./pkg ./pkg
 
-RUN CGO_ENABLED=1 GOOS=linux go build -a --ldflags="-s" -o gpass
+RUN CGO_ENABLED=1 GOOS=linux go build -a --ldflags="-s" -o passwall-api
 
 FROM alpine:3.11
 
-COPY --from=builder /app/gpass /app/gpass
+COPY --from=builder /app/passwall-api /app/passwall-api
 
 WORKDIR /app
-ENTRYPOINT ["/app/gpass"]
+ENTRYPOINT ["/app/passwall-api"]

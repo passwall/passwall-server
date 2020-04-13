@@ -4,8 +4,8 @@ import (
 	"log"
 
 	jwt "github.com/appleboy/gin-jwt/v2"
-	"github.com/yakuter/gpass/controller/login"
-	"github.com/yakuter/gpass/pkg/middleware"
+	"github.com/pass-wall/passwall-api/controller/login"
+	"github.com/pass-wall/passwall-api/pkg/middleware"
 
 	"github.com/gin-gonic/gin"
 )
@@ -48,24 +48,6 @@ func Setup() *gin.Engine {
 		logins.PUT("/:id", login.UpdateLogin)
 		logins.DELETE("/:id", login.DeleteLogin)
 	}
-
-	// gpass uses gin.BasicAuth() middleware to secure routes
-	// You can change username and password in config.yml
-	// Don't forget to add Basic Auth authorization to your HTTP requests
-	// usersMap := map[string]string{
-	// 	config.Server.Username: config.Server.Password,
-	// }
-
-	// authorized := r.Group("/", gin.BasicAuth(usersMap))
-	// logins := authorized.Group("/logins")
-	// {
-	// 	logins.GET("/", login.GetLogins)
-	// 	logins.GET("/:id", login.GetLogin)
-	// 	logins.POST("/", login.CreateLogin)
-	// 	logins.POST("/:action", login.PostHandler)
-	// 	logins.PUT("/:id", login.UpdateLogin)
-	// 	logins.DELETE("/:id", login.DeleteLogin)
-	// }
 
 	return r
 }

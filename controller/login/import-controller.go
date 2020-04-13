@@ -12,10 +12,10 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/yakuter/gpass/controller/helper"
-	"github.com/yakuter/gpass/model"
-	"github.com/yakuter/gpass/pkg/config"
-	"github.com/yakuter/gpass/pkg/database"
+	"github.com/pass-wall/passwall-api/controller/helper"
+	"github.com/pass-wall/passwall-api/model"
+	"github.com/pass-wall/passwall-api/pkg/config"
+	"github.com/pass-wall/passwall-api/pkg/database"
 )
 
 func Import(c *gin.Context) {
@@ -94,7 +94,7 @@ func addValues(url, username, password string, file *os.File) error {
 		// Ignore first line (field names)
 		counter++
 		if counter == 1 {
-			// Match user's fieldnames to gpass's field names (URL, Username, Password)
+			// Match user's fieldnames to passwall's field names (URL, Username, Password)
 			urlIndex = findIndex(fields, url)
 			usernameIndex = findIndex(fields, username)
 			passwordIndex = findIndex(fields, password)
@@ -108,17 +108,17 @@ func addValues(url, username, password string, file *os.File) error {
 			continue
 		}
 
-		if isRecordNotFound(fields[urlIndex], fields[usernameIndex], fields[passwordIndex]) {
-			// Fill login struct with csv file content
-			login := model.Login{
-				URL:      fields[urlIndex],
-				Username: fields[usernameIndex],
-				Password: base64.StdEncoding.EncodeToString(helper.Encrypt(fields[passwordIndex], config.Server.Passphrase)),
-			}
-
-			// Add to database
-			db.Create(&login)
+		// if isRecordNotFound(fields[urlIndex], fields[usernameIndex], fields[passwordIndex]) {
+		// Fill login struct with csv file content
+		login := model.Login{
+			URL:      fields[urlIndex],
+			Username: fields[usernameIndex],
+			Password: base64.StdEncoding.EncodeToString(helper.Encrypt(fields[passwordIndex], config.Server.Passphrase)),
 		}
+
+		// Add to database
+		db.Create(&login)
+		// }
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -146,10 +146,10 @@ func findIndex(vs []string, t string) int {
 	return -1
 }
 
-func isRecordNotFound(url string, username string, password string) bool {
-	logins := []model.Login{}
+/* func isRecordNotFound(url string, username string, password string) bool {
+	logins := []*model.Login{}
 	if !db.Where("url = ? AND username = ?", url, username).Find(&logins).RecordNotFound() {
-		logins = helper.DecryptLoginPasswords(logins)
+		helper.DecryptLoginPasswords(logins)
 		for _, eachLogin := range logins {
 			if eachLogin.Password == password {
 				return false
@@ -157,4 +157,4 @@ func isRecordNotFound(url string, username string, password string) bool {
 		}
 	}
 	return true
-}
+} */

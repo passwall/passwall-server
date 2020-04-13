@@ -3,8 +3,8 @@ package database
 import (
 	"log"
 
-	"github.com/yakuter/gpass/model"
-	"github.com/yakuter/gpass/pkg/config"
+	"github.com/pass-wall/passwall-api/model"
+	"github.com/pass-wall/passwall-api/pkg/config"
 
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/mysql"

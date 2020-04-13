@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pass-wall/passwall-api/model"
+	"github.com/pass-wall/passwall-api/pkg/router"
 	"github.com/stretchr/testify/assert"
-	"github.com/yakuter/gpass/model"
-	"github.com/yakuter/gpass/pkg/router"
 )
 
 const JWT_TOKEN string = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2MTc3NzI1NzIsIm9yaWdfaWF0IjoxNTg2NjY4NTcyLCJ1c2VybmFtZSI6ImdwYXNzIn0.LD8UmRLHoWMY7RDVQsxtePPWeDXmjcxs9uwHJAwEhL4"

@@ -7,7 +7,7 @@ services:
   #   image: mysql:5.7
   #   restart: on-failure
   #   environment:
-  #     - MYSQL_DATABASE=gpass
+  #     - MYSQL_DATABASE=passwall
   #     - MYSQL_USER=user
   #     - MYSQL_PASSWORD=password
   #     - MYSQL_ROOT_PASSWORD=password
@@ -15,25 +15,25 @@ services:
   #     - 3306:3306
   #   # Uncomment volumes section if you want to store persist data
   #   # volumes:
-  #   #   - gpass-mysql-db:/var/lib/mysql
+  #   #   - passwall-mysql-db:/var/lib/mysql
 
   # Uncomment postgres service if you want to use postgres as database
   # postgres:
   #   image: postgres:alpine
   #   restart: on-failure
   #   environment:
-  #     - POSTGRES_DB=gpass
+  #     - POSTGRES_DB=passwall
   #     - POSTGRES_USER=user
   #     - POSTGRES_PASSWORD=password
   #   ports:
   #     - 5432:5432
   #   # Uncomment volumes section if you want to store persist data
   #   # volumes:
-  #   #   - gpass-postgres-db:/var/lib/postgresql/data
+  #   #   - passwall-postgres-db:/var/lib/postgresql/data
 
-  gpass:
-    container_name: gpass
-    image: gpass:latest
+  passwall-api:
+    container_name: passwall-api
+    image: passwall-api:latest
     restart: always
     build:
       context: .
@@ -46,9 +46,9 @@ services:
     volumes:
       - ./store:/app/store
 
-  # gpass-frontend:
-  #   container_name: gpass-frontend
-  #   image: gpass-frontend:latest
+  # passwall-web:
+  #   container_name: passwall-web
+  #   image: passwall-web:latest
   #   restart: always
   #   build:
   #     context: frontend
@@ -57,4 +57,4 @@ services:
 
 # Uncomment volumes section if you want to store persist data
 # volumes:
-#   gpass-db:
+#   passwall-db:

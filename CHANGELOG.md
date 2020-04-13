@@ -1,4 +1,4 @@
-# GPASS CHANGELOG
+# PASSWALL CHANGELOG
 
 ## Version: [1.0.5] (2020-04-12)
 ### Added

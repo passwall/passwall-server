@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/yakuter/gpass/model"
+	"github.com/pass-wall/passwall-api/model"
 
 	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
-	"github.com/yakuter/gpass/pkg/config"
+	"github.com/pass-wall/passwall-api/pkg/config"
 )
 
 var err error
@@ -40,7 +40,7 @@ func AuthMiddleware() *jwt.GinJWTMiddleware {
 	}
 
 	authMiddleware, err := jwt.New(&jwt.GinJWTMiddleware{
-		Realm:       "Gpass Area",
+		Realm:       "PassWall Area",
 		Key:         []byte(secret),
 		Timeout:     time.Duration(timeout) * time.Hour,
 		MaxRefresh:  time.Hour,
