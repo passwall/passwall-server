@@ -14,13 +14,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const JWT_TOKEN string = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2MTc3NzI1NzIsIm9yaWdfaWF0IjoxNTg2NjY4NTcyLCJ1c2VybmFtZSI6ImdwYXNzIn0.LD8UmRLHoWMY7RDVQsxtePPWeDXmjcxs9uwHJAwEhL4"
+const JWT_TOKEN string = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1OTA0MTQyOTksIm9yaWdfaWF0IjoxNTg2ODE0Mjk5LCJ1c2VybmFtZSI6InBhc3N3YWxsIn0.DVf8d5gORhyXNLZDHNCjMwEAs9zYzTXpQcDj5umsaCE"
 
 func TestGetMethod(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Set this value for an existing login ID
-	// var ID int = 3
+	// var ID int = 1
 	// IDStr := strconv.Itoa(ID)
 
 	// Set this value for a non existing login ID
@@ -29,7 +29,7 @@ func TestGetMethod(t *testing.T) {
 
 	// Setting variables
 	var logins []login.Login
-	// var loginModel model.Login
+	// var loginModel login.Login
 	var resultModel login.LoginResponse
 
 	// Creating test table
