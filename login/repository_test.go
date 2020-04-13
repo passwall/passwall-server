@@ -1,4 +1,4 @@
-package model
+package login
 
 import (
 	"database/sql"
@@ -14,7 +14,7 @@ import (
 )
 
 var _ = Describe("Repository", func() {
-	var repository *Repository
+	var repository *LoginRepository
 	var mock sqlmock.Sqlmock
 
 	BeforeEach(func() {
@@ -28,7 +28,7 @@ var _ = Describe("Repository", func() {
 		gdb, err := gorm.Open("postgres", db) // open gorm db
 		Expect(err).ShouldNot(HaveOccurred())
 
-		repository = &Repository{DB: gdb}
+		repository = &LoginRepository{DB: gdb}
 	})
 	AfterEach(func() {
 		err := mock.ExpectationsWereMet() // make sure all expectations were met
@@ -41,8 +41,9 @@ var _ = Describe("Repository", func() {
 			mock.ExpectQuery(regexp.QuoteMeta(sqlSelectAll)).
 				WillReturnRows(sqlmock.NewRows(nil))
 
-			l, err := repository.ListAll()
-			Expect(err).ShouldNot(HaveOccurred())
+			// l, err := repository.FindAll()
+			l := repository.FindAll()
+			// Expect(err).ShouldNot(HaveOccurred())
 			Expect(l).Should(BeEmpty())
 		})
 
@@ -70,17 +71,18 @@ var _ = Describe("Repository", func() {
 				WithArgs(login.ID).
 				WillReturnRows(rows)
 
-			dbLogin, err := repository.Load(login.ID)
-			Expect(err).ShouldNot(HaveOccurred())
+			// dbLogin, err := repository.FindByID(login.ID)
+			// Expect(err).ShouldNot(HaveOccurred())
+			dbLogin := repository.FindByID(login.ID)
 			Expect(dbLogin).Should(Equal(login))
 		})
 
-		It("not found", func() {
-			// ignore sql match
-			mock.ExpectQuery(`.+`).WillReturnRows(sqlmock.NewRows(nil))
-			_, err := repository.Load(1)
-			Expect(err).Should(Equal(gorm.ErrRecordNotFound))
-		})
+		// It("not found", func() {
+		// 	// ignore sql match
+		// 	mock.ExpectQuery(`.+`).WillReturnRows(sqlmock.NewRows(nil))
+		// 	_, err := repository.FindByID(1)
+		// 	Expect(err).Should(Equal(gorm.ErrRecordNotFound))
+		// })
 	})
 
 	Context("save", func() {
@@ -113,8 +115,9 @@ var _ = Describe("Repository", func() {
 				WithArgs(login.ID).
 				WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(login.ID))
 
-			err := repository.Save(login)
-			Expect(err).ShouldNot(HaveOccurred())
+			// err := repository.Save(login)
+			_ = repository.Save(*login)
+			// Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		It("insert", func() {
@@ -132,8 +135,9 @@ var _ = Describe("Repository", func() {
 
 			Expect(login.ID).Should(BeZero())
 
-			err := repository.Save(login)
-			Expect(err).ShouldNot(HaveOccurred())
+			// err := repository.Save(login)
+			// Expect(err).ShouldNot(HaveOccurred())
+			_ = repository.Save(*login)
 
 			Expect(login.ID).Should(BeEquivalentTo(newId))
 		})

@@ -1,24 +1,94 @@
-package helper
+package login
 
 import (
+	"bufio"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/md5"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"io"
+	"log"
 	mathrand "math/rand"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/pass-wall/passwall-api/model"
-	"github.com/pass-wall/passwall-api/pkg/config"
-
 	"github.com/jinzhu/gorm"
+	"github.com/pass-wall/passwall-api/pkg/config"
+	"github.com/pass-wall/passwall-api/pkg/database"
 )
+
+// AddValues ...
+func AddValues(url, username, password string, file *os.File) error {
+	db := database.GetDB()
+	config := config.GetConfig()
+	var urlIndex, usernameIndex, passwordIndex int
+
+	scanner := bufio.NewScanner(file)
+	counter := 0
+	for scanner.Scan() {
+		fields := strings.Split(scanner.Text(), ",")
+
+		// Ignore first line (field names)
+		counter++
+		if counter == 1 {
+			// Match user's fieldnames to passwall's field names (URL, Username, Password)
+			urlIndex = FindIndex(fields, url)
+			usernameIndex = FindIndex(fields, username)
+			passwordIndex = FindIndex(fields, password)
+
+			// Check if fields match
+			if urlIndex == -1 || usernameIndex == -1 || passwordIndex == -1 {
+				errorText := fmt.Sprintf("%s, %s or %s field couldn't found in %s file", url, username, password, filepath.Base(file.Name()))
+				err := errors.New(errorText)
+				return err
+			}
+			continue
+		}
+
+		// if isRecordNotFound(fields[urlIndex], fields[usernameIndex], fields[passwordIndex]) {
+		// Fill login struct with csv file content
+		login := Login{
+			URL:      fields[urlIndex],
+			Username: fields[usernameIndex],
+			Password: base64.StdEncoding.EncodeToString(Encrypt(fields[passwordIndex], config.Server.Passphrase)),
+		}
+
+		// Add to database
+		db.Create(&login)
+		// }
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Println(err)
+		return err
+	}
+
+	return nil
+}
+
+func FindIndex(vs []string, t string) int {
+	for i, v := range vs {
+		if v == t {
+			return i
+		}
+	}
+	return -1
+}
+
+// CheckErr ...
+func CheckErr(err error) {
+	if err != nil {
+		log.Println(err)
+	}
+}
 
 // Offset returns the starting number of result for pagination
 func Offset(offset string) int {
@@ -83,6 +153,7 @@ func ToSnakeCase(str string) string {
 	return strings.ToLower(snake)
 }
 
+// Password ..
 func Password() string {
 	mathrand.Seed(time.Now().UnixNano())
 	chars := []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
@@ -97,12 +168,14 @@ func Password() string {
 	return b.String()
 }
 
+// CreateHash ...
 func CreateHash(key string) string {
 	hasher := md5.New()
 	hasher.Write([]byte(key))
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
+// Encrypt ..
 func Encrypt(dataStr string, passphrase string) []byte {
 	dataByte := []byte(dataStr)
 	block, _ := aes.NewCipher([]byte(CreateHash(passphrase)))
@@ -118,6 +191,7 @@ func Encrypt(dataStr string, passphrase string) []byte {
 	return cipherByte
 }
 
+// Decrypt ...
 func Decrypt(dataStr string, passphrase string) string {
 	dataByte := []byte(dataStr)
 	key := []byte(CreateHash(passphrase))
@@ -138,9 +212,13 @@ func Decrypt(dataStr string, passphrase string) string {
 	return string(plainByte[:])
 }
 
-func DecryptLoginPasswords(logins []model.Login) []model.Login {
+// DecryptLoginPasswords ...
+func DecryptLoginPasswords(logins []Login) []Login {
 	config := config.GetConfig()
 	for i := range logins {
+		if logins[i].Password == "" {
+			continue
+		}
 		passByte, _ := base64.StdEncoding.DecodeString(logins[i].Password)
 		passB64 := Decrypt(string(passByte[:]), config.Server.Passphrase)
 		logins[i].Password = passB64
