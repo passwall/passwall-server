@@ -49,7 +49,7 @@ func Setup() *gin.Engine {
 	r.NoRoute(authMW.MiddlewareFunc(), func(c *gin.Context) {
 		claims := jwt.ExtractClaims(c)
 		log.Printf("NoRoute claims: %#v\n", claims)
-		c.JSON(404, gin.H{"code": "PAGE_NOT_FOUND", "message": "Page not found"})
+		c.JSON(404, gin.H{"status": "Error", "message": "Page not found"})
 	})
 
 	return r
@@ -60,5 +60,6 @@ func InitLoginAPI(db *gorm.DB) login.LoginAPI {
 	loginRepository := login.NewLoginRepository(db)
 	loginService := login.NewLoginService(loginRepository)
 	loginAPI := login.NewLoginAPI(loginService)
+	loginAPI.Migrate()
 	return loginAPI
 }

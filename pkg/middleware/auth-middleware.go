@@ -113,8 +113,9 @@ func AuthMiddleware() *jwt.GinJWTMiddleware {
 	return authMiddleware
 }
 
+// TokenCheck ...
 func TokenCheck(c *gin.Context) {
 	// result := login.Result{"Success", "Token is valid"}
 	// c.JSON(http.StatusOK, result)
-	c.JSON(http.StatusOK, gin.H{"Message": "Token is valid"})
+	c.JSON(http.StatusOK, gin.H{"Status": "Success", "Message": "Token is valid"})
 }
