@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/pass-wall/passwall-api/model"
-
 	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/pass-wall/passwall-api/pkg/config"
@@ -116,6 +114,7 @@ func AuthMiddleware() *jwt.GinJWTMiddleware {
 }
 
 func TokenCheck(c *gin.Context) {
-	result := model.Result{"Success", "Token is valid"}
-	c.JSON(http.StatusOK, result)
+	// result := login.Result{"Success", "Token is valid"}
+	// c.JSON(http.StatusOK, result)
+	c.JSON(http.StatusOK, gin.H{"Message": "Token is valid"})
 }

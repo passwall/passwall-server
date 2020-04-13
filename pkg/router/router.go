@@ -4,7 +4,9 @@ import (
 	"log"
 
 	jwt "github.com/appleboy/gin-jwt/v2"
-	"github.com/pass-wall/passwall-api/controller/login"
+	"github.com/jinzhu/gorm"
+	"github.com/pass-wall/passwall-api/login"
+	"github.com/pass-wall/passwall-api/pkg/database"
 	"github.com/pass-wall/passwall-api/pkg/middleware"
 
 	"github.com/gin-gonic/gin"
@@ -18,6 +20,9 @@ func Setup() *gin.Engine {
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 	r.Use(middleware.CORS())
+
+	db := database.GetDB()
+	loginAPI := InitLoginAPI(db)
 
 	// JWT middleware
 	authMW := middleware.AuthMiddleware()
@@ -41,13 +46,21 @@ func Setup() *gin.Engine {
 	// Endpoints for logins protected with JWT
 	logins := r.Group("/logins", authMW.MiddlewareFunc())
 	{
-		logins.GET("/", login.GetLogins)
-		logins.GET("/:id", login.GetLogin)
-		logins.POST("/", login.CreateLogin)
-		logins.POST("/:action", login.PostHandler)
-		logins.PUT("/:id", login.UpdateLogin)
-		logins.DELETE("/:id", login.DeleteLogin)
+		logins.GET("/", loginAPI.FindAll)
+		logins.GET("/:id", loginAPI.FindByID)
+		logins.POST("/", loginAPI.Create)
+		// logins.POST("/:action", loginAPI.PostHandler)
+		logins.PUT("/:id", loginAPI.Update)
+		logins.DELETE("/:id", loginAPI.Delete)
 	}
 
 	return r
+}
+
+// InitLoginAPI ..
+func InitLoginAPI(db *gorm.DB) login.LoginAPI {
+	loginRepository := login.NewLoginRepository(db)
+	loginService := login.NewLoginService(loginRepository)
+	loginAPI := login.NewLoginAPI(loginService)
+	return loginAPI
 }

@@ -3,7 +3,6 @@ package database
 import (
 	"log"
 
-	"github.com/pass-wall/passwall-api/model"
 	"github.com/pass-wall/passwall-api/pkg/config"
 
 	"github.com/jinzhu/gorm"
@@ -13,10 +12,12 @@ import (
 )
 
 var (
+	// DB ...
 	DB  *gorm.DB
 	err error
 )
 
+// Database ...
 type Database struct {
 	*gorm.DB
 }
@@ -62,7 +63,7 @@ func Setup() {
 
 	// Auto migrate project models
 	// db.DropTableIfExists(&model.Login{})
-	db.AutoMigrate(&model.Login{})
+	// db.AutoMigrate(&model.Login{})
 	DB = db
 }
 
