@@ -96,6 +96,7 @@ func (p *LoginAPI) Create(c *gin.Context) {
 
 // Update ...
 func (p *LoginAPI) Update(c *gin.Context) {
+	config := config.GetConfig()
 	var loginDTO LoginDTO
 	err := c.BindJSON(&loginDTO)
 	if err != nil {
@@ -118,6 +119,12 @@ func (p *LoginAPI) Update(c *gin.Context) {
 		return
 	}
 
+	if loginDTO.Password == "" {
+		loginDTO.Password = Password()
+	}
+	rawPass := loginDTO.Password
+	loginDTO.Password = base64.StdEncoding.EncodeToString(Encrypt(loginDTO.Password, config.Server.Passphrase))
+
 	login.URL = loginDTO.URL
 	login.Username = loginDTO.Username
 	login.Password = loginDTO.Password
@@ -127,7 +134,7 @@ func (p *LoginAPI) Update(c *gin.Context) {
 		c.JSON(http.StatusNotFound, response)
 		return
 	}
-
+	updatedLogin.Password = rawPass
 	c.JSON(http.StatusOK, ToLoginDTO(updatedLogin))
 }
 
