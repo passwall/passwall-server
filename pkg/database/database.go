@@ -61,9 +61,6 @@ func Setup() {
 	// Change this to true if you want to see SQL queries
 	db.LogMode(false)
 
-	// Auto migrate project models
-	// db.DropTableIfExists(&model.Login{})
-	// db.AutoMigrate(&model.Login{})
 	DB = db
 }
 

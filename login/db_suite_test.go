@@ -1,4 +1,4 @@
-package login
+package login_test
 
 import (
 	"testing"
@@ -9,5 +9,5 @@ import (
 
 func TestSql(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Database Suite")
+	RunSpecs(t, "DB Suite")
 }

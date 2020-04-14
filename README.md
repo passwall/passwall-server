@@ -7,25 +7,27 @@
 
 **PassWall** is an open source password manager API written with Go.
 
-By using this API you can store your passwords wherever you want and manage easily event with just Postman etc.
+Using this tool, you can safely store your passwords and access them from anywhere with [PassWall Web](https://github.com/pass-wall/passwall-web) or [PassWall Desktop](https://github.com/pass-wall/passwall-desktop).
+
+The screenshot of Passwall Desktop working with Passwall API is as follows  
+![PassWall Desktop Screenshot](https://www.yakuter.com/wp-content/yuklemeler/PassWall-Desktop-Screenshot.png "PassWall Desktop")
 
 ## What's possible with PassWall API?
 
 Currently, this project is focused on storing URL, username and password which is basically called **Login** at PassWall API.
 
-An admin can;
-
-- Sign in and Refresh token
-- View all logins
-- View a specific login
+An admin can;  
+- View and search logins
 - Create login with automatically generated strong password
 - Update login
 - Delete login
+- Import logins from other password managers
+- Export logins as CSV format
 
 
 ## API Documentation
 API documentation available at:   
-[Click to see at Public Postman Templates](https://documenter.getpostman.com/view/3658426/SzYbyHXj)  
+[Click to see at Public Postman](https://documenter.getpostman.com/view/3658426/SzYbyHXj)  
 
 ## Authentication
 
@@ -50,7 +52,7 @@ You can start PassWall API with a database with one line command:
 docker-compose up --build
 ```
 
-## Docker usage
+## Dockerfile
 First get into you project folder. Then:
 
 To build

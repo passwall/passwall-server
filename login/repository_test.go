@@ -1,4 +1,4 @@
-package login
+package login_test
 
 import (
 	"database/sql"
@@ -10,10 +10,11 @@ import (
 	"github.com/jinzhu/gorm"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	. "github.com/pass-wall/passwall-api/login"
 	// "github.com/pass-wall/passwall-api/pkg/config"
 )
 
-var _ = Describe("Repository", func() {
+var _ = Describe("Login", func() {
 	var repository *LoginRepository
 	var mock sqlmock.Sqlmock
 
