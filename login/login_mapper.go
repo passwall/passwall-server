@@ -1,5 +1,9 @@
 package login
 
+import (
+	"net/url"
+)
+
 // ToLogin ...
 func ToLogin(loginDTO LoginDTO) Login {
 	return Login{
@@ -11,9 +15,17 @@ func ToLogin(loginDTO LoginDTO) Login {
 
 // ToLoginDTO ...
 func ToLoginDTO(login Login) LoginDTO {
+	var loginURL string
+	u, err := url.Parse(login.URL)
+	if err != nil {
+		loginURL = login.URL
+	} else {
+		loginURL = u.Host
+	}
+
 	return LoginDTO{
 		ID:       login.ID,
-		URL:      login.URL,
+		URL:      loginURL,
 		Username: login.Username,
 		Password: login.Password,
 	}
