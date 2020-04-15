@@ -15,11 +15,10 @@ func ToLogin(loginDTO LoginDTO) Login {
 
 // ToLoginDTO ...
 func ToLoginDTO(login Login) LoginDTO {
-	var loginURL string
+	loginURL := login.URL
+
 	u, err := url.Parse(login.URL)
-	if err != nil {
-		loginURL = login.URL
-	} else {
+	if err == nil {
 		loginURL = u.Host
 	}
 

@@ -6,8 +6,7 @@ COPY go.sum .
 RUN go mod download
 
 COPY main.go .
-COPY ./controller ./controller
-COPY ./model ./model
+COPY ./login ./login
 COPY ./pkg ./pkg
 
 RUN CGO_ENABLED=1 GOOS=linux go build -a --ldflags="-s" -o passwall-api
