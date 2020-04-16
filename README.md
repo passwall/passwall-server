@@ -3,7 +3,8 @@
 ![GitHub](https://img.shields.io/github/license/pass-wall/passwall-api)
 ![GitHub issues](https://img.shields.io/github/issues/pass-wall/passwall-api)
 [![Build Status](https://travis-ci.org/pass-wall/passwall-api.svg?branch=master)](https://travis-ci.org/pass-wall/passwall-api) 
-[![Coverage Status](https://coveralls.io/repos/github/pass-wall/passwall-api/badge.svg?branch=master)](https://coveralls.io/github/pass-wall/passwall-api?branch=master)
+[![Coverage Status](https://coveralls.io/repos/github/pass-wall/passwall-api/badge.svg?branch=master)](https://coveralls.io/github/pass-wall/passwall-api?branch=master)  
+[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy)
 
 **PassWall** is an open source password manager API written with Go.
 
