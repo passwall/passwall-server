@@ -27,7 +27,7 @@ An admin can;
 
 ## API Documentation
 API documentation available at:   
-[Click to see at Public Postman](https://documenter.getpostman.com/view/3658426/SzYbyHXj)  
+[Click to see at Public Postman](https://documenter.getpostman.com/view/3658426/SzYbyHXj)   
 
 ## Authentication
 
