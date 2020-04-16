@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "github.com/heroku/x/hmetrics/onload"
 	"github.com/pass-wall/passwall-api/pkg/config"
 	"github.com/pass-wall/passwall-api/pkg/database"
 	"github.com/pass-wall/passwall-api/pkg/router"
