@@ -3,7 +3,7 @@ package database
 import (
 	"log"
 
-	"github.com/pass-wall/passwall-api/pkg/config"
+	"github.com/spf13/viper"
 
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/mysql"
@@ -26,14 +26,12 @@ type Database struct {
 func Setup() {
 	var db = DB
 
-	Config := config.GetConfig()
-
-	driver := Config.Database.Driver
-	database := Config.Database.Dbname
-	username := Config.Database.Username
-	password := Config.Database.Password
-	host := Config.Database.Host
-	port := Config.Database.Port
+	driver := viper.GetString("database.driver")
+	database := viper.GetString("database.dbname")
+	username := viper.GetString("database.username")
+	password := viper.GetString("database.password")
+	host := viper.GetString("database.host")
+	port := viper.GetString("database.port")
 
 	if driver == "sqlite" {
 		db, err = gorm.Open("sqlite3", "./store/"+database+".db")

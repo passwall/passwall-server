@@ -8,7 +8,6 @@ RUN go mod download
 COPY main.go .
 COPY ./login ./login
 COPY ./pkg ./pkg
-COPY ./store ./store
 
 RUN CGO_ENABLED=1 GOOS=linux go build -a --ldflags="-s" -o passwall-api
 

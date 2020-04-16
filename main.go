@@ -5,6 +5,7 @@ import (
 	"github.com/pass-wall/passwall-api/pkg/config"
 	"github.com/pass-wall/passwall-api/pkg/database"
 	"github.com/pass-wall/passwall-api/pkg/router"
+	"github.com/spf13/viper"
 )
 
 func init() {
@@ -13,8 +14,6 @@ func init() {
 }
 
 func main() {
-	config := config.GetConfig()
-
 	r := router.Setup()
-	r.Run("0.0.0.0:" + config.Server.Port)
+	r.Run("0.0.0.0:" + viper.GetString("server.port"))
 }

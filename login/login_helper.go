@@ -21,14 +21,13 @@ import (
 	"time"
 
 	"github.com/jinzhu/gorm"
-	"github.com/pass-wall/passwall-api/pkg/config"
 	"github.com/pass-wall/passwall-api/pkg/database"
+	"github.com/spf13/viper"
 )
 
 // AddValues ...
 func AddValues(url, username, password string, file *os.File) error {
 	db := database.GetDB()
-	config := config.GetConfig()
 	var urlIndex, usernameIndex, passwordIndex int
 
 	scanner := bufio.NewScanner(file)
@@ -58,7 +57,7 @@ func AddValues(url, username, password string, file *os.File) error {
 		login := Login{
 			URL:      fields[urlIndex],
 			Username: fields[usernameIndex],
-			Password: base64.StdEncoding.EncodeToString(Encrypt(fields[passwordIndex], config.Server.Passphrase)),
+			Password: base64.StdEncoding.EncodeToString(Encrypt(fields[passwordIndex], viper.GetString("server.passphrase"))),
 		}
 
 		// Add to database
@@ -124,12 +123,11 @@ func SortOrder(table, sort, order string) string {
 
 // Search adds where to search keywords
 func Search(search string) func(db *gorm.DB) *gorm.DB {
-	config := config.GetConfig()
 	return func(db *gorm.DB) *gorm.DB {
 		if search != "" {
 
 			// Case insensitive is different in postgres and others (mysql,sqlite)
-			if config.Database.Driver == "postgres" {
+			if viper.GetString("database.driver") == "postgres" {
 				db = db.Where("url ILIKE ?", "%"+search+"%")
 				db = db.Or("username ILIKE ?", "%"+search+"%")
 			} else {
@@ -214,13 +212,12 @@ func Decrypt(dataStr string, passphrase string) string {
 
 // DecryptLoginPasswords ...
 func DecryptLoginPasswords(logins []Login) []Login {
-	config := config.GetConfig()
 	for i := range logins {
 		if logins[i].Password == "" {
 			continue
 		}
 		passByte, _ := base64.StdEncoding.DecodeString(logins[i].Password)
-		passB64 := Decrypt(string(passByte[:]), config.Server.Passphrase)
+		passB64 := Decrypt(string(passByte[:]), viper.GetString("server.passphrase"))
 		logins[i].Password = passB64
 	}
 	return logins

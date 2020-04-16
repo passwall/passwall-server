@@ -7,7 +7,7 @@ import (
 
 	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
-	"github.com/pass-wall/passwall-api/pkg/config"
+	"github.com/spf13/viper"
 )
 
 var err error
@@ -27,12 +27,10 @@ var identityKey = "username"
 
 // AuthMiddleware is JWT authorization middleware
 func AuthMiddleware() *jwt.GinJWTMiddleware {
-
-	config := config.GetConfig()
-	usernameCfg := config.Server.Username
-	passwordCfg := config.Server.Password
-	secret := config.Server.Secret
-	timeout := config.Server.Timeout
+	usernameCfg := viper.GetString("server.username")
+	passwordCfg := viper.GetString("server.password")
+	secret := viper.GetString("server.secret")
+	timeout := viper.GetInt("server.timeout")
 	if timeout < 0 {
 		timeout = 1
 	}
