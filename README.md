@@ -30,10 +30,28 @@ API documentation available at:
 [Click to see at Public Postman](https://documenter.getpostman.com/view/3658426/SzYbyHXj)   
 
 ## Authentication
-
 This API uses **JWT Token** to secure endpoints. So user must generate token with /auth/signin first. Then with generated token, all endpoints in API documentation can be reachable.  
   
 User information for signin is in **config.yml** file.
+
+## Environment Variables
+These environment variables are accepted:
+
+**Server Variables:**
+- PORT
+- PW_SERVER_USERNAME
+- PW_SERVER_PASSWORD
+- PW_SERVER_PASSPHRASE
+- PW_SERVER_SECRET
+- PW_SERVER_TIMEOUT  
+  
+**Database Variables**
+- PW_DB_DRIVER
+- PW_DB_DBNAME
+- PW_DB_USERNAME
+- PW_DB_PASSWORD
+- PW_DB_HOST
+- PW_DB_PORT
 
 ## Development usage
 Just change **config-sample.yml** to **config.yml** in **store** folder and update the content of this file for your usage. Then you can run API with standard command:
