@@ -54,15 +54,6 @@ services:
       - ${PORT}:${PORT}
     volumes:
       - ./store:/app/store
-    environment: 
-      - PORT=${PORT}
-      - USERNAME=${USERNAME}
-      - PASSWORD=${PASSWORD}
-      - PASSPHRASE=${PASSPHRASE}
-      - SECRET=${SECRET}
-      - TIMEOUT=${TIMEOUT}
-      - DRIVER=${DRIVER}
-      - DBNAME=${DBNAME}
 
   # passwall-web:
   #   container_name: passwall-web
