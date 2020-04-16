@@ -51,7 +51,7 @@ services:
       # - mysql
       # - postgres
     ports:
-      - ${PORT}:${PORT}
+      - 3625:3625
     volumes:
       - ./store:/app/store
 

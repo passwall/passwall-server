@@ -16,6 +16,7 @@ var Config *Configuration
 type Configuration struct {
 	Server   ServerConfiguration
 	Database DatabaseConfiguration
+	PORT     string
 }
 
 func isConfigExist(path string) bool {
@@ -71,7 +72,7 @@ func readFromConfig() error {
 }
 
 func bindEnvs() {
-	viper.BindEnv("server.port", "PW_SERVER_PORT")
+	viper.BindEnv("server.port", "PORT")
 	viper.BindEnv("server.username", "PW_SERVER_USERNAME")
 	viper.BindEnv("server.password", "PW_SERVER_PASSWORD")
 	viper.BindEnv("server.passphrase", "PW_SERVER_PASSPHRASE")
