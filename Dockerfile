@@ -17,4 +17,7 @@ FROM alpine:3.11
 COPY --from=builder /app/passwall-api /app/passwall-api
 
 WORKDIR /app
+
+RUN mkdir store
+
 ENTRYPOINT ["/app/passwall-api"]
