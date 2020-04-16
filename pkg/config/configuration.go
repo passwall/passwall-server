@@ -34,7 +34,6 @@ func Setup() {
 		}
 	} else {
 		log.Println("Couldn't file ./store/config.yml. Started with defaul ENV values.")
-		setEnv()
 		readFromEnv()
 	}
 }
@@ -65,18 +64,14 @@ func readFromConfig() error {
 	return nil
 }
 
-func setEnv() {
-	os.Setenv("PORT", "3625")
-	os.Setenv("USERNAME", "passwall")
-	os.Setenv("PASSWORD", "password")
-	os.Setenv("PASSPHRASE", "-G84d}~Yr)H{c=Zx)>@VqM;d~o+$}x9y~X_Ma-otq|ifhP7]?s7OJBYXao,K]-+^")
-	os.Setenv("SECRET", "JOa{+KBm5:hj]?k1 wsVJl?*HE(cEB<*WVXkL$qh}B2#Fry{C;j[k}-[|-9G:#b]")
-	os.Setenv("TIMEOUT", "24")
-	os.Setenv("DRIVER", "sqlite")
-	os.Setenv("DBNAME", "passwall")
-}
-
 func readFromEnv() {
+
+	// This is for checking env variables
+	port := os.Getenv("PORT")
+	if port == "" {
+		log.Fatal("PORT must be set")
+	}
+
 	timeout, _ := strconv.Atoi(os.Getenv("TIMEOUT"))
 	configuration := &Configuration{
 		Server: ServerConfiguration{

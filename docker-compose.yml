@@ -30,10 +30,19 @@ services:
   #   # Uncomment volumes section if you want to store persist data
   #   # volumes:
   #   #   - passwall-postgres-db:/var/lib/postgresql/data
+  
+  
+    # USERNAME= ${USERNAME}
+    # PASSWORD= ${PASSWORD}
+    # PASSPHRASE= ${PASSPHRASE}
+    # SECRET= ${SECRET}
+    # TIMEOUT= ${TIMEOUT}
+    # DRIVER= ${DRIVER}
+    # DBNAME= ${DBNAME}
 
   passwall-api:
     container_name: passwall-api
-    image: passwall-api:latest
+    image: passwall/passwall-api:latest
     restart: always
     build:
       context: .
@@ -42,9 +51,18 @@ services:
       # - mysql
       # - postgres
     ports:
-      - 3625:3625
+      - ${PORT}:${PORT}
     volumes:
       - ./store:/app/store
+    environment: 
+      - PORT=${PORT}
+      - USERNAME=${USERNAME}
+      - PASSWORD=${PASSWORD}
+      - PASSPHRASE=${PASSPHRASE}
+      - SECRET=${SECRET}
+      - TIMEOUT=${TIMEOUT}
+      - DRIVER=${DRIVER}
+      - DBNAME=${DBNAME}
 
   # passwall-web:
   #   container_name: passwall-web
