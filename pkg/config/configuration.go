@@ -1,20 +1,50 @@
 package config
 
 import (
+	"os"
+	"strconv"
+
 	"log"
 
 	"github.com/spf13/viper"
 )
 
+// Config ...
 var Config *Configuration
 
+// Configuration ...
 type Configuration struct {
 	Server   ServerConfiguration
 	Database DatabaseConfiguration
 }
 
+func isConfigExist(path string) bool {
+	_, err := os.Open("./store/config.yml")
+	if err != nil {
+		return false
+	}
+	return true
+}
+
 // Setup initialize configuration
 func Setup() {
+	if isConfigExist("./store/config.yml") {
+		if err := readFromConfig(); err != nil {
+			log.Fatalf("Error reading config file, %s", err)
+		}
+	} else {
+		log.Println("Couldn't file ./store/config.yml. Started with defaul ENV values.")
+		setEnv()
+		readFromEnv()
+	}
+}
+
+// GetConfig helps you to get configuration data
+func GetConfig() *Configuration {
+	return Config
+}
+
+func readFromConfig() error {
 	var configuration *Configuration
 
 	viper.SetConfigName("config")
@@ -22,18 +52,46 @@ func Setup() {
 	viper.AddConfigPath("./store")
 
 	if err := viper.ReadInConfig(); err != nil {
-		log.Fatalf("Error reading config file, %s", err)
+		return err
 	}
 
 	err := viper.Unmarshal(&configuration)
 	if err != nil {
-		log.Fatalf("Unable to decode into struct, %v", err)
+		return err
 	}
 
 	Config = configuration
+
+	return nil
 }
 
-// GetConfig helps you to get configuration data
-func GetConfig() *Configuration {
-	return Config
+func setEnv() {
+	os.Setenv("PORT", "3625")
+	os.Setenv("USERNAME", "passwall")
+	os.Setenv("PASSWORD", "password")
+	os.Setenv("PASSPHRASE", "-G84d}~Yr)H{c=Zx)>@VqM;d~o+$}x9y~X_Ma-otq|ifhP7]?s7OJBYXao,K]-+^")
+	os.Setenv("SECRET", "JOa{+KBm5:hj]?k1 wsVJl?*HE(cEB<*WVXkL$qh}B2#Fry{C;j[k}-[|-9G:#b]")
+	os.Setenv("TIMEOUT", "24")
+	os.Setenv("DRIVER", "sqlite")
+	os.Setenv("DBNAME", "passwall")
+}
+
+func readFromEnv() {
+	timeout, _ := strconv.Atoi(os.Getenv("TIMEOUT"))
+	configuration := &Configuration{
+		Server: ServerConfiguration{
+			Port:       os.Getenv("PORT"),
+			Username:   os.Getenv("USERNAME"),
+			Password:   os.Getenv("PASSWORD"),
+			Passphrase: os.Getenv("PASSPHRASE"),
+			Secret:     os.Getenv("SECRET"),
+			Timeout:    timeout,
+		},
+		Database: DatabaseConfiguration{
+			Driver: os.Getenv("DRIVER"),
+			Dbname: os.Getenv("DBNAME"),
+		},
+	}
+
+	Config = configuration
 }

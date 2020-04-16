@@ -1,5 +1,9 @@
 # PASSWALL CHANGELOG
 
+## Version: [-.-.-] (2020-04---)
+### Added
+- If there is no config.yml, reads from default ENV variables defined in /pkg/config/configuration.go
+
 ## Version: [1.0.5] (2020-04-12)
 ### Added
 - JWT token for authentication
