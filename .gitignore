@@ -32,9 +32,6 @@ config.yml
 .DS_Store
 .DS_Store? 
 
-## ENVIRONMENT FILE ##
-.env
-
 ## SQLITE DATABASE ##
 /store/passwall.db
 /store/gpass.db
