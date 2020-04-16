@@ -64,12 +64,29 @@ func readFromConfig() error {
 	return nil
 }
 
+func setEnv() {
+	os.Setenv("PORT", "3625")
+	os.Setenv("USERNAME", "passwall")
+	os.Setenv("PASSWORD", "password")
+	os.Setenv("PASSPHRASE", "-G84d}~Yr)H{c=Zx)>@VqM;d~o+$}x9y~X_Ma-otq|ifhP7]?s7OJBYXao,K]-+^")
+	os.Setenv("SECRET", "JOa{+KBm5:hj]?k1 wsVJl?*HE(cEB<*WVXkL$qh}B2#Fry{C;j[k}-[|-9G:#b]")
+	os.Setenv("TIMEOUT", "24")
+	os.Setenv("DB_DRIVER", "sqlite")
+	os.Setenv("DB_NAME", "passwall")
+	os.Setenv("DB_USERNAME", "user")
+	os.Setenv("DB_PASSWORD", "password")
+	os.Setenv("DB_HOST", "localhost")
+	os.Setenv("DB_PORT", "5432")
+
+}
+
 func readFromEnv() {
 
 	// This is for checking env variables
 	port := os.Getenv("PORT")
 	if port == "" {
-		log.Fatal("PORT must be set")
+		log.Println("Environment variables didn't set. Setting it manually.")
+		setEnv()
 	}
 
 	timeout, _ := strconv.Atoi(os.Getenv("TIMEOUT"))
@@ -83,8 +100,12 @@ func readFromEnv() {
 			Timeout:    timeout,
 		},
 		Database: DatabaseConfiguration{
-			Driver: os.Getenv("DRIVER"),
-			Dbname: os.Getenv("DBNAME"),
+			Driver:   os.Getenv("DB_DRIVER"),
+			Dbname:   os.Getenv("DB_NAME"),
+			Username: os.Getenv("DB_USERNAME"),
+			Password: os.Getenv("DB_PASSWORD"),
+			Host:     os.Getenv("DB_HOST"),
+			Port:     os.Getenv("DB_PORT"),
 		},
 	}
 
