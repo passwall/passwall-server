@@ -16,7 +16,7 @@ func ToLogin(loginDTO LoginDTO) Login {
 // ToLoginDTO ...
 func ToLoginDTO(login Login) LoginDTO {
 
-	trims := []string{"https://", "http://", "www"}
+	trims := []string{"https://", "http://", "www."}
 	for i := range trims {
 		login.URL = strings.TrimPrefix(login.URL, trims[i])
 	}
