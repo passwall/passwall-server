@@ -17,7 +17,7 @@ func NewLoginRepository(db *gorm.DB) LoginRepository {
 // FindAll ...
 func (p *LoginRepository) FindAll() ([]Login, error) {
 	logins := []Login{}
-	err := p.DB.Find(&logins).Error
+	err := p.DB.Order("updated_at DESC").Find(&logins).Error
 	return logins, err
 }
 

@@ -1,5 +1,10 @@
 # PASSWALL CHANGELOG
 
+## Version: [-.-.-] (2020-04-18)
+### Changed
+- Order BT to updated_at DESC
+- Trim http://, https:// and www from URL's
+
 ## Version: [1.0.7] (2020-04-17)
 ### Added
 - Refactored configuration. Now API accepts ENV variables.

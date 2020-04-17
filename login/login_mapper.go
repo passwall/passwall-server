@@ -1,7 +1,7 @@
 package login
 
 import (
-	"net/url"
+	"strings"
 )
 
 // ToLogin ...
@@ -15,16 +15,15 @@ func ToLogin(loginDTO LoginDTO) Login {
 
 // ToLoginDTO ...
 func ToLoginDTO(login Login) LoginDTO {
-	loginURL := login.URL
 
-	u, err := url.Parse(login.URL)
-	if err == nil {
-		loginURL = u.Host
+	trims := []string{"https://", "http://", "www"}
+	for i := range trims {
+		login.URL = strings.TrimPrefix(login.URL, trims[i])
 	}
 
 	return LoginDTO{
 		ID:       login.ID,
-		URL:      loginURL,
+		URL:      login.URL,
 		Username: login.Username,
 		Password: login.Password,
 	}
