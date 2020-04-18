@@ -153,7 +153,7 @@ func setOrder(sort, order string) string {
 	sortValues := []string{"id", "created_at", "updated_at", "url", "username"}
 	orderValues := []string{"desc", "asc"}
 
-	if Include(sortValues, strings.ToLower(sort)) && Include(orderValues, strings.ToLower(order)) {
+	if Include(sortValues, ToSnakeCase(sort)) && Include(orderValues, ToSnakeCase(order)) {
 		return ToSnakeCase(sort) + " " + ToSnakeCase(order)
 	}
 
