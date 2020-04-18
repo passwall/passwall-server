@@ -3,7 +3,8 @@
 ![GitHub](https://img.shields.io/github/license/pass-wall/passwall-server)
 ![GitHub issues](https://img.shields.io/github/issues/pass-wall/passwall-server)
 [![Build Status](https://travis-ci.org/pass-wall/passwall-server.svg?branch=master)](https://travis-ci.org/pass-wall/passwall-server) 
-[![Coverage Status](https://coveralls.io/repos/github/pass-wall/passwall-server/badge.svg?branch=master)](https://coveralls.io/github/pass-wall/passwall-server?branch=master)  
+[![Coverage Status](https://coveralls.io/repos/github/pass-wall/passwall-server/badge.svg?branch=master)](https://coveralls.io/github/pass-wall/passwall-server?branch=master)
+[![Docker Pull Status](https://img.shields.io/docker/pulls/passwall/passwall-server)](https://hub.docker.com/u/passwall/)  
 [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy)
 
 **PassWall Server** is the core backend for open source password manager PassWall platform. Using this server, you can safely store your passwords and access them from anywhere. 
