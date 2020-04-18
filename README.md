@@ -25,7 +25,7 @@ API documentation available at:
 ## DEMO
 Demo is available at: [Demo Server](https://passwall-demo.herokuapp.com)  
 You can test it with clients or make requests with API tools like Postman with the credentials below:  
-**Username: **passwall  
+**Username:** passwall  
 **Password:** password
 
 
