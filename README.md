@@ -10,7 +10,7 @@
 **PassWall Server** is the core backend for open source password manager PassWall platform. Using this server, you can safely store your passwords and access them from anywhere. 
 
 ## Clients
-PassWall can be used by these clients or you can write your own client by using API Documentation  
+PassWall can be used by these clients or you can write your own client by using [API Documentation](https://documenter.getpostman.com/view/3658426/SzYbyHXj)     
 [PassWall Web](https://github.com/pass-wall/passwall-web)  
 [PassWall Desktop](https://github.com/pass-wall/passwall-desktop)  
 [PassWall Mobile](https://github.com/pass-wall/passwall-mobile)  
