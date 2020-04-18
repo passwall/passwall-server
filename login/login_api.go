@@ -23,13 +23,10 @@ func NewLoginAPI(p LoginService) LoginAPI {
 func (p *LoginAPI) FindAll(c *gin.Context) {
 	var err error
 	logins := []Login{}
-	search := c.DefaultQuery("Search", "")
 
-	if search != "" {
-		logins, err = p.LoginService.Search(search)
-	} else {
-		logins, err = p.LoginService.FindAll()
-	}
+	argsStr, argsInt := SetArgs(c)
+
+	logins, err = p.LoginService.FindAll(argsStr, argsInt)
 
 	if err != nil {
 		response := LoginResponse{"Error", err.Error()}

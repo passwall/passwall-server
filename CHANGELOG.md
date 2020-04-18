@@ -1,6 +1,9 @@
 # PASSWALL CHANGELOG
 
 ## Version: [-.-.-] (2020-04-18)
+### Add
+- Search,Limit,Offset,Sort,Order query parameters to FindAll()
+  
 ### Changed
 - Order BT to updated_at DESC
 - Trim http://, https:// and www from URL's

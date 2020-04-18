@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
 	"github.com/pass-wall/passwall-api/pkg/database"
 	"github.com/spf13/viper"
@@ -89,40 +90,78 @@ func CheckErr(err error) {
 	}
 }
 
+// Include ...
+func Include(vs []string, t string) bool {
+	return FindIndex(vs, t) >= 0
+}
+
+// SetArgs ...
+func SetArgs(c *gin.Context) (map[string]string, map[string]int) {
+
+	// String type query params
+	search := c.DefaultQuery("Search", "")
+	sort := c.DefaultQuery("Sort", "updated_at")
+	order := c.DefaultQuery("Order", "DESC")
+	argsStr := map[string]string{
+		"search": search,
+		"order":  setOrder(sort, order),
+	}
+
+	// Integer type query params
+	offset := c.DefaultQuery("Offset", "")
+	limit := c.DefaultQuery("Limit", "")
+	argsInt := map[string]int{
+		"offset": setOffset(offset),
+		"limit":  setLimit(limit),
+	}
+
+	return argsStr, argsInt
+}
+
 // Offset returns the starting number of result for pagination
-func Offset(offset string) int {
+func setOffset(offset string) int {
 	offsetInt, err := strconv.Atoi(offset)
 	if err != nil {
-		offsetInt = 0
+		return -1
 	}
+
 	// don't allow negative values
+	// except -1 which cancels offset condition
 	if offsetInt < 0 {
-		offsetInt = 0
+		offsetInt = -1
 	}
 	return offsetInt
 }
 
 // Limit returns the number of result for pagination
-func Limit(limit string) int {
+func setLimit(limit string) int {
 	limitInt, err := strconv.Atoi(limit)
 	if err != nil {
-		limitInt = 25
+		// -1 cancels limit condition
+		return -1
 	}
 
-	// min limit should be 5
-	if limitInt < 5 {
-		limitInt = 5
+	// min limit should be 1
+	if limitInt < 1 {
+		limitInt = 1
 	}
 	return limitInt
 }
 
 // SortOrder returns the string for sorting and orderin data
-func SortOrder(table, sort, order string) string {
-	return table + "." + ToSnakeCase(sort) + " " + ToSnakeCase(order)
+func setOrder(sort, order string) string {
+	sortValues := []string{"id", "created_at", "updated_at", "url", "username"}
+	orderValues := []string{"desc", "asc"}
+
+	if Include(sortValues, strings.ToLower(sort)) && Include(orderValues, strings.ToLower(order)) {
+		return ToSnakeCase(sort) + " " + ToSnakeCase(order)
+	}
+
+	return "updated_at desc"
 }
 
 // Search adds where to search keywords
-func Search(search string) func(db *gorm.DB) *gorm.DB {
+func setSearch(search string) func(db *gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
 		if search != "" {
 

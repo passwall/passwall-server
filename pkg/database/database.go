@@ -34,8 +34,8 @@ func Setup() {
 	port := viper.GetString("database.port")
 
 	if driver == "sqlite" {
-		db, err = gorm.Open("sqlite3", "./store/"+database+".db")
 
+		db, err = gorm.Open("sqlite3", "./store/"+database+".db")
 		if err != nil {
 			log.Fatal("db err: ", err)
 		}

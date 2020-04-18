@@ -15,16 +15,23 @@ func NewLoginRepository(db *gorm.DB) LoginRepository {
 }
 
 // FindAll ...
-func (p *LoginRepository) FindAll() ([]Login, error) {
+func (p *LoginRepository) FindAll(argsStr map[string]string, argsInt map[string]int) ([]Login, error) {
 	logins := []Login{}
-	err := p.DB.Order("updated_at DESC").Find(&logins).Error
-	return logins, err
-}
 
-// Search ...
-func (p *LoginRepository) Search(keyword string) ([]Login, error) {
-	logins := []Login{}
-	err := p.DB.Where("url LIKE ? OR username LIKE ?", "%"+keyword+"%", "%"+keyword+"%").Find(&logins).Error
+	query := p.DB
+	query = query.Limit(argsInt["limit"])
+	if argsInt["limit"] > 0 {
+		// offset can't be declared without a valid limit
+		query = query.Offset(argsInt["offset"])
+	}
+
+	query = query.Order(argsStr["order"])
+
+	if argsStr["search"] != "" {
+		query = query.Where("url LIKE ? OR username LIKE ?", "%"+argsStr["search"]+"%", "%"+argsStr["search"]+"%")
+	}
+
+	err := query.Find(&logins).Error
 	return logins, err
 }
 

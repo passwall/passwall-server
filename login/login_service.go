@@ -11,13 +11,8 @@ func NewLoginService(p LoginRepository) LoginService {
 }
 
 // FindAll ...
-func (p *LoginService) FindAll() ([]Login, error) {
-	return p.LoginRepository.FindAll()
-}
-
-// Search ...
-func (p *LoginService) Search(keyword string) ([]Login, error) {
-	return p.LoginRepository.Search(keyword)
+func (p *LoginService) FindAll(argsStr map[string]string, argsInt map[string]int) ([]Login, error) {
+	return p.LoginRepository.FindAll(argsStr, argsInt)
 }
 
 // FindByID ...
