@@ -1,4 +1,4 @@
-# PassWall
+# PassWall Server
 
 ![GitHub](https://img.shields.io/github/license/pass-wall/passwall-server)
 ![GitHub issues](https://img.shields.io/github/issues/pass-wall/passwall-server)
@@ -6,16 +6,30 @@
 [![Coverage Status](https://coveralls.io/repos/github/pass-wall/passwall-server/badge.svg?branch=master)](https://coveralls.io/github/pass-wall/passwall-server?branch=master)  
 [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy)
 
-**PassWall** is an open source password manager API written with Go.
+**PassWall Server** is the core backend for open source password manager PassWall platform. Using this server, you can safely store your passwords and access them from anywhere. 
 
-Using this tool, you can safely store your passwords and access them from anywhere with [PassWall Web](https://github.com/pass-wall/passwall-web) or [PassWall Desktop](https://github.com/pass-wall/passwall-desktop).
+## Clients
+PassWall can be used by these clients or you can write your own client by using API Documentation  
+[PassWall Web](https://github.com/pass-wall/passwall-web)  
+[PassWall Desktop](https://github.com/pass-wall/passwall-desktop)  
+[PassWall Mobile](https://github.com/pass-wall/passwall-mobile)  
 
-The screenshot of Passwall Desktop working with Passwall API is as follows  
+The screenshot of Passwall Desktop working with Passwall Server is as follows  
 ![PassWall Desktop Screenshot](https://www.yakuter.com/wp-content/yuklemeler/PassWall-Desktop-Screenshot.png "PassWall Desktop")
 
-## What's possible with PassWall API?
+## API Documentation
+API documentation available at:   
+[Click to see at Public Postman](https://documenter.getpostman.com/view/3658426/SzYbyHXj)   
 
-Currently, this project is focused on storing URL, username and password which is basically called **Login** at PassWall API.
+## DEMO
+Demo is available at: [Demo Server](https://passwall-demo.herokuapp.com)  
+You can test it with clients or make requests with API tools like Postman with the credentials below:  
+**Username: **passwall  
+**Password:** password
+
+
+## What's possible with PassWall Server?
+Currently, this project is focused on storing URL, username and password which is basically called **Login** at PassWall.
 
 An admin can;  
 - View and search logins
@@ -25,13 +39,8 @@ An admin can;
 - Import logins from other password managers
 - Export logins as CSV format
 
-
-## API Documentation
-API documentation available at:   
-[Click to see at Public Postman](https://documenter.getpostman.com/view/3658426/SzYbyHXj)   
-
 ## Authentication
-This API uses **JWT Token** to secure endpoints. So user must generate token with /auth/signin first. Then with generated token, all endpoints in API documentation can be reachable.  
+This server uses **JWT Token** to secure endpoints. So user must generate token with /auth/signin first. Then with generated token, all endpoints in API documentation can be reachable.  
   
 User information for signin is in **config.yml** file.
 
@@ -55,41 +64,24 @@ These environment variables are accepted:
 - PW_DB_PORT
 
 ## Development usage
-Just change **config-sample.yml** to **config.yml** in **store** folder and update the content of this file for your usage. Then you can run API with standard command:
+Install Go to your computer. Pull the server repo. Execute the command in server folder.
 
 ```
 go run main.go
 ```
 
-## docker-compose
+The server uses config file end environment variables. If you want to set variables manually, just change **config-sample.yml** to **config.yml** in **store** folder.
 
-You can start PassWall API with a database with one line command:
-
-**P.S: You should uncomment database service sections**
+## Docker
 
 ```
 docker-compose up --build
 ```
-
-## Dockerfile
-First get into you project folder. Then:
-
-To build
+or
 ```
-docker build -t passwall-server .
-```
-
-To run
-```
+docker pull passwall/passwall-server
 cp ./store/config-sample.yml ./store/config.yml
 docker run --name passwall-server --rm -v $(pwd)/store:/app/store -p 3625:3625 passwall-server
-```
-
-To store persistent data (config.yml and passwall.db)
-```
-mkdir $HOME/docker/volumes/passwall-server
-cp ./store/config-sample.yml $HOME/docker/volumes/passwall-server/config.yml
-docker run --name passwall-server -d --restart=always -v $HOME/docker/volumes/passwall-server:/app/store -p 3625:3625 passwall-server
 ```
 
 ## Import
@@ -97,4 +89,4 @@ There are different kinds of password managers. Almost all of them can export lo
 ![example csv](https://www.yakuter.com/wp-content/yuklemeler/example-csv.png "Example CSV File")  
   
 You need to fill the import form as below picture.  
-![passwall-server import](https://www.yakuter.com/wp-content/yuklemeler/passwall-server-import-csv.png "Import Form and Request Example")
+![passwall-server import](https://www.yakuter.com/wp-content/yuklemeler/gpass-import-csv.png "Import Form and Request Example")
