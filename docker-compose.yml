@@ -40,9 +40,9 @@ services:
     # DRIVER= ${DRIVER}
     # DBNAME= ${DBNAME}
 
-  passwall-api:
-    container_name: passwall-api
-    image: passwall/passwall-api:latest
+  passwall-server:
+    container_name: passwall-server
+    image: passwall/passwall-server:latest
     restart: always
     build:
       context: .

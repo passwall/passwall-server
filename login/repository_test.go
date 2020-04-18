@@ -10,8 +10,8 @@ import (
 	"github.com/jinzhu/gorm"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/pass-wall/passwall-api/login"
-	// "github.com/pass-wall/passwall-api/pkg/config"
+	. "github.com/pass-wall/passwall-server/login"
+	// "github.com/pass-wall/passwall-server/pkg/config"
 )
 
 var _ = Describe("Login", func() {

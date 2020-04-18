@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/gin-gonic/gin"
-	"github.com/pass-wall/passwall-api/pkg/database"
+	"github.com/pass-wall/passwall-server/pkg/database"
 )
 
 // PostHandler ...

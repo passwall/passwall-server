@@ -1,4 +1,4 @@
-module github.com/pass-wall/passwall-api
+module github.com/pass-wall/passwall-server
 
 go 1.14
 
@@ -10,7 +10,6 @@ require (
 	github.com/jinzhu/gorm v1.9.12
 	github.com/onsi/ginkgo v1.12.0
 	github.com/onsi/gomega v1.9.0
-	github.com/prometheus/common v0.4.0
 	github.com/spf13/viper v1.6.2
 	github.com/stretchr/testify v1.4.0
 )

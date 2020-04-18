@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/pass-wall/passwall-api/login"
-	"github.com/pass-wall/passwall-api/pkg/router"
+	"github.com/pass-wall/passwall-server/login"
+	"github.com/pass-wall/passwall-server/pkg/router"
 	"github.com/stretchr/testify/assert"
 )
 

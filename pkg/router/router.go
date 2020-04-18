@@ -5,9 +5,9 @@ import (
 
 	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/jinzhu/gorm"
-	"github.com/pass-wall/passwall-api/login"
-	"github.com/pass-wall/passwall-api/pkg/database"
-	"github.com/pass-wall/passwall-api/pkg/middleware"
+	"github.com/pass-wall/passwall-server/login"
+	"github.com/pass-wall/passwall-server/pkg/database"
+	"github.com/pass-wall/passwall-server/pkg/middleware"
 
 	"github.com/gin-gonic/gin"
 )

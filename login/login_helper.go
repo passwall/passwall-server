@@ -22,7 +22,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
-	"github.com/pass-wall/passwall-api/pkg/database"
+	"github.com/pass-wall/passwall-server/pkg/database"
 	"github.com/spf13/viper"
 )
 

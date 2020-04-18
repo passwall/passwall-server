@@ -1,9 +1,9 @@
 # PassWall
 
-![GitHub](https://img.shields.io/github/license/pass-wall/passwall-api)
-![GitHub issues](https://img.shields.io/github/issues/pass-wall/passwall-api)
-[![Build Status](https://travis-ci.org/pass-wall/passwall-api.svg?branch=master)](https://travis-ci.org/pass-wall/passwall-api) 
-[![Coverage Status](https://coveralls.io/repos/github/pass-wall/passwall-api/badge.svg?branch=master)](https://coveralls.io/github/pass-wall/passwall-api?branch=master)  
+![GitHub](https://img.shields.io/github/license/pass-wall/passwall-server)
+![GitHub issues](https://img.shields.io/github/issues/pass-wall/passwall-server)
+[![Build Status](https://travis-ci.org/pass-wall/passwall-server.svg?branch=master)](https://travis-ci.org/pass-wall/passwall-server) 
+[![Coverage Status](https://coveralls.io/repos/github/pass-wall/passwall-server/badge.svg?branch=master)](https://coveralls.io/github/pass-wall/passwall-server?branch=master)  
 [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy)
 
 **PassWall** is an open source password manager API written with Go.
@@ -76,20 +76,20 @@ First get into you project folder. Then:
 
 To build
 ```
-docker build -t passwall-api .
+docker build -t passwall-server .
 ```
 
 To run
 ```
 cp ./store/config-sample.yml ./store/config.yml
-docker run --name passwall-api --rm -v $(pwd)/store:/app/store -p 3625:3625 passwall-api
+docker run --name passwall-server --rm -v $(pwd)/store:/app/store -p 3625:3625 passwall-server
 ```
 
 To store persistent data (config.yml and passwall.db)
 ```
-mkdir $HOME/docker/volumes/passwall-api
-cp ./store/config-sample.yml $HOME/docker/volumes/passwall-api/config.yml
-docker run --name passwall-api -d --restart=always -v $HOME/docker/volumes/passwall-api:/app/store -p 3625:3625 passwall-api
+mkdir $HOME/docker/volumes/passwall-server
+cp ./store/config-sample.yml $HOME/docker/volumes/passwall-server/config.yml
+docker run --name passwall-server -d --restart=always -v $HOME/docker/volumes/passwall-server:/app/store -p 3625:3625 passwall-server
 ```
 
 ## Import
@@ -97,4 +97,4 @@ There are different kinds of password managers. Almost all of them can export lo
 ![example csv](https://www.yakuter.com/wp-content/yuklemeler/example-csv.png "Example CSV File")  
   
 You need to fill the import form as below picture.  
-![passwall-api import](https://www.yakuter.com/wp-content/yuklemeler/passwall-api-import-csv.png "Import Form and Request Example")
+![passwall-server import](https://www.yakuter.com/wp-content/yuklemeler/passwall-server-import-csv.png "Import Form and Request Example")

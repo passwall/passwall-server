@@ -9,14 +9,14 @@ COPY main.go .
 COPY ./login ./login
 COPY ./pkg ./pkg
 
-RUN CGO_ENABLED=1 GOOS=linux go build -a --ldflags="-s" -o passwall-api
+RUN CGO_ENABLED=1 GOOS=linux go build -a --ldflags="-s" -o passwall-server
 
 FROM alpine:3.11
 
-COPY --from=builder /app/passwall-api /app/passwall-api
+COPY --from=builder /app/passwall-server /app/passwall-server
 
 WORKDIR /app
 
 RUN mkdir store
 
-ENTRYPOINT ["/app/passwall-api"]
+ENTRYPOINT ["/app/passwall-server"]
