@@ -21,7 +21,7 @@ func Setup() {
 
 	var configuration *Configuration
 
-	viper.SetConfigName("config")
+	viper.SetConfigName("config-sample")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath("./store")
 
@@ -54,6 +54,7 @@ func bindEnvs() {
 	viper.BindEnv("server.passphrase", "PW_SERVER_PASSPHRASE")
 	viper.BindEnv("server.secret", "PW_SERVER_SECRET")
 	viper.BindEnv("server.timeout", "PW_SERVER_TIMEOUT")
+	viper.BindEnv("server.generatedPasswordLength", "PW_SERVER_GENERATED_PASSWORD_LENGTH")
 
 	viper.BindEnv("database.driver", "PW_DB_DRIVER")
 	viper.BindEnv("database.dbname", "PW_DB_DBNAME")
@@ -70,6 +71,7 @@ func setDefaults() {
 	viper.SetDefault("server.passphrase", "-G84d}~Yr)H{c=Zx)>@VqM;d~o+$}x9y~X_Ma-otq|ifhP7]?s7OJBYXao,K]-+^")
 	viper.SetDefault("server.secret", "JOa{+KBm5:hj]?k1 wsVJl?*HE(cEB<*WVXkL$qh}B2#Fry{C;j[k}-[|-9G:#b]")
 	viper.SetDefault("server.timeout", 24)
+	viper.SetDefault("server.generatedPasswordLength", 16)
 
 	viper.SetDefault("database.driver", "sqlite")
 	viper.SetDefault("database.dbname", "passwall")

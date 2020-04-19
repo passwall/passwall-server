@@ -10,8 +10,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-var err error
-
 type login struct {
 	Username string `form:"Username" json:"Username" binding:"required"`
 	Password string `form:"Password" json:"Password" binding:"required"`
