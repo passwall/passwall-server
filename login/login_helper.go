@@ -63,7 +63,6 @@ func AddValues(url, username, password string, file *os.File) error {
 
 		// Add to database
 		db.Create(&login)
-		// }
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -148,7 +147,7 @@ func setLimit(limit string) int {
 	return limitInt
 }
 
-// SortOrder returns the string for sorting and orderin data
+// SortOrder returns the string for sorting and ordering data
 func setOrder(sort, order string) string {
 	sortValues := []string{"id", "created_at", "updated_at", "url", "username"}
 	orderValues := []string{"desc", "asc"}
@@ -197,7 +196,7 @@ func Password() string {
 		"abcdefghijklmnopqrstuvwxyz" +
 		"0123456789" +
 		"=+%*/()[]{}/!@#$?|")
-	length := 16
+	length := viper.GetInt("server.generatedPasswordLength")
 	var b strings.Builder
 	for i := 0; i < length; i++ {
 		b.WriteRune(chars[mathrand.Intn(len(chars))])
