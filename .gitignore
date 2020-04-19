@@ -44,3 +44,6 @@ config.yml
 
 ## ENVIRONMENT FILE ##
 .env
+
+# GoLand
+.idea/
