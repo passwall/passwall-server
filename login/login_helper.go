@@ -197,6 +197,9 @@ func Password() string {
 		"0123456789" +
 		"=+%*/()[]{}/!@#$?|")
 	length := viper.GetInt("server.generatedPasswordLength")
+	if length < 4 {
+		length = 4
+	}
 	var b strings.Builder
 	for i := 0; i < length; i++ {
 		b.WriteRune(chars[mathrand.Intn(len(chars))])
