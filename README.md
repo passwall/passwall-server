@@ -55,6 +55,7 @@ These environment variables are accepted:
 - PW_SERVER_PASSPHRASE
 - PW_SERVER_SECRET
 - PW_SERVER_TIMEOUT  
+- PW_SERVER_GENERATED_PASSWORD_LENGTH  
   
 **Database Variables**
 - PW_DB_DRIVER
