@@ -26,7 +26,7 @@ server:
   port: "3625"
   username: "passwall"
   password: "password"
-  passphrase: "change-me-and-do-not-forget" # required for encrypting passwords
-  secret: "JOa{+KBm5:hj]?k1}B2#Fry{C;j[k}-[|-9G:#b]" # required for JWT Token
+  passphrase: "passphrase-for-encrypting-passwords-do-not-forget"
+  secret: "secret-key-for-JWT-TOKEN"
   timeout: 24 # Token duration in hours format
   generatedPasswordLength: 16 # Minimum 4
