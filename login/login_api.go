@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pass-wall/passwall-server/helper"
 	"github.com/spf13/viper"
 )
 
@@ -55,7 +56,7 @@ func (p *LoginAPI) FindByID(c *gin.Context) {
 	}
 
 	passByte, _ := base64.StdEncoding.DecodeString(login.Password)
-	login.Password = Decrypt(string(passByte[:]), viper.GetString("server.passphrase"))
+	login.Password = string(helper.Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
 
 	c.JSON(http.StatusOK, ToLoginDTO(login))
 }
@@ -71,11 +72,11 @@ func (p *LoginAPI) Create(c *gin.Context) {
 	}
 
 	if loginDTO.Password == "" {
-		loginDTO.Password = Password()
+		loginDTO.Password = helper.Password()
 	}
 
 	rawPass := loginDTO.Password
-	loginDTO.Password = base64.StdEncoding.EncodeToString(Encrypt(loginDTO.Password, viper.GetString("server.passphrase")))
+	loginDTO.Password = base64.StdEncoding.EncodeToString(helper.Encrypt(loginDTO.Password, viper.GetString("server.passphrase")))
 
 	createdLogin, err := p.LoginService.Save(ToLogin(loginDTO))
 	if err != nil {
@@ -114,10 +115,10 @@ func (p *LoginAPI) Update(c *gin.Context) {
 	}
 
 	if loginDTO.Password == "" {
-		loginDTO.Password = Password()
+		loginDTO.Password = helper.Password()
 	}
 	rawPass := loginDTO.Password
-	loginDTO.Password = base64.StdEncoding.EncodeToString(Encrypt(loginDTO.Password, viper.GetString("server.passphrase")))
+	loginDTO.Password = base64.StdEncoding.EncodeToString(helper.Encrypt(loginDTO.Password, viper.GetString("server.passphrase")))
 
 	login.URL = loginDTO.URL
 	login.Username = loginDTO.Username
