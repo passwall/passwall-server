@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const JWT_TOKEN string = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1OTA0MTQyOTksIm9yaWdfaWF0IjoxNTg2ODE0Mjk5LCJ1c2VybmFtZSI6InBhc3N3YWxsIn0.DVf8d5gORhyXNLZDHNCjMwEAs9zYzTXpQcDj5umsaCE"
+const JWT_TOKEN string = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1OTYwNTM0NDQsIm9yaWdfaWF0IjoxNTg3NDEzNDQ0LCJ1c2VybmFtZSI6InBhc3N3YWxsIn0.RMF3UqzoZRzYLjvRdoHcqwXAfJHZeD2xC0n2q_1pHno"
 
 func TestGetMethod(t *testing.T) {
 	gin.SetMode(gin.TestMode)
