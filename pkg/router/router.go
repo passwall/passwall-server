@@ -8,6 +8,7 @@ import (
 	"github.com/pass-wall/passwall-server/login"
 	"github.com/pass-wall/passwall-server/pkg/database"
 	"github.com/pass-wall/passwall-server/pkg/middleware"
+	"github.com/pass-wall/passwall-server/util"
 
 	"github.com/gin-gonic/gin"
 )
@@ -40,7 +41,7 @@ func Setup() *gin.Engine {
 		logins.GET("/", loginAPI.FindAll)
 		logins.GET("/:id", loginAPI.FindByID)
 		logins.POST("/", loginAPI.Create)
-		logins.POST("/:action", login.PostHandler)
+		logins.POST("/:action", util.PostHandler)
 		logins.PUT("/:id", loginAPI.Update)
 		logins.DELETE("/:id", loginAPI.Delete)
 	}

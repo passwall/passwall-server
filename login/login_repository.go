@@ -1,6 +1,8 @@
 package login
 
 import (
+	"log"
+
 	"github.com/jinzhu/gorm"
 )
 
@@ -57,7 +59,9 @@ func (p *LoginRepository) Delete(id uint) error {
 // Migrate ...
 func (p *LoginRepository) Migrate() {
 	err := p.DB.AutoMigrate(&Login{}).Error
-	CheckErr(err)
+	if err != nil {
+		log.Println(err)
+	}
 }
 
 // func (p *Repository) List(offset, limit int) ([]*Login, error) {
