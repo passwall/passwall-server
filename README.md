@@ -79,11 +79,11 @@ The server uses config file end environment variables. If you want to set variab
 ```
 docker-compose up --build
 ```
-or
+or in project folder
 ```
 docker pull passwall/passwall-server
 cp ./store/config-sample.yml ./store/config.yml
-docker run --name passwall-server --rm -v $(pwd)/store:/app/store -p 3625:3625 passwall-server
+docker run --name passwall-server --rm -v $(pwd)/store:/app/store -p 3625:3625 passwall/passwall-server
 ```
 
 ## Import

@@ -63,9 +63,3 @@ func (p *LoginRepository) Migrate() {
 		log.Println(err)
 	}
 }
-
-// func (p *Repository) List(offset, limit int) ([]*Login, error) {
-// 	var l []*Login
-// 	err := p.DB.Offset(offset).Limit(limit).Find(&l).Error
-// 	return l, err
-// }

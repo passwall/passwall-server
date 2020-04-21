@@ -1,13 +1,13 @@
 # PASSWALL CHANGELOG
 
-## Version: [1.0.8] (2020-04-18)
+## Version: [1.0.8] (2020-04-21)
 ### Add
 - Search,Limit,Offset,Sort,Order query parameters to FindAll()
 - Backup to ./store/passwall.bak file
 - Restore from./store/passwall.bak file
   
 ### Changed
-- Order BT to updated_at DESC
+- Order BY to updated_at DESC
 - Trim http://, https:// and www from URL's
 - Create util and helper folder.
 - Refactor
