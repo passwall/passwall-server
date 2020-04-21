@@ -50,6 +50,10 @@ User information for signin is in **config.yml** file.
 ## Security
 PassWall uses The Advanced Encryption Standard (AES) encryption algorithm with Galois/Counter Mode (GCM) symmetric-key cryptographic mode. Passwords encrypted with AES can only be decrypted with the passphrase defined in the **config.yml** file.
 
+Endpoints are protected with security middlewares which protects server against attacks like XSS.
+
+Against SQL injection, PassWall uses Gorm package to handle database queries which clears all queries.
+
 ## Environment Variables
 These environment variables are accepted:
 
