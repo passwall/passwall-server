@@ -35,6 +35,7 @@ func Setup() {
 
 	if driver == "sqlite" {
 
+		// TODO: SQLite database folder location should be a config.yml variable
 		db, err = gorm.Open("sqlite3", "./store/"+database+".db")
 		if err != nil {
 			log.Fatal("db err: ", err)

@@ -12,6 +12,9 @@ import (
 	"github.com/spf13/viper"
 )
 
+// TODO: This backup endpoiont can only be triggered manually
+// There should be an extra option to trigger it with time by cron job
+
 // Backup gets all logins, compresses with passphrase and saves to ./store
 func Backup(c *gin.Context) {
 	db := database.GetDB()
@@ -24,6 +27,7 @@ func Backup(c *gin.Context) {
 	loginBytes := new(bytes.Buffer)
 	json.NewEncoder(loginBytes).Encode(logins)
 
+	// TODO: Backup folder location should be a config.yml variable
 	helper.EncryptFile("./store/passwall.bak", loginBytes.Bytes(), viper.GetString("server.passphrase"))
 
 	response := login.LoginResponse{"Success", "Backup completed successfully!"}

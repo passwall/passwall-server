@@ -92,3 +92,15 @@ There are different kinds of password managers. Almost all of them can export lo
   
 You need to fill the import form as below picture.  
 ![passwall-server import](https://www.yakuter.com/wp-content/yuklemeler/gpass-import-csv.png "Import Form and Request Example")
+
+## Hello Contributors
+
+1. Don't send too much commit at once. It will be easier for us to do a code review.
+
+1. Be sure to take a look at the dev branch. The version I am working on is there.
+
+1. First try to fix `// TODO:`s in the code.
+
+1. Then you can contribute to the development by following the mile stones.
+
+1. Don't mess with the user interface. The design guide has not been released yet.

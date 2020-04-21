@@ -1,5 +1,13 @@
 # PASSWALL CHANGELOG
 
+
+## Version: [1.0.-] (2020-04--)
+### Add
+- Security layer with middleware against XSS attacks
+  
+### Changed
+- CORS middleware with an better one
+
 ## Version: [1.0.8] (2020-04-21)
 ### Add
 - Search,Limit,Offset,Sort,Order query parameters to FindAll()

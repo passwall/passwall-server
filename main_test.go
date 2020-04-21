@@ -16,6 +16,10 @@ import (
 
 const JWT_TOKEN string = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1OTYwNTM0NDQsIm9yaWdfaWF0IjoxNTg3NDEzNDQ0LCJ1c2VybmFtZSI6InBhc3N3YWxsIn0.RMF3UqzoZRzYLjvRdoHcqwXAfJHZeD2xC0n2q_1pHno"
 
+// TODO: The tests here are not suitable.
+// There should be SQL mocking with gorm driver object
+// https://github.com/Selvatico/go-mocket seems like a good packet for this job
+
 func TestGetMethod(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
