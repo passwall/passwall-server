@@ -28,6 +28,8 @@ You can test it with clients or make requests with API tools like Postman with t
 **Username:** passwall  
 **Password:** password
 
+## Database supoort
+PassWall can be used with **SQLite**, **MySQL** or **PostgreSQL** databases. Settings required for connection to database are in **config.yml**.
 
 ## What's possible with PassWall Server?
 Currently, this project is focused on storing URL, username and password which is basically called **Login** at PassWall.
@@ -40,10 +42,13 @@ An admin can;
 - Import logins from other password managers
 - Export logins as CSV format
 
-## Authentication
-This server uses **JWT Token** to secure endpoints. So user must generate token with /auth/signin first. Then with generated token, all endpoints in API documentation can be reachable.  
+## Authentication and Security
+This server uses **JWT Token** to secure endpoints. So user must generate token with **/auth/signin** first. Then with generated token, all endpoints in API documentation can be reachable. 
   
 User information for signin is in **config.yml** file.
+
+## Security
+PassWall uses The Advanced Encryption Standard (AES) encryption algorithm with Galois/Counter Mode (GCM) symmetric-key cryptographic mode. Passwords encrypted with AES can only be decrypted with the passphrase defined in the **config.yml** file.
 
 ## Environment Variables
 These environment variables are accepted:
