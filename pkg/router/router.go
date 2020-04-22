@@ -7,13 +7,12 @@ import (
 	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/secure"
+	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
 	"github.com/pass-wall/passwall-server/login"
 	"github.com/pass-wall/passwall-server/pkg/database"
 	"github.com/pass-wall/passwall-server/pkg/middleware"
 	"github.com/pass-wall/passwall-server/util"
-
-	"github.com/gin-gonic/gin"
 )
 
 // Setup initializes the gin engine and router
@@ -23,7 +22,6 @@ func Setup() *gin.Engine {
 	// Middlewares
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
-	// r.Use(middleware.CORS())
 	r.Use(cors.New(corsConfig()))
 	r.Use(secure.New(secureConfig()))
 
@@ -35,7 +33,7 @@ func Setup() *gin.Engine {
 
 	auth := r.Group("/auth")
 	{
-		auth.POST("/signin", authMW.LoginHandler)
+		auth.POST("/signin", middleware.LimiterMW(), authMW.LoginHandler)
 		auth.POST("/check", authMW.MiddlewareFunc(), middleware.TokenCheck)
 		auth.POST("/refresh", authMW.MiddlewareFunc(), authMW.RefreshHandler)
 	}

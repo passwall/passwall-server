@@ -48,7 +48,13 @@ This server uses **JWT Token** to secure endpoints. So user must generate token 
 User information for signin is in **config.yml** file.
 
 ## Security
-PassWall uses The Advanced Encryption Standard (AES) encryption algorithm with Galois/Counter Mode (GCM) symmetric-key cryptographic mode. Passwords encrypted with AES can only be decrypted with the passphrase defined in the **config.yml** file.
+1. PassWall uses The Advanced Encryption Standard (AES) encryption algorithm with Galois/Counter Mode (GCM) symmetric-key cryptographic mode. Passwords encrypted with AES can only be decrypted with the passphrase defined in the **config.yml** file.
+
+2. Endpoints are protected with security middlewares against attacks like XSS.
+
+3. Against SQL injection, PassWall uses Gorm package to handle database queries which clears all queries.
+
+4. There is rate limiter for signin attempts against brute force attacks.
 
 ## Environment Variables
 These environment variables are accepted:
