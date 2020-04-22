@@ -14,6 +14,5 @@ require (
 	github.com/onsi/gomega v1.9.0
 	github.com/spf13/viper v1.6.2
 	github.com/stretchr/testify v1.5.1
-	github.com/ulule/limiter v2.2.2+incompatible
 	github.com/ulule/limiter/v3 v3.5.0
 )
