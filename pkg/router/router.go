@@ -7,6 +7,7 @@ import (
 	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/secure"
+	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
 	"github.com/pass-wall/passwall-server/login"
@@ -24,6 +25,8 @@ func Setup() *gin.Engine {
 	r.Use(gin.Recovery())
 	r.Use(cors.New(corsConfig()))
 	r.Use(secure.New(secureConfig()))
+
+	r.Use(static.Serve("/", static.LocalFile("./public", true)))
 
 	db := database.GetDB()
 	loginAPI := InitLoginAPI(db)
