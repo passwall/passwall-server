@@ -4,6 +4,7 @@
 ## Version: [1.0.-] (2020-04--)
 ### Add
 - Security layer with middleware against XSS attacks
+- public folder to serve static files on debian installation
   
 ### Changed
 - CORS middleware with an better one
