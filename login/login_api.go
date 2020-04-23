@@ -20,6 +20,23 @@ func NewLoginAPI(p LoginService) LoginAPI {
 	return LoginAPI{LoginService: p}
 }
 
+// FindSamePassword ...
+func (p *LoginAPI) FindSamePassword(c *gin.Context) {
+	var password Password
+
+	c.BindJSON(&password)
+
+	urls, err := p.LoginService.FindSamePassword(password)
+
+	if err != nil {
+		response := LoginResponse{"Error", err.Error()}
+		c.JSON(http.StatusNotFound, response)
+		return
+	}
+
+	c.JSON(http.StatusOK, urls)
+}
+
 // FindAll ...
 func (p *LoginAPI) FindAll(c *gin.Context) {
 	var err error

@@ -37,6 +37,13 @@ func (p *LoginRepository) FindAll(argsStr map[string]string, argsInt map[string]
 	return logins, err
 }
 
+// All ...
+func (p *LoginRepository) All() ([]Login, error) {
+	logins := []Login{}
+	err := p.DB.Find(&logins).Error
+	return logins, err
+}
+
 // FindByID ...
 func (p *LoginRepository) FindByID(id uint) (Login, error) {
 	login := Login{}
