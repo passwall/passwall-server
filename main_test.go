@@ -20,6 +20,9 @@ const JWT_TOKEN string = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1OTYwN
 // There should be SQL mocking with gorm driver object
 // https://github.com/Selvatico/go-mocket seems like a good packet for this job
 
+// using :memory: instead file could be an option for testing
+// https://gorm.io/docs/connecting_to_the_database.html#Sqlite3
+
 func TestGetMethod(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

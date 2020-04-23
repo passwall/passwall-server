@@ -35,8 +35,12 @@ func Setup() {
 
 	if driver == "sqlite" {
 
-		// TODO: SQLite database folder location should be a config.yml variable
-		db, err = gorm.Open("sqlite3", "./store/"+database+".db")
+		path := viper.GetString("database.path")
+		if len(path) == 0 {
+			log.Println("no database.path provided in config file for sqlite. using default:", path)
+			path = "./store/passwall.db"
+		}
+		db, err = gorm.Open("sqlite3", path)
 		if err != nil {
 			log.Fatal("db err: ", err)
 		}
