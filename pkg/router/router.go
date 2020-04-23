@@ -48,13 +48,6 @@ func Setup() *gin.Engine {
 		logins.DELETE("/:id", loginAPI.Delete)
 	}
 
-	// Protection for route/endpoint scaning
-	// r.NoRoute(authMW.MiddlewareFunc(), func(c *gin.Context) {
-	// 	claims := jwt.ExtractClaims(c)
-	// 	log.Printf("NoRoute claims: %#v\n", claims)
-	// 	c.JSON(404, gin.H{"Status": "Error", "Message": "Page not found"})
-	// })
-
 	r.NoRoute(func(c *gin.Context) {
 		c.File("./public/index.html")
 	})
