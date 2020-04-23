@@ -10,6 +10,25 @@ func NewLoginService(p LoginRepository) LoginService {
 	return LoginService{LoginRepository: p}
 }
 
+// Find Same Passwords Logins ...
+func (p *LoginService) FindSamePassword(password string) (Urls, error) {
+
+	logins, err := p.LoginRepository.All()
+
+	logins = DecryptLoginPasswords(logins)
+
+	newUrls := Urls{}
+
+	for _, login := range logins {
+		if login.Password == password {
+			newUrls.AddItem(Url{Name: login.URL})
+		}
+	}
+
+	return newUrls, err
+
+}
+
 // FindAll ...
 func (p *LoginService) FindAll(argsStr map[string]string, argsInt map[string]int) ([]Login, error) {
 	return p.LoginRepository.FindAll(argsStr, argsInt)
