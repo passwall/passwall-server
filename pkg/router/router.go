@@ -37,11 +37,6 @@ func Setup() *gin.Engine {
 		auth.POST("/refresh", authMW.MiddlewareFunc(), authMW.RefreshHandler)
 	}
 
-	asa := r.Group("/asa", authMW.MiddlewareFunc())
-	{
-		asa.POST("/", loginAPI.FindSamePassword)
-	}
-
 	// Endpoints for logins protected with JWT
 	logins := r.Group("/logins", authMW.MiddlewareFunc())
 	{
