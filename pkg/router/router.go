@@ -43,9 +43,18 @@ func Setup() *gin.Engine {
 		logins.GET("/", loginAPI.FindAll)
 		logins.GET("/:id", loginAPI.FindByID)
 		logins.POST("/", loginAPI.Create)
-		logins.POST("/:action", util.PostHandler)
+		logins.POST("/:action", func(c *gin.Context) {
+			path := c.Param("action")
+			if path == "samepassword" {
+				loginAPI.FindSamePassword(c)
+			} else {
+				util.PostHandler(c)
+			}
+		})
+
 		logins.PUT("/:id", loginAPI.Update)
 		logins.DELETE("/:id", loginAPI.Delete)
+
 	}
 
 	r.NoRoute(func(c *gin.Context) {

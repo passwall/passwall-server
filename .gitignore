@@ -50,3 +50,6 @@ config.yml
 
 # GoLand
 .idea/
+
+#Vs Code
+.vscode
