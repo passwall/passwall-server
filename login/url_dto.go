@@ -1,13 +1,11 @@
 package login
 
-type Url struct {
-	Name string `json:"url"`
+// URLs ...
+type URLs struct {
+	Items []string `json:"URLs"`
 }
 
-type Urls struct {
-	Items []Url `json:"urls"`
-}
-
-func (urls *Urls) AddItem(item Url) {
+// AddItem ...
+func (urls *URLs) AddItem(item string) {
 	urls.Items = append(urls.Items, item)
 }

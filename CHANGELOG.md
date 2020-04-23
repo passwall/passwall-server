@@ -5,6 +5,7 @@
 ### Add
 - Security layer with middleware against XSS attacks
 - public folder to serve static files on debian installation
+- check password endpoint
   
 ### Changed
 - CORS middleware with an better one

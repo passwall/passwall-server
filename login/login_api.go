@@ -22,11 +22,11 @@ func NewLoginAPI(p LoginService) LoginAPI {
 
 // FindSamePassword ...
 func (p *LoginAPI) FindSamePassword(c *gin.Context) {
+	var password Password
 
-	var Password Password
-	c.BindJSON(&Password)
+	c.BindJSON(&password)
 
-	urls, err := p.LoginService.FindSamePassword(Password)
+	urls, err := p.LoginService.FindSamePassword(password)
 
 	if err != nil {
 		response := LoginResponse{"Error", err.Error()}

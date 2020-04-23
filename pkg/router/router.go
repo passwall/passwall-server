@@ -45,7 +45,7 @@ func Setup() *gin.Engine {
 		logins.POST("/", loginAPI.Create)
 		logins.POST("/:action", func(c *gin.Context) {
 			path := c.Param("action")
-			if path == "samepassword" {
+			if path == "check-password" {
 				loginAPI.FindSamePassword(c)
 			} else {
 				util.PostHandler(c)
