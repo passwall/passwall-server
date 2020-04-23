@@ -11,7 +11,7 @@ func NewLoginService(p LoginRepository) LoginService {
 }
 
 // Find Same Passwords Logins ...
-func (p *LoginService) FindSamePassword(password string) (Urls, error) {
+func (p *LoginService) FindSamePassword(password Password) (Urls, error) {
 
 	logins, err := p.LoginRepository.All()
 
@@ -20,7 +20,7 @@ func (p *LoginService) FindSamePassword(password string) (Urls, error) {
 	newUrls := Urls{}
 
 	for _, login := range logins {
-		if login.Password == password {
+		if login.Password == password.Password {
 			newUrls.AddItem(Url{Name: login.URL})
 		}
 	}
