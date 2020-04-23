@@ -21,7 +21,7 @@ func (p *LoginService) FindSamePassword(password Password) (Urls, error) {
 
 	for _, login := range logins {
 		if login.Password == password.Password {
-			newUrls.AddItem(Url{Name: login.URL})
+			newUrls.AddItem(login.URL)
 		}
 	}
 
