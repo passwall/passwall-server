@@ -7,4 +7,5 @@ type DatabaseConfiguration struct {
 	Password string
 	Host     string
 	Port     string
+	Path     string
 }

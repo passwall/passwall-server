@@ -1,6 +1,5 @@
 # PASSWALL CHANGELOG
 
-
 ## Version: [1.0.-] (2020-04--)
 ### Add
 - Security layer with middleware against XSS attacks
@@ -8,7 +7,7 @@
 - check password endpoint
   
 ### Changed
-- CORS middleware with an better one
+- Move sqlite database name and path declaration to config file
 
 ## Version: [1.0.8] (2020-04-21)
 ### Add
