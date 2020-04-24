@@ -1,5 +1,7 @@
 # PassWall Server
 
+**PassWall Server** is the core backend for open source password manager PassWall platform. Using this server, you can safely store your passwords and access them from anywhere. 
+
 ![GitHub](https://img.shields.io/github/license/pass-wall/passwall-server)
 ![GitHub issues](https://img.shields.io/github/issues/pass-wall/passwall-server)
 [![Build Status](https://travis-ci.org/pass-wall/passwall-server.svg?branch=master)](https://travis-ci.org/pass-wall/passwall-server) 
@@ -7,7 +9,9 @@
 [![Docker Pull Status](https://img.shields.io/docker/pulls/passwall/passwall-server)](https://hub.docker.com/u/passwall/)  
 [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy)
 
-**PassWall Server** is the core backend for open source password manager PassWall platform. Using this server, you can safely store your passwords and access them from anywhere. 
+## Support
+I promise all the coffee you have ordered will be spent on this project  
+<a href='https://ko-fi.com/Y8Y5W9HH' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://cdn.ko-fi.com/cdn/kofi1.png?v=2' border='0' alt='Buy Me a Coffee' /></a>
 
 ## Clients
 PassWall can be used by these clients or you can write your own client by using [API Documentation](https://documenter.getpostman.com/view/3658426/SzYbyHXj)     
