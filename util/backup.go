@@ -31,5 +31,5 @@ func Backup(c *gin.Context) {
 	helper.EncryptFile("./store/passwall.bak", loginBytes.Bytes(), viper.GetString("server.passphrase"))
 
 	response := login.LoginResponse{"Success", "Backup completed successfully!"}
-	c.JSON(http.StatusNotFound, response)
+	c.JSON(http.StatusOK, response)
 }
