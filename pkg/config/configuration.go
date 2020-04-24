@@ -62,6 +62,7 @@ func bindEnvs() {
 	viper.BindEnv("database.password", "PW_DB_PASSWORD")
 	viper.BindEnv("database.host", "PW_DB_HOST")
 	viper.BindEnv("database.port", "PW_DB_PORT")
+	viper.BindEnv("database.path", "PW_DB_PATH")
 }
 
 func setDefaults() {
@@ -79,4 +80,5 @@ func setDefaults() {
 	viper.SetDefault("database.password", "password")
 	viper.SetDefault("database.host", "localhost")
 	viper.SetDefault("database.port", "5432")
+	viper.SetDefault("database.path", "./store/passwall.db")
 }
