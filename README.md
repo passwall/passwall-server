@@ -11,7 +11,7 @@
 
 ## Support
 I promise all the coffee you have ordered will be spent on this project  
-<a href='https://ko-fi.com/Y8Y5W9HH' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://cdn.ko-fi.com/cdn/kofi1.png?v=2' border='0' alt='Buy Me a Coffee' /></a>
+[![Become a Patron](https://www.yakuter.com/wp-content/yuklemeler/yakuter-patreon.png)](https://www.patreon.com/bePatron?u=33541638)
 
 ## Clients
 PassWall can be used by these clients or you can write your own client by using [API Documentation](https://documenter.getpostman.com/view/3658426/SzYbyHXj)     
