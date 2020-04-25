@@ -1,6 +1,8 @@
 package login
 
 import (
+	"log"
+
 	"github.com/jinzhu/gorm"
 )
 
@@ -35,6 +37,13 @@ func (p *LoginRepository) FindAll(argsStr map[string]string, argsInt map[string]
 	return logins, err
 }
 
+// All ...
+func (p *LoginRepository) All() ([]Login, error) {
+	logins := []Login{}
+	err := p.DB.Find(&logins).Error
+	return logins, err
+}
+
 // FindByID ...
 func (p *LoginRepository) FindByID(id uint) (Login, error) {
 	login := Login{}
@@ -57,11 +66,7 @@ func (p *LoginRepository) Delete(id uint) error {
 // Migrate ...
 func (p *LoginRepository) Migrate() {
 	err := p.DB.AutoMigrate(&Login{}).Error
-	CheckErr(err)
+	if err != nil {
+		log.Println(err)
+	}
 }
-
-// func (p *Repository) List(offset, limit int) ([]*Login, error) {
-// 	var l []*Login
-// 	err := p.DB.Offset(offset).Limit(limit).Find(&l).Error
-// 	return l, err
-// }

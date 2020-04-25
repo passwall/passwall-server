@@ -1,12 +1,25 @@
 # PASSWALL CHANGELOG
 
-## Version: [-.-.-] (2020-04-18)
+## Version: [1.0.-] (2020-04--)
 ### Add
-- Search,Limit,Offset,Sort,Order query parameters to FindAll()
+- Security layer with middleware against XSS attacks
+- public folder to serve static files on debian installation
+- check password endpoint
   
 ### Changed
-- Order BT to updated_at DESC
+- Move sqlite database name and path declaration to config file
+
+## Version: [1.0.8] (2020-04-21)
+### Add
+- Search,Limit,Offset,Sort,Order query parameters to FindAll()
+- Backup to ./store/passwall.bak file
+- Restore from./store/passwall.bak file
+  
+### Changed
+- Order BY to updated_at DESC
 - Trim http://, https:// and www from URL's
+- Create util and helper folder.
+- Refactor
 
 ## Version: [1.0.7] (2020-04-17)
 ### Added

@@ -62,14 +62,17 @@ func bindEnvs() {
 	viper.BindEnv("database.password", "PW_DB_PASSWORD")
 	viper.BindEnv("database.host", "PW_DB_HOST")
 	viper.BindEnv("database.port", "PW_DB_PORT")
+	viper.BindEnv("database.path", "PW_DB_PATH")
+
+	viper.BindEnv("backup.folder", "PW_BACKUP_FOLDER")
 }
 
 func setDefaults() {
 	viper.SetDefault("server.port", "3625")
 	viper.SetDefault("server.username", "passwall")
 	viper.SetDefault("server.password", "password")
-	viper.SetDefault("server.passphrase", "-G84d}~Yr)H{c=Zx)>@VqM;d~o+$}x9y~X_Ma-otq|ifhP7]?s7OJBYXao,K]-+^")
-	viper.SetDefault("server.secret", "JOa{+KBm5:hj]?k1 wsVJl?*HE(cEB<*WVXkL$qh}B2#Fry{C;j[k}-[|-9G:#b]")
+	viper.SetDefault("server.passphrase", "passphrase-for-encrypting-passwords-do-not-forget")
+	viper.SetDefault("server.secret", "secret-key-for-JWT-TOKEN")
 	viper.SetDefault("server.timeout", 24)
 	viper.SetDefault("server.generatedPasswordLength", 16)
 
@@ -79,4 +82,7 @@ func setDefaults() {
 	viper.SetDefault("database.password", "password")
 	viper.SetDefault("database.host", "localhost")
 	viper.SetDefault("database.port", "5432")
+	viper.SetDefault("database.path", "./store/passwall.db")
+
+	viper.SetDefault("backup.folder", "./store/")
 }

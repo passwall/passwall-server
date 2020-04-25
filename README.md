@@ -1,5 +1,7 @@
 # PassWall Server
 
+**PassWall Server** is the core backend for open source password manager PassWall platform. Using this server, you can safely store your passwords and access them from anywhere. 
+
 ![GitHub](https://img.shields.io/github/license/pass-wall/passwall-server)
 ![GitHub issues](https://img.shields.io/github/issues/pass-wall/passwall-server)
 [![Build Status](https://travis-ci.org/pass-wall/passwall-server.svg?branch=master)](https://travis-ci.org/pass-wall/passwall-server) 
@@ -7,7 +9,9 @@
 [![Docker Pull Status](https://img.shields.io/docker/pulls/passwall/passwall-server)](https://hub.docker.com/u/passwall/)  
 [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy)
 
-**PassWall Server** is the core backend for open source password manager PassWall platform. Using this server, you can safely store your passwords and access them from anywhere. 
+## Support
+I promise all the coffee you have ordered will be spent on this project  
+[![Become a Patron](https://www.yakuter.com/wp-content/yuklemeler/yakuter-patreon.png)](https://www.patreon.com/bePatron?u=33541638)
 
 ## Clients
 PassWall can be used by these clients or you can write your own client by using [API Documentation](https://documenter.getpostman.com/view/3658426/SzYbyHXj)     
@@ -23,11 +27,12 @@ API documentation available at:
 [Click to see at Public Postman](https://documenter.getpostman.com/view/3658426/SzYbyHXj)   
 
 ## DEMO
-Demo is available at: [Demo Server](https://passwall-demo.herokuapp.com)  
-You can test it with clients or make requests with API tools like Postman with the credentials below:  
+**Address:** https://passwall-server.herokuapp.com  
 **Username:** passwall  
 **Password:** password
 
+## Database supoort
+PassWall can be used with **SQLite**, **MySQL** or **PostgreSQL** databases. Settings required for connection to database are in **config.yml**.
 
 ## What's possible with PassWall Server?
 Currently, this project is focused on storing URL, username and password which is basically called **Login** at PassWall.
@@ -40,10 +45,19 @@ An admin can;
 - Import logins from other password managers
 - Export logins as CSV format
 
-## Authentication
-This server uses **JWT Token** to secure endpoints. So user must generate token with /auth/signin first. Then with generated token, all endpoints in API documentation can be reachable.  
+## Authentication and Security
+This server uses **JWT Token** to secure endpoints. So user must generate token with **/auth/signin** first. Then with generated token, all endpoints in API documentation can be reachable. 
   
 User information for signin is in **config.yml** file.
+
+## Security
+1. PassWall uses The Advanced Encryption Standard (AES) encryption algorithm with Galois/Counter Mode (GCM) symmetric-key cryptographic mode. Passwords encrypted with AES can only be decrypted with the passphrase defined in the **config.yml** file.
+
+2. Endpoints are protected with security middlewares against attacks like XSS.
+
+3. Against SQL injection, PassWall uses Gorm package to handle database queries which clears all queries.
+
+4. There is rate limiter for signin attempts against brute force attacks.
 
 ## Environment Variables
 These environment variables are accepted:
@@ -79,11 +93,11 @@ The server uses config file end environment variables. If you want to set variab
 ```
 docker-compose up --build
 ```
-or
+or in project folder
 ```
 docker pull passwall/passwall-server
 cp ./store/config-sample.yml ./store/config.yml
-docker run --name passwall-server --rm -v $(pwd)/store:/app/store -p 3625:3625 passwall-server
+docker run --name passwall-server --rm -v $(pwd)/store:/app/store -p 3625:3625 passwall/passwall-server
 ```
 
 ## Import
@@ -92,3 +106,15 @@ There are different kinds of password managers. Almost all of them can export lo
   
 You need to fill the import form as below picture.  
 ![passwall-server import](https://www.yakuter.com/wp-content/yuklemeler/gpass-import-csv.png "Import Form and Request Example")
+
+## Hello Contributors
+
+1. Don't send too much commit at once. It will be easier for us to do a code review.
+
+1. Be sure to take a look at the dev branch. The version I am working on is there.
+
+1. First try to fix `// TODO:`s in the code.
+
+1. Then you can contribute to the development by following the mile stones.
+
+1. Don't mess with the user interface. The design guide has not been released yet.

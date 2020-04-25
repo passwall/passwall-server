@@ -35,7 +35,9 @@ func Setup() {
 
 	if driver == "sqlite" {
 
-		db, err = gorm.Open("sqlite3", "./store/"+database+".db")
+		// Default value is set on configuration.go
+		path := viper.GetString("database.path")
+		db, err = gorm.Open("sqlite3", path)
 		if err != nil {
 			log.Fatal("db err: ", err)
 		}
