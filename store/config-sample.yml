@@ -31,3 +31,6 @@ server:
   secret: "secret-key-for-JWT-TOKEN"
   timeout: 24 # Token duration in hours format
   generatedPasswordLength: 16 # Minimum 4
+
+backup:
+  folder: "./store" # you can feel free to change any where your in project 
