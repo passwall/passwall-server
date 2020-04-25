@@ -3,7 +3,10 @@ package util
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pass-wall/passwall-server/helper"
@@ -17,6 +20,10 @@ import (
 
 // Backup gets all logins, compresses with passphrase and saves to ./store
 func Backup(c *gin.Context) {
+
+	backupFolder := viper.GetString("backup.folder")
+	backupPath := fmt.Sprintf("%s/passwall.bak", backupFolder)
+
 	db := database.GetDB()
 
 	var logins []login.Login
@@ -27,8 +34,25 @@ func Backup(c *gin.Context) {
 	loginBytes := new(bytes.Buffer)
 	json.NewEncoder(loginBytes).Encode(logins)
 
-	// TODO: Backup folder location should be a config.yml variable
-	helper.EncryptFile("./store/passwall.bak", loginBytes.Bytes(), viper.GetString("server.passphrase"))
+	if _, err := os.Stat(backupFolder); os.IsNotExist(err) {
+		//http://permissions-calculator.org/
+		//0755 Commonly used on web servers. The owner can read, write, execute.
+		//Everyone else can read and execute but not modify the file.
+		os.Mkdir(backupFolder, 0755)
+	} else if err == nil {
+		// is exist folder
+	} else {
+
+		log.Println(err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"Status":  "Error",
+			"Message": err.Error(),
+		})
+
+		return
+	}
+
+	helper.EncryptFile(backupPath, loginBytes.Bytes(), viper.GetString("server.passphrase"))
 
 	response := login.LoginResponse{"Success", "Backup completed successfully!"}
 	c.JSON(http.StatusOK, response)
