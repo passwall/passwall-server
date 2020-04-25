@@ -3,6 +3,7 @@ package util
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 
@@ -15,14 +16,18 @@ import (
 
 // Restore restores logins from backup file ./store/passwall.bak
 func Restore(c *gin.Context) {
-	_, err := os.Open("./store/passwall.bak")
+
+	backupFolder := viper.GetString("backup.folder")
+	backupPath := fmt.Sprintf("%s/passwall.bak", backupFolder)
+
+	_, err := os.Open(backupPath)
 	if err != nil {
-		response := login.LoginResponse{"Error", "Couldn't find backup file passwall.bak in ./store/ folder"}
+		response := login.LoginResponse{"Error", fmt.Sprintf("Couldn't find backup file passwall.bak in %s folder", backupFolder)}
 		c.JSON(http.StatusNotFound, response)
 		return
 	}
 
-	loginsByte := helper.DecryptFile("./store/passwall.bak", viper.GetString("server.passphrase"))
+	loginsByte := helper.DecryptFile(backupPath, viper.GetString("server.passphrase"))
 
 	var loginDTOs []login.LoginDTO
 	json.Unmarshal(loginsByte, &loginDTOs)
