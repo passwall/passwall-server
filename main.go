@@ -3,6 +3,7 @@ package main
 import (
 	_ "github.com/heroku/x/hmetrics/onload"
 	"github.com/pass-wall/passwall-server/pkg/config"
+	"github.com/pass-wall/passwall-server/pkg/cron"
 	"github.com/pass-wall/passwall-server/pkg/database"
 	"github.com/pass-wall/passwall-server/pkg/router"
 	"github.com/spf13/viper"
@@ -11,6 +12,7 @@ import (
 func init() {
 	config.Setup()
 	database.Setup()
+	cron.Setup()
 }
 
 func main() {

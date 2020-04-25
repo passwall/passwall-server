@@ -3,6 +3,7 @@ package util
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -15,12 +16,23 @@ import (
 	"github.com/spf13/viper"
 )
 
-// TODO: This backup endpoiont can only be triggered manually
-// There should be an extra option to trigger it with time by cron job
-
 // Backup gets all logins, compresses with passphrase and saves to ./store
 func Backup(c *gin.Context) {
+	err := BackupData()
 
+	if err != nil {
+		log.Println(err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"Status":  "Error",
+			"Message": err.Error(),
+		})
+	}
+
+	response := login.LoginResponse{"Success", "Backup completed successfully!"}
+	c.JSON(http.StatusOK, response)
+}
+
+func BackupData() error {
 	backupFolder := viper.GetString("backup.folder")
 	backupPath := fmt.Sprintf("%s/passwall.bak", backupFolder)
 
@@ -42,18 +54,10 @@ func Backup(c *gin.Context) {
 	} else if err == nil {
 		// is exist folder
 	} else {
-
-		log.Println(err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"Status":  "Error",
-			"Message": err.Error(),
-		})
-
-		return
+		err := errors.New("Error occured while backuping data")
+		return err
 	}
 
 	helper.EncryptFile(backupPath, loginBytes.Bytes(), viper.GetString("server.passphrase"))
-
-	response := login.LoginResponse{"Success", "Backup completed successfully!"}
-	c.JSON(http.StatusOK, response)
+	return nil
 }
