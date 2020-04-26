@@ -11,7 +11,7 @@ cache:
 script:
   - go mod download
   - cp store/{config-sample.yml,config.yml}
-  - go test
+  - go test ./...
 
 notifications:
   email:
