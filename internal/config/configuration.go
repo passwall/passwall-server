@@ -23,7 +23,7 @@ func Setup() {
 
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
-	viper.AddConfigPath("./store")
+	viper.AddConfigPath("../../store")
 
 	// Bind environment variables
 	bindEnvs()
