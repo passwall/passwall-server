@@ -26,7 +26,7 @@ func Setup() {
 
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
-	viper.AddConfigPath("../../store")
+	viper.AddConfigPath("./store")
 
 	// Bind environment variables
 	bindEnvs()
@@ -91,9 +91,9 @@ func setDefaults() {
 	viper.SetDefault("database.password", "password")
 	viper.SetDefault("database.host", "localhost")
 	viper.SetDefault("database.port", "5432")
-	viper.SetDefault("database.path", "../../store/passwall.db")
+	viper.SetDefault("database.path", "./store/passwall.db")
 
-	viper.SetDefault("backup.folder", "../../store/")
+	viper.SetDefault("backup.folder", "./store/")
 }
 
 func generateSecureKey() string {

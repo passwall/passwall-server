@@ -83,7 +83,7 @@ These environment variables are accepted:
 Install Go to your computer. Pull the server repo. Execute the command in server folder.
 
 ```
-go run main.go
+go run ./cmd/passwall-server/main.go
 ```
 
 The server uses config file end environment variables. If you want to set variables manually, just change **config-sample.yml** to **config.yml** in **store** folder.
