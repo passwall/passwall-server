@@ -22,16 +22,16 @@ func Backup(c *gin.Context) {
 
 	if err != nil {
 		log.Println(err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"Status":  "Error",
-			"Message": err.Error(),
-		})
+		response := login.LoginResponse{"Error", err.Error()}
+		c.JSON(http.StatusInternalServerError, response)
+		return
 	}
 
 	response := login.LoginResponse{"Success", "Backup completed successfully!"}
 	c.JSON(http.StatusOK, response)
 }
 
+// BackupData ...
 func BackupData() error {
 	backupFolder := viper.GetString("backup.folder")
 	backupPath := fmt.Sprintf("%s/passwall.bak", backupFolder)
