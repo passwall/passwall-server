@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/pass-wall/passwall-server/login"
+	"github.com/pass-wall/passwall-server/api/login"
 )
 
 // PostHandler ...

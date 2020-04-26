@@ -5,9 +5,9 @@ import (
 	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
+	"github.com/pass-wall/passwall-server/api/login"
 	"github.com/pass-wall/passwall-server/internal/database"
 	"github.com/pass-wall/passwall-server/internal/middleware"
-	"github.com/pass-wall/passwall-server/login"
 	"github.com/pass-wall/passwall-server/util"
 )
 

@@ -13,9 +13,9 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pass-wall/passwall-server/api/login"
 	"github.com/pass-wall/passwall-server/helper"
 	"github.com/pass-wall/passwall-server/internal/database"
-	"github.com/pass-wall/passwall-server/login"
 	"github.com/spf13/viper"
 )
 
