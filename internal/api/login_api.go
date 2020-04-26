@@ -32,7 +32,7 @@ func (p *LoginAPI) FindSamePassword(c *gin.Context) {
 	urls, err := app.FindSamePassword(&p.LoginService, password)
 
 	if err != nil {
-		response := model.LoginResponse{"Error", err.Error()}
+		response := model.Response{"Error", err.Error()}
 		c.JSON(http.StatusNotFound, response)
 		return
 	}
@@ -50,7 +50,7 @@ func (p *LoginAPI) FindAll(c *gin.Context) {
 	logins, err = p.LoginService.FindAll(argsStr, argsInt)
 
 	if err != nil {
-		response := model.LoginResponse{"Error", err.Error()}
+		response := model.Response{"Error", err.Error()}
 		c.JSON(http.StatusNotFound, response)
 		return
 	}
@@ -63,14 +63,14 @@ func (p *LoginAPI) FindAll(c *gin.Context) {
 func (p *LoginAPI) FindByID(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		response := model.LoginResponse{"Error", err.Error()}
+		response := model.Response{"Error", err.Error()}
 		c.JSON(http.StatusBadRequest, response)
 		return
 	}
 
 	login, err := p.LoginService.FindByID(uint(id))
 	if err != nil {
-		response := model.LoginResponse{"Error", err.Error()}
+		response := model.Response{"Error", err.Error()}
 		c.JSON(http.StatusNotFound, response)
 		return
 	}
@@ -86,7 +86,7 @@ func (p *LoginAPI) Create(c *gin.Context) {
 	var loginDTO model.LoginDTO
 	err := c.BindJSON(&loginDTO)
 	if err != nil {
-		response := model.LoginResponse{"Error", err.Error()}
+		response := model.Response{"Error", err.Error()}
 		c.JSON(http.StatusBadRequest, response)
 		return
 	}
@@ -100,7 +100,7 @@ func (p *LoginAPI) Create(c *gin.Context) {
 
 	createdLogin, err := p.LoginService.Save(model.ToLogin(loginDTO))
 	if err != nil {
-		response := model.LoginResponse{"Error", err.Error()}
+		response := model.Response{"Error", err.Error()}
 		c.JSON(http.StatusBadRequest, response)
 		return
 	}
@@ -115,21 +115,21 @@ func (p *LoginAPI) Update(c *gin.Context) {
 	var loginDTO model.LoginDTO
 	err := c.BindJSON(&loginDTO)
 	if err != nil {
-		response := model.LoginResponse{"Error", err.Error()}
+		response := model.Response{"Error", err.Error()}
 		c.JSON(http.StatusBadRequest, response)
 		return
 	}
 
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		response := model.LoginResponse{"Error", err.Error()}
+		response := model.Response{"Error", err.Error()}
 		c.JSON(http.StatusBadRequest, response)
 		return
 	}
 
 	login, err := p.LoginService.FindByID(uint(id))
 	if err != nil {
-		response := model.LoginResponse{"Error", err.Error()}
+		response := model.Response{"Error", err.Error()}
 		c.JSON(http.StatusNotFound, response)
 		return
 	}
@@ -145,7 +145,7 @@ func (p *LoginAPI) Update(c *gin.Context) {
 	login.Password = loginDTO.Password
 	updatedLogin, err := p.LoginService.Save(login)
 	if err != nil {
-		response := model.LoginResponse{"Error", err.Error()}
+		response := model.Response{"Error", err.Error()}
 		c.JSON(http.StatusNotFound, response)
 		return
 	}
@@ -157,26 +157,26 @@ func (p *LoginAPI) Update(c *gin.Context) {
 func (p *LoginAPI) Delete(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		response := model.LoginResponse{"Error", err.Error()}
+		response := model.Response{"Error", err.Error()}
 		c.JSON(http.StatusBadRequest, response)
 		return
 	}
 
 	login, err := p.LoginService.FindByID(uint(id))
 	if err != nil {
-		response := model.LoginResponse{"Error", err.Error()}
+		response := model.Response{"Error", err.Error()}
 		c.JSON(http.StatusNotFound, response)
 		return
 	}
 
 	err = p.LoginService.Delete(login.ID)
 	if err != nil {
-		response := model.LoginResponse{"Error", err.Error()}
+		response := model.Response{"Error", err.Error()}
 		c.JSON(http.StatusNotFound, response)
 		return
 	}
 
-	response := model.LoginResponse{"Success", "Login deleted successfully!"}
+	response := model.Response{"Success", "Login deleted successfully!"}
 	c.JSON(http.StatusOK, response)
 }
 

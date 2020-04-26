@@ -14,7 +14,7 @@ import (
 // GeneratePassword generates new password
 func GeneratePassword(c *gin.Context) {
 	password := encryption.Password()
-	response := model.LoginResponse{"Success", password}
+	response := model.Response{"Success", password}
 	c.JSON(http.StatusOK, response)
 }
 

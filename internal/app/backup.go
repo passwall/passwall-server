@@ -22,12 +22,12 @@ func Backup(c *gin.Context) {
 
 	if err != nil {
 		log.Println(err)
-		response := model.LoginResponse{"Error", err.Error()}
+		response := model.Response{"Error", err.Error()}
 		c.JSON(http.StatusInternalServerError, response)
 		return
 	}
 
-	response := model.LoginResponse{"Success", "Backup completed successfully!"}
+	response := model.Response{"Success", "Backup completed successfully!"}
 	c.JSON(http.StatusOK, response)
 }
 

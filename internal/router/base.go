@@ -25,7 +25,7 @@ func postHandler(c *gin.Context) {
 	case "generate-password":
 		app.GeneratePassword(c)
 	default:
-		response := model.LoginResponse{"Error", "Route not found"}
+		response := model.Response{"Error", "Route not found"}
 		c.JSON(http.StatusNotFound, response)
 	}
 }

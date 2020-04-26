@@ -22,7 +22,7 @@ func Restore(c *gin.Context) {
 
 	_, err := os.Open(backupPath)
 	if err != nil {
-		response := model.LoginResponse{"Error", fmt.Sprintf("Couldn't find backup file passwall.bak in %s folder", backupFolder)}
+		response := model.Response{"Error", fmt.Sprintf("Couldn't find backup file passwall.bak in %s folder", backupFolder)}
 		c.JSON(http.StatusNotFound, response)
 		return
 	}
@@ -44,6 +44,6 @@ func Restore(c *gin.Context) {
 		db.Save(&login)
 	}
 
-	response := model.LoginResponse{"Success", "Restore from backup completed successfully!"}
+	response := model.Response{"Success", "Restore from backup completed successfully!"}
 	c.JSON(http.StatusOK, response)
 }
