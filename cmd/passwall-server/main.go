@@ -2,10 +2,10 @@ package main
 
 import (
 	_ "github.com/heroku/x/hmetrics/onload"
-	"github.com/pass-wall/passwall-server/pkg/config"
-	"github.com/pass-wall/passwall-server/pkg/cron"
-	"github.com/pass-wall/passwall-server/pkg/database"
-	"github.com/pass-wall/passwall-server/pkg/router"
+	"github.com/pass-wall/passwall-server/internal/config"
+	"github.com/pass-wall/passwall-server/internal/cron"
+	"github.com/pass-wall/passwall-server/internal/database"
+	"github.com/pass-wall/passwall-server/internal/router"
 	"github.com/spf13/viper"
 )
 

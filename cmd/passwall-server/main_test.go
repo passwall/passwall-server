@@ -10,7 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pass-wall/passwall-server/login"
-	"github.com/pass-wall/passwall-server/pkg/router"
+	"github.com/pass-wall/passwall-server/internal/router"
 	"github.com/stretchr/testify/assert"
 )
 

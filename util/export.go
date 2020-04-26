@@ -7,8 +7,8 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pass-wall/passwall-server/internal/database"
 	"github.com/pass-wall/passwall-server/login"
-	"github.com/pass-wall/passwall-server/pkg/database"
 )
 
 // Export exports all logins as CSV file

@@ -9,8 +9,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pass-wall/passwall-server/helper"
+	"github.com/pass-wall/passwall-server/internal/database"
 	"github.com/pass-wall/passwall-server/login"
-	"github.com/pass-wall/passwall-server/pkg/database"
 	"github.com/spf13/viper"
 )
 
