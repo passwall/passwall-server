@@ -10,8 +10,8 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
-	"github.com/pass-wall/passwall-server/internal/database"
 	"github.com/pass-wall/passwall-server/internal/encryption"
+	"github.com/pass-wall/passwall-server/internal/store"
 	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
 )
@@ -36,11 +36,11 @@ func BackupData() error {
 	backupFolder := viper.GetString("backup.folder")
 	backupPath := fmt.Sprintf("%s/passwall.bak", backupFolder)
 
-	db := database.GetDB()
+	db := store.GetDB()
 
 	var logins []model.Login
 	db.Find(&logins)
-	logins = model.DecryptLoginPasswords(logins)
+	logins = DecryptLoginPasswords(logins)
 
 	// Struct to []byte
 	loginBytes := new(bytes.Buffer)

@@ -3,7 +3,7 @@ package router
 import (
 	"net/http"
 
-	"github.com/pass-wall/passwall-server/app"
+	"github.com/pass-wall/passwall-server/internal/app"
 	"github.com/pass-wall/passwall-server/model"
 
 	"github.com/gin-gonic/gin"

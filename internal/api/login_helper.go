@@ -1,7 +1,6 @@
-package model
+package api
 
 import (
-	"encoding/base64"
 	"regexp"
 	"strconv"
 	"strings"
@@ -11,19 +10,6 @@ import (
 	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/spf13/viper"
 )
-
-// DecryptLoginPasswords ...
-func DecryptLoginPasswords(logins []Login) []Login {
-	for i := range logins {
-		if logins[i].Password == "" {
-			continue
-		}
-		passByte, _ := base64.StdEncoding.DecodeString(logins[i].Password)
-		passB64 := string(encryption.Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
-		logins[i].Password = passB64
-	}
-	return logins
-}
 
 // SetArgs ...
 func SetArgs(c *gin.Context) (map[string]string, map[string]int) {

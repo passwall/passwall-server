@@ -8,8 +8,8 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
-	"github.com/pass-wall/passwall-server/internal/database"
 	"github.com/pass-wall/passwall-server/internal/encryption"
+	"github.com/pass-wall/passwall-server/internal/store"
 	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
 )
@@ -32,7 +32,7 @@ func Restore(c *gin.Context) {
 	var loginDTOs []model.LoginDTO
 	json.Unmarshal(loginsByte, &loginDTOs)
 
-	db := database.GetDB()
+	db := store.GetDB()
 	for i := range loginDTOs {
 
 		login := model.Login{

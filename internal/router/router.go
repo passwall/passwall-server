@@ -5,9 +5,9 @@ import (
 	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
-	"github.com/pass-wall/passwall-server/internal/database"
+	"github.com/pass-wall/passwall-server/internal/api"
 	"github.com/pass-wall/passwall-server/internal/middleware"
-	"github.com/pass-wall/passwall-server/model"
+	"github.com/pass-wall/passwall-server/internal/store"
 )
 
 // Setup initializes the gin engine and router
@@ -23,7 +23,7 @@ func Setup() *gin.Engine {
 	// Serve static files in public folder
 	r.Use(static.Serve("/", static.LocalFile("./public", true)))
 
-	db := database.GetDB()
+	db := store.GetDB()
 	loginAPI := InitLoginAPI(db)
 
 	// JWT middleware
@@ -64,10 +64,10 @@ func Setup() *gin.Engine {
 }
 
 // InitLoginAPI ..
-func InitLoginAPI(db *gorm.DB) model.LoginAPI {
-	loginRepository := model.NewLoginRepository(db)
-	loginService := model.NewLoginService(loginRepository)
-	loginAPI := model.NewLoginAPI(loginService)
+func InitLoginAPI(db *gorm.DB) api.LoginAPI {
+	loginRepository := store.NewLoginRepository(db)
+	loginService := store.NewLoginService(loginRepository)
+	loginAPI := api.NewLoginAPI(loginService)
 	loginAPI.Migrate()
 	return loginAPI
 }

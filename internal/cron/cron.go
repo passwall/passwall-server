@@ -1,8 +1,8 @@
 package cron
 
 import (
-	"github.com/pass-wall/passwall-server/app"
 	"github.com/robfig/cron/v3"
+	"github.com/pass-wall/passwall-server/internal/app"
 )
 
 // Setup ...

@@ -13,8 +13,8 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
-	"github.com/pass-wall/passwall-server/internal/database"
 	"github.com/pass-wall/passwall-server/internal/encryption"
+	"github.com/pass-wall/passwall-server/internal/store"
 	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
 )
@@ -85,7 +85,7 @@ func Import(c *gin.Context) {
 
 // AddValues ...
 func AddValues(url, username, password string, file *os.File) error {
-	db := database.GetDB()
+	db := store.GetDB()
 	var urlIndex, usernameIndex, passwordIndex int
 
 	scanner := bufio.NewScanner(file)
