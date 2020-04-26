@@ -8,7 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
-	"github.com/pass-wall/passwall-server/helper"
+	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/spf13/viper"
 )
 
@@ -19,7 +19,7 @@ func DecryptLoginPasswords(logins []Login) []Login {
 			continue
 		}
 		passByte, _ := base64.StdEncoding.DecodeString(logins[i].Password)
-		passB64 := string(helper.Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
+		passB64 := string(encryption.Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
 		logins[i].Password = passB64
 	}
 	return logins
@@ -83,7 +83,7 @@ func setOrder(sort, order string) string {
 	sortValues := []string{"id", "created_at", "updated_at", "url", "username"}
 	orderValues := []string{"desc", "asc"}
 
-	if helper.Include(sortValues, ToSnakeCase(sort)) && helper.Include(orderValues, ToSnakeCase(order)) {
+	if encryption.Include(sortValues, ToSnakeCase(sort)) && encryption.Include(orderValues, ToSnakeCase(order)) {
 		return ToSnakeCase(sort) + " " + ToSnakeCase(order)
 	}
 

@@ -14,8 +14,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pass-wall/passwall-server/api/login"
-	"github.com/pass-wall/passwall-server/helper"
 	"github.com/pass-wall/passwall-server/internal/database"
+	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/spf13/viper"
 )
 
@@ -97,9 +97,9 @@ func AddValues(url, username, password string, file *os.File) error {
 		counter++
 		if counter == 1 {
 			// Match user's fieldnames to passwall's field names (URL, Username, Password)
-			urlIndex = helper.FindIndex(fields, url)
-			usernameIndex = helper.FindIndex(fields, username)
-			passwordIndex = helper.FindIndex(fields, password)
+			urlIndex = encryption.FindIndex(fields, url)
+			usernameIndex = encryption.FindIndex(fields, username)
+			passwordIndex = encryption.FindIndex(fields, password)
 
 			// Check if fields match
 			if urlIndex == -1 || usernameIndex == -1 || passwordIndex == -1 {
@@ -115,7 +115,7 @@ func AddValues(url, username, password string, file *os.File) error {
 		login := login.Login{
 			URL:      fields[urlIndex],
 			Username: fields[usernameIndex],
-			Password: base64.StdEncoding.EncodeToString(helper.Encrypt(fields[passwordIndex], viper.GetString("server.passphrase"))),
+			Password: base64.StdEncoding.EncodeToString(encryption.Encrypt(fields[passwordIndex], viper.GetString("server.passphrase"))),
 		}
 
 		// Add to database

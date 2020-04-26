@@ -9,8 +9,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pass-wall/passwall-server/api/login"
-	"github.com/pass-wall/passwall-server/helper"
 	"github.com/pass-wall/passwall-server/internal/database"
+	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/spf13/viper"
 )
 
@@ -27,7 +27,7 @@ func Restore(c *gin.Context) {
 		return
 	}
 
-	loginsByte := helper.DecryptFile(backupPath, viper.GetString("server.passphrase"))
+	loginsByte := encryption.DecryptFile(backupPath, viper.GetString("server.passphrase"))
 
 	var loginDTOs []login.LoginDTO
 	json.Unmarshal(loginsByte, &loginDTOs)
@@ -38,7 +38,7 @@ func Restore(c *gin.Context) {
 		login := login.Login{
 			URL:      loginDTOs[i].URL,
 			Username: loginDTOs[i].Username,
-			Password: base64.StdEncoding.EncodeToString(helper.Encrypt(loginDTOs[i].Password, viper.GetString("server.passphrase"))),
+			Password: base64.StdEncoding.EncodeToString(encryption.Encrypt(loginDTOs[i].Password, viper.GetString("server.passphrase"))),
 		}
 
 		db.Save(&login)
