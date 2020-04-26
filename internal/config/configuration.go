@@ -1,7 +1,10 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"log"
+	"os"
 
 	"github.com/spf13/viper"
 )
@@ -30,6 +33,12 @@ func Setup() {
 
 	// Set default values
 	setDefaults()
+
+	if !fileExists("./store/config.yml") {
+		viper.Set("server.passphrase", generateSecureKey())
+		viper.Set("server.secret", generateSecureKey())
+		viper.WriteConfigAs("./store/config.yml")
+	}
 
 	// Enable VIPER to read Environment Variables
 	viper.AutomaticEnv()
@@ -82,7 +91,25 @@ func setDefaults() {
 	viper.SetDefault("database.password", "password")
 	viper.SetDefault("database.host", "localhost")
 	viper.SetDefault("database.port", "5432")
-	viper.SetDefault("database.path", "./store/passwall.db")
+	viper.SetDefault("database.path", "../../store/passwall.db")
 
-	viper.SetDefault("backup.folder", "./store/")
+	viper.SetDefault("backup.folder", "../../store/")
+}
+
+func generateSecureKey() string {
+	key := make([]byte, 64)
+	_, err := rand.Read(key)
+	if err != nil {
+		// handle error here
+	}
+	keyEnc := base64.StdEncoding.EncodeToString(key)
+	return keyEnc
+}
+
+func fileExists(filename string) bool {
+	info, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return !info.IsDir()
 }
