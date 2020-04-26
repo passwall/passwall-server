@@ -1,27 +1,29 @@
-package util
+package router
 
 import (
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/pass-wall/passwall-server/api/login"
+	"github.com/pass-wall/passwall-server/app"
+
+	"github.com/gin-gonic/gin"
 )
 
 // PostHandler ...
-func PostHandler(c *gin.Context) {
+func postHandler(c *gin.Context) {
 	action := c.Param("action")
 
 	switch action {
 	case "import":
-		Import(c)
+		app.Import(c)
 	case "export":
-		Export(c)
+		app.Export(c)
 	case "backup":
-		Backup(c)
+		app.Backup(c)
 	case "restore":
-		Restore(c)
+		app.Restore(c)
 	case "generate-password":
-		GeneratePassword(c)
+		app.GeneratePassword(c)
 	default:
 		response := login.LoginResponse{"Error", "Route not found"}
 		c.JSON(http.StatusNotFound, response)

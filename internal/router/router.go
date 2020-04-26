@@ -8,7 +8,6 @@ import (
 	"github.com/pass-wall/passwall-server/api/login"
 	"github.com/pass-wall/passwall-server/internal/database"
 	"github.com/pass-wall/passwall-server/internal/middleware"
-	"github.com/pass-wall/passwall-server/util"
 )
 
 // Setup initializes the gin engine and router
@@ -48,7 +47,7 @@ func Setup() *gin.Engine {
 			if path == "check-password" {
 				loginAPI.FindSamePassword(c)
 			} else {
-				util.PostHandler(c)
+				postHandler(c)
 			}
 		})
 
