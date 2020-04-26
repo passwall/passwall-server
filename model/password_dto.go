@@ -1,4 +1,4 @@
-package login
+package model
 
 type Password struct {
 	Password string

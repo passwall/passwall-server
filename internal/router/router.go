@@ -5,9 +5,9 @@ import (
 	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
-	"github.com/pass-wall/passwall-server/api/login"
 	"github.com/pass-wall/passwall-server/internal/database"
 	"github.com/pass-wall/passwall-server/internal/middleware"
+	"github.com/pass-wall/passwall-server/model"
 )
 
 // Setup initializes the gin engine and router
@@ -64,10 +64,10 @@ func Setup() *gin.Engine {
 }
 
 // InitLoginAPI ..
-func InitLoginAPI(db *gorm.DB) login.LoginAPI {
-	loginRepository := login.NewLoginRepository(db)
-	loginService := login.NewLoginService(loginRepository)
-	loginAPI := login.NewLoginAPI(loginService)
+func InitLoginAPI(db *gorm.DB) model.LoginAPI {
+	loginRepository := model.NewLoginRepository(db)
+	loginService := model.NewLoginService(loginRepository)
+	loginAPI := model.NewLoginAPI(loginService)
 	loginAPI.Migrate()
 	return loginAPI
 }

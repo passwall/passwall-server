@@ -1,4 +1,4 @@
-package login
+package model
 
 // URLs ...
 type URLs struct {

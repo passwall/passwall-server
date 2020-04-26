@@ -8,9 +8,9 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
-	"github.com/pass-wall/passwall-server/api/login"
 	"github.com/pass-wall/passwall-server/internal/database"
 	"github.com/pass-wall/passwall-server/internal/encryption"
+	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
 )
 
@@ -22,20 +22,20 @@ func Restore(c *gin.Context) {
 
 	_, err := os.Open(backupPath)
 	if err != nil {
-		response := login.LoginResponse{"Error", fmt.Sprintf("Couldn't find backup file passwall.bak in %s folder", backupFolder)}
+		response := model.LoginResponse{"Error", fmt.Sprintf("Couldn't find backup file passwall.bak in %s folder", backupFolder)}
 		c.JSON(http.StatusNotFound, response)
 		return
 	}
 
 	loginsByte := encryption.DecryptFile(backupPath, viper.GetString("server.passphrase"))
 
-	var loginDTOs []login.LoginDTO
+	var loginDTOs []model.LoginDTO
 	json.Unmarshal(loginsByte, &loginDTOs)
 
 	db := database.GetDB()
 	for i := range loginDTOs {
 
-		login := login.Login{
+		login := model.Login{
 			URL:      loginDTOs[i].URL,
 			Username: loginDTOs[i].Username,
 			Password: base64.StdEncoding.EncodeToString(encryption.Encrypt(loginDTOs[i].Password, viper.GetString("server.passphrase"))),
@@ -44,6 +44,6 @@ func Restore(c *gin.Context) {
 		db.Save(&login)
 	}
 
-	response := login.LoginResponse{"Success", "Restore from backup completed successfully!"}
+	response := model.LoginResponse{"Success", "Restore from backup completed successfully!"}
 	c.JSON(http.StatusOK, response)
 }

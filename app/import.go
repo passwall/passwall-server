@@ -13,9 +13,9 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
-	"github.com/pass-wall/passwall-server/api/login"
 	"github.com/pass-wall/passwall-server/internal/database"
 	"github.com/pass-wall/passwall-server/internal/encryption"
+	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
 )
 
@@ -112,7 +112,7 @@ func AddValues(url, username, password string, file *os.File) error {
 
 		// if isRecordNotFound(fields[urlIndex], fields[usernameIndex], fields[passwordIndex]) {
 		// Fill login struct with csv file content
-		login := login.Login{
+		login := model.Login{
 			URL:      fields[urlIndex],
 			Username: fields[usernameIndex],
 			Password: base64.StdEncoding.EncodeToString(encryption.Encrypt(fields[passwordIndex], viper.GetString("server.passphrase"))),

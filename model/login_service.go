@@ -1,4 +1,4 @@
-package login
+package model
 
 // LoginService ...
 type LoginService struct {

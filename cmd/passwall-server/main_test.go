@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/pass-wall/passwall-server/api/login"
 	"github.com/pass-wall/passwall-server/internal/router"
+	"github.com/pass-wall/passwall-server/model"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -35,9 +35,9 @@ func TestGetMethod(t *testing.T) {
 	nonIDStr := strconv.Itoa(nonID)
 
 	// Setting variables
-	var logins []login.Login
-	// var loginModel login.Login
-	var resultModel login.LoginResponse
+	var logins []model.Login
+	// var loginModel model.Login
+	var resultModel model.LoginResponse
 
 	// Creating test table
 	var table = []struct {
@@ -68,19 +68,19 @@ func TestGetMethod(t *testing.T) {
 
 			switch row.name {
 			case "GET All Logins":
-				result := row.returnObject.([]login.Login)
+				result := row.returnObject.([]model.Login)
 				err = json.Unmarshal(body, &result)
 				assert.Nil(err)
 			case "Get Single Login":
-				result := row.returnObject.(login.Login)
+				result := row.returnObject.(model.Login)
 				err = json.Unmarshal(body, &result)
 				assert.Nil(err)
 			case "Get False Single Login":
-				result := row.returnObject.(login.LoginResponse)
+				result := row.returnObject.(model.LoginResponse)
 				err = json.Unmarshal(body, &result)
 				assert.Nil(err)
 			case "Get Wrong ID Format":
-				result := row.returnObject.(login.LoginResponse)
+				result := row.returnObject.(model.LoginResponse)
 				err = json.Unmarshal(body, &result)
 				assert.Nil(err)
 			}

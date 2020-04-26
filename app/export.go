@@ -7,19 +7,19 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
-	"github.com/pass-wall/passwall-server/api/login"
 	"github.com/pass-wall/passwall-server/internal/database"
+	"github.com/pass-wall/passwall-server/model"
 )
 
 // Export exports all logins as CSV file
 func Export(c *gin.Context) {
 	db := database.GetDB()
 
-	var logins []login.Login
+	var logins []model.Login
 	filepath := "/tmp/passwall_api_export.csv"
 
 	db.Find(&logins)
-	logins = login.DecryptLoginPasswords(logins)
+	logins = model.DecryptLoginPasswords(logins)
 
 	file, err := os.Create(filepath)
 	if err != nil {

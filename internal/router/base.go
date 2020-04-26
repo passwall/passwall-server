@@ -3,8 +3,8 @@ package router
 import (
 	"net/http"
 
-	"github.com/pass-wall/passwall-server/api/login"
 	"github.com/pass-wall/passwall-server/app"
+	"github.com/pass-wall/passwall-server/model"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,7 +25,7 @@ func postHandler(c *gin.Context) {
 	case "generate-password":
 		app.GeneratePassword(c)
 	default:
-		response := login.LoginResponse{"Error", "Route not found"}
+		response := model.LoginResponse{"Error", "Route not found"}
 		c.JSON(http.StatusNotFound, response)
 	}
 }

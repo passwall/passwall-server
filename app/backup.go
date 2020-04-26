@@ -10,9 +10,9 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
-	"github.com/pass-wall/passwall-server/api/login"
 	"github.com/pass-wall/passwall-server/internal/database"
 	"github.com/pass-wall/passwall-server/internal/encryption"
+	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
 )
 
@@ -22,12 +22,12 @@ func Backup(c *gin.Context) {
 
 	if err != nil {
 		log.Println(err)
-		response := login.LoginResponse{"Error", err.Error()}
+		response := model.LoginResponse{"Error", err.Error()}
 		c.JSON(http.StatusInternalServerError, response)
 		return
 	}
 
-	response := login.LoginResponse{"Success", "Backup completed successfully!"}
+	response := model.LoginResponse{"Success", "Backup completed successfully!"}
 	c.JSON(http.StatusOK, response)
 }
 
@@ -38,9 +38,9 @@ func BackupData() error {
 
 	db := database.GetDB()
 
-	var logins []login.Login
+	var logins []model.Login
 	db.Find(&logins)
-	logins = login.DecryptLoginPasswords(logins)
+	logins = model.DecryptLoginPasswords(logins)
 
 	// Struct to []byte
 	loginBytes := new(bytes.Buffer)

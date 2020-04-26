@@ -1,4 +1,4 @@
-package login_test
+package model_test
 
 import (
 	"database/sql"
@@ -10,7 +10,7 @@ import (
 	"github.com/jinzhu/gorm"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/pass-wall/passwall-server/api/login"
+	. "github.com/pass-wall/passwall-server/model"
 	// "github.com/pass-wall/passwall-server/pkg/config"
 )
 
