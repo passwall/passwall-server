@@ -87,12 +87,14 @@ func rotateBackup() error {
 		}
 	}
 
-	sort.SliceStable(backupFiles, func(i, j int) bool {
-		return backupFiles[i].ModTime().After(backupFiles[j].ModTime())
-	})
+	if len(backupFiles) > backupRotation {
+		sort.SliceStable(backupFiles, func(i, j int) bool {
+			return backupFiles[i].ModTime().After(backupFiles[j].ModTime())
+		})
 
-	for _, file := range backupFiles[backupRotation:] {
-		_ = os.Remove(filepath.Join(backupFolder, file.Name()))
+		for _, file := range backupFiles[backupRotation:] {
+			_ = os.Remove(filepath.Join(backupFolder, file.Name()))
+		}
 	}
 
 	return nil
