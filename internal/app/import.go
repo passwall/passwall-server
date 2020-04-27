@@ -21,114 +21,74 @@ import (
 
 // TODO: Buraya don
 
-func upload(r *http.Request) (string, error) {
+func upload(r *http.Request) (*os.File, error) {
 
 	// Max 10 MB
 	r.ParseMultipartForm(10 << 20)
-	file, handler, err := r.FormFile("File")
+
+	// TODO: change _ to handler for next TODO below
+	file, _, err := r.FormFile("File")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer file.Close()
 
 	// TODO: check handler size and header
-	fmt.Printf("Uploaded File: %+v\n", handler.Filename)
-	fmt.Printf("File Size: %+v\n", handler.Size)
-	fmt.Printf("MIME Header: %+v\n", handler.Header)
+	// fmt.Printf("Uploaded File: %+v\n", handler.Filename)
+	// fmt.Printf("File Size: %+v\n", handler.Size)
+	// fmt.Printf("MIME Header: %+v\n", handler.Header)
 
 	tempFile, err := ioutil.TempFile("/tmp", "passwall-import-*.csv")
 	if err != nil {
-		fmt.Println(err)
+		return nil, err
 	}
-	defer tempFile.Close()
 
 	fileBytes, err := ioutil.ReadAll(file)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	tempFile.Write(fileBytes)
 
-	return tempFile.Name(), err
+	return tempFile, err
 }
 
 // Import ...
 func Import(w http.ResponseWriter, r *http.Request) {
-	// url := r.FormValue("URL")
-	// username := r.FormValue("Username")
-	// password := r.FormValue("Password")
+	url := r.FormValue("URL")
+	username := r.FormValue("Username")
+	password := r.FormValue("Password")
 
-	_, err := upload(r)
+	uploadedFile, err := upload(r)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	defer uploadedFile.Close()
+
+	// Go to first line of file
+	uploadedFile.Seek(0, 0)
+
+	// Read file content and add logins to db
+	err = InsertValues(url, username, password, uploadedFile)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	// url := c.DefaultPostForm("URL", "URL")
-	// username := c.DefaultPostForm("Username", "Username")
-	// password := c.DefaultPostForm("Password", "Password")
-	// path := "/tmp/"
+	// Delete imported file
+	err = os.Remove(uploadedFile.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 
-	// formFile, err := c.FormFile("File")
-	// if err != nil {
-	// 	log.Println(err)
-	// 	c.JSON(http.StatusBadRequest, err)
-	// 	respondWithError(w, http.StatusBadRequest, err.Error())
-	// 	return
-	// }
-
-	// filename := filepath.Base(formFile.Filename)
-
-	// // Save file to ./tmp/import folder
-	// if err := c.SaveUploadedFile(formFile, path+filename); err != nil {
-	// 	c.JSON(http.StatusBadRequest, gin.H{
-	// 		"Status":  "Error",
-	// 		"Message": err.Error(),
-	// 	})
-	// 	return
-	// }
-
-	// // get file content
-	// file, err := os.Open(path + filename)
-	// if err != nil {
-	// 	log.Println(err)
-	// 	c.JSON(http.StatusBadRequest, gin.H{
-	// 		"Status":  "Error",
-	// 		"Message": err.Error(),
-	// 	})
-	// 	return
-	// }
-
-	// // Read file content and add logins to db
-	// err = AddValues(url, username, password, file)
-	// if err != nil {
-	// 	log.Println(err)
-	// 	c.JSON(http.StatusBadRequest, gin.H{
-	// 		"Status":  "Error",
-	// 		"Message": err.Error(),
-	// 	})
-	// 	return
-	// }
-
-	// // Delete imported file
-	// err = os.Remove(path + filename)
-	// if err != nil {
-	// 	log.Println(err)
-	// 	c.JSON(http.StatusBadRequest, gin.H{
-	// 		"Status":  "Error",
-	// 		"Message": err.Error(),
-	// 	})
-	// 	return
-	// }
-
-	// c.JSON(http.StatusOK, gin.H{
-	// 	"Status":  "Success",
-	// 	"Message": "Import finished successfully",
-	// })
+	response := model.Response{"Success", "Import finished successfully!"}
+	respondWithJSON(w, http.StatusOK, response)
 }
 
-// AddValues ...
-func AddValues(url, username, password string, file *os.File) error {
+// InsertValues ...
+func InsertValues(url, username, password string, file *os.File) error {
 	db := store.GetDB()
 	var urlIndex, usernameIndex, passwordIndex int
 
