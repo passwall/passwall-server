@@ -10,7 +10,6 @@ import (
 )
 
 // Export exports all logins as CSV file
-// TODO: buraya don
 func Export(w http.ResponseWriter, r *http.Request) {
 	db := store.GetDB()
 

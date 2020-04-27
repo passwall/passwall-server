@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -18,9 +19,51 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Import ...
 // TODO: Buraya don
+
+func upload(r *http.Request) (string, error) {
+
+	// Max 10 MB
+	r.ParseMultipartForm(10 << 20)
+	file, handler, err := r.FormFile("File")
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	// TODO: check handler size and header
+	fmt.Printf("Uploaded File: %+v\n", handler.Filename)
+	fmt.Printf("File Size: %+v\n", handler.Size)
+	fmt.Printf("MIME Header: %+v\n", handler.Header)
+
+	tempFile, err := ioutil.TempFile("/tmp", "passwall-import-*.csv")
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer tempFile.Close()
+
+	fileBytes, err := ioutil.ReadAll(file)
+	if err != nil {
+		return "", err
+	}
+
+	tempFile.Write(fileBytes)
+
+	return tempFile.Name(), err
+}
+
+// Import ...
 func Import(w http.ResponseWriter, r *http.Request) {
+	// url := r.FormValue("URL")
+	// username := r.FormValue("Username")
+	// password := r.FormValue("Password")
+
+	_, err := upload(r)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
 	// url := c.DefaultPostForm("URL", "URL")
 	// username := c.DefaultPostForm("Username", "Username")
 	// password := c.DefaultPostForm("Password", "Password")
