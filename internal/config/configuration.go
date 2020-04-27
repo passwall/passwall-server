@@ -74,6 +74,7 @@ func bindEnvs() {
 	viper.BindEnv("database.path", "PW_DB_PATH")
 
 	viper.BindEnv("backup.folder", "PW_BACKUP_FOLDER")
+	viper.BindEnv("backup.rotation", "PW_BACKUP_ROTATION")
 }
 
 func setDefaults() {
@@ -94,6 +95,7 @@ func setDefaults() {
 	viper.SetDefault("database.path", "./store/passwall.db")
 
 	viper.SetDefault("backup.folder", "./store/")
+	viper.SetDefault("backup.rotation", "7")
 }
 
 func generateSecureKey() string {

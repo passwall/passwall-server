@@ -34,3 +34,4 @@ server:
 
 backup:
   folder: "./store" # you can feel free to change any where your in project 
+  rotation: 7 # backup rotation
