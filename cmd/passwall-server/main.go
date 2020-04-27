@@ -1,11 +1,15 @@
 package main
 
 import (
+	"net/http"
+
+	"github.com/gorilla/mux"
 	_ "github.com/heroku/x/hmetrics/onload"
+	"github.com/jinzhu/gorm"
+	"github.com/pass-wall/passwall-server/internal/api"
 	"github.com/pass-wall/passwall-server/internal/config"
 	"github.com/pass-wall/passwall-server/internal/cron"
 	"github.com/pass-wall/passwall-server/internal/store"
-	"github.com/pass-wall/passwall-server/internal/router"
 	"github.com/spf13/viper"
 )
 
@@ -16,6 +20,37 @@ func init() {
 }
 
 func main() {
-	r := router.Setup()
-	r.Run("0.0.0.0:" + viper.GetString("server.port"))
+
+	db := store.GetDB()
+	loginAPI := InitLoginAPI(db)
+
+	r := mux.NewRouter()
+	r.HandleFunc("/logins", loginAPI.FindAll).Methods("GET")
+	r.HandleFunc("/logins", loginAPI.PostHandler).Methods("POST")
+	r.HandleFunc("/logins/{id:[0-9]+}", loginAPI.FindByID).Methods("GET")
+	r.HandleFunc("/logins/{id:[0-9]+}", loginAPI.Update).Methods("PUT")
+	r.HandleFunc("/logins/{id:[0-9]+}", loginAPI.Delete).Methods("DELETE")
+
+	// logins.GET("/", loginAPI.FindAll)
+	// logins.GET("/:id", loginAPI.FindByID)
+	// logins.POST("/", loginAPI.Create)
+	// logins.POST("/:action", func(c *gin.Context) {
+	// 	path := c.Param("action")
+	// 	if path == "check-password" {
+	// 		loginAPI.FindSamePassword(c)
+	// 	} else {
+	// 		postHandler(c)
+	// 	}
+	// })
+
+	http.ListenAndServe(":"+viper.GetString("server.port"), r)
+}
+
+// InitLoginAPI ..
+func InitLoginAPI(db *gorm.DB) api.LoginAPI {
+	loginRepository := store.NewLoginRepository(db)
+	loginService := store.NewLoginService(loginRepository)
+	loginAPI := api.NewLoginAPI(loginService)
+	loginAPI.Migrate()
+	return loginAPI
 }

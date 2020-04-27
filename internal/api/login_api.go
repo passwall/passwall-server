@@ -2,10 +2,11 @@ package api
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"strconv"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gorilla/mux"
 	"github.com/pass-wall/passwall-server/internal/app"
 	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/pass-wall/passwall-server/internal/store"
@@ -23,73 +24,82 @@ func NewLoginAPI(p store.LoginService) LoginAPI {
 	return LoginAPI{LoginService: p}
 }
 
+// PostHandler ...
+func (p *LoginAPI) PostHandler(w http.ResponseWriter, r *http.Request) {
+	response := model.Response{"Success", "Post Handler"}
+	respondWithJSON(w, http.StatusOK, response)
+}
+
 // FindSamePassword ...
-func (p *LoginAPI) FindSamePassword(c *gin.Context) {
+func (p *LoginAPI) FindSamePassword(w http.ResponseWriter, r *http.Request) {
 	var password model.Password
 
-	c.BindJSON(&password)
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&password); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+		return
+	}
+	defer r.Body.Close()
 
 	urls, err := app.FindSamePassword(&p.LoginService, password)
 
 	if err != nil {
-		response := model.Response{"Error", err.Error()}
-		c.JSON(http.StatusNotFound, response)
+		respondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, urls)
+	respondWithJSON(w, http.StatusOK, urls)
 }
 
 // FindAll ...
-func (p *LoginAPI) FindAll(c *gin.Context) {
+func (p *LoginAPI) FindAll(w http.ResponseWriter, r *http.Request) {
 	var err error
 	logins := []model.Login{}
 
-	argsStr, argsInt := SetArgs(c)
+	argsStr, argsInt := SetArgs(r)
 
 	logins, err = p.LoginService.FindAll(argsStr, argsInt)
 
 	if err != nil {
-		response := model.Response{"Error", err.Error()}
-		c.JSON(http.StatusNotFound, response)
+		respondWithError(w, http.StatusNotFound, err.Error())
 		return
 	}
 
 	logins = app.DecryptLoginPasswords(logins)
-	c.JSON(http.StatusOK, model.ToLoginDTOs(logins))
+	respondWithJSON(w, http.StatusOK, logins)
 }
 
 // FindByID ...
-func (p *LoginAPI) FindByID(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+func (p *LoginAPI) FindByID(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
 	if err != nil {
-		response := model.Response{"Error", err.Error()}
-		c.JSON(http.StatusBadRequest, response)
+		respondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	login, err := p.LoginService.FindByID(uint(id))
 	if err != nil {
-		response := model.Response{"Error", err.Error()}
-		c.JSON(http.StatusNotFound, response)
+		respondWithError(w, http.StatusNotFound, err.Error())
 		return
 	}
 
 	passByte, _ := base64.StdEncoding.DecodeString(login.Password)
 	login.Password = string(encryption.Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
 
-	c.JSON(http.StatusOK, model.ToLoginDTO(login))
+	respondWithJSON(w, http.StatusOK, model.ToLoginDTO(login))
 }
 
 // Create ...
-func (p *LoginAPI) Create(c *gin.Context) {
+func (p *LoginAPI) Create(w http.ResponseWriter, r *http.Request) {
 	var loginDTO model.LoginDTO
-	err := c.BindJSON(&loginDTO)
-	if err != nil {
-		response := model.Response{"Error", err.Error()}
-		c.JSON(http.StatusBadRequest, response)
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&loginDTO); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 		return
 	}
+	defer r.Body.Close()
 
 	if loginDTO.Password == "" {
 		loginDTO.Password = encryption.Password()
@@ -100,37 +110,35 @@ func (p *LoginAPI) Create(c *gin.Context) {
 
 	createdLogin, err := p.LoginService.Save(model.ToLogin(loginDTO))
 	if err != nil {
-		response := model.Response{"Error", err.Error()}
-		c.JSON(http.StatusBadRequest, response)
+		respondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	createdLogin.Password = rawPass
 
-	c.JSON(http.StatusOK, model.ToLoginDTO(createdLogin))
+	respondWithJSON(w, http.StatusOK, model.ToLoginDTO(createdLogin))
 }
 
 // Update ...
-func (p *LoginAPI) Update(c *gin.Context) {
-	var loginDTO model.LoginDTO
-	err := c.BindJSON(&loginDTO)
+func (p *LoginAPI) Update(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
 	if err != nil {
-		response := model.Response{"Error", err.Error()}
-		c.JSON(http.StatusBadRequest, response)
+		respondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		response := model.Response{"Error", err.Error()}
-		c.JSON(http.StatusBadRequest, response)
+	var loginDTO model.LoginDTO
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&loginDTO); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 		return
 	}
+	defer r.Body.Close()
 
 	login, err := p.LoginService.FindByID(uint(id))
 	if err != nil {
-		response := model.Response{"Error", err.Error()}
-		c.JSON(http.StatusNotFound, response)
+		respondWithError(w, http.StatusNotFound, err.Error())
 		return
 	}
 
@@ -145,42 +153,50 @@ func (p *LoginAPI) Update(c *gin.Context) {
 	login.Password = loginDTO.Password
 	updatedLogin, err := p.LoginService.Save(login)
 	if err != nil {
-		response := model.Response{"Error", err.Error()}
-		c.JSON(http.StatusNotFound, response)
+		respondWithError(w, http.StatusNotFound, err.Error())
 		return
 	}
 	updatedLogin.Password = rawPass
-	c.JSON(http.StatusOK, model.ToLoginDTO(updatedLogin))
+	respondWithJSON(w, http.StatusOK, model.ToLoginDTO(updatedLogin))
 }
 
 // Delete ...
-func (p *LoginAPI) Delete(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+func (p *LoginAPI) Delete(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
 	if err != nil {
-		response := model.Response{"Error", err.Error()}
-		c.JSON(http.StatusBadRequest, response)
+		respondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	login, err := p.LoginService.FindByID(uint(id))
 	if err != nil {
-		response := model.Response{"Error", err.Error()}
-		c.JSON(http.StatusNotFound, response)
+		respondWithError(w, http.StatusNotFound, err.Error())
 		return
 	}
 
 	err = p.LoginService.Delete(login.ID)
 	if err != nil {
-		response := model.Response{"Error", err.Error()}
-		c.JSON(http.StatusNotFound, response)
+		respondWithError(w, http.StatusNotFound, err.Error())
 		return
 	}
 
 	response := model.Response{"Success", "Login deleted successfully!"}
-	c.JSON(http.StatusOK, response)
+	respondWithJSON(w, http.StatusOK, response)
 }
 
 // Migrate ...
 func (p *LoginAPI) Migrate() {
 	p.LoginService.Migrate()
+}
+
+func respondWithError(w http.ResponseWriter, code int, message string) {
+	respondWithJSON(w, code, map[string]string{"Status": "Error", "Message": message})
+}
+
+func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+	response, _ := json.Marshal(payload)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	w.Write(response)
 }

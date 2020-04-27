@@ -2,42 +2,47 @@ package router
 
 import (
 	"github.com/gin-contrib/secure"
-	"github.com/gin-contrib/static"
-	"github.com/gin-gonic/gin"
-	"github.com/jinzhu/gorm"
-	"github.com/pass-wall/passwall-server/internal/api"
-	"github.com/pass-wall/passwall-server/internal/middleware"
-	"github.com/pass-wall/passwall-server/internal/store"
+	"github.com/gorilla/mux"
+	// "github.com/jinzhu/gorm"
 )
 
 // Setup initializes the gin engine and router
-func Setup() *gin.Engine {
-	r := gin.New()
+func Setup() *mux.Router {
+	// r := gin.New()
+	r := mux.NewRouter().StrictSlash(true)
 
 	// Middlewares
-	r.Use(gin.Logger())
-	r.Use(gin.Recovery())
-	r.Use(middleware.CORS())
-	r.Use(secure.New(secureConfig()))
+	// r.Use(gin.Logger())
+	// r.Use(gin.Recovery())
+	// r.Use(middleware.CORS())
+	// r.Use(secure.New(secureConfig()))
 
 	// Serve static files in public folder
-	r.Use(static.Serve("/", static.LocalFile("./public", true)))
+	// r.Use(static.Serve("/", static.LocalFile("./public", true)))
+	// r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir(dir))))
 
-	db := store.GetDB()
-	loginAPI := InitLoginAPI(db)
+	// db := store.GetDB()
+	// loginAPI := InitLoginAPI(db)
 
 	// JWT middleware
-	authMW := middleware.AuthMiddleware()
+	// authMW := middleware.AuthMiddleware()
 
-	auth := r.Group("/auth")
-	{
-		auth.POST("/signin", middleware.LimiterMW(), authMW.LoginHandler)
-		auth.POST("/check", authMW.MiddlewareFunc(), middleware.TokenCheck)
-		auth.POST("/refresh", authMW.MiddlewareFunc(), authMW.RefreshHandler)
-	}
+	// auth := r.Group("/auth")
+	// {
+	// 	auth.POST("/signin", middleware.LimiterMW(), authMW.LoginHandler)
+	// 	auth.POST("/check", authMW.MiddlewareFunc(), middleware.TokenCheck)
+	// 	auth.POST("/refresh", authMW.MiddlewareFunc(), authMW.RefreshHandler)
+	// }
+
+	// auth := r.PathPrefix("/auth").Subrouter()
+	// auth.HandleFunc("/signin", createPost).Methods("POST")
+	// auth.HandleFunc("/check", createPost).Methods("POST")
+	// auth.HandleFunc("/refresh", createPost).Methods("POST")
+
+	// r.HandleFunc("/logins", loginAPI.Test).Methods("GET")
 
 	// Endpoints for logins protected with JWT
-	logins := r.Group("/logins", authMW.MiddlewareFunc())
+	/* logins := r.Group("/logins", authMW.MiddlewareFunc())
 	{
 		logins.GET("/", loginAPI.FindAll)
 		logins.GET("/:id", loginAPI.FindByID)
@@ -58,18 +63,9 @@ func Setup() *gin.Engine {
 
 	r.NoRoute(func(c *gin.Context) {
 		c.File("./public/index.html")
-	})
+	}) */
 
 	return r
-}
-
-// InitLoginAPI ..
-func InitLoginAPI(db *gorm.DB) api.LoginAPI {
-	loginRepository := store.NewLoginRepository(db)
-	loginService := store.NewLoginService(loginRepository)
-	loginAPI := api.NewLoginAPI(loginService)
-	loginAPI.Migrate()
-	return loginAPI
 }
 
 func secureConfig() secure.Config {
