@@ -47,7 +47,7 @@ func Setup() *mux.Router {
 		logins.GET("/", loginAPI.FindAll)
 		logins.GET("/:id", loginAPI.FindByID)
 		logins.POST("/", loginAPI.Create)
-		logins.POST("/:action", func(c *gin.Context) {
+		logins.POST("/:action", func(w http.ResponseWriter, r *http.Request) {
 			path := c.Param("action")
 			if path == "check-password" {
 				loginAPI.FindSamePassword(c)
@@ -61,7 +61,7 @@ func Setup() *mux.Router {
 
 	}
 
-	r.NoRoute(func(c *gin.Context) {
+	r.NoRoute(func(w http.ResponseWriter, r *http.Request) {
 		c.File("./public/index.html")
 	}) */
 

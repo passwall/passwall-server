@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/gin-gonic/gin"
 	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/pass-wall/passwall-server/internal/store"
 	"github.com/pass-wall/passwall-server/model"
@@ -15,15 +14,14 @@ import (
 )
 
 // Restore restores logins from backup file ./store/passwall.bak
-func Restore(c *gin.Context) {
+func Restore(w http.ResponseWriter, r *http.Request) {
 
 	backupFolder := viper.GetString("backup.folder")
 	backupPath := fmt.Sprintf("%s/passwall.bak", backupFolder)
 
 	_, err := os.Open(backupPath)
 	if err != nil {
-		response := model.Response{"Error", fmt.Sprintf("Couldn't find backup file passwall.bak in %s folder", backupFolder)}
-		c.JSON(http.StatusNotFound, response)
+		respondWithError(w, http.StatusNotFound, err.Error())
 		return
 	}
 
@@ -45,5 +43,5 @@ func Restore(c *gin.Context) {
 	}
 
 	response := model.Response{"Success", "Restore from backup completed successfully!"}
-	c.JSON(http.StatusOK, response)
+	respondWithJSON(w, http.StatusOK, response)
 }

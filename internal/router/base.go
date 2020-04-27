@@ -2,16 +2,12 @@ package router
 
 import (
 	"net/http"
-
-	"github.com/pass-wall/passwall-server/internal/app"
-	"github.com/pass-wall/passwall-server/model"
-
-	"github.com/gin-gonic/gin"
 )
 
 // PostHandler ...
-func postHandler(c *gin.Context) {
-	action := c.Param("action")
+// TODO: buradan kurtul
+func postHandler(w http.ResponseWriter, r *http.Request) {
+	/* action := c.Param("action")
 
 	switch action {
 	case "import":
@@ -27,5 +23,5 @@ func postHandler(c *gin.Context) {
 	default:
 		response := model.Response{"Error", "Route not found"}
 		c.JSON(http.StatusNotFound, response)
-	}
+	} */
 }

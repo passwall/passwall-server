@@ -26,8 +26,25 @@ func NewLoginAPI(p store.LoginService) LoginAPI {
 
 // PostHandler ...
 func (p *LoginAPI) PostHandler(w http.ResponseWriter, r *http.Request) {
-	response := model.Response{"Success", "Post Handler"}
-	respondWithJSON(w, http.StatusOK, response)
+	action := mux.Vars(r)["action"]
+
+	switch action {
+	case "import":
+		app.Import(w, r)
+	case "export":
+		app.Export(w, r)
+	case "backup":
+		app.Backup(w, r)
+	case "restore":
+		app.Restore(w, r)
+	case "generate-password":
+		app.GeneratePassword(w, r)
+	case "check-password":
+		p.FindSamePassword(w, r)
+	default:
+		respondWithError(w, http.StatusNotFound, "Invalid resquest payload")
+		return
+	}
 }
 
 // FindSamePassword ...

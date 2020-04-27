@@ -1,15 +1,5 @@
 package middleware
 
-import (
-	"log"
-	"net/http"
-	"time"
-
-	jwt "github.com/appleboy/gin-jwt/v2"
-	"github.com/gin-gonic/gin"
-	"github.com/spf13/viper"
-)
-
 type login struct {
 	Username string `form:"Username" json:"Username" binding:"required"`
 	Password string `form:"Password" json:"Password" binding:"required"`
@@ -24,7 +14,7 @@ type User struct {
 var identityKey = "username"
 
 // AuthMiddleware is JWT authorization middleware
-func AuthMiddleware() *jwt.GinJWTMiddleware {
+/* func AuthMiddleware() *jwt.GinJWTMiddleware {
 	usernameCfg := viper.GetString("server.username")
 	passwordCfg := viper.GetString("server.password")
 	secret := viper.GetString("server.secret")
@@ -47,13 +37,13 @@ func AuthMiddleware() *jwt.GinJWTMiddleware {
 			}
 			return jwt.MapClaims{}
 		},
-		IdentityHandler: func(c *gin.Context) interface{} {
+		IdentityHandler: func(w http.ResponseWriter, r *http.Request) interface{} {
 			claims := jwt.ExtractClaims(c)
 			return &User{
 				Username: claims[identityKey].(string),
 			}
 		},
-		Authenticator: func(c *gin.Context) (interface{}, error) {
+		Authenticator: func(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 			var loginVals login
 
 			if err := c.ShouldBind(&loginVals); err != nil {
@@ -72,14 +62,14 @@ func AuthMiddleware() *jwt.GinJWTMiddleware {
 
 			return nil, jwt.ErrFailedAuthentication
 		},
-		Authorizator: func(data interface{}, c *gin.Context) bool {
+		Authorizator: func(data interface{}, w http.ResponseWriter, r *http.Request) bool {
 			if v, ok := data.(*User); ok && v.Username == usernameCfg {
 				return true
 			}
 
 			return false
 		},
-		Unauthorized: func(c *gin.Context, code int, message string) {
+		Unauthorized: func(w http.ResponseWriter, r *http.Request, code int, message string) {
 			c.JSON(code, gin.H{
 				"code":    code,
 				"message": message,
@@ -112,8 +102,9 @@ func AuthMiddleware() *jwt.GinJWTMiddleware {
 }
 
 // TokenCheck ...
-func TokenCheck(c *gin.Context) {
+func TokenCheck(w http.ResponseWriter, r *http.Request) {
 	// result := login.Result{"Success", "Token is valid"}
 	// c.JSON(http.StatusOK, result)
 	c.JSON(http.StatusOK, gin.H{"Status": "Success", "Message": "Token is valid"})
 }
+*/

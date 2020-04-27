@@ -5,11 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 
-	"github.com/gin-gonic/gin"
 	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/pass-wall/passwall-server/internal/store"
 	"github.com/pass-wall/passwall-server/model"
@@ -17,18 +15,16 @@ import (
 )
 
 // Backup gets all logins, compresses with passphrase and saves to ./store
-func Backup(c *gin.Context) {
+func Backup(w http.ResponseWriter, r *http.Request) {
 	err := BackupData()
 
 	if err != nil {
-		log.Println(err)
-		response := model.Response{"Error", err.Error()}
-		c.JSON(http.StatusInternalServerError, response)
+		respondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	response := model.Response{"Success", "Backup completed successfully!"}
-	c.JSON(http.StatusOK, response)
+	respondWithJSON(w, http.StatusOK, response)
 }
 
 // BackupData ...

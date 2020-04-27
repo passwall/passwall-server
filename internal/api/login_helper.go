@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gorilla/mux"
 	"github.com/jinzhu/gorm"
 	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/spf13/viper"
@@ -14,20 +13,19 @@ import (
 
 // SetArgs ...
 func SetArgs(r *http.Request) (map[string]string, map[string]int) {
-	vars := mux.Vars(r)
 
 	// String type query params
-	search := vars["Search"]
-	sort := vars["Sort"]
-	order := vars["Order"]
+	search := r.FormValue("Search")
+	sort := r.FormValue("Sort")
+	order := r.FormValue("Order")
 	argsStr := map[string]string{
 		"search": search,
 		"order":  setOrder(sort, order),
 	}
 
 	// Integer type query params
-	offset := vars["Offset"]
-	limit := vars["Limit"]
+	offset := r.FormValue("Offset")
+	limit := r.FormValue("Limit")
 	argsInt := map[string]int{
 		"offset": setOffset(offset),
 		"limit":  setLimit(limit),

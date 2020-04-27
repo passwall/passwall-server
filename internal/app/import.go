@@ -12,7 +12,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/gin-gonic/gin"
 	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/pass-wall/passwall-server/internal/store"
 	"github.com/pass-wall/passwall-server/model"
@@ -20,67 +19,69 @@ import (
 )
 
 // Import ...
-func Import(c *gin.Context) {
-	url := c.DefaultPostForm("URL", "URL")
-	username := c.DefaultPostForm("Username", "Username")
-	password := c.DefaultPostForm("Password", "Password")
-	path := "/tmp/"
+// TODO: Buraya don
+func Import(w http.ResponseWriter, r *http.Request) {
+	// url := c.DefaultPostForm("URL", "URL")
+	// username := c.DefaultPostForm("Username", "Username")
+	// password := c.DefaultPostForm("Password", "Password")
+	// path := "/tmp/"
 
-	formFile, err := c.FormFile("File")
-	if err != nil {
-		log.Println(err)
-		c.JSON(http.StatusBadRequest, err)
-		return
-	}
+	// formFile, err := c.FormFile("File")
+	// if err != nil {
+	// 	log.Println(err)
+	// 	c.JSON(http.StatusBadRequest, err)
+	// 	respondWithError(w, http.StatusBadRequest, err.Error())
+	// 	return
+	// }
 
-	filename := filepath.Base(formFile.Filename)
+	// filename := filepath.Base(formFile.Filename)
 
-	// Save file to ./tmp/import folder
-	if err := c.SaveUploadedFile(formFile, path+filename); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"Status":  "Error",
-			"Message": err.Error(),
-		})
-		return
-	}
+	// // Save file to ./tmp/import folder
+	// if err := c.SaveUploadedFile(formFile, path+filename); err != nil {
+	// 	c.JSON(http.StatusBadRequest, gin.H{
+	// 		"Status":  "Error",
+	// 		"Message": err.Error(),
+	// 	})
+	// 	return
+	// }
 
-	// get file content
-	file, err := os.Open(path + filename)
-	if err != nil {
-		log.Println(err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"Status":  "Error",
-			"Message": err.Error(),
-		})
-		return
-	}
+	// // get file content
+	// file, err := os.Open(path + filename)
+	// if err != nil {
+	// 	log.Println(err)
+	// 	c.JSON(http.StatusBadRequest, gin.H{
+	// 		"Status":  "Error",
+	// 		"Message": err.Error(),
+	// 	})
+	// 	return
+	// }
 
-	// Read file content and add logins to db
-	err = AddValues(url, username, password, file)
-	if err != nil {
-		log.Println(err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"Status":  "Error",
-			"Message": err.Error(),
-		})
-		return
-	}
+	// // Read file content and add logins to db
+	// err = AddValues(url, username, password, file)
+	// if err != nil {
+	// 	log.Println(err)
+	// 	c.JSON(http.StatusBadRequest, gin.H{
+	// 		"Status":  "Error",
+	// 		"Message": err.Error(),
+	// 	})
+	// 	return
+	// }
 
-	// Delete imported file
-	err = os.Remove(path + filename)
-	if err != nil {
-		log.Println(err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"Status":  "Error",
-			"Message": err.Error(),
-		})
-		return
-	}
+	// // Delete imported file
+	// err = os.Remove(path + filename)
+	// if err != nil {
+	// 	log.Println(err)
+	// 	c.JSON(http.StatusBadRequest, gin.H{
+	// 		"Status":  "Error",
+	// 		"Message": err.Error(),
+	// 	})
+	// 	return
+	// }
 
-	c.JSON(http.StatusOK, gin.H{
-		"Status":  "Success",
-		"Message": "Import finished successfully",
-	})
+	// c.JSON(http.StatusOK, gin.H{
+	// 	"Status":  "Success",
+	// 	"Message": "Import finished successfully",
+	// })
 }
 
 // AddValues ...

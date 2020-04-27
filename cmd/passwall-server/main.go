@@ -30,11 +30,12 @@ func main() {
 	r.HandleFunc("/logins/{id:[0-9]+}", loginAPI.FindByID).Methods("GET")
 	r.HandleFunc("/logins/{id:[0-9]+}", loginAPI.Update).Methods("PUT")
 	r.HandleFunc("/logins/{id:[0-9]+}", loginAPI.Delete).Methods("DELETE")
+	r.HandleFunc("/logins/{action}", loginAPI.PostHandler).Methods("POST")
 
 	// logins.GET("/", loginAPI.FindAll)
 	// logins.GET("/:id", loginAPI.FindByID)
 	// logins.POST("/", loginAPI.Create)
-	// logins.POST("/:action", func(c *gin.Context) {
+	// logins.POST("/:action", func(w http.ResponseWriter, r *http.Request) {
 	// 	path := c.Param("action")
 	// 	if path == "check-password" {
 	// 		loginAPI.FindSamePassword(c)

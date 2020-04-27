@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/pass-wall/passwall-server/internal/store"
 	"github.com/pass-wall/passwall-server/model"
@@ -12,10 +11,10 @@ import (
 )
 
 // GeneratePassword generates new password
-func GeneratePassword(c *gin.Context) {
+func GeneratePassword(w http.ResponseWriter, r *http.Request) {
 	password := encryption.Password()
 	response := model.Response{"Success", password}
-	c.JSON(http.StatusOK, response)
+	respondWithJSON(w, http.StatusOK, response)
 }
 
 // Find Same Passwords Logins ...
