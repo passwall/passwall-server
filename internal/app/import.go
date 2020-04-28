@@ -26,17 +26,17 @@ func upload(r *http.Request) (*os.File, error) {
 	// Max 10 MB
 	r.ParseMultipartForm(10 << 20)
 
-	// TODO: change _ to handler for next TODO below
-	file, _, err := r.FormFile("File")
+	file, header, err := r.FormFile("File")
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
 
-	// TODO: check handler size and header
-	// fmt.Printf("Uploaded File: %+v\n", handler.Filename)
-	// fmt.Printf("File Size: %+v\n", handler.Size)
-	// fmt.Printf("MIME Header: %+v\n", handler.Header)
+	ext := filepath.Ext(header.Filename)
+
+	if ext != ".csv" {
+		return nil, fmt.Errorf("%s unsupported filetype", ext)
+	}
 
 	tempFile, err := ioutil.TempFile("/tmp", "passwall-import-*.csv")
 	if err != nil {
