@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"io"
 	"io/ioutil"
+	"math/big"
 	mathrand "math/rand"
 	"os"
 	"strings"
@@ -44,7 +45,11 @@ func Password() string {
 	}
 	var b strings.Builder
 	for i := 0; i < length; i++ {
-		b.WriteRune(chars[mathrand.Intn(len(chars))])
+		randomNumber, err := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
+		if err != nil { // Fallback if something bad happens
+			randomNumber = big.NewInt(int64(mathrand.Intn(len(chars))))
+		}
+		b.WriteRune(chars[randomNumber.Int64()])
 	}
 	return b.String()
 }
