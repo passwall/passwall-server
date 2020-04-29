@@ -3,8 +3,6 @@ package main
 import (
 	"net/http"
 
-	jwtmiddleware "github.com/auth0/go-jwt-middleware"
-	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/mux"
 	_ "github.com/heroku/x/hmetrics/onload"
 	"github.com/jinzhu/gorm"
@@ -28,53 +26,36 @@ func main() {
 	db := store.GetDB()
 	loginAPI := InitLoginAPI(db)
 
-	r := mux.NewRouter()
-	ar := mux.NewRouter()
+	router := mux.NewRouter()
+	loginRouter := mux.NewRouter().PathPrefix("/api").Subrouter().StrictSlash(true)
+	loginRouter.HandleFunc("/logins", loginAPI.FindAll).Methods("GET")
+	loginRouter.HandleFunc("/logins", loginAPI.Create).Methods("POST")
+	loginRouter.HandleFunc("/logins/{id:[0-9]+}", loginAPI.FindByID).Methods("GET")
+	loginRouter.HandleFunc("/logins/{id:[0-9]+}", loginAPI.Update).Methods("PUT")
+	loginRouter.HandleFunc("/logins/{id:[0-9]+}", loginAPI.Delete).Methods("DELETE")
+	loginRouter.HandleFunc("/logins/{action}", loginAPI.PostHandler).Methods("POST")
 
-	jwtMiddleware := jwtmiddleware.New(jwtmiddleware.Options{
-		ValidationKeyGetter: func(token *jwt.Token) (interface{}, error) {
-			return []byte("secret"), nil
-		},
-		SigningMethod: jwt.SigningMethodHS256,
+	authRouter := mux.NewRouter().PathPrefix("/auth").Subrouter().StrictSlash(true)
+	authRouter.HandleFunc("/signin", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("write sign in method"))
 	})
 
-	ar.HandleFunc("/api/with-auth", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("auth required\n"))
-	}).Methods("GET")
-
-	r.HandleFunc("/logins", loginAPI.FindAll).Methods("GET")
-	r.HandleFunc("/logins", loginAPI.PostHandler).Methods("POST")
-	r.HandleFunc("/logins/{id:[0-9]+}", loginAPI.FindByID).Methods("GET")
-	r.HandleFunc("/logins/{id:[0-9]+}", loginAPI.Update).Methods("PUT")
-	r.HandleFunc("/logins/{id:[0-9]+}", loginAPI.Delete).Methods("DELETE")
-	r.HandleFunc("/logins/{action}", loginAPI.PostHandler).Methods("POST")
-
-	an := negroni.New(negroni.HandlerFunc(jwtMiddleware.HandlerWithNext), negroni.Wrap(ar))
-	r.PathPrefix("/api").Handler(an)
-
-	// negroni.Classic includes these default middlewares:
-	// negroni.Recovery - Panic Recovery Middleware.
-	// negroni.Logger - Request/Response Logger Middleware.
-	// negroni.Static - Static File serving under the "public" directory.
 	n := negroni.Classic()
-	n.Use(negroni.HandlerFunc(jwtMiddleware.HandlerWithNext))
-	n.Use(negroni.Wrap(r))
-	n.Use(negroni.HandlerFunc(middleware.CORS))
-	n.UseHandler(r)
 
-	// logins.GET("/", loginAPI.FindAll)
-	// logins.GET("/:id", loginAPI.FindByID)
-	// logins.POST("/", loginAPI.Create)
-	// logins.POST("/:action", func(w http.ResponseWriter, r *http.Request) {
-	// 	path := c.Param("action")
-	// 	if path == "check-password" {
-	// 		loginAPI.FindSamePassword(c)
-	// 	} else {
-	// 		postHandler(c)
-	// 	}
-	// })
+	router.PathPrefix("/api").Handler(n.With(
+		negroni.HandlerFunc(middleware.Auth),
+		negroni.Wrap(loginRouter),
+	))
+
+	router.PathPrefix("/auth").Handler(n.With(
+		negroni.Wrap(authRouter),
+	))
+
+	n.Use(negroni.HandlerFunc(middleware.CORS))
+	n.UseHandler(router)
 
 	n.Run(":" + viper.GetString("server.port"))
+
 }
 
 // InitLoginAPI ..
