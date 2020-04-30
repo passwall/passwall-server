@@ -56,7 +56,7 @@ func RefreshToken(refreshToken string) (*TokenDetailsDTO, error) {
 
 	//if there is an error, the token must have expired
 	if err != nil {
-		return nil, fmt.Errorf("Refresh token expired")
+		return nil, fmt.Errorf("Refresh token expired or invalid")
 	}
 
 	//is token valid?
@@ -82,7 +82,7 @@ func RefreshToken(refreshToken string) (*TokenDetailsDTO, error) {
 		return ts, nil
 	}
 
-	return nil, fmt.Errorf("Refresh token expired")
+	return nil, fmt.Errorf("Refresh token expired or invalid")
 
 }
 
@@ -102,7 +102,7 @@ func TokenValid(r *http.Request) error {
 //verifyToken verify token
 func verifyToken(r *http.Request) (*jwt.Token, error) {
 
-	tokenString := extractToken(r)
+	tokenString := ExtractToken(r)
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		//Make sure that the token method conform to "SigningMethodHMAC"
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -116,7 +116,8 @@ func verifyToken(r *http.Request) (*jwt.Token, error) {
 	return token, nil
 }
 
-func extractToken(r *http.Request) string {
+// ExtractToken ...
+func ExtractToken(r *http.Request) string {
 
 	bearerToken := r.Header.Get("Authorization")
 	strArr := strings.Split(bearerToken, " ")

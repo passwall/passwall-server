@@ -15,6 +15,7 @@ require (
 	github.com/golang/protobuf v1.4.0 // indirect
 	github.com/gorilla/mux v1.7.4
 	github.com/heroku/x v0.0.22
+	github.com/isacikgoz/gitin v0.2.3 // indirect
 	github.com/jinzhu/gorm v1.9.12
 	github.com/onsi/ginkgo v1.12.0
 	github.com/onsi/gomega v1.9.0

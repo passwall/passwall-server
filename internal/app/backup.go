@@ -5,8 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
 
 	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/pass-wall/passwall-server/internal/store"
@@ -30,7 +35,7 @@ func Backup(w http.ResponseWriter, r *http.Request) {
 // BackupData ...
 func BackupData() error {
 	backupFolder := viper.GetString("backup.folder")
-	backupPath := fmt.Sprintf("%s/passwall.bak", backupFolder)
+	backupPath := fmt.Sprintf("%s/passwall-%s.bak", backupFolder, time.Now().Format("2006-01-02T15-04-05"))
 
 	db := store.GetDB()
 
@@ -55,5 +60,38 @@ func BackupData() error {
 	}
 
 	encryption.EncryptFile(backupPath, loginBytes.Bytes(), viper.GetString("server.passphrase"))
+
+	rotateBackup()
+
+	return nil
+}
+
+// Rotate backup files
+func rotateBackup() error {
+	backupRotation := viper.GetInt("backup.rotation")
+	backupFolder := viper.GetString("backup.folder")
+
+	files, err := ioutil.ReadDir(backupFolder)
+	if err != nil {
+		return err
+	}
+
+	var backupFiles []os.FileInfo
+	for _, file := range files {
+		if strings.HasPrefix(file.Name(), "passwall") && strings.HasSuffix(file.Name(), ".bak") {
+			backupFiles = append(backupFiles, file)
+		}
+	}
+
+	if len(backupFiles) > backupRotation {
+		sort.SliceStable(backupFiles, func(i, j int) bool {
+			return backupFiles[i].ModTime().After(backupFiles[j].ModTime())
+		})
+
+		for _, file := range backupFiles[backupRotation:] {
+			_ = os.Remove(filepath.Join(backupFolder, file.Name()))
+		}
+	}
+
 	return nil
 }

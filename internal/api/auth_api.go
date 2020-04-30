@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/pass-wall/passwall-server/internal/auth"
 	a "github.com/pass-wall/passwall-server/internal/auth"
 	"github.com/pass-wall/passwall-server/internal/common"
 	"github.com/spf13/viper"
@@ -60,16 +61,10 @@ func Signin(w http.ResponseWriter, r *http.Request) {
 // RefreshToken ...
 func RefreshToken(w http.ResponseWriter, r *http.Request) {
 
-	mapToken := map[string]string{}
+	// Get token from authorization header
+	extractedToken := auth.ExtractToken(r)
 
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&mapToken); err != nil {
-		common.RespondWithError(w, http.StatusUnprocessableEntity, "Invalid json provided")
-		return
-	}
-	defer r.Body.Close()
-
-	token, err := a.RefreshToken(mapToken["refresh_token"])
+	token, err := a.RefreshToken(extractedToken)
 	if err != nil {
 		common.RespondWithError(w, http.StatusUnauthorized, err.Error())
 		return
