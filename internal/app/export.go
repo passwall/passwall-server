@@ -5,13 +5,13 @@ import (
 	"encoding/csv"
 	"net/http"
 
-	"github.com/pass-wall/passwall-server/internal/store"
+	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
 )
 
 // Export exports all logins as CSV file
 func Export(w http.ResponseWriter, r *http.Request) {
-	db := store.GetDB()
+	db := storage.GetDB()
 
 	var logins []model.Login
 	db.Find(&logins)

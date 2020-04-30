@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/pass-wall/passwall-server/internal/encryption"
-	"github.com/pass-wall/passwall-server/internal/store"
+	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
 )
@@ -37,7 +37,7 @@ func BackupData() error {
 	backupFolder := viper.GetString("backup.folder")
 	backupPath := fmt.Sprintf("%s/passwall-%s.bak", backupFolder, time.Now().Format("2006-01-02T15-04-05"))
 
-	db := store.GetDB()
+	db := storage.GetDB()
 
 	var logins []model.Login
 	db.Find(&logins)

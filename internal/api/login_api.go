@@ -9,18 +9,18 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/pass-wall/passwall-server/internal/app"
 	"github.com/pass-wall/passwall-server/internal/encryption"
-	"github.com/pass-wall/passwall-server/internal/store"
+	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
 )
 
 // LoginAPI ...
 type LoginAPI struct {
-	LoginService store.LoginService
+	LoginService storage.LoginService
 }
 
 // NewLoginAPI ...
-func NewLoginAPI(p store.LoginService) LoginAPI {
+func NewLoginAPI(p storage.LoginService) LoginAPI {
 	return LoginAPI{LoginService: p}
 }
 

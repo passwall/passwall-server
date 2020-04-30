@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"github.com/pass-wall/passwall-server/internal/encryption"
-	"github.com/pass-wall/passwall-server/internal/store"
+	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
 )
@@ -30,7 +30,7 @@ func Restore(w http.ResponseWriter, r *http.Request) {
 	var loginDTOs []model.LoginDTO
 	json.Unmarshal(loginsByte, &loginDTOs)
 
-	db := store.GetDB()
+	db := storage.GetDB()
 	for i := range loginDTOs {
 
 		login := model.Login{

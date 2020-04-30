@@ -8,24 +8,24 @@ import (
 	"github.com/pass-wall/passwall-server/internal/config"
 	"github.com/pass-wall/passwall-server/internal/cron"
 	"github.com/pass-wall/passwall-server/internal/middleware"
-	"github.com/pass-wall/passwall-server/internal/store"
+	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/spf13/viper"
 	"github.com/urfave/negroni"
 )
 
 func init() {
 	config.Setup()
-	store.Setup()
+	storage.Setup()
 	cron.Setup()
 }
 
 func main() {
 
-	db := store.GetDB()
+	db := storage.GetDB()
 	loginAPI := InitLoginAPI(db)
 
 	router := mux.NewRouter()
-	loginRouter := mux.NewRouter().PathPrefix("/api").Subrouter().StrictSlash(true)
+	loginRouter := mux.NewRouter().PathPrefix("/api").Subrouter()
 	loginRouter.HandleFunc("/logins", loginAPI.FindAll).Methods("GET")
 	loginRouter.HandleFunc("/logins", loginAPI.Create).Methods("POST")
 	loginRouter.HandleFunc("/logins/{id:[0-9]+}", loginAPI.FindByID).Methods("GET")
@@ -57,8 +57,8 @@ func main() {
 
 // InitLoginAPI ..
 func InitLoginAPI(db *gorm.DB) api.LoginAPI {
-	loginRepository := store.NewLoginRepository(db)
-	loginService := store.NewLoginService(loginRepository)
+	loginRepository := storage.NewLoginRepository(db)
+	loginService := storage.NewLoginService(loginRepository)
 	loginAPI := api.NewLoginAPI(loginService)
 	loginAPI.Migrate()
 	return loginAPI

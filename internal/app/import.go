@@ -14,7 +14,7 @@ import (
 	"os"
 
 	"github.com/pass-wall/passwall-server/internal/encryption"
-	"github.com/pass-wall/passwall-server/internal/store"
+	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
 )
@@ -89,7 +89,7 @@ func Import(w http.ResponseWriter, r *http.Request) {
 
 // InsertValues ...
 func InsertValues(url, username, password string, file *os.File) error {
-	db := store.GetDB()
+	db := storage.GetDB()
 	var urlIndex, usernameIndex, passwordIndex int
 
 	scanner := bufio.NewScanner(file)

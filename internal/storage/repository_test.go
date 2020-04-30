@@ -1,4 +1,4 @@
-package store_test
+package storage_test
 
 import (
 	"database/sql"
