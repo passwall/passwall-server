@@ -44,7 +44,7 @@ func BackupData() error {
 	db.Find(&logins)
 	logins = DecryptLoginPasswords(logins)
 
-	// Struct to []byte
+	// Struct to []byte vs. vs.
 	loginBytes := new(bytes.Buffer)
 	json.NewEncoder(loginBytes).Encode(logins)
 
