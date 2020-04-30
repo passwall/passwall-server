@@ -1,8 +1,6 @@
 package main
 
 import (
-	"net/http"
-
 	"github.com/gorilla/mux"
 	_ "github.com/heroku/x/hmetrics/onload"
 	"github.com/jinzhu/gorm"
@@ -36,9 +34,8 @@ func main() {
 	loginRouter.HandleFunc("/logins/{action}", loginAPI.PostHandler).Methods("POST")
 
 	authRouter := mux.NewRouter().PathPrefix("/auth").Subrouter().StrictSlash(true)
-	authRouter.HandleFunc("/signin", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("write sign in method"))
-	})
+	authRouter.HandleFunc("/signin", api.Signin)
+	authRouter.HandleFunc("/refresh", api.RefreshToken)
 
 	n := negroni.Classic()
 

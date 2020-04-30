@@ -1,29 +1,20 @@
 package middleware
 
 import (
-	"fmt"
 	"net/http"
+
+	"github.com/pass-wall/passwall-server/internal/auth"
+	"github.com/pass-wall/passwall-server/internal/common"
 )
 
-type login struct {
-	Username string `form:"Username" json:"Username" binding:"required"`
-	Password string `form:"Password" json:"Password" binding:"required"`
-}
-
-// User demo
-type User struct {
-	Username string
-	Password string
-}
-
-var identityKey = "username"
-
-//Auth ...
+//Auth verify authentication
 func Auth(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-	//TODO verify token
-	fmt.Print("auth")
 
-	bearerToken := r.Header.Get("Authorization")
-	fmt.Println(bearerToken)
+	err := auth.TokenValid(r)
+	if err != nil {
+		common.RespondWithError(w, http.StatusUnauthorized, "Unauthorized Error")
+		return
+	}
+
 	next(w, r)
 }
