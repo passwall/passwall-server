@@ -33,7 +33,7 @@ func main() {
 	loginRouter.HandleFunc("/logins/{id:[0-9]+}", loginAPI.Delete).Methods("DELETE")
 	loginRouter.HandleFunc("/logins/{action}", loginAPI.PostHandler).Methods("POST")
 
-	authRouter := mux.NewRouter().PathPrefix("/auth").Subrouter().StrictSlash(true)
+	authRouter := mux.NewRouter().PathPrefix("/auth").Subrouter()
 	authRouter.HandleFunc("/signin", api.Signin)
 	authRouter.HandleFunc("/refresh", api.RefreshToken)
 
