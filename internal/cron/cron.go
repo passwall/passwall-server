@@ -12,7 +12,7 @@ import (
 func Setup() {
 	backupPeriod := viper.GetString("backup.period")
 	cron := cron.New()
-
+	// TODO: This 24h option should be on config file with hours format.
 	cron.AddFunc(fmt.Sprintf("@every %s", backupPeriod), func() { app.BackupData() })
 	cron.Start()
 }

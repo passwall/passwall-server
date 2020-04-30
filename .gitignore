@@ -37,7 +37,7 @@ config.yml
 /store/gpass.db
 
 ## BACKUP FILE ##
-/store/passwall.bak
+/store/passwall-*.bak
 
 ## CONFIG FILE ##
 /store/config.yml

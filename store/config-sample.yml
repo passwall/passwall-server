@@ -35,4 +35,4 @@ server:
 backup:
   folder: "./store" # you can feel free to change any where your in project 
   rotation: 7 # backup rotation
-  period: "24h" # backup period  
+  period: "24h" # backup period. Example: 12h, 3h15m, 8h20m30s

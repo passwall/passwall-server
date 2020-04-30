@@ -1,31 +1,31 @@
 package api
 
 import (
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
 	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/spf13/viper"
 )
 
 // SetArgs ...
-func SetArgs(c *gin.Context) (map[string]string, map[string]int) {
+func SetArgs(r *http.Request) (map[string]string, map[string]int) {
 
 	// String type query params
-	search := c.DefaultQuery("Search", "")
-	sort := c.DefaultQuery("Sort", "updated_at")
-	order := c.DefaultQuery("Order", "DESC")
+	search := r.FormValue("Search")
+	sort := r.FormValue("Sort")
+	order := r.FormValue("Order")
 	argsStr := map[string]string{
 		"search": search,
 		"order":  setOrder(sort, order),
 	}
 
 	// Integer type query params
-	offset := c.DefaultQuery("Offset", "")
-	limit := c.DefaultQuery("Limit", "")
+	offset := r.FormValue("Offset")
+	limit := r.FormValue("Limit")
 	argsInt := map[string]int{
 		"offset": setOffset(offset),
 		"limit":  setLimit(limit),
