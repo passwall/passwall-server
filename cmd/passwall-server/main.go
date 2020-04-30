@@ -36,6 +36,7 @@ func main() {
 	authRouter := mux.NewRouter().PathPrefix("/auth").Subrouter()
 	authRouter.HandleFunc("/signin", api.Signin)
 	authRouter.HandleFunc("/refresh", api.RefreshToken)
+	authRouter.HandleFunc("/check", api.CheckToken)
 
 	n := negroni.Classic()
 

@@ -5,8 +5,10 @@ import (
 	"net/http"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/pass-wall/passwall-server/internal/auth"
 	a "github.com/pass-wall/passwall-server/internal/auth"
 	"github.com/pass-wall/passwall-server/internal/common"
+	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
 )
 
@@ -83,4 +85,17 @@ func RefreshToken(w http.ResponseWriter, r *http.Request) {
 
 	common.RespondWithJSON(w, 200, tokens)
 
+}
+
+// CheckToken ...
+func CheckToken(w http.ResponseWriter, r *http.Request) {
+
+	err := auth.TokenValid(r)
+	if err != nil {
+		common.RespondWithError(w, http.StatusUnauthorized, "Token is expired or not valid!")
+		return
+	}
+
+	response := model.Response{"Success", "Token is valid!"}
+	common.RespondWithJSON(w, http.StatusOK, response)
 }

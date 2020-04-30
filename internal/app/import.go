@@ -13,6 +13,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/pass-wall/passwall-server/internal/common"
 	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
@@ -61,7 +62,7 @@ func Import(w http.ResponseWriter, r *http.Request) {
 
 	uploadedFile, err := upload(r)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
+		common.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	defer uploadedFile.Close()
@@ -72,19 +73,19 @@ func Import(w http.ResponseWriter, r *http.Request) {
 	// Read file content and add logins to db
 	err = InsertValues(url, username, password, uploadedFile)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
+		common.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	// Delete imported file
 	err = os.Remove(uploadedFile.Name())
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
+		common.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	response := model.Response{"Success", "Import finished successfully!"}
-	respondWithJSON(w, http.StatusOK, response)
+	common.RespondWithJSON(w, http.StatusOK, response)
 }
 
 // InsertValues ...

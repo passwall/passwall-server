@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pass-wall/passwall-server/internal/common"
 	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
@@ -24,12 +25,12 @@ func Backup(w http.ResponseWriter, r *http.Request) {
 	err := BackupData()
 
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
+		common.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	response := model.Response{"Success", "Backup completed successfully!"}
-	respondWithJSON(w, http.StatusOK, response)
+	common.RespondWithJSON(w, http.StatusOK, response)
 }
 
 // BackupData ...

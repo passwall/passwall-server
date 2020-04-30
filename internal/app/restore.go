@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/pass-wall/passwall-server/internal/common"
 	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
@@ -21,7 +22,7 @@ func Restore(w http.ResponseWriter, r *http.Request) {
 
 	_, err := os.Open(backupPath)
 	if err != nil {
-		respondWithError(w, http.StatusNotFound, err.Error())
+		common.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
 	}
 
@@ -43,5 +44,5 @@ func Restore(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := model.Response{"Success", "Restore from backup completed successfully!"}
-	respondWithJSON(w, http.StatusOK, response)
+	common.RespondWithJSON(w, http.StatusOK, response)
 }

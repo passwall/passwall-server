@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"net/http"
 
+	"github.com/pass-wall/passwall-server/internal/common"
 	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
@@ -14,7 +15,7 @@ import (
 func GeneratePassword(w http.ResponseWriter, r *http.Request) {
 	password := encryption.Password()
 	response := model.Response{"Success", password}
-	respondWithJSON(w, http.StatusOK, response)
+	common.RespondWithJSON(w, http.StatusOK, response)
 }
 
 // FindSamePassword ...

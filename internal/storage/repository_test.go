@@ -10,7 +10,7 @@ import (
 	"github.com/jinzhu/gorm"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/pass-wall/passwall-server/internal/store"
+	. "github.com/pass-wall/passwall-server/internal/storage"
 	. "github.com/pass-wall/passwall-server/model"
 )
 
