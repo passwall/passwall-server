@@ -5,18 +5,12 @@ import (
 	"github.com/urfave/negroni"
 
 	"github.com/jinzhu/gorm"
-	"github.com/pass-wall/passwall-server/internal/config"
 	"github.com/pass-wall/passwall-server/internal/middleware"
 	"github.com/pass-wall/passwall-server/internal/storage"
-	"github.com/spf13/viper"
 )
 
-func init() {
-	config.Setup()
-	storage.Setup()
-}
-
-func Router() {
+// Router ...
+func Router() *negroni.Negroni {
 
 	db := storage.GetDB()
 	loginAPI := InitLoginAPI(db)
@@ -50,7 +44,7 @@ func Router() {
 	n.Use(negroni.HandlerFunc(middleware.CORS))
 	n.UseHandler(router)
 
-	n.Run(":" + viper.GetString("server.port"))
+	return n
 }
 
 // InitLoginAPI ..
