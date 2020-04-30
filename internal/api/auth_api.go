@@ -51,8 +51,8 @@ func Signin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tokens := map[string]string{
-		"access_token":  token.AccessToken,
-		"refresh_token": token.RefreshToken,
+		"AccessToken":  token.AccessToken,
+		"RefreshToken": token.RefreshToken,
 	}
 
 	common.RespondWithJSON(w, 200, tokens)
@@ -71,8 +71,8 @@ func RefreshToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tokens := map[string]string{
-		"access_token":  token.AccessToken,
-		"refresh_token": token.RefreshToken,
+		"AccessToken":  token.AccessToken,
+		"RefreshToken": token.RefreshToken,
 	}
 
 	common.RespondWithJSON(w, 200, tokens)
