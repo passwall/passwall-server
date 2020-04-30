@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/pass-wall/passwall-server/internal/auth"
 	a "github.com/pass-wall/passwall-server/internal/auth"
 	"github.com/pass-wall/passwall-server/internal/common"
 	"github.com/spf13/viper"
@@ -51,8 +50,8 @@ func Signin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tokens := map[string]string{
-		"AccessToken":  token.AccessToken,
-		"RefreshToken": token.RefreshToken,
+		"access_token":  token.AccessToken,
+		"refresh_token": token.RefreshToken,
 	}
 
 	common.RespondWithJSON(w, 200, tokens)
@@ -62,24 +61,26 @@ func Signin(w http.ResponseWriter, r *http.Request) {
 func RefreshToken(w http.ResponseWriter, r *http.Request) {
 
 	// Get token from authorization header
-	extractedToken := auth.ExtractToken(r)
+	mapToken := map[string]string{}
 
-	token, err := a.RefreshToken(extractedToken)
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&mapToken); err != nil {
+		common.RespondWithError(w, http.StatusUnprocessableEntity, "Invalid json provided")
+		return
+	}
+	defer r.Body.Close()
+
+	token, err := a.RefreshToken(mapToken["refresh_token"])
 	if err != nil {
 		common.RespondWithError(w, http.StatusUnauthorized, err.Error())
 		return
 	}
 
 	tokens := map[string]string{
-		"AccessToken":  token.AccessToken,
-		"RefreshToken": token.RefreshToken,
+		"access_token":  token.AccessToken,
+		"refresh_token": token.RefreshToken,
 	}
 
 	common.RespondWithJSON(w, 200, tokens)
 
-}
-
-// Logout ...
-func Logout(w http.ResponseWriter, r *http.Request) {
-	//TODO
 }

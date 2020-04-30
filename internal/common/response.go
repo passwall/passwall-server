@@ -10,9 +10,9 @@ import (
 )
 
 type ErrorResponseDTO struct {
-	Status  string
-	Message string
-	Errors  []string
+	Status  string   `json:"status"`
+	Message string   `json:"message"`
+	Errors  []string `json:"errors"`
 }
 
 type fieldError struct {

@@ -7,20 +7,20 @@ import (
 
 // Login ...
 type Login struct {
-	ID        uint `gorm:"primary_key"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt *time.Time
-	URL       string
-	Username  string
-	Password  string
+	ID        uint       `gorm:"primary_key" json:"id"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	DeletedAt *time.Time `json:"deleted_at"`
+	URL       string     `json:"url"`
+	Username  string     `json:"username"`
+	Password  string     `json:"password"`
 }
 
 type LoginDTO struct {
-	ID       uint
-	URL      string
-	Username string
-	Password string
+	ID       uint   `json:"id"`
+	URL      string `json:"url"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 // ToLogin ...
@@ -61,7 +61,7 @@ func ToLoginDTOs(logins []Login) []LoginDTO {
 
 // URLs ...
 type URLs struct {
-	Items []string `json:"URLs"`
+	Items []string `json:"urls"`
 }
 
 // AddItem ...
@@ -71,7 +71,7 @@ func (urls *URLs) AddItem(item string) {
 
 // Password ...
 type Password struct {
-	Password string
+	Password string `json:"password"`
 }
 
 // You can send this data to API /posts/ endpoint with POST method to create dummy content
