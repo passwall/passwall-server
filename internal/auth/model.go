@@ -13,7 +13,3 @@ type TokenDetailsDTO struct {
 	AtExpires    int64  `json:"at_expires"`
 	RtExpires    int64  `json:"rt_expires"`
 }
-
-type RestoreDTO struct {
-	Name string `json:"name"`
-}

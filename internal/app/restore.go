@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/pass-wall/passwall-server/internal/auth"
 	"github.com/pass-wall/passwall-server/internal/common"
 	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/pass-wall/passwall-server/internal/storage"
@@ -18,7 +17,7 @@ import (
 
 // Restore restores logins from backup file ./store/passwall-{BACKUP_DATE}.bak
 func Restore(w http.ResponseWriter, r *http.Request) {
-	var restoreDTO auth.RestoreDTO
+	var restoreDTO model.RestoreDTO
 
 	// get restoreDTO
 	decoder := json.NewDecoder(r.Body)
