@@ -20,45 +20,11 @@ import (
 	"github.com/spf13/viper"
 )
 
-// TODO: Buraya don
-
-func upload(r *http.Request) (*os.File, error) {
-
-	// Max 10 MB
-	r.ParseMultipartForm(10 << 20)
-
-	file, header, err := r.FormFile("File")
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	ext := filepath.Ext(header.Filename)
-
-	if ext != ".csv" {
-		return nil, fmt.Errorf("%s unsupported filetype", ext)
-	}
-
-	tempFile, err := ioutil.TempFile("/tmp", "passwall-import-*.csv")
-	if err != nil {
-		return nil, err
-	}
-
-	fileBytes, err := ioutil.ReadAll(file)
-	if err != nil {
-		return nil, err
-	}
-
-	tempFile.Write(fileBytes)
-
-	return tempFile, err
-}
-
 // Import ...
 func Import(w http.ResponseWriter, r *http.Request) {
-	url := r.FormValue("URL")
-	username := r.FormValue("Username")
-	password := r.FormValue("Password")
+	url := r.FormValue("url")
+	username := r.FormValue("username")
+	password := r.FormValue("password")
 
 	uploadedFile, err := upload(r)
 	if err != nil {
@@ -133,4 +99,36 @@ func InsertValues(url, username, password string, file *os.File) error {
 	}
 
 	return nil
+}
+
+func upload(r *http.Request) (*os.File, error) {
+
+	// Max 10 MB
+	r.ParseMultipartForm(10 << 20)
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	ext := filepath.Ext(header.Filename)
+
+	if ext != ".csv" {
+		return nil, fmt.Errorf("%s unsupported filetype", ext)
+	}
+
+	tempFile, err := ioutil.TempFile("/tmp", "passwall-import-*.csv")
+	if err != nil {
+		return nil, err
+	}
+
+	fileBytes, err := ioutil.ReadAll(file)
+	if err != nil {
+		return nil, err
+	}
+
+	tempFile.Write(fileBytes)
+
+	return tempFile, err
 }
