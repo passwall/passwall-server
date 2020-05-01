@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 
+	"github.com/pass-wall/passwall-server/internal/auth"
 	"github.com/pass-wall/passwall-server/internal/common"
 	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/pass-wall/passwall-server/internal/storage"
@@ -14,11 +16,25 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Restore restores logins from backup file ./store/passwall.bak
+// Restore restores logins from backup file ./store/passwall-{BACKUP_DATE}.bak
 func Restore(w http.ResponseWriter, r *http.Request) {
+	var restoreDTO auth.RestoreDTO
+
+	// get restoreDTO
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&restoreDTO); err != nil {
+		common.RespondWithError(w, http.StatusUnprocessableEntity, "Invalid json provided")
+		return
+	}
+	defer r.Body.Close()
 
 	backupFolder := viper.GetString("backup.folder")
-	backupPath := fmt.Sprintf("%s/passwall.bak", backupFolder)
+	backupFile := restoreDTO.Name
+	// add extension if there is no
+	if len(filepath.Ext(restoreDTO.Name)) <= 0 {
+		backupFile = fmt.Sprintf("%s%s", restoreDTO.Name, ".bak")
+	}
+	backupPath := filepath.Join(backupFolder, backupFile)
 
 	_, err := os.Open(backupPath)
 	if err != nil {

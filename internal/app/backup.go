@@ -33,6 +33,23 @@ func Backup(w http.ResponseWriter, r *http.Request) {
 	common.RespondWithJSON(w, http.StatusOK, response)
 }
 
+// List all backups
+func ListBackup(w http.ResponseWriter, r *http.Request) {
+	backupFiles, err := getBackupFiles()
+
+	if err != nil {
+		common.RespondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	var response []model.Backup
+	for _, backupFile := range backupFiles {
+		response = append(response, model.Backup{Name: backupFile.Name(), CreatedAt: backupFile.ModTime()})
+	}
+
+	common.RespondWithJSON(w, http.StatusOK, response)
+}
+
 // BackupData ...
 func BackupData() error {
 	backupFolder := viper.GetString("backup.folder")
@@ -72,16 +89,9 @@ func rotateBackup() error {
 	backupRotation := viper.GetInt("backup.rotation")
 	backupFolder := viper.GetString("backup.folder")
 
-	files, err := ioutil.ReadDir(backupFolder)
+	backupFiles, err := getBackupFiles()
 	if err != nil {
 		return err
-	}
-
-	var backupFiles []os.FileInfo
-	for _, file := range files {
-		if strings.HasPrefix(file.Name(), "passwall") && strings.HasSuffix(file.Name(), ".bak") {
-			backupFiles = append(backupFiles, file)
-		}
 	}
 
 	if len(backupFiles) > backupRotation {
@@ -95,4 +105,22 @@ func rotateBackup() error {
 	}
 
 	return nil
+}
+
+func getBackupFiles() ([]os.FileInfo, error) {
+	backupFolder := viper.GetString("backup.folder")
+
+	files, err := ioutil.ReadDir(backupFolder)
+	if err != nil {
+		return nil, err
+	}
+
+	var backupFiles []os.FileInfo
+	for _, file := range files {
+		if strings.HasPrefix(file.Name(), "passwall") && strings.HasSuffix(file.Name(), ".bak") {
+			backupFiles = append(backupFiles, file)
+		}
+	}
+
+	return backupFiles, nil
 }
