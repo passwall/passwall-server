@@ -14,7 +14,7 @@ import (
 // GeneratePassword generates new password
 func GeneratePassword(w http.ResponseWriter, r *http.Request) {
 	password := encryption.Password()
-	response := model.Response{"Success", password}
+	response := model.Response{http.StatusOK, "Success", password}
 	common.RespondWithJSON(w, http.StatusOK, response)
 }
 

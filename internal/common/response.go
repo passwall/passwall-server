@@ -10,6 +10,7 @@ import (
 )
 
 type ErrorResponseDTO struct {
+	Code    int      `json:"code"`
 	Status  string   `json:"status"`
 	Message string   `json:"message"`
 	Errors  []string `json:"errors"`
@@ -19,16 +20,17 @@ type fieldError struct {
 	err validator.FieldError
 }
 
-//ResponseWithError write error
+// ResponseWithError ...
 func RespondWithError(w http.ResponseWriter, code int, message string) {
-	RespondWithJSON(w, code, ErrorResponseDTO{Status: "Error", Message: message})
+	RespondWithJSON(w, code, ErrorResponseDTO{Code: code, Status: "Error", Message: message})
 }
 
+// RespondWithErrors ...
 func RespondWithErrors(w http.ResponseWriter, code int, message string, errors []string) {
-	RespondWithJSON(w, code, ErrorResponseDTO{Status: "Error", Message: message, Errors: errors})
+	RespondWithJSON(w, code, ErrorResponseDTO{Code: code, Status: "Error", Message: message, Errors: errors})
 }
 
-//RespondWithJSON write json
+// RespondWithJSON write json
 func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	response, _ := json.Marshal(payload)
 	print(payload)
@@ -37,6 +39,7 @@ func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Write(response)
 }
 
+// GetErrors ...
 func GetErrors(errs []validator.FieldError) []string {
 	var arr []string
 	for _, fe := range errs {

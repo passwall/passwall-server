@@ -212,7 +212,7 @@ func (p *LoginAPI) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := model.Response{"Success", "Login deleted successfully!"}
+	response := model.Response{http.StatusOK, "Success", "Login deleted successfully!"}
 	common.RespondWithJSON(w, http.StatusOK, response)
 }
 

@@ -50,7 +50,7 @@ func Import(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := model.Response{"Success", "Import finished successfully!"}
+	response := model.Response{http.StatusOK, "Success", "Import finished successfully!"}
 	common.RespondWithJSON(w, http.StatusOK, response)
 }
 

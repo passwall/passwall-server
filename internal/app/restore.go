@@ -58,6 +58,6 @@ func Restore(w http.ResponseWriter, r *http.Request) {
 		db.Save(&login)
 	}
 
-	response := model.Response{"Success", "Restore from backup completed successfully!"}
+	response := model.Response{http.StatusOK, "Success", "Restore from backup completed successfully!"}
 	common.RespondWithJSON(w, http.StatusOK, response)
 }

@@ -96,6 +96,6 @@ func CheckToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := model.Response{"Success", "Token is valid!"}
+	response := model.Response{http.StatusOK, "Success", "Token is valid!"}
 	common.RespondWithJSON(w, http.StatusOK, response)
 }

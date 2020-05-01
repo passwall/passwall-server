@@ -29,7 +29,7 @@ func Backup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := model.Response{"Success", "Backup completed successfully!"}
+	response := model.Response{http.StatusOK, "Success", "Backup completed successfully!"}
 	common.RespondWithJSON(w, http.StatusOK, response)
 }
 
