@@ -1,6 +1,10 @@
 package main
 
 import (
+	"log"
+	"net/http"
+	"os"
+
 	_ "github.com/heroku/x/hmetrics/onload"
 	"github.com/pass-wall/passwall-server/internal/api"
 	"github.com/pass-wall/passwall-server/internal/config"
@@ -16,8 +20,8 @@ func init() {
 }
 
 func main() {
-
-	n := api.Router()
-	n.Run(":" + viper.GetString("server.port"))
-
+	addr := ":" + viper.GetString("server.port")
+	l := log.New(os.Stdout, "[passwall-server] ", 0)
+	l.Printf("listening on %s", addr)
+	l.Fatal(http.ListenAndServe(addr, api.Router()))
 }
