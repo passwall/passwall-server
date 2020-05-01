@@ -17,6 +17,13 @@ func NewLoginRepository(db *gorm.DB) LoginRepository {
 	return LoginRepository{DB: db}
 }
 
+// All ...
+func (p *LoginRepository) All() ([]model.Login, error) {
+	logins := []model.Login{}
+	err := p.DB.Find(&logins).Error
+	return logins, err
+}
+
 // FindAll ...
 func (p *LoginRepository) FindAll(argsStr map[string]string, argsInt map[string]int) ([]model.Login, error) {
 	logins := []model.Login{}
@@ -35,13 +42,6 @@ func (p *LoginRepository) FindAll(argsStr map[string]string, argsInt map[string]
 	}
 
 	err := query.Find(&logins).Error
-	return logins, err
-}
-
-// All ...
-func (p *LoginRepository) All() ([]model.Login, error) {
-	logins := []model.Login{}
-	err := p.DB.Find(&logins).Error
 	return logins, err
 }
 

@@ -12,6 +12,11 @@ func NewLoginService(p LoginRepository) LoginService {
 	return LoginService{LoginRepository: p}
 }
 
+// All ...
+func (p *LoginService) All() ([]model.Login, error) {
+	return p.LoginRepository.All()
+}
+
 // FindAll ...
 func (p *LoginService) FindAll(argsStr map[string]string, argsInt map[string]int) ([]model.Login, error) {
 	return p.LoginRepository.FindAll(argsStr, argsInt)

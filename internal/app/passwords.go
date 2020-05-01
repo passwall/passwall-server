@@ -34,7 +34,6 @@ func FindSamePassword(p *storage.LoginService, password model.Password) (model.U
 	}
 
 	return newUrls, err
-
 }
 
 // DecryptLoginPasswords ...
@@ -48,4 +47,17 @@ func DecryptLoginPasswords(logins []model.Login) []model.Login {
 		logins[i].Password = passB64
 	}
 	return logins
+}
+
+// DecryptBankAccountPasswords ...
+func DecryptBankAccountPasswords(bankAccounts []model.BankAccount) []model.BankAccount {
+	for i := range bankAccounts {
+		if bankAccounts[i].Password == "" {
+			continue
+		}
+		passByte, _ := base64.StdEncoding.DecodeString(bankAccounts[i].Password)
+		passB64 := string(encryption.Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
+		bankAccounts[i].Password = passB64
+	}
+	return bankAccounts
 }

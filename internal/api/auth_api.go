@@ -67,14 +67,16 @@ func RefreshToken(w http.ResponseWriter, r *http.Request) {
 
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&mapToken); err != nil {
-		common.RespondWithError(w, http.StatusUnprocessableEntity, "Invalid json provided")
+		errs := []string{"REFRESH_TOKEN_ERROR"}
+		common.RespondWithErrors(w, http.StatusUnprocessableEntity, "Invalid json provided", errs)
 		return
 	}
 	defer r.Body.Close()
 
 	token, err := a.RefreshToken(mapToken["refresh_token"])
 	if err != nil {
-		common.RespondWithError(w, http.StatusUnauthorized, err.Error())
+		errs := []string{"REFRESH_TOKEN_ERROR"}
+		common.RespondWithErrors(w, http.StatusUnauthorized, err.Error(), errs)
 		return
 	}
 

@@ -20,7 +20,7 @@ type fieldError struct {
 	err validator.FieldError
 }
 
-// ResponseWithError ...
+// RespondWithError ...
 func RespondWithError(w http.ResponseWriter, code int, message string) {
 	RespondWithJSON(w, code, ErrorResponseDTO{Code: code, Status: "Error", Message: message})
 }
