@@ -135,7 +135,9 @@ func (p *BankAccountAPI) Update(w http.ResponseWriter, r *http.Request) {
 	rawPass := bankAccountDTO.Password
 	bankAccountDTO.Password = base64.StdEncoding.EncodeToString(encryption.Encrypt(bankAccountDTO.Password, viper.GetString("server.passphrase")))
 
+	bankAccountDTO.ID = uint(id)
 	bankAccount = model.ToBankAccount(bankAccountDTO)
+	bankAccount.ID = uint(id)
 
 	updatedBankAccount, err := p.BankAccountService.Save(bankAccount)
 	if err != nil {
