@@ -3,6 +3,7 @@ package auth
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,10 +16,13 @@ func CreateToken() (*TokenDetailsDTO, error) {
 
 	var err error
 	accessSecret := viper.GetString("server.secret")
-
 	td := &TokenDetailsDTO{}
-	td.AtExpires = time.Now().Add(time.Minute * 30).Unix()    //TODO move to config file access token exp time (now 30 min)
-	td.RtExpires = time.Now().Add(time.Hour * 24 * 15).Unix() //TODO move to config file refresh token exp time (now 15 days)
+
+	accessTokenExpireDuration := resolveTokenExpireDuration(viper.GetString("server.accessTokenExpireDuration"))
+	refreshTokenExpireDuration := resolveTokenExpireDuration(viper.GetString("server.refreshTokenExpireDuration"))
+
+	td.AtExpires = time.Now().Add(accessTokenExpireDuration).Unix()
+	td.RtExpires = time.Now().Add(refreshTokenExpireDuration).Unix()
 
 	//create access token
 	atClaims := jwt.MapClaims{}
@@ -125,6 +129,22 @@ func extractToken(r *http.Request) string {
 		return strArr[1]
 	}
 	return ""
+}
+
+func resolveTokenExpireDuration(config string) time.Duration {
+	duration, _ := strconv.ParseInt(config[0:len(config)-1], 10, 64)
+	timeFormat := config[len(config)-1:]
+
+	switch timeFormat {
+	case "m":
+		return time.Duration(time.Minute.Nanoseconds() * duration)
+	case "h":
+		return time.Duration(time.Hour.Nanoseconds() * duration)
+	case "d":
+		return time.Duration(time.Hour.Nanoseconds() * 24 * duration)
+	default:
+		return time.Duration(time.Minute.Nanoseconds() * 30)
+	}
 }
 
 /* it may need us later to read access detail

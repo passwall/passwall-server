@@ -69,7 +69,9 @@ These environment variables are accepted:
 - PW_SERVER_PASSPHRASE
 - PW_SERVER_SECRET
 - PW_SERVER_TIMEOUT  
-- PW_SERVER_GENERATED_PASSWORD_LENGTH  
+- PW_SERVER_GENERATED_PASSWORD_LENGTH 
+- PW_SERVER_ACCESS_TOKEN_EXPIRE_DURATION
+- PW_SERVER_REFRESH_TOKEN_EXPIRE_DURATION 
   
 **Database Variables**
 - PW_DB_DRIVER
@@ -78,6 +80,11 @@ These environment variables are accepted:
 - PW_DB_PASSWORD
 - PW_DB_HOST
 - PW_DB_PORT
+
+**Backup Variables**
+- PW_BACKUP_FOLDER
+- PW_BACKUP_ROTATION
+- PW_BACKUP_PERIOD
 
 ## Development usage
 Install Go to your computer. Pull the server repo. Execute the command in server folder.
