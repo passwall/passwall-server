@@ -64,6 +64,8 @@ func bindEnvs() {
 	viper.BindEnv("server.secret", "PW_SERVER_SECRET")
 	viper.BindEnv("server.timeout", "PW_SERVER_TIMEOUT")
 	viper.BindEnv("server.generatedPasswordLength", "PW_SERVER_GENERATED_PASSWORD_LENGTH")
+	viper.BindEnv("server.accessTokenExpireDuration", "PW_SERVER_ACCESS_TOKEN_EXPIRE_DURATION")
+	viper.BindEnv("server.refreshTokenExpireDuration", "PW_SERVER_REFRESH_TOKEN_EXPIRE_DURATION")
 
 	viper.BindEnv("database.driver", "PW_DB_DRIVER")
 	viper.BindEnv("database.dbname", "PW_DB_DBNAME")
@@ -86,6 +88,8 @@ func setDefaults() {
 	viper.SetDefault("server.secret", "secret-key-for-JWT-TOKEN")
 	viper.SetDefault("server.timeout", 24)
 	viper.SetDefault("server.generatedPasswordLength", 16)
+	viper.SetDefault("server.accessTokenExpireDuration", "30m")
+	viper.SetDefault("server.refreshTokenExpireDuration", "15d")
 
 	viper.SetDefault("database.driver", "sqlite")
 	viper.SetDefault("database.dbname", "passwall")
