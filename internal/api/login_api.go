@@ -25,6 +25,19 @@ func NewLoginAPI(p storage.LoginService) LoginAPI {
 	return LoginAPI{LoginService: p}
 }
 
+// GetHandler ...
+func (p *LoginAPI) GetHandler(w http.ResponseWriter, r *http.Request) {
+	action := mux.Vars(r)["action"]
+
+	switch action {
+	case "backup":
+		app.ListBackup(w, r)
+	default:
+		common.RespondWithError(w, http.StatusNotFound, "Invalid resquest payload")
+		return
+	}
+}
+
 // PostHandler ...
 func (p *LoginAPI) PostHandler(w http.ResponseWriter, r *http.Request) {
 	action := mux.Vars(r)["action"]

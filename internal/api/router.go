@@ -25,6 +25,7 @@ func Router() *negroni.Negroni {
 	loginRouter.HandleFunc("/logins/{id:[0-9]+}", loginAPI.Update).Methods("PUT")
 	loginRouter.HandleFunc("/logins/{id:[0-9]+}", loginAPI.Delete).Methods("DELETE")
 	loginRouter.HandleFunc("/logins/{action}", loginAPI.PostHandler).Methods("POST")
+	loginRouter.HandleFunc("/logins/{action}", loginAPI.GetHandler).Methods("GET")
 
 	authRouter := mux.NewRouter().PathPrefix("/auth").Subrouter()
 	authRouter.HandleFunc("/signin", Signin)
