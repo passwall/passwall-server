@@ -10,13 +10,14 @@ import (
 )
 
 // Router ...
-func Router() *negroni.Negroni {
+func Router() *mux.Router {
 
 	db := storage.GetDB()
 	loginAPI := InitLoginAPI(db)
 
 	router := mux.NewRouter()
 	n := negroni.Classic()
+	n.Use(negroni.HandlerFunc(middleware.CORS))
 
 	loginRouter := mux.NewRouter().PathPrefix("/api").Subrouter()
 	loginRouter.HandleFunc("/logins", loginAPI.FindAll).Methods("GET")
@@ -41,10 +42,7 @@ func Router() *negroni.Negroni {
 		negroni.Wrap(authRouter),
 	))
 
-	n.Use(negroni.HandlerFunc(middleware.CORS))
-	n.UseHandler(router)
-
-	return n
+	return router
 }
 
 // InitLoginAPI ..
