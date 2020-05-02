@@ -1,11 +1,21 @@
 # PASSWALL CHANGELOG
 
-## Version: [1.0.-] (2020-04--)
+## Version: [1.1.0] (2020-05-03)
 ### Add
+- Bank Account and Credit Card Categories
+- net/http, mux router, negroni stack
 - Security layer with middleware against XSS attacks
 - public folder to serve static files on debian installation
 - check password endpoint.
-  
+- Auto backup system with period config
+
+### Security
+- Access and Refresh Token usage implemented
+- HS256 Signing method used on JWT
+
+### Removed
+- Gin framework
+
 ### Changed
 - Move sqlite database name and path declaration to config file
 
@@ -18,7 +28,7 @@
 ### Changed
 - Order BY to updated_at DESC
 - Trim http://, https:// and www from URL's
-- Create util and helper folder.
+- Create util and helper folder
 - Refactor
 
 ## Version: [1.0.7] (2020-04-17)
