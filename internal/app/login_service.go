@@ -1,14 +1,17 @@
-package storage
+package app
 
-import "github.com/pass-wall/passwall-server/model"
+import (
+	"github.com/pass-wall/passwall-server/internal/storage"
+	"github.com/pass-wall/passwall-server/model"
+)
 
 // LoginService ...
 type LoginService struct {
-	LoginRepository LoginRepository
+	LoginRepository storage.LoginRepository
 }
 
 // NewLoginService ...
-func NewLoginService(p LoginRepository) LoginService {
+func NewLoginService(p storage.LoginRepository) LoginService {
 	return LoginService{LoginRepository: p}
 }
 

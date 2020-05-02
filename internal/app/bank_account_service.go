@@ -1,14 +1,17 @@
-package storage
+package app
 
-import "github.com/pass-wall/passwall-server/model"
+import (
+	"github.com/pass-wall/passwall-server/internal/storage"
+	"github.com/pass-wall/passwall-server/model"
+)
 
 // BankAccountService ...
 type BankAccountService struct {
-	BankAccountRepository BankAccountRepository
+	BankAccountRepository storage.BankAccountRepository
 }
 
 // NewBankAccountService ...
-func NewBankAccountService(p BankAccountRepository) BankAccountService {
+func NewBankAccountService(p storage.BankAccountRepository) BankAccountService {
 	return BankAccountService{BankAccountRepository: p}
 }
 

@@ -10,18 +10,17 @@ import (
 	"github.com/pass-wall/passwall-server/internal/app"
 	"github.com/pass-wall/passwall-server/internal/common"
 	"github.com/pass-wall/passwall-server/internal/encryption"
-	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
 )
 
 // LoginAPI ...
 type LoginAPI struct {
-	LoginService storage.LoginService
+	LoginService app.LoginService
 }
 
 // NewLoginAPI ...
-func NewLoginAPI(p storage.LoginService) LoginAPI {
+func NewLoginAPI(p app.LoginService) LoginAPI {
 	return LoginAPI{LoginService: p}
 }
 

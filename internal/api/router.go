@@ -5,6 +5,7 @@ import (
 	"github.com/urfave/negroni"
 
 	"github.com/jinzhu/gorm"
+	"github.com/pass-wall/passwall-server/internal/app"
 	"github.com/pass-wall/passwall-server/internal/middleware"
 	"github.com/pass-wall/passwall-server/internal/storage"
 )
@@ -60,7 +61,7 @@ func Router() *mux.Router {
 // InitLoginAPI ..
 func InitLoginAPI(db *gorm.DB) LoginAPI {
 	loginRepository := storage.NewLoginRepository(db)
-	loginService := storage.NewLoginService(loginRepository)
+	loginService := app.NewLoginService(loginRepository)
 	loginAPI := NewLoginAPI(loginService)
 	loginAPI.Migrate()
 	return loginAPI
@@ -69,7 +70,7 @@ func InitLoginAPI(db *gorm.DB) LoginAPI {
 // InitBankAccountAPI ..
 func InitBankAccountAPI(db *gorm.DB) BankAccountAPI {
 	bankAccountRepository := storage.NewBankAccountRepository(db)
-	bankAccountService := storage.NewBankAccountService(bankAccountRepository)
+	bankAccountService := app.NewBankAccountService(bankAccountRepository)
 	bankAccountAPI := NewBankAccountAPI(bankAccountService)
 	bankAccountAPI.Migrate()
 	return bankAccountAPI

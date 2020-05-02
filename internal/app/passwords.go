@@ -6,7 +6,6 @@ import (
 
 	"github.com/pass-wall/passwall-server/internal/common"
 	"github.com/pass-wall/passwall-server/internal/encryption"
-	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
 )
@@ -19,7 +18,7 @@ func GeneratePassword(w http.ResponseWriter, r *http.Request) {
 }
 
 // FindSamePassword ...
-func FindSamePassword(p *storage.LoginService, password model.Password) (model.URLs, error) {
+func FindSamePassword(p *LoginService, password model.Password) (model.URLs, error) {
 
 	logins, err := p.LoginRepository.All()
 

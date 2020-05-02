@@ -10,18 +10,17 @@ import (
 	"github.com/pass-wall/passwall-server/internal/app"
 	"github.com/pass-wall/passwall-server/internal/common"
 	"github.com/pass-wall/passwall-server/internal/encryption"
-	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
 )
 
 // BankAccountAPI ...
 type BankAccountAPI struct {
-	BankAccountService storage.BankAccountService
+	BankAccountService app.BankAccountService
 }
 
 // NewBankAccountAPI ...
-func NewBankAccountAPI(p storage.BankAccountService) BankAccountAPI {
+func NewBankAccountAPI(p app.BankAccountService) BankAccountAPI {
 	return BankAccountAPI{BankAccountService: p}
 }
 
