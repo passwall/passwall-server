@@ -31,6 +31,10 @@ server:
   secret: "secret-key-for-JWT-TOKEN"
   timeout: 24 # Token duration in hours format
   generatedPasswordLength: 16 # Minimum 4
+  accessTokenExpireDuration: "50m"  # Example: 29m, 2h, 9d
+  refreshTokenExpireDuration: "25d"  # Example: 57m, 5h, 7d
 
 backup:
   folder: "./store" # you can feel free to change any where your in project 
+  rotation: 7 # backup rotation
+  period: "24h" # backup period. Example: 12h, 3h15m, 8h20m30s

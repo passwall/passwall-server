@@ -2,8 +2,8 @@
 
 **PassWall Server** is the core backend for open source password manager PassWall platform. Using this server, you can safely store your passwords and access them from anywhere. 
 
-![GitHub](https://img.shields.io/github/license/pass-wall/passwall-server)
-![GitHub issues](https://img.shields.io/github/issues/pass-wall/passwall-server)
+[![License](https://img.shields.io/github/license/pass-wall/passwall-server)](https://github.com/pass-wall/passwall-server/blob/master/LICENSE)
+[![GitHub issues](https://img.shields.io/github/issues/pass-wall/passwall-server)](https://github.com/pass-wall/passwall-server/issues)
 [![Build Status](https://travis-ci.org/pass-wall/passwall-server.svg?branch=master)](https://travis-ci.org/pass-wall/passwall-server) 
 [![Coverage Status](https://coveralls.io/repos/github/pass-wall/passwall-server/badge.svg?branch=master)](https://coveralls.io/github/pass-wall/passwall-server?branch=master)
 [![Docker Pull Status](https://img.shields.io/docker/pulls/passwall/passwall-server)](https://hub.docker.com/u/passwall/)  
@@ -69,7 +69,9 @@ These environment variables are accepted:
 - PW_SERVER_PASSPHRASE
 - PW_SERVER_SECRET
 - PW_SERVER_TIMEOUT  
-- PW_SERVER_GENERATED_PASSWORD_LENGTH  
+- PW_SERVER_GENERATED_PASSWORD_LENGTH 
+- PW_SERVER_ACCESS_TOKEN_EXPIRE_DURATION
+- PW_SERVER_REFRESH_TOKEN_EXPIRE_DURATION 
   
 **Database Variables**
 - PW_DB_DRIVER
@@ -79,11 +81,16 @@ These environment variables are accepted:
 - PW_DB_HOST
 - PW_DB_PORT
 
+**Backup Variables**
+- PW_BACKUP_FOLDER
+- PW_BACKUP_ROTATION
+- PW_BACKUP_PERIOD
+
 ## Development usage
 Install Go to your computer. Pull the server repo. Execute the command in server folder.
 
 ```
-go run main.go
+go run ./cmd/passwall-server/main.go
 ```
 
 The server uses config file end environment variables. If you want to set variables manually, just change **config-sample.yml** to **config.yml** in **store** folder.

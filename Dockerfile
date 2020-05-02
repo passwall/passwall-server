@@ -5,13 +5,12 @@ COPY go.mod .
 COPY go.sum .
 RUN go mod download
 
-COPY main.go .
-COPY ./helper ./helper
-COPY ./login ./login
-COPY ./pkg ./pkg
-COPY ./util ./util
+COPY ./cmd ./cmd
+COPY ./internal ./internal
+COPY ./model ./model
+COPY ./public ./public
 
-RUN CGO_ENABLED=1 GOOS=linux go build -a --ldflags="-s" -o passwall-server
+RUN CGO_ENABLED=1 GOOS=linux go build -a --ldflags="-s" ./cmd/passwall-server
 
 FROM alpine:3.11
 
