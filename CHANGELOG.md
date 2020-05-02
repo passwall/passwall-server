@@ -4,7 +4,7 @@
 ### Add
 - Security layer with middleware against XSS attacks
 - public folder to serve static files on debian installation
-- check password endpoint
+- check password endpoint.
   
 ### Changed
 - Move sqlite database name and path declaration to config file
