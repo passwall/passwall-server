@@ -12,7 +12,7 @@ import (
 )
 
 // SetArgs ...
-func SetArgs(r *http.Request) (map[string]string, map[string]int) {
+func SetArgs(r *http.Request, fields []string) (map[string]string, map[string]int) {
 
 	// String type query params
 	search := r.FormValue("Search")
@@ -20,7 +20,7 @@ func SetArgs(r *http.Request) (map[string]string, map[string]int) {
 	order := r.FormValue("Order")
 	argsStr := map[string]string{
 		"search": search,
-		"order":  setOrder(sort, order),
+		"order":  setOrder(fields, sort, order),
 	}
 
 	// Integer type query params
@@ -65,11 +65,10 @@ func setLimit(limit string) int {
 }
 
 // SortOrder returns the string for sorting and ordering data
-func setOrder(sort, order string) string {
-	sortValues := []string{"id", "created_at", "updated_at", "url", "username"}
+func setOrder(fields []string, sort, order string) string {
 	orderValues := []string{"desc", "asc"}
 
-	if encryption.Include(sortValues, ToSnakeCase(sort)) && encryption.Include(orderValues, ToSnakeCase(order)) {
+	if encryption.Include(fields, ToSnakeCase(sort)) && encryption.Include(orderValues, ToSnakeCase(order)) {
 		return ToSnakeCase(sort) + " " + ToSnakeCase(order)
 	}
 

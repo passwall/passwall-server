@@ -42,7 +42,8 @@ func (p *BankAccountAPI) FindAll(w http.ResponseWriter, r *http.Request) {
 	var err error
 	bankAccounts := []model.BankAccount{}
 
-	argsStr, argsInt := SetArgs(r)
+	fields := []string{"id", "created_at", "updated_at", "bank_name", "bank_code", "account_name", "account_number", "iban", "currency"}
+	argsStr, argsInt := SetArgs(r, fields)
 
 	bankAccounts, err = p.BankAccountService.FindAll(argsStr, argsInt)
 

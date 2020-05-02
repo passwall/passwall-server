@@ -60,33 +60,13 @@ func (p *LoginAPI) PostHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// FindSamePassword ...
-func (p *LoginAPI) FindSamePassword(w http.ResponseWriter, r *http.Request) {
-	var password model.Password
-
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&password); err != nil {
-		common.RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
-		return
-	}
-	defer r.Body.Close()
-
-	urls, err := app.FindSamePassword(&p.LoginService, password)
-
-	if err != nil {
-		common.RespondWithError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	common.RespondWithJSON(w, http.StatusOK, urls)
-}
-
 // FindAll ...
 func (p *LoginAPI) FindAll(w http.ResponseWriter, r *http.Request) {
 	var err error
 	logins := []model.Login{}
 
-	argsStr, argsInt := SetArgs(r)
+	fields := []string{"id", "created_at", "updated_at", "url", "username"}
+	argsStr, argsInt := SetArgs(r, fields)
 
 	logins, err = p.LoginService.FindAll(argsStr, argsInt)
 
@@ -213,6 +193,27 @@ func (p *LoginAPI) Delete(w http.ResponseWriter, r *http.Request) {
 
 	response := model.Response{http.StatusOK, "Success", "Login deleted successfully!"}
 	common.RespondWithJSON(w, http.StatusOK, response)
+}
+
+// FindSamePassword ...
+func (p *LoginAPI) FindSamePassword(w http.ResponseWriter, r *http.Request) {
+	var password model.Password
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&password); err != nil {
+		common.RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+		return
+	}
+	defer r.Body.Close()
+
+	urls, err := app.FindSamePassword(&p.LoginService, password)
+
+	if err != nil {
+		common.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	common.RespondWithJSON(w, http.StatusOK, urls)
 }
 
 // Migrate ...
