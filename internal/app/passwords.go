@@ -60,3 +60,16 @@ func DecryptBankAccountPasswords(bankAccounts []model.BankAccount) []model.BankA
 	}
 	return bankAccounts
 }
+
+// DecryptCreditCardVerificationNumbers ...
+func DecryptCreditCardVerificationNumbers(creditCards []model.CreditCard) []model.CreditCard {
+	for i := range creditCards {
+		if creditCards[i].VerificationNumber == "" {
+			continue
+		}
+		passByte, _ := base64.StdEncoding.DecodeString(creditCards[i].VerificationNumber)
+		passB64 := string(encryption.Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
+		creditCards[i].VerificationNumber = passB64
+	}
+	return creditCards
+}

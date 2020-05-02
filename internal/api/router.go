@@ -16,6 +16,7 @@ func Router() *mux.Router {
 	db := storage.GetDB()
 	loginAPI := InitLoginAPI(db)
 	bankAccountAPI := InitBankAccountAPI(db)
+	creditCardAPI := InitCreditCardAPI(db)
 
 	router := mux.NewRouter()
 	n := negroni.Classic()
@@ -40,6 +41,14 @@ func Router() *mux.Router {
 	apiRouter.HandleFunc("/bank-accounts/{id:[0-9]+}", bankAccountAPI.Update).Methods("PUT")
 	apiRouter.HandleFunc("/bank-accounts/{id:[0-9]+}", bankAccountAPI.Delete).Methods("DELETE")
 	apiRouter.HandleFunc("/bank-accounts/{action}", bankAccountAPI.GetHandler).Methods("GET")
+
+	// Credit Card endpoints
+	apiRouter.HandleFunc("/credit-cards", creditCardAPI.FindAll).Methods("GET")
+	apiRouter.HandleFunc("/credit-cards", creditCardAPI.Create).Methods("POST")
+	apiRouter.HandleFunc("/credit-cards/{id:[0-9]+}", creditCardAPI.FindByID).Methods("GET")
+	apiRouter.HandleFunc("/credit-cards/{id:[0-9]+}", creditCardAPI.Update).Methods("PUT")
+	apiRouter.HandleFunc("/credit-cards/{id:[0-9]+}", creditCardAPI.Delete).Methods("DELETE")
+	apiRouter.HandleFunc("/credit-cards/{action}", creditCardAPI.GetHandler).Methods("GET")
 
 	authRouter := mux.NewRouter().PathPrefix("/auth").Subrouter()
 	authRouter.HandleFunc("/signin", Signin)
@@ -75,4 +84,13 @@ func InitBankAccountAPI(db *gorm.DB) BankAccountAPI {
 	bankAccountAPI := NewBankAccountAPI(bankAccountService)
 	bankAccountAPI.Migrate()
 	return bankAccountAPI
+}
+
+// InitCreditCardAPI ..
+func InitCreditCardAPI(db *gorm.DB) CreditCardAPI {
+	creditCardRepository := storage.NewCreditCardRepository(db)
+	creditCardService := app.NewCreditCardService(creditCardRepository)
+	creditCardAPI := NewCreditCardAPI(creditCardService)
+	creditCardAPI.Migrate()
+	return creditCardAPI
 }
