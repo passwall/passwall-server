@@ -52,6 +52,7 @@ func Router() *mux.Router {
 	))
 
 	router.PathPrefix("/auth").Handler(n.With(
+		negroni.HandlerFunc(middleware.LimitHandler()),
 		negroni.Wrap(authRouter),
 	))
 
