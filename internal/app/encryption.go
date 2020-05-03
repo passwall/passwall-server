@@ -1,4 +1,4 @@
-package encryption
+package app
 
 import (
 	"crypto/aes"
@@ -25,11 +25,6 @@ func FindIndex(vs []string, t string) int {
 		}
 	}
 	return -1
-}
-
-// Include ...
-func Include(vs []string, t string) bool {
-	return FindIndex(vs, t) >= 0
 }
 
 // Password ..

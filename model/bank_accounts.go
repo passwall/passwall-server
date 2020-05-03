@@ -31,8 +31,8 @@ type BankAccountDTO struct {
 }
 
 // ToBankAccount ...
-func ToBankAccount(bankAccountDTO BankAccountDTO) BankAccount {
-	return BankAccount{
+func ToBankAccount(bankAccountDTO *BankAccountDTO) *BankAccount {
+	return &BankAccount{
 		BankName:      bankAccountDTO.BankName,
 		BankCode:      bankAccountDTO.BankCode,
 		AccountName:   bankAccountDTO.AccountName,
@@ -44,8 +44,8 @@ func ToBankAccount(bankAccountDTO BankAccountDTO) BankAccount {
 }
 
 // ToBankAccountDTO ...
-func ToBankAccountDTO(bankAccount BankAccount) BankAccountDTO {
-	return BankAccountDTO{
+func ToBankAccountDTO(bankAccount *BankAccount) *BankAccountDTO {
+	return &BankAccountDTO{
 		ID:            bankAccount.ID,
 		BankName:      bankAccount.BankName,
 		BankCode:      bankAccount.BankCode,
@@ -58,8 +58,8 @@ func ToBankAccountDTO(bankAccount BankAccount) BankAccountDTO {
 }
 
 // ToBankAccountDTOs ...
-func ToBankAccountDTOs(bankAccounts []BankAccount) []BankAccountDTO {
-	bankAccountDTOs := make([]BankAccountDTO, len(bankAccounts))
+func ToBankAccountDTOs(bankAccounts []*BankAccount) []*BankAccountDTO {
+	bankAccountDTOs := make([]*BankAccountDTO, len(bankAccounts))
 
 	for i, itm := range bankAccounts {
 		bankAccountDTOs[i] = ToBankAccountDTO(itm)

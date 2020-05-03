@@ -1,18 +1,15 @@
 package api
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"strconv"
 
-	"github.com/gorilla/mux"
 	"github.com/pass-wall/passwall-server/internal/app"
-	"github.com/pass-wall/passwall-server/internal/common"
-	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
-	"github.com/spf13/viper"
+
+	"github.com/gorilla/mux"
 )
 
 // FindAll ...
@@ -27,12 +24,12 @@ func FindAllNotes(s storage.Store) http.HandlerFunc {
 		notes, err = s.Notes().FindAll(argsStr, argsInt)
 
 		if err != nil {
-			common.RespondWithError(w, http.StatusNotFound, err.Error())
+			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
 		notes = app.DecryptNotes(notes)
-		common.RespondWithJSON(w, http.StatusOK, notes)
+		RespondWithJSON(w, http.StatusOK, notes)
 	}
 }
 
@@ -42,20 +39,23 @@ func FindNoteByID(s storage.Store) http.HandlerFunc {
 		vars := mux.Vars(r)
 		id, err := strconv.Atoi(vars["id"])
 		if err != nil {
-			common.RespondWithError(w, http.StatusBadRequest, err.Error())
+			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		note, err := s.Notes().FindByID(uint(id))
 		if err != nil {
-			common.RespondWithError(w, http.StatusNotFound, err.Error())
+			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		passByte, _ := base64.StdEncoding.DecodeString(note.Note)
-		note.Note = string(encryption.Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
+		uNote, err := app.DecryptNote(s, &note)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 
-		common.RespondWithJSON(w, http.StatusOK, model.ToNoteDTO(note))
+		RespondWithJSON(w, http.StatusOK, model.ToNoteDTO(uNote))
 	}
 }
 
@@ -66,23 +66,18 @@ func CreateNote(s storage.Store) http.HandlerFunc {
 
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&noteDTO); err != nil {
-			common.RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 			return
 		}
 		defer r.Body.Close()
 
-		rawPass := noteDTO.Note
-		noteDTO.Note = base64.StdEncoding.EncodeToString(encryption.Encrypt(noteDTO.Note, viper.GetString("server.passphrase")))
-
-		createdNote, err := s.Notes().Save(model.ToNote(noteDTO))
+		createdNote, err := app.CreateNote(s, &noteDTO)
 		if err != nil {
-			common.RespondWithError(w, http.StatusBadRequest, err.Error())
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		createdNote.Note = rawPass
-
-		common.RespondWithJSON(w, http.StatusOK, model.ToNoteDTO(createdNote))
+		RespondWithJSON(w, http.StatusOK, model.ToNoteDTO(createdNote))
 	}
 }
 
@@ -92,38 +87,31 @@ func UpdateNote(s storage.Store) http.HandlerFunc {
 		vars := mux.Vars(r)
 		id, err := strconv.Atoi(vars["id"])
 		if err != nil {
-			common.RespondWithError(w, http.StatusBadRequest, err.Error())
+			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		var noteDTO model.NoteDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&noteDTO); err != nil {
-			common.RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 			return
 		}
 		defer r.Body.Close()
 
 		note, err := s.Notes().FindByID(uint(id))
 		if err != nil {
-			common.RespondWithError(w, http.StatusNotFound, err.Error())
+			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		rawPass := noteDTO.Note
-		noteDTO.Note = base64.StdEncoding.EncodeToString(encryption.Encrypt(noteDTO.Note, viper.GetString("server.passphrase")))
-
-		noteDTO.ID = uint(id)
-		note = model.ToNote(noteDTO)
-		note.ID = uint(id)
-
-		updatedNote, err := s.Notes().Save(note)
+		updatedNote, err := app.UpdateNote(s, &note, &noteDTO)
 		if err != nil {
-			common.RespondWithError(w, http.StatusNotFound, err.Error())
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		updatedNote.Note = rawPass
-		common.RespondWithJSON(w, http.StatusOK, model.ToNoteDTO(updatedNote))
+
+		RespondWithJSON(w, http.StatusOK, model.ToNoteDTO(updatedNote))
 	}
 }
 
@@ -133,23 +121,27 @@ func DeleteNote(s storage.Store) http.HandlerFunc {
 		vars := mux.Vars(r)
 		id, err := strconv.Atoi(vars["id"])
 		if err != nil {
-			common.RespondWithError(w, http.StatusBadRequest, err.Error())
+			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		note, err := s.Notes().FindByID(uint(id))
 		if err != nil {
-			common.RespondWithError(w, http.StatusNotFound, err.Error())
+			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
 		err = s.Notes().Delete(note.ID)
 		if err != nil {
-			common.RespondWithError(w, http.StatusNotFound, err.Error())
+			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		response := model.Response{http.StatusOK, "Success", "Note deleted successfully!"}
-		common.RespondWithJSON(w, http.StatusOK, response)
+		response := model.Response{
+			Code:    http.StatusOK,
+			Status:  "Success",
+			Message: "Note deleted successfully!",
+		}
+		RespondWithJSON(w, http.StatusOK, response)
 	}
 }

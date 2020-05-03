@@ -3,28 +3,25 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/pass-wall/passwall-server/internal/auth"
-	a "github.com/pass-wall/passwall-server/internal/auth"
-	"github.com/pass-wall/passwall-server/internal/common"
+	"github.com/pass-wall/passwall-server/internal/app"
 	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
 )
 
-var validate *validator.Validate
-
 // Signin ...
 func Signin(w http.ResponseWriter, r *http.Request) {
 
-	validate = validator.New()
+	validate := validator.New()
 
-	var loginDTO a.LoginDTO
+	var loginDTO model.AuthLoginDTO
 
 	// get loginDTO
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&loginDTO); err != nil {
-		common.RespondWithError(w, http.StatusUnprocessableEntity, "Invalid json provided")
+		RespondWithError(w, http.StatusUnprocessableEntity, "Invalid json provided")
 		return
 	}
 	defer r.Body.Close()
@@ -32,22 +29,22 @@ func Signin(w http.ResponseWriter, r *http.Request) {
 	// validate struct
 	validateError := validate.Struct(loginDTO)
 	if validateError != nil {
-		errs := common.GetErrors(validateError.(validator.ValidationErrors))
-		common.RespondWithErrors(w, http.StatusBadRequest, "Invalid resquest payload", errs)
+		errs := GetErrors(validateError.(validator.ValidationErrors))
+		RespondWithErrors(w, http.StatusBadRequest, "Invalid resquest payload", errs)
 		return
 	}
 
 	// check user
 	if viper.GetString("server.username") != loginDTO.Username ||
 		viper.GetString("server.password") != loginDTO.Password {
-		common.RespondWithError(w, http.StatusUnauthorized, "Invalid User")
+		RespondWithError(w, http.StatusUnauthorized, "Invalid User")
 		return
 	}
 
 	//create token
-	token, err := a.CreateToken()
+	token, err := app.CreateToken()
 	if err != nil {
-		common.RespondWithError(w, http.StatusInternalServerError, "Token could not be created")
+		RespondWithError(w, http.StatusInternalServerError, "Token could not be created")
 		return
 	}
 
@@ -56,7 +53,7 @@ func Signin(w http.ResponseWriter, r *http.Request) {
 		"refresh_token": token.RefreshToken,
 	}
 
-	common.RespondWithJSON(w, 200, tokens)
+	RespondWithJSON(w, 200, tokens)
 }
 
 // RefreshToken ...
@@ -68,15 +65,15 @@ func RefreshToken(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&mapToken); err != nil {
 		errs := []string{"REFRESH_TOKEN_ERROR"}
-		common.RespondWithErrors(w, http.StatusUnprocessableEntity, "Invalid json provided", errs)
+		RespondWithErrors(w, http.StatusUnprocessableEntity, "Invalid json provided", errs)
 		return
 	}
 	defer r.Body.Close()
 
-	token, err := a.RefreshToken(mapToken["refresh_token"])
+	token, err := app.RefreshToken(mapToken["refresh_token"])
 	if err != nil {
 		errs := []string{"REFRESH_TOKEN_ERROR"}
-		common.RespondWithErrors(w, http.StatusUnauthorized, err.Error(), errs)
+		RespondWithErrors(w, http.StatusUnauthorized, err.Error(), errs)
 		return
 	}
 
@@ -85,19 +82,32 @@ func RefreshToken(w http.ResponseWriter, r *http.Request) {
 		"refresh_token": token.RefreshToken,
 	}
 
-	common.RespondWithJSON(w, 200, tokens)
+	RespondWithJSON(w, 200, tokens)
 
 }
 
 // CheckToken ...
 func CheckToken(w http.ResponseWriter, r *http.Request) {
+	var token string
+	bearerToken := r.Header.Get("Authorization")
+	strArr := strings.Split(bearerToken, " ")
+	if len(strArr) == 2 {
+		token = strArr[1]
+	}
 
-	err := auth.TokenValid(r)
+	//TODO: maybe check if there is any token? If not, return early.
+
+	err := app.TokenValid(token)
 	if err != nil {
-		common.RespondWithError(w, http.StatusUnauthorized, "Token is expired or not valid!")
+		RespondWithError(w, http.StatusUnauthorized, "Token is expired or not valid!")
 		return
 	}
 
-	response := model.Response{http.StatusOK, "Success", "Token is valid!"}
-	common.RespondWithJSON(w, http.StatusOK, response)
+	response := model.Response{
+		Code:    http.StatusOK,
+		Status:  "Success",
+		Message: "Token is valid!",
+	}
+
+	RespondWithJSON(w, http.StatusOK, response)
 }

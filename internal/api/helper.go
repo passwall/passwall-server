@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pass-wall/passwall-server/internal/encryption"
+	"github.com/pass-wall/passwall-server/internal/app"
 )
 
 // SetArgs ...
@@ -66,11 +66,16 @@ func setLimit(limit string) int {
 func setOrder(fields []string, sort, order string) string {
 	orderValues := []string{"desc", "asc"}
 
-	if encryption.Include(fields, ToSnakeCase(sort)) && encryption.Include(orderValues, ToSnakeCase(order)) {
+	if include(fields, ToSnakeCase(sort)) && include(orderValues, ToSnakeCase(order)) {
 		return ToSnakeCase(sort) + " " + ToSnakeCase(order)
 	}
 
 	return "updated_at desc"
+}
+
+// include ...
+func include(vs []string, t string) bool {
+	return app.FindIndex(vs, t) >= 0
 }
 
 // ToSnakeCase changes string to database table

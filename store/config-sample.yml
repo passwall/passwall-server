@@ -3,7 +3,7 @@ database:
   dbname: "passwall"
   username: "user"
   password: "password"
-  path: "./store/passwall.db"
+  dbpath: "./store/passwall.db"
 
 # Uncomment for mysql
 # database:
