@@ -7,6 +7,7 @@ type Store interface {
 	Logins() LoginRepository
 	CreditCards() CreditCardRepository
 	BankAccounts() BankAccountRepository
+	Notes() NoteRepository
 }
 
 // Configuration is the required paramters to set up a DB instance

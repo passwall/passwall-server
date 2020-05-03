@@ -52,3 +52,20 @@ type BankAccountRepository interface {
 	// Migrate migrates the repository
 	Migrate() error
 }
+
+// BankAccountRepository interface is the common interface for a repository
+// Each method checks the entity type.
+type NoteRepository interface {
+	// All returns all the data in the repository.
+	All() ([]model.Note, error)
+	// FindAll returns the entities matching the arguments.
+	FindAll(argsStr map[string]string, argsInt map[string]int) ([]model.Note, error)
+	// FindByID finds the entity regarding to its ID.
+	FindByID(id uint) (model.Note, error)
+	// Save stores the entity to the repository
+	Save(account model.Note) (model.Note, error)
+	// Delete removes the entity from the store
+	Delete(id uint) error
+	// Migrate migrates the repository
+	Migrate() error
+}

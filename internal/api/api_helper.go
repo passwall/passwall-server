@@ -6,9 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jinzhu/gorm"
 	"github.com/pass-wall/passwall-server/internal/encryption"
-	"github.com/spf13/viper"
 )
 
 // SetArgs ...
@@ -73,25 +71,6 @@ func setOrder(fields []string, sort, order string) string {
 	}
 
 	return "updated_at desc"
-}
-
-// Search adds where to search keywords
-func setSearch(search string) func(db *gorm.DB) *gorm.DB {
-	return func(db *gorm.DB) *gorm.DB {
-		if search != "" {
-
-			// Case insensitive is different in postgres and others (mysql,sqlite)
-			if viper.GetString("database.driver") == "postgres" {
-				db = db.Where("url ILIKE ?", "%"+search+"%")
-				db = db.Or("username ILIKE ?", "%"+search+"%")
-			} else {
-				db = db.Where("url LIKE ?", "%"+search+"%")
-				db = db.Or("username LIKE ?", "%"+search+"%")
-			}
-
-		}
-		return db
-	}
 }
 
 // ToSnakeCase changes string to database table
