@@ -1,16 +1,15 @@
 package api
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"strconv"
 
-	"github.com/gorilla/mux"
 	"github.com/pass-wall/passwall-server/internal/app"
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
-	"github.com/spf13/viper"
+
+	"github.com/gorilla/mux"
 )
 
 // FindAll ...
@@ -50,10 +49,13 @@ func FindLoginsByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		passByte, _ := base64.StdEncoding.DecodeString(login.Password)
-		login.Password = string(app.Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
+		uLogin, err := app.DecryptLoginPassword(s, &login)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 
-		RespondWithJSON(w, http.StatusOK, model.ToLoginDTO(&login))
+		RespondWithJSON(w, http.StatusOK, model.ToLoginDTO(uLogin))
 	}
 }
 
@@ -139,7 +141,11 @@ func DeleteLogin(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		response := model.Response{http.StatusOK, "Success", "Login deleted successfully!"}
+		response := model.Response{
+			Code:    http.StatusOK,
+			Status:  "Success",
+			Message: "Login deleted successfully!",
+		}
 		RespondWithJSON(w, http.StatusOK, response)
 	}
 }

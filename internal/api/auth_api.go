@@ -11,12 +11,10 @@ import (
 	"github.com/spf13/viper"
 )
 
-var validate *validator.Validate
-
 // Signin ...
 func Signin(w http.ResponseWriter, r *http.Request) {
 
-	validate = validator.New()
+	validate := validator.New()
 
 	var loginDTO model.AuthLoginDTO
 

@@ -1,16 +1,15 @@
 package api
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"strconv"
 
-	"github.com/gorilla/mux"
 	"github.com/pass-wall/passwall-server/internal/app"
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
-	"github.com/spf13/viper"
+
+	"github.com/gorilla/mux"
 )
 
 // FindAll ...
@@ -50,10 +49,13 @@ func FindNoteByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		passByte, _ := base64.StdEncoding.DecodeString(note.Note)
-		note.Note = string(app.Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
+		uNote, err := app.DecryptNote(s, &note)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 
-		RespondWithJSON(w, http.StatusOK, model.ToNoteDTO(&note))
+		RespondWithJSON(w, http.StatusOK, model.ToNoteDTO(uNote))
 	}
 }
 
@@ -135,7 +137,11 @@ func DeleteNote(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		response := model.Response{http.StatusOK, "Success", "Note deleted successfully!"}
+		response := model.Response{
+			Code:    http.StatusOK,
+			Status:  "Success",
+			Message: "Note deleted successfully!",
+		}
 		RespondWithJSON(w, http.StatusOK, response)
 	}
 }

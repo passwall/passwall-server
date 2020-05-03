@@ -41,3 +41,25 @@ func UpdateCreditCard(s storage.Store, card *model.CreditCard, dto *model.Credit
 	updatedCreditCard.VerificationNumber = rawPass
 	return &updatedCreditCard, nil
 }
+
+// DecryptCreditCardVerificationNumber decrypts verification number
+func DecryptCreditCardVerificationNumber(s storage.Store, card *model.CreditCard) (*model.CreditCard, error) {
+	passByte, _ := base64.StdEncoding.DecodeString(card.VerificationNumber)
+	card.VerificationNumber = string(Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
+
+	return card, nil
+}
+
+// DecryptCreditCardVerificationNumbers ...
+// TODO: convert to pointers
+func DecryptCreditCardVerificationNumbers(creditCards []model.CreditCard) []model.CreditCard {
+	for i := range creditCards {
+		if creditCards[i].VerificationNumber == "" {
+			continue
+		}
+		passByte, _ := base64.StdEncoding.DecodeString(creditCards[i].VerificationNumber)
+		passB64 := string(Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
+		creditCards[i].VerificationNumber = passB64
+	}
+	return creditCards
+}

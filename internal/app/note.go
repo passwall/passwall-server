@@ -40,3 +40,25 @@ func UpdateNote(s storage.Store, note *model.Note, dto *model.NoteDTO) (*model.N
 	updatedNote.Note = rawPass
 	return &updatedNote, nil
 }
+
+// DecryptNote decrypts note
+func DecryptNote(s storage.Store, note *model.Note) (*model.Note, error) {
+	passByte, _ := base64.StdEncoding.DecodeString(note.Note)
+	note.Note = string(Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
+
+	return note, nil
+}
+
+// DecryptNotes ...
+// TODO: convert to pointers
+func DecryptNotes(notes []model.Note) []model.Note {
+	for i := range notes {
+		if notes[i].Note == "" {
+			continue
+		}
+		passByte, _ := base64.StdEncoding.DecodeString(notes[i].Note)
+		passB64 := string(Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
+		notes[i].Note = passB64
+	}
+	return notes
+}

@@ -43,3 +43,25 @@ func UpdateLogin(s storage.Store, login *model.Login, dto *model.LoginDTO) (*mod
 	updatedLogin.Password = rawPass
 	return &updatedLogin, nil
 }
+
+// DecryptLoginPassword decrypts password
+func DecryptLoginPassword(s storage.Store, login *model.Login) (*model.Login, error) {
+	passByte, _ := base64.StdEncoding.DecodeString(login.Password)
+	login.Password = string(Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
+
+	return login, nil
+}
+
+// DecryptLoginPasswords ...
+// TODO: convert to pointers
+func DecryptLoginPasswords(logins []model.Login) []model.Login {
+	for i := range logins {
+		if logins[i].Password == "" {
+			continue
+		}
+		passByte, _ := base64.StdEncoding.DecodeString(logins[i].Password)
+		passB64 := string(Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
+		logins[i].Password = passB64
+	}
+	return logins
+}

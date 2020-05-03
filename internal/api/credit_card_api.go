@@ -1,16 +1,15 @@
 package api
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"strconv"
 
-	"github.com/gorilla/mux"
 	"github.com/pass-wall/passwall-server/internal/app"
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
-	"github.com/spf13/viper"
+
+	"github.com/gorilla/mux"
 )
 
 // FindAll ...
@@ -44,16 +43,19 @@ func FindCreditCardByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		creditCard, err := s.CreditCards().FindByID(uint(id))
+		card, err := s.CreditCards().FindByID(uint(id))
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		passByte, _ := base64.StdEncoding.DecodeString(creditCard.VerificationNumber)
-		creditCard.VerificationNumber = string(app.Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
+		creditCard, err := app.DecryptCreditCardVerificationNumber(s, &card)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 
-		RespondWithJSON(w, http.StatusOK, model.ToCreditCardDTO(&creditCard))
+		RespondWithJSON(w, http.StatusOK, model.ToCreditCardDTO(creditCard))
 	}
 }
 
@@ -135,7 +137,11 @@ func DeleteCreditCard(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		response := model.Response{http.StatusOK, "Success", "CreditCard deleted successfully!"}
+		response := model.Response{
+			Code:    http.StatusOK,
+			Status:  "Success",
+			Message: "CreditCard deleted successfully!",
+		}
 		RespondWithJSON(w, http.StatusOK, response)
 	}
 }
