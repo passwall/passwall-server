@@ -15,25 +15,25 @@ import (
 func main() {
 	cfg := setupConfigDefaults()
 
-	l := log.New(os.Stdout, "[passwall-server] ", 0)
-	l.Printf("listening on %s", cfg.Server.Port)
+	logger := log.New(os.Stdout, "[passwall-server] ", 0)
+	logger.Printf("listening on %s", cfg.Server.Port)
 
 	s, err := storage.New(&cfg.Database)
 	if err != nil {
-		l.Fatalf("failed to open storage: %s\n", err)
+		logger.Fatalf("failed to open storage: %s\n", err)
 	}
 
 	app.StartCronJob(s)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Server.Port,
-		WriteTimeout: time.Second * 15,
-		ReadTimeout:  time.Second * 15,
+		WriteTimeout: time.Second * time.Duration(cfg.Server.Timeout),
+		ReadTimeout:  time.Second * time.Duration(cfg.Server.Timeout),
 		IdleTimeout:  time.Second * 60,
 		Handler:      router.New(s),
 	}
 
 	if err := srv.ListenAndServe(); err != nil {
-		l.Fatal(err)
+		logger.Fatal(err)
 	}
 }

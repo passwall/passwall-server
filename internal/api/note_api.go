@@ -53,7 +53,7 @@ func FindNoteByID(s storage.Store) http.HandlerFunc {
 		passByte, _ := base64.StdEncoding.DecodeString(note.Note)
 		note.Note = string(app.Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
 
-		RespondWithJSON(w, http.StatusOK, model.ToNoteDTO(note))
+		RespondWithJSON(w, http.StatusOK, model.ToNoteDTO(&note))
 	}
 }
 
@@ -69,16 +69,11 @@ func CreateNote(s storage.Store) http.HandlerFunc {
 		}
 		defer r.Body.Close()
 
-		rawPass := noteDTO.Note
-		noteDTO.Note = base64.StdEncoding.EncodeToString(app.Encrypt(noteDTO.Note, viper.GetString("server.passphrase")))
-
-		createdNote, err := s.Notes().Save(model.ToNote(noteDTO))
+		createdNote, err := app.CreateNote(s, &noteDTO)
 		if err != nil {
-			RespondWithError(w, http.StatusBadRequest, err.Error())
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-
-		createdNote.Note = rawPass
 
 		RespondWithJSON(w, http.StatusOK, model.ToNoteDTO(createdNote))
 	}
@@ -108,19 +103,12 @@ func UpdateNote(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		rawPass := noteDTO.Note
-		noteDTO.Note = base64.StdEncoding.EncodeToString(app.Encrypt(noteDTO.Note, viper.GetString("server.passphrase")))
-
-		noteDTO.ID = uint(id)
-		note = model.ToNote(noteDTO)
-		note.ID = uint(id)
-
-		updatedNote, err := s.Notes().Save(note)
+		updatedNote, err := app.UpdateNote(s, &note, &noteDTO)
 		if err != nil {
-			RespondWithError(w, http.StatusNotFound, err.Error())
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		updatedNote.Note = rawPass
+
 		RespondWithJSON(w, http.StatusOK, model.ToNoteDTO(updatedNote))
 	}
 }

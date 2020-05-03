@@ -29,8 +29,8 @@ type CreditCardDTO struct {
 }
 
 // ToCreditCard ...
-func ToCreditCard(creditCardDTO CreditCardDTO) CreditCard {
-	return CreditCard{
+func ToCreditCard(creditCardDTO *CreditCardDTO) *CreditCard {
+	return &CreditCard{
 		CardName:           creditCardDTO.CardName,
 		CardholderName:     creditCardDTO.CardholderName,
 		Type:               creditCardDTO.Type,
@@ -41,8 +41,8 @@ func ToCreditCard(creditCardDTO CreditCardDTO) CreditCard {
 }
 
 // ToCreditCardDTO ...
-func ToCreditCardDTO(creditCard CreditCard) CreditCardDTO {
-	return CreditCardDTO{
+func ToCreditCardDTO(creditCard *CreditCard) *CreditCardDTO {
+	return &CreditCardDTO{
 		ID:                 creditCard.ID,
 		CardName:           creditCard.CardName,
 		CardholderName:     creditCard.CardholderName,
@@ -54,8 +54,8 @@ func ToCreditCardDTO(creditCard CreditCard) CreditCardDTO {
 }
 
 // ToCreditCardDTOs ...
-func ToCreditCardDTOs(creditCards []CreditCard) []CreditCardDTO {
-	creditCardDTOs := make([]CreditCardDTO, len(creditCards))
+func ToCreditCardDTOs(creditCards []*CreditCard) []*CreditCardDTO {
+	creditCardDTOs := make([]*CreditCardDTO, len(creditCards))
 
 	for i, itm := range creditCards {
 		creditCardDTOs[i] = ToCreditCardDTO(itm)

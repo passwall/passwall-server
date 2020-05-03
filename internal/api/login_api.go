@@ -53,7 +53,7 @@ func FindLoginsByID(s storage.Store) http.HandlerFunc {
 		passByte, _ := base64.StdEncoding.DecodeString(login.Password)
 		login.Password = string(app.Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
 
-		RespondWithJSON(w, http.StatusOK, model.ToLoginDTO(login))
+		RespondWithJSON(w, http.StatusOK, model.ToLoginDTO(&login))
 	}
 }
 
@@ -73,16 +73,11 @@ func CreateLogin(s storage.Store) http.HandlerFunc {
 			loginDTO.Password = app.Password()
 		}
 
-		rawPass := loginDTO.Password
-		loginDTO.Password = base64.StdEncoding.EncodeToString(app.Encrypt(loginDTO.Password, viper.GetString("server.passphrase")))
-
-		createdLogin, err := s.Logins().Save(model.ToLogin(loginDTO))
+		createdLogin, err := app.CreateLogin(s, &loginDTO)
 		if err != nil {
-			RespondWithError(w, http.StatusBadRequest, err.Error())
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-
-		createdLogin.Password = rawPass
 
 		RespondWithJSON(w, http.StatusOK, model.ToLoginDTO(createdLogin))
 	}
@@ -112,21 +107,12 @@ func UpdateLogin(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		if loginDTO.Password == "" {
-			loginDTO.Password = app.Password()
-		}
-		rawPass := loginDTO.Password
-		loginDTO.Password = base64.StdEncoding.EncodeToString(app.Encrypt(loginDTO.Password, viper.GetString("server.passphrase")))
-
-		login.URL = loginDTO.URL
-		login.Username = loginDTO.Username
-		login.Password = loginDTO.Password
-		updatedLogin, err := s.Logins().Save(login)
+		updatedLogin, err := app.UpdateLogin(s, &login, &loginDTO)
 		if err != nil {
-			RespondWithError(w, http.StatusNotFound, err.Error())
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		updatedLogin.Password = rawPass
+
 		RespondWithJSON(w, http.StatusOK, model.ToLoginDTO(updatedLogin))
 	}
 }

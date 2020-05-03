@@ -20,23 +20,23 @@ type NoteDTO struct {
 }
 
 // ToNote ...
-func ToNote(noteDTO NoteDTO) Note {
-	return Note{
+func ToNote(noteDTO *NoteDTO) *Note {
+	return &Note{
 		Note: noteDTO.Note,
 	}
 }
 
 // ToNoteDTO ...
-func ToNoteDTO(note Note) NoteDTO {
-	return NoteDTO{
+func ToNoteDTO(note *Note) *NoteDTO {
+	return &NoteDTO{
 		ID:   note.ID,
 		Note: note.Note,
 	}
 }
 
 // ToNoteDTOs ...
-func ToNoteDTOs(notes []Note) []NoteDTO {
-	noteDTOs := make([]NoteDTO, len(notes))
+func ToNoteDTOs(notes []*Note) []*NoteDTO {
+	noteDTOs := make([]*NoteDTO, len(notes))
 
 	for i, itm := range notes {
 		noteDTOs[i] = ToNoteDTO(itm)

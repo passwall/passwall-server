@@ -53,7 +53,7 @@ func FindCreditCardByID(s storage.Store) http.HandlerFunc {
 		passByte, _ := base64.StdEncoding.DecodeString(creditCard.VerificationNumber)
 		creditCard.VerificationNumber = string(app.Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
 
-		RespondWithJSON(w, http.StatusOK, model.ToCreditCardDTO(creditCard))
+		RespondWithJSON(w, http.StatusOK, model.ToCreditCardDTO(&creditCard))
 	}
 }
 
@@ -69,16 +69,11 @@ func CreateCreditCard(s storage.Store) http.HandlerFunc {
 		}
 		defer r.Body.Close()
 
-		rawPass := creditCardDTO.VerificationNumber
-		creditCardDTO.VerificationNumber = base64.StdEncoding.EncodeToString(app.Encrypt(creditCardDTO.VerificationNumber, viper.GetString("server.passphrase")))
-
-		createdCreditCard, err := s.CreditCards().Save(model.ToCreditCard(creditCardDTO))
+		createdCreditCard, err := app.CreateCreditCard(s, &creditCardDTO)
 		if err != nil {
-			RespondWithError(w, http.StatusBadRequest, err.Error())
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-
-		createdCreditCard.VerificationNumber = rawPass
 
 		RespondWithJSON(w, http.StatusOK, model.ToCreditCardDTO(createdCreditCard))
 	}
@@ -108,19 +103,12 @@ func UpdateCreditCard(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		rawPass := creditCardDTO.VerificationNumber
-		creditCardDTO.VerificationNumber = base64.StdEncoding.EncodeToString(app.Encrypt(creditCardDTO.VerificationNumber, viper.GetString("server.passphrase")))
-
-		creditCardDTO.ID = uint(id)
-		creditCard = model.ToCreditCard(creditCardDTO)
-		creditCard.ID = uint(id)
-
-		updatedCreditCard, err := s.CreditCards().Save(creditCard)
+		updatedCreditCard, err := app.UpdateCreditCard(s, &creditCard, &creditCardDTO)
 		if err != nil {
-			RespondWithError(w, http.StatusNotFound, err.Error())
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		updatedCreditCard.VerificationNumber = rawPass
+
 		RespondWithJSON(w, http.StatusOK, model.ToCreditCardDTO(updatedCreditCard))
 	}
 }
