@@ -68,6 +68,14 @@ func (r *Router) initRoutes() {
 
 	apiRouter.HandleFunc("/credit-cards/backup", ListBackup).Methods("GET")
 
+	// Note endpoints
+	apiRouter.HandleFunc("/notes", noteAPI.FindAll).Methods("GET")
+	apiRouter.HandleFunc("/notes", noteAPI.Create).Methods("POST")
+	apiRouter.HandleFunc("/notes/{id:[0-9]+}", noteAPI.FindByID).Methods("GET")
+	apiRouter.HandleFunc("/notes/{id:[0-9]+}", noteAPI.Update).Methods("PUT")
+	apiRouter.HandleFunc("/notes/{id:[0-9]+}", noteAPI.Delete).Methods("DELETE")
+	apiRouter.HandleFunc("/notes/{action}", noteAPI.GetHandler).Methods("GET")
+
 	authRouter := mux.NewRouter().PathPrefix("/auth").Subrouter()
 	authRouter.HandleFunc("/signin", Signin)
 	authRouter.HandleFunc("/refresh", RefreshToken)
@@ -85,4 +93,13 @@ func (r *Router) initRoutes() {
 		negroni.HandlerFunc(middleware.LimitHandler()),
 		negroni.Wrap(authRouter),
 	))
+}
+
+// InitNoteAPI ..
+func InitNoteAPI(db *gorm.DB) NoteAPI {
+	noteRepository := storage.NewNoteRepository(db)
+	noteService := app.NewNoteService(noteRepository)
+	noteAPI := NewNoteAPI(noteService)
+	noteAPI.Migrate()
+	return noteAPI
 }
