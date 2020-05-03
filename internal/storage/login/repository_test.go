@@ -1,4 +1,4 @@
-package storage_test
+package login_test
 
 import (
 	"database/sql"
@@ -10,12 +10,12 @@ import (
 	"github.com/jinzhu/gorm"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/pass-wall/passwall-server/internal/storage"
+	"github.com/pass-wall/passwall-server/internal/storage/login"
 	. "github.com/pass-wall/passwall-server/model"
 )
 
 var _ = Describe("Login", func() {
-	var repository *LoginRepository
+	var repository *login.Repository
 	var mock sqlmock.Sqlmock
 
 	BeforeEach(func() {
@@ -29,7 +29,7 @@ var _ = Describe("Login", func() {
 		gdb, err := gorm.Open("postgres", db) // open gorm db
 		Expect(err).ShouldNot(HaveOccurred())
 
-		repository = &LoginRepository{DB: gdb}
+		repository = login.NewRepository(gdb)
 	})
 	AfterEach(func() {
 		err := mock.ExpectationsWereMet() // make sure all expectations were met
@@ -152,29 +152,6 @@ var _ = Describe("Login", func() {
 
 	})
 
-	// Context("search", func() {
-	// 	It("found", func() {
-	// 		rows := sqlmock.
-	// 			NewRows([]string{"id", "created_at", "updated_at", "deleted_at", "url", "username", "password"}).
-	// 			AddRow(1, time.Now(), time.Now(), nil, "http://dummywebsite.com", "dummyuser", "dummypassword")
-
-	// 		// limit/offset is not parameter
-	// 		const sqlSearch = `SELECT * FROM "logins" WHERE "logins"."deleted_at" IS NULL AND ((url LIKE $1 OR username LIKE $2))`
-
-	// 		const q = "dummy"
-
-	// 		mock.ExpectQuery(regexp.QuoteMeta(sqlSearch)).
-	// 			WithArgs("%"+q+"%", "%"+q+"%").
-	// 			WillReturnRows(rows)
-
-	// 		l, err := repository.Search(q)
-	// 		Expect(err).ShouldNot(HaveOccurred())
-
-	// 		Expect(l).Should(HaveLen(1))
-	// 		Expect(l[0].URL).Should(ContainSubstring(q))
-	// 		Expect(l[0].Username).Should(ContainSubstring(q))
-	// 	})
-	// })
 })
 
 type AnyTime struct{}
