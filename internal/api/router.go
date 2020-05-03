@@ -1,96 +1,88 @@
 package api
 
 import (
+	"net/http"
+
 	"github.com/gorilla/mux"
 	"github.com/urfave/negroni"
 
-	"github.com/jinzhu/gorm"
-	"github.com/pass-wall/passwall-server/internal/app"
 	"github.com/pass-wall/passwall-server/internal/middleware"
 	"github.com/pass-wall/passwall-server/internal/storage"
 )
 
+type Router struct {
+	router *mux.Router
+	store  storage.Store
+}
+
 // Router ...
-func Router() *mux.Router {
+func New(s storage.Store) *Router {
+	r := &Router{
+		router: mux.NewRouter(),
+		store:  s,
+	}
+	r.initRoutes()
+	return r
+}
 
-	db := storage.GetDB()
-	loginAPI := InitLoginAPI(db)
-	bankAccountAPI := InitBankAccountAPI(db)
-	creditCardAPI := InitCreditCardAPI(db)
+func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	r.router.ServeHTTP(w, req)
+}
 
-	router := mux.NewRouter()
-	n := negroni.Classic()
-	n.Use(negroni.HandlerFunc(middleware.CORS))
-
+func (r *Router) initRoutes() {
 	// API Router Group
 	apiRouter := mux.NewRouter().PathPrefix("/api").Subrouter()
 
 	// Login endpoints
-	apiRouter.HandleFunc("/logins", loginAPI.FindAll).Methods("GET")
-	apiRouter.HandleFunc("/logins", loginAPI.Create).Methods("POST")
-	apiRouter.HandleFunc("/logins/{id:[0-9]+}", loginAPI.FindByID).Methods("GET")
-	apiRouter.HandleFunc("/logins/{id:[0-9]+}", loginAPI.Update).Methods("PUT")
-	apiRouter.HandleFunc("/logins/{id:[0-9]+}", loginAPI.Delete).Methods("DELETE")
-	apiRouter.HandleFunc("/logins/{action}", loginAPI.PostHandler).Methods("POST")
-	apiRouter.HandleFunc("/logins/{action}", loginAPI.GetHandler).Methods("GET")
+	apiRouter.HandleFunc("/logins", FindAllLogins(r.store)).Methods("GET")
+	apiRouter.HandleFunc("/logins", CreateLogin(r.store)).Methods("POST")
+	apiRouter.HandleFunc("/logins/{id:[0-9]+}", FindLoginsByID(r.store)).Methods("GET")
+	apiRouter.HandleFunc("/logins/{id:[0-9]+}", UpdateLogin(r.store)).Methods("PUT")
+	apiRouter.HandleFunc("/logins/{id:[0-9]+}", DeleteLogin(r.store)).Methods("DELETE")
+
+	apiRouter.HandleFunc("/logins/check-password", FindSamePassword(r.store)).Methods("POST")
+	apiRouter.HandleFunc("/logins/generate-password", GeneratePassword).Methods("POST")
+
+	apiRouter.HandleFunc("/logins/backup", Backup(r.store)).Methods("POST")
+	apiRouter.HandleFunc("/logins/backup", ListBackup).Methods("GET")
+
+	apiRouter.HandleFunc("/logins/import", Import(r.store)).Methods("POST")
+	apiRouter.HandleFunc("/logins/export", Export(r.store)).Methods("POST")
+	apiRouter.HandleFunc("/logins/export", Restore(r.store)).Methods("POST")
 
 	// Bank Account endpoints
-	apiRouter.HandleFunc("/bank-accounts", bankAccountAPI.FindAll).Methods("GET")
-	apiRouter.HandleFunc("/bank-accounts", bankAccountAPI.Create).Methods("POST")
-	apiRouter.HandleFunc("/bank-accounts/{id:[0-9]+}", bankAccountAPI.FindByID).Methods("GET")
-	apiRouter.HandleFunc("/bank-accounts/{id:[0-9]+}", bankAccountAPI.Update).Methods("PUT")
-	apiRouter.HandleFunc("/bank-accounts/{id:[0-9]+}", bankAccountAPI.Delete).Methods("DELETE")
-	apiRouter.HandleFunc("/bank-accounts/{action}", bankAccountAPI.GetHandler).Methods("GET")
+	apiRouter.HandleFunc("/bank-accounts", FindAllBankAccounts(r.store)).Methods("GET")
+	apiRouter.HandleFunc("/bank-accounts", CreateBankAccount(r.store)).Methods("POST")
+	apiRouter.HandleFunc("/bank-accounts/{id:[0-9]+}", FindBankAccountByID(r.store)).Methods("GET")
+	apiRouter.HandleFunc("/bank-accounts/{id:[0-9]+}", UpdateBankAccount(r.store)).Methods("PUT")
+	apiRouter.HandleFunc("/bank-accounts/{id:[0-9]+}", DeleteBankAccount(r.store)).Methods("DELETE")
+
+	apiRouter.HandleFunc("/bank-accounts/backup", ListBackup).Methods("GET")
 
 	// Credit Card endpoints
-	apiRouter.HandleFunc("/credit-cards", creditCardAPI.FindAll).Methods("GET")
-	apiRouter.HandleFunc("/credit-cards", creditCardAPI.Create).Methods("POST")
-	apiRouter.HandleFunc("/credit-cards/{id:[0-9]+}", creditCardAPI.FindByID).Methods("GET")
-	apiRouter.HandleFunc("/credit-cards/{id:[0-9]+}", creditCardAPI.Update).Methods("PUT")
-	apiRouter.HandleFunc("/credit-cards/{id:[0-9]+}", creditCardAPI.Delete).Methods("DELETE")
-	apiRouter.HandleFunc("/credit-cards/{action}", creditCardAPI.GetHandler).Methods("GET")
+	apiRouter.HandleFunc("/credit-cards", FindAllCreditCards(r.store)).Methods("GET")
+	apiRouter.HandleFunc("/credit-cards", CreateCreditCard(r.store)).Methods("POST")
+	apiRouter.HandleFunc("/credit-cards/{id:[0-9]+}", FindCreditCardByID(r.store)).Methods("GET")
+	apiRouter.HandleFunc("/credit-cards/{id:[0-9]+}", UpdateCreditCard(r.store)).Methods("PUT")
+	apiRouter.HandleFunc("/credit-cards/{id:[0-9]+}", DeleteCreditCard(r.store)).Methods("DELETE")
+
+	apiRouter.HandleFunc("/credit-cards/backup", ListBackup).Methods("GET")
 
 	authRouter := mux.NewRouter().PathPrefix("/auth").Subrouter()
 	authRouter.HandleFunc("/signin", Signin)
 	authRouter.HandleFunc("/refresh", RefreshToken)
 	authRouter.HandleFunc("/check", CheckToken)
 
-	router.PathPrefix("/api").Handler(n.With(
+	n := negroni.Classic()
+	n.Use(negroni.HandlerFunc(middleware.CORS))
+
+	r.router.PathPrefix("/api").Handler(n.With(
 		negroni.HandlerFunc(middleware.Auth),
 		negroni.Wrap(apiRouter),
 	))
 
-	router.PathPrefix("/auth").Handler(n.With(
+	r.router.PathPrefix("/auth").Handler(n.With(
 		negroni.HandlerFunc(middleware.LimitHandler()),
 		negroni.Wrap(authRouter),
 	))
-
-	return router
-}
-
-// InitLoginAPI ..
-func InitLoginAPI(db *gorm.DB) LoginAPI {
-	loginRepository := storage.NewLoginRepository(db)
-	loginService := app.NewLoginService(loginRepository)
-	loginAPI := NewLoginAPI(loginService)
-	loginAPI.Migrate()
-	return loginAPI
-}
-
-// InitBankAccountAPI ..
-func InitBankAccountAPI(db *gorm.DB) BankAccountAPI {
-	bankAccountRepository := storage.NewBankAccountRepository(db)
-	bankAccountService := app.NewBankAccountService(bankAccountRepository)
-	bankAccountAPI := NewBankAccountAPI(bankAccountService)
-	bankAccountAPI.Migrate()
-	return bankAccountAPI
-}
-
-// InitCreditCardAPI ..
-func InitCreditCardAPI(db *gorm.DB) CreditCardAPI {
-	creditCardRepository := storage.NewCreditCardRepository(db)
-	creditCardService := app.NewCreditCardService(creditCardRepository)
-	creditCardAPI := NewCreditCardAPI(creditCardService)
-	creditCardAPI.Migrate()
-	return creditCardAPI
 }
