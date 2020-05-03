@@ -83,6 +83,7 @@ func (r *Router) initRoutes() {
 
 	n := negroni.Classic()
 	n.Use(negroni.HandlerFunc(CORS))
+	n.Use(negroni.HandlerFunc(Secure))
 
 	r.router.PathPrefix("/api").Handler(n.With(
 		negroni.HandlerFunc(Auth),
@@ -90,6 +91,7 @@ func (r *Router) initRoutes() {
 	))
 
 	r.router.PathPrefix("/auth").Handler(n.With(
+
 		negroni.HandlerFunc(LimitHandler()),
 		negroni.Wrap(authRouter),
 	))
