@@ -73,3 +73,16 @@ func DecryptCreditCardVerificationNumbers(creditCards []model.CreditCard) []mode
 	}
 	return creditCards
 }
+
+// DecryptNotes ...
+func DecryptNotes(notes []model.Note) []model.Note {
+	for i := range notes {
+		if notes[i].Note == "" {
+			continue
+		}
+		passByte, _ := base64.StdEncoding.DecodeString(notes[i].Note)
+		passB64 := string(encryption.Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
+		notes[i].Note = passB64
+	}
+	return notes
+}

@@ -17,6 +17,7 @@ func Router() *mux.Router {
 	loginAPI := InitLoginAPI(db)
 	bankAccountAPI := InitBankAccountAPI(db)
 	creditCardAPI := InitCreditCardAPI(db)
+	noteAPI := InitNoteAPI(db)
 
 	router := mux.NewRouter()
 	n := negroni.Classic()
@@ -49,6 +50,14 @@ func Router() *mux.Router {
 	apiRouter.HandleFunc("/credit-cards/{id:[0-9]+}", creditCardAPI.Update).Methods("PUT")
 	apiRouter.HandleFunc("/credit-cards/{id:[0-9]+}", creditCardAPI.Delete).Methods("DELETE")
 	apiRouter.HandleFunc("/credit-cards/{action}", creditCardAPI.GetHandler).Methods("GET")
+
+	// Note endpoints
+	apiRouter.HandleFunc("/notes", noteAPI.FindAll).Methods("GET")
+	apiRouter.HandleFunc("/notes", noteAPI.Create).Methods("POST")
+	apiRouter.HandleFunc("/notes/{id:[0-9]+}", noteAPI.FindByID).Methods("GET")
+	apiRouter.HandleFunc("/notes/{id:[0-9]+}", noteAPI.Update).Methods("PUT")
+	apiRouter.HandleFunc("/notes/{id:[0-9]+}", noteAPI.Delete).Methods("DELETE")
+	apiRouter.HandleFunc("/notes/{action}", noteAPI.GetHandler).Methods("GET")
 
 	authRouter := mux.NewRouter().PathPrefix("/auth").Subrouter()
 	authRouter.HandleFunc("/signin", Signin)
@@ -93,4 +102,13 @@ func InitCreditCardAPI(db *gorm.DB) CreditCardAPI {
 	creditCardAPI := NewCreditCardAPI(creditCardService)
 	creditCardAPI.Migrate()
 	return creditCardAPI
+}
+
+// InitNoteAPI ..
+func InitNoteAPI(db *gorm.DB) NoteAPI {
+	noteRepository := storage.NewNoteRepository(db)
+	noteService := app.NewNoteService(noteRepository)
+	noteAPI := NewNoteAPI(noteService)
+	noteAPI.Migrate()
+	return noteAPI
 }

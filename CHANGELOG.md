@@ -1,5 +1,9 @@
 # PASSWALL CHANGELOG
 
+## Version: [1.1.-] (2020-05---)
+### Add
+- Secure notes feature
+
 ## Version: [1.1.0] (2020-05-03)
 ### Add
 - Bank Account and Credit Card Categories
