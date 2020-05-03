@@ -75,11 +75,12 @@ These environment variables are accepted:
   
 **Database Variables**
 - PW_DB_DRIVER
-- PW_DB_DBNAME
+- PW_DB_NAME
 - PW_DB_USERNAME
 - PW_DB_PASSWORD
 - PW_DB_HOST
 - PW_DB_PORT
+- PW_DB_PATH
 
 **Backup Variables**
 - PW_BACKUP_FOLDER

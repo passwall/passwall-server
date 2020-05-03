@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"crypto/rand"
@@ -6,16 +6,16 @@ import (
 	"log"
 	"os"
 
-	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/spf13/viper"
 )
 
 // Configuration ...
 type Configuration struct {
 	Server   ServerConfiguration
-	Database storage.Configuration
+	Database DatabaseConfiguration
 }
 
+// ServerConfiguration is the required paramters to set up a server
 type ServerConfiguration struct {
 	Port       string `default:"3625"`
 	Username   string `default:"passwall"`
@@ -25,7 +25,20 @@ type ServerConfiguration struct {
 	Timeout    int    `default:"24"`
 }
 
-func setupConfigDefaults() *Configuration {
+// DatabaseConfiguration is the required paramters to set up a DB instance
+type DatabaseConfiguration struct {
+	Driver   string `default:"3625"`
+	Name     string `default:"passwall"`
+	Username string `default:"user"`
+	Password string `default:"password"`
+	Host     string `default:"localhost"`
+	Port     string `default:"5432"`
+	Path     string `default:"./store/passwall.db"`
+	LogMode  bool   `default:"false"`
+}
+
+// SetupConfigDefaults ...
+func SetupConfigDefaults() *Configuration {
 
 	var configuration *Configuration
 
@@ -35,9 +48,11 @@ func setupConfigDefaults() *Configuration {
 
 	// Bind environment variables
 	bindEnvs()
+
 	// Set default values
 	setDefaults()
 
+	// Auto generate config.yml file if it doesn't exist
 	if !fileExists("./store/config.yml") {
 		viper.Set("server.passphrase", generateSecureKey())
 		viper.Set("server.secret", generateSecureKey())
@@ -58,8 +73,6 @@ func setupConfigDefaults() *Configuration {
 }
 
 func bindEnvs() {
-	viper.SetEnvPrefix("PW")
-
 	viper.BindEnv("server.port", "PORT")
 	viper.BindEnv("server.username", "PW_SERVER_USERNAME")
 	viper.BindEnv("server.password", "PW_SERVER_PASSWORD")
@@ -72,12 +85,13 @@ func bindEnvs() {
 	viper.BindEnv("server.refreshTokenExpireDuration", "PW_SERVER_REFRESH_TOKEN_EXPIRE_DURATION")
 
 	viper.BindEnv("database.driver", "PW_DB_DRIVER")
-	viper.BindEnv("database.dbname", "PW_DB_DBNAME")
+	viper.BindEnv("database.name", "PW_DB_NAME")
 	viper.BindEnv("database.username", "PW_DB_USERNAME")
 	viper.BindEnv("database.password", "PW_DB_PASSWORD")
 	viper.BindEnv("database.host", "PW_DB_HOST")
 	viper.BindEnv("database.port", "PW_DB_PORT")
-	viper.BindEnv("database.dbpath", "PW_DB_PATH")
+	viper.BindEnv("database.path", "PW_DB_PATH")
+	viper.BindEnv("database.logmode", "PW_DB_LOG_MODE")
 
 	viper.BindEnv("backup.folder", "PW_BACKUP_FOLDER")
 	viper.BindEnv("backup.rotation", "PW_BACKUP_ROTATION")
@@ -97,7 +111,7 @@ func setDefaults() {
 	viper.SetDefault("server.refreshTokenExpireDuration", "15d")
 
 	viper.SetDefault("database.driver", "sqlite")
-	viper.SetDefault("database.dbname", "passwall")
+	viper.SetDefault("database.name", "passwall")
 	viper.SetDefault("database.username", "user")
 	viper.SetDefault("database.password", "password")
 	viper.SetDefault("database.host", "localhost")

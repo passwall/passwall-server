@@ -8,6 +8,7 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/mysql"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
+	"github.com/pass-wall/passwall-server/internal/config"
 	"github.com/pass-wall/passwall-server/internal/storage/bankaccount"
 	"github.com/pass-wall/passwall-server/internal/storage/creditcard"
 	"github.com/pass-wall/passwall-server/internal/storage/login"
@@ -24,14 +25,15 @@ type Database struct {
 }
 
 // New opens a database according to configuration.
-func New(cfg *Configuration) (*Database, error) {
+func New(cfg *config.DatabaseConfiguration) (*Database, error) {
 	var db *gorm.DB
 	var err error
 
 	switch cfg.Driver {
 	case "sqlite":
-		path := cfg.DBPath
-		if cfg.DBPath == "" {
+		path := cfg.Path
+
+		if cfg.Path == "" {
 			return nil, errors.New("sqlite db path should not be empty")
 		}
 		db, err = gorm.Open("sqlite3", path)
@@ -39,12 +41,12 @@ func New(cfg *Configuration) (*Database, error) {
 			return nil, fmt.Errorf("could not open sqlite database: %w", err)
 		}
 	case "postgres":
-		db, err = gorm.Open("postgres", "host="+cfg.Host+" port="+cfg.Port+" user="+cfg.Username+" dbname="+cfg.DBName+"  sslmode=disable password="+cfg.Password)
+		db, err = gorm.Open("postgres", "host="+cfg.Host+" port="+cfg.Port+" user="+cfg.Username+" dbname="+cfg.Name+"  sslmode=disable password="+cfg.Password)
 		if err != nil {
 			return nil, fmt.Errorf("could not open postgresql connection: %w", err)
 		}
 	case "mysql":
-		db, err = gorm.Open("mysql", cfg.Username+":"+cfg.Password+"@tcp("+cfg.Host+":"+cfg.Port+")/"+cfg.DBName+"?charset=utf8&parseTime=True&loc=Local")
+		db, err = gorm.Open("mysql", cfg.Username+":"+cfg.Password+"@tcp("+cfg.Host+":"+cfg.Port+")/"+cfg.Name+"?charset=utf8&parseTime=True&loc=Local")
 		if err != nil {
 			return nil, fmt.Errorf("could not open mysql connection: %w", err)
 		}

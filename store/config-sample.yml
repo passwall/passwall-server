@@ -1,14 +1,15 @@
 database:
   driver: "sqlite"
-  dbname: "passwall"
+  name: "passwall"
   username: "user"
   password: "password"
-  dbpath: "./store/passwall.db"
+  path: "./store/passwall.db"
+  logmod: false
 
 # Uncomment for mysql
 # database:
 #   driver: "mysql"
-#   dbname: "passwall"
+#   name: "passwall"
 #   username: "user"
 #   password: "password"
 #   host: "localhost" # or compose service name
@@ -17,7 +18,7 @@ database:
 # Uncomment for postgres
 # database:
 #   driver: "postgres"
-#   dbname: "passwall"
+#   name: "passwall"
 #   username: "user"
 #   password: "password"
 #   host: "localhost" # or compose service name

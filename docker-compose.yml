@@ -54,16 +54,3 @@ services:
       - 3625:3625
     volumes:
       - ./store:/app/store
-
-  # passwall-web:
-  #   container_name: passwall-web
-  #   image: passwall-web:latest
-  #   restart: always
-  #   build:
-  #     context: frontend
-  #   ports:
-  #     - 3000:3000
-
-# Uncomment volumes section if you want to store persist data
-# volumes:
-#   passwall-db:
