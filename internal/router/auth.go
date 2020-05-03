@@ -1,19 +1,25 @@
 package router
 
 import (
-	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/pass-wall/passwall-server/internal/app"
 )
 
 //Auth verify authentication
 func Auth(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-	err := app.TokenValid(r)
+	var token string
+	bearerToken := r.Header.Get("Authorization")
+	strArr := strings.Split(bearerToken, " ")
+	if len(strArr) == 2 {
+		token = strArr[1]
+	}
+
+	err := app.TokenValid(token)
 	if err != nil {
-		response, _ := json.Marshal("TOKEN_ERROR")
+		// it's not good idea to give error information to the requester.
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write(response)
 		return
 	}
 

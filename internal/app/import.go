@@ -5,11 +5,10 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"path/filepath"
-	"strings"
-
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"

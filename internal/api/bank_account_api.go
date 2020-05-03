@@ -23,7 +23,6 @@ func FindAllBankAccounts(s storage.Store) http.HandlerFunc {
 		argsStr, argsInt := SetArgs(r, fields)
 
 		bankAccounts, err = s.BankAccounts().FindAll(argsStr, argsInt)
-
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return

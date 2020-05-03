@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/pass-wall/passwall-server/internal/app"
@@ -89,13 +90,26 @@ func RefreshToken(w http.ResponseWriter, r *http.Request) {
 
 // CheckToken ...
 func CheckToken(w http.ResponseWriter, r *http.Request) {
+	var token string
+	bearerToken := r.Header.Get("Authorization")
+	strArr := strings.Split(bearerToken, " ")
+	if len(strArr) == 2 {
+		token = strArr[1]
+	}
 
-	err := app.TokenValid(r)
+	//TODO: maybe check if there is any token? If not, return early.
+
+	err := app.TokenValid(token)
 	if err != nil {
 		RespondWithError(w, http.StatusUnauthorized, "Token is expired or not valid!")
 		return
 	}
 
-	response := model.Response{http.StatusOK, "Success", "Token is valid!"}
+	response := model.Response{
+		Code:    http.StatusOK,
+		Status:  "Success",
+		Message: "Token is valid!",
+	}
+
 	RespondWithJSON(w, http.StatusOK, response)
 }

@@ -2,9 +2,7 @@ package app
 
 import (
 	"fmt"
-	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -92,9 +90,9 @@ func RefreshToken(refreshToken string) (*model.TokenDetailsDTO, error) {
 }
 
 //TokenValid ...
-func TokenValid(r *http.Request) error {
+func TokenValid(bearerToken string) error {
 
-	token, err := verifyToken(r)
+	token, err := verifyToken(bearerToken)
 	if err != nil {
 		return err
 	}
@@ -105,9 +103,8 @@ func TokenValid(r *http.Request) error {
 }
 
 //verifyToken verify token
-func verifyToken(r *http.Request) (*jwt.Token, error) {
+func verifyToken(tokenString string) (*jwt.Token, error) {
 
-	tokenString := extractToken(r)
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		//Make sure that the token method conform to "SigningMethodHMAC"
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -119,17 +116,6 @@ func verifyToken(r *http.Request) (*jwt.Token, error) {
 		return nil, err
 	}
 	return token, nil
-}
-
-// ExtractToken ...
-func extractToken(r *http.Request) string {
-
-	bearerToken := r.Header.Get("Authorization")
-	strArr := strings.Split(bearerToken, " ")
-	if len(strArr) == 2 {
-		return strArr[1]
-	}
-	return ""
 }
 
 func resolveTokenExpireDuration(config string) time.Duration {

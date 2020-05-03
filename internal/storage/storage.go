@@ -20,5 +20,5 @@ type Configuration struct {
 	Host     string `default:"localhost"`
 	Port     string `default:"5432"`
 	DBPath   string `default:"./store/passwall.db"`
-	LogMode  bool
+	LogMode  bool   `default:"false"`
 }
