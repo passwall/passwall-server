@@ -3,7 +3,6 @@ package app
 import (
 	"encoding/base64"
 
-	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
@@ -34,7 +33,7 @@ func DecryptLoginPasswords(logins []model.Login) []model.Login {
 			continue
 		}
 		passByte, _ := base64.StdEncoding.DecodeString(logins[i].Password)
-		passB64 := string(encryption.Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
+		passB64 := string(Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
 		logins[i].Password = passB64
 	}
 	return logins
@@ -47,7 +46,7 @@ func DecryptBankAccountPasswords(bankAccounts []model.BankAccount) []model.BankA
 			continue
 		}
 		passByte, _ := base64.StdEncoding.DecodeString(bankAccounts[i].Password)
-		passB64 := string(encryption.Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
+		passB64 := string(Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
 		bankAccounts[i].Password = passB64
 	}
 	return bankAccounts
@@ -60,7 +59,7 @@ func DecryptCreditCardVerificationNumbers(creditCards []model.CreditCard) []mode
 			continue
 		}
 		passByte, _ := base64.StdEncoding.DecodeString(creditCards[i].VerificationNumber)
-		passB64 := string(encryption.Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
+		passB64 := string(Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
 		creditCards[i].VerificationNumber = passB64
 	}
 	return creditCards
@@ -73,7 +72,7 @@ func DecryptNotes(notes []model.Note) []model.Note {
 			continue
 		}
 		passByte, _ := base64.StdEncoding.DecodeString(notes[i].Note)
-		passB64 := string(encryption.Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
+		passB64 := string(Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
 		notes[i].Note = passB64
 	}
 	return notes

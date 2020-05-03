@@ -1,7 +1,7 @@
-package auth
+package model
 
-//LoginDTO ...
-type LoginDTO struct {
+//AuthLoginDTO ...
+type AuthLoginDTO struct {
 	Username string `validate:"required" json:"username"`
 	Password string `validate:"required" json:"password"`
 }

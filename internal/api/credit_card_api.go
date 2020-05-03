@@ -8,8 +8,6 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/pass-wall/passwall-server/internal/app"
-	"github.com/pass-wall/passwall-server/internal/common"
-	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
@@ -27,12 +25,12 @@ func FindAllCreditCards(s storage.Store) http.HandlerFunc {
 		creditCards, err = s.CreditCards().FindAll(argsStr, argsInt)
 
 		if err != nil {
-			common.RespondWithError(w, http.StatusNotFound, err.Error())
+			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
 		creditCards = app.DecryptCreditCardVerificationNumbers(creditCards)
-		common.RespondWithJSON(w, http.StatusOK, creditCards)
+		RespondWithJSON(w, http.StatusOK, creditCards)
 	}
 }
 
@@ -42,20 +40,20 @@ func FindCreditCardByID(s storage.Store) http.HandlerFunc {
 		vars := mux.Vars(r)
 		id, err := strconv.Atoi(vars["id"])
 		if err != nil {
-			common.RespondWithError(w, http.StatusBadRequest, err.Error())
+			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		creditCard, err := s.CreditCards().FindByID(uint(id))
 		if err != nil {
-			common.RespondWithError(w, http.StatusNotFound, err.Error())
+			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
 		passByte, _ := base64.StdEncoding.DecodeString(creditCard.VerificationNumber)
-		creditCard.VerificationNumber = string(encryption.Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
+		creditCard.VerificationNumber = string(app.Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
 
-		common.RespondWithJSON(w, http.StatusOK, model.ToCreditCardDTO(creditCard))
+		RespondWithJSON(w, http.StatusOK, model.ToCreditCardDTO(creditCard))
 	}
 }
 
@@ -66,23 +64,23 @@ func CreateCreditCard(s storage.Store) http.HandlerFunc {
 
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&creditCardDTO); err != nil {
-			common.RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 			return
 		}
 		defer r.Body.Close()
 
 		rawPass := creditCardDTO.VerificationNumber
-		creditCardDTO.VerificationNumber = base64.StdEncoding.EncodeToString(encryption.Encrypt(creditCardDTO.VerificationNumber, viper.GetString("server.passphrase")))
+		creditCardDTO.VerificationNumber = base64.StdEncoding.EncodeToString(app.Encrypt(creditCardDTO.VerificationNumber, viper.GetString("server.passphrase")))
 
 		createdCreditCard, err := s.CreditCards().Save(model.ToCreditCard(creditCardDTO))
 		if err != nil {
-			common.RespondWithError(w, http.StatusBadRequest, err.Error())
+			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		createdCreditCard.VerificationNumber = rawPass
 
-		common.RespondWithJSON(w, http.StatusOK, model.ToCreditCardDTO(createdCreditCard))
+		RespondWithJSON(w, http.StatusOK, model.ToCreditCardDTO(createdCreditCard))
 	}
 }
 
@@ -92,26 +90,26 @@ func UpdateCreditCard(s storage.Store) http.HandlerFunc {
 		vars := mux.Vars(r)
 		id, err := strconv.Atoi(vars["id"])
 		if err != nil {
-			common.RespondWithError(w, http.StatusBadRequest, err.Error())
+			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		var creditCardDTO model.CreditCardDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&creditCardDTO); err != nil {
-			common.RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 			return
 		}
 		defer r.Body.Close()
 
 		creditCard, err := s.CreditCards().FindByID(uint(id))
 		if err != nil {
-			common.RespondWithError(w, http.StatusNotFound, err.Error())
+			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
 		rawPass := creditCardDTO.VerificationNumber
-		creditCardDTO.VerificationNumber = base64.StdEncoding.EncodeToString(encryption.Encrypt(creditCardDTO.VerificationNumber, viper.GetString("server.passphrase")))
+		creditCardDTO.VerificationNumber = base64.StdEncoding.EncodeToString(app.Encrypt(creditCardDTO.VerificationNumber, viper.GetString("server.passphrase")))
 
 		creditCardDTO.ID = uint(id)
 		creditCard = model.ToCreditCard(creditCardDTO)
@@ -119,11 +117,11 @@ func UpdateCreditCard(s storage.Store) http.HandlerFunc {
 
 		updatedCreditCard, err := s.CreditCards().Save(creditCard)
 		if err != nil {
-			common.RespondWithError(w, http.StatusNotFound, err.Error())
+			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 		updatedCreditCard.VerificationNumber = rawPass
-		common.RespondWithJSON(w, http.StatusOK, model.ToCreditCardDTO(updatedCreditCard))
+		RespondWithJSON(w, http.StatusOK, model.ToCreditCardDTO(updatedCreditCard))
 	}
 }
 
@@ -133,23 +131,23 @@ func DeleteCreditCard(s storage.Store) http.HandlerFunc {
 		vars := mux.Vars(r)
 		id, err := strconv.Atoi(vars["id"])
 		if err != nil {
-			common.RespondWithError(w, http.StatusBadRequest, err.Error())
+			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		creditCard, err := s.CreditCards().FindByID(uint(id))
 		if err != nil {
-			common.RespondWithError(w, http.StatusNotFound, err.Error())
+			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
 		err = s.CreditCards().Delete(creditCard.ID)
 		if err != nil {
-			common.RespondWithError(w, http.StatusNotFound, err.Error())
+			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
 		response := model.Response{http.StatusOK, "Success", "CreditCard deleted successfully!"}
-		common.RespondWithJSON(w, http.StatusOK, response)
+		RespondWithJSON(w, http.StatusOK, response)
 	}
 }

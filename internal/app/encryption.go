@@ -1,4 +1,4 @@
-package encryption
+package app
 
 import (
 	"crypto/aes"

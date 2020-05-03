@@ -8,8 +8,6 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/pass-wall/passwall-server/internal/app"
-	"github.com/pass-wall/passwall-server/internal/common"
-	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
@@ -27,12 +25,12 @@ func FindAllLogins(s storage.Store) http.HandlerFunc {
 		logins, err = s.Logins().FindAll(argsStr, argsInt)
 
 		if err != nil {
-			common.RespondWithError(w, http.StatusNotFound, err.Error())
+			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
 		logins = app.DecryptLoginPasswords(logins)
-		common.RespondWithJSON(w, http.StatusOK, logins)
+		RespondWithJSON(w, http.StatusOK, logins)
 	}
 }
 
@@ -42,20 +40,20 @@ func FindLoginsByID(s storage.Store) http.HandlerFunc {
 		vars := mux.Vars(r)
 		id, err := strconv.Atoi(vars["id"])
 		if err != nil {
-			common.RespondWithError(w, http.StatusBadRequest, err.Error())
+			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		login, err := s.Logins().FindByID(uint(id))
 		if err != nil {
-			common.RespondWithError(w, http.StatusNotFound, err.Error())
+			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
 		passByte, _ := base64.StdEncoding.DecodeString(login.Password)
-		login.Password = string(encryption.Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
+		login.Password = string(app.Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
 
-		common.RespondWithJSON(w, http.StatusOK, model.ToLoginDTO(login))
+		RespondWithJSON(w, http.StatusOK, model.ToLoginDTO(login))
 	}
 }
 
@@ -66,27 +64,27 @@ func CreateLogin(s storage.Store) http.HandlerFunc {
 
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&loginDTO); err != nil {
-			common.RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 			return
 		}
 		defer r.Body.Close()
 
 		if loginDTO.Password == "" {
-			loginDTO.Password = encryption.Password()
+			loginDTO.Password = app.Password()
 		}
 
 		rawPass := loginDTO.Password
-		loginDTO.Password = base64.StdEncoding.EncodeToString(encryption.Encrypt(loginDTO.Password, viper.GetString("server.passphrase")))
+		loginDTO.Password = base64.StdEncoding.EncodeToString(app.Encrypt(loginDTO.Password, viper.GetString("server.passphrase")))
 
 		createdLogin, err := s.Logins().Save(model.ToLogin(loginDTO))
 		if err != nil {
-			common.RespondWithError(w, http.StatusBadRequest, err.Error())
+			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		createdLogin.Password = rawPass
 
-		common.RespondWithJSON(w, http.StatusOK, model.ToLoginDTO(createdLogin))
+		RespondWithJSON(w, http.StatusOK, model.ToLoginDTO(createdLogin))
 	}
 }
 
@@ -96,40 +94,40 @@ func UpdateLogin(s storage.Store) http.HandlerFunc {
 		vars := mux.Vars(r)
 		id, err := strconv.Atoi(vars["id"])
 		if err != nil {
-			common.RespondWithError(w, http.StatusBadRequest, err.Error())
+			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		var loginDTO model.LoginDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&loginDTO); err != nil {
-			common.RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 			return
 		}
 		defer r.Body.Close()
 
 		login, err := s.Logins().FindByID(uint(id))
 		if err != nil {
-			common.RespondWithError(w, http.StatusNotFound, err.Error())
+			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
 		if loginDTO.Password == "" {
-			loginDTO.Password = encryption.Password()
+			loginDTO.Password = app.Password()
 		}
 		rawPass := loginDTO.Password
-		loginDTO.Password = base64.StdEncoding.EncodeToString(encryption.Encrypt(loginDTO.Password, viper.GetString("server.passphrase")))
+		loginDTO.Password = base64.StdEncoding.EncodeToString(app.Encrypt(loginDTO.Password, viper.GetString("server.passphrase")))
 
 		login.URL = loginDTO.URL
 		login.Username = loginDTO.Username
 		login.Password = loginDTO.Password
 		updatedLogin, err := s.Logins().Save(login)
 		if err != nil {
-			common.RespondWithError(w, http.StatusNotFound, err.Error())
+			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 		updatedLogin.Password = rawPass
-		common.RespondWithJSON(w, http.StatusOK, model.ToLoginDTO(updatedLogin))
+		RespondWithJSON(w, http.StatusOK, model.ToLoginDTO(updatedLogin))
 	}
 }
 
@@ -139,23 +137,23 @@ func DeleteLogin(s storage.Store) http.HandlerFunc {
 		vars := mux.Vars(r)
 		id, err := strconv.Atoi(vars["id"])
 		if err != nil {
-			common.RespondWithError(w, http.StatusBadRequest, err.Error())
+			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		login, err := s.Logins().FindByID(uint(id))
 		if err != nil {
-			common.RespondWithError(w, http.StatusNotFound, err.Error())
+			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
 		err = s.Logins().Delete(login.ID)
 		if err != nil {
-			common.RespondWithError(w, http.StatusNotFound, err.Error())
+			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
 		response := model.Response{http.StatusOK, "Success", "Login deleted successfully!"}
-		common.RespondWithJSON(w, http.StatusOK, response)
+		RespondWithJSON(w, http.StatusOK, response)
 	}
 }

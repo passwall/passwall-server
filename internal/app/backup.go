@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
@@ -43,7 +42,7 @@ func BackupData(s storage.Store) error {
 		return err
 	}
 
-	encryption.EncryptFile(backupPath, loginBytes.Bytes(), viper.GetString("server.passphrase"))
+	EncryptFile(backupPath, loginBytes.Bytes(), viper.GetString("server.passphrase"))
 
 	rotateBackup()
 

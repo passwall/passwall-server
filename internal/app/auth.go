@@ -1,4 +1,4 @@
-package auth
+package app
 
 import (
 	"fmt"
@@ -8,15 +8,16 @@ import (
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
+	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
 )
 
 //CreateToken ...
-func CreateToken() (*TokenDetailsDTO, error) {
+func CreateToken() (*model.TokenDetailsDTO, error) {
 
 	var err error
 	accessSecret := viper.GetString("server.secret")
-	td := &TokenDetailsDTO{}
+	td := &model.TokenDetailsDTO{}
 
 	accessTokenExpireDuration := resolveTokenExpireDuration(viper.GetString("server.accessTokenExpireDuration"))
 	refreshTokenExpireDuration := resolveTokenExpireDuration(viper.GetString("server.refreshTokenExpireDuration"))
@@ -48,7 +49,7 @@ func CreateToken() (*TokenDetailsDTO, error) {
 }
 
 //RefreshToken ...
-func RefreshToken(refreshToken string) (*TokenDetailsDTO, error) {
+func RefreshToken(refreshToken string) (*model.TokenDetailsDTO, error) {
 
 	token, err := jwt.Parse(refreshToken, func(token *jwt.Token) (interface{}, error) {
 		//Make sure that the token method conform to "SigningMethodHMAC"

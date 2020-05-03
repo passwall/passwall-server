@@ -12,8 +12,6 @@ import (
 	"path/filepath"
 
 	"github.com/pass-wall/passwall-server/internal/app"
-	"github.com/pass-wall/passwall-server/internal/common"
-	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
@@ -28,7 +26,7 @@ func Import(s storage.Store) http.HandlerFunc {
 
 		uploadedFile, err := upload(r)
 		if err != nil {
-			common.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		defer uploadedFile.Close()
@@ -39,19 +37,19 @@ func Import(s storage.Store) http.HandlerFunc {
 		// Read file content and add logins to db
 		err = app.InsertValues(s, url, username, password, uploadedFile)
 		if err != nil {
-			common.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
 		// Delete imported file
 		err = os.Remove(uploadedFile.Name())
 		if err != nil {
-			common.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
 		response := model.Response{http.StatusOK, "Success", "Import finished successfully!"}
-		common.RespondWithJSON(w, http.StatusOK, response)
+		RespondWithJSON(w, http.StatusOK, response)
 	}
 }
 
@@ -89,7 +87,7 @@ func Restore(s storage.Store) http.HandlerFunc {
 		// get restoreDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&restoreDTO); err != nil {
-			common.RespondWithError(w, http.StatusUnprocessableEntity, "Invalid json provided")
+			RespondWithError(w, http.StatusUnprocessableEntity, "Invalid json provided")
 			return
 		}
 		defer r.Body.Close()
@@ -104,11 +102,11 @@ func Restore(s storage.Store) http.HandlerFunc {
 
 		_, err := os.Open(backupPath)
 		if err != nil {
-			common.RespondWithError(w, http.StatusNotFound, err.Error())
+			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		loginsByte := encryption.DecryptFile(backupPath, viper.GetString("server.passphrase"))
+		loginsByte := app.DecryptFile(backupPath, viper.GetString("server.passphrase"))
 
 		var loginDTOs []model.LoginDTO
 		json.Unmarshal(loginsByte, &loginDTOs)
@@ -118,14 +116,14 @@ func Restore(s storage.Store) http.HandlerFunc {
 			login := model.Login{
 				URL:      loginDTOs[i].URL,
 				Username: loginDTOs[i].Username,
-				Password: base64.StdEncoding.EncodeToString(encryption.Encrypt(loginDTOs[i].Password, viper.GetString("server.passphrase"))),
+				Password: base64.StdEncoding.EncodeToString(app.Encrypt(loginDTOs[i].Password, viper.GetString("server.passphrase"))),
 			}
 
 			s.Logins().Save(login)
 		}
 
 		response := model.Response{http.StatusOK, "Success", "Restore from backup completed successfully!"}
-		common.RespondWithJSON(w, http.StatusOK, response)
+		RespondWithJSON(w, http.StatusOK, response)
 	}
 }
 
@@ -135,12 +133,12 @@ func Backup(s storage.Store) http.HandlerFunc {
 		err := app.BackupData(s)
 
 		if err != nil {
-			common.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
 		response := model.Response{http.StatusOK, "Success", "Backup completed successfully!"}
-		common.RespondWithJSON(w, http.StatusOK, response)
+		RespondWithJSON(w, http.StatusOK, response)
 	}
 }
 
@@ -149,7 +147,7 @@ func ListBackup(w http.ResponseWriter, r *http.Request) {
 	backupFiles, err := app.GetBackupFiles()
 
 	if err != nil {
-		common.RespondWithError(w, http.StatusInternalServerError, err.Error())
+		RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -158,7 +156,7 @@ func ListBackup(w http.ResponseWriter, r *http.Request) {
 		response = append(response, model.Backup{Name: backupFile.Name(), CreatedAt: backupFile.ModTime()})
 	}
 
-	common.RespondWithJSON(w, http.StatusOK, response)
+	RespondWithJSON(w, http.StatusOK, response)
 }
 
 // MigrateTables runs auto migration for the models, will only add missing fields

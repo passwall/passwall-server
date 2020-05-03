@@ -5,8 +5,6 @@ import (
 	"net/http"
 
 	"github.com/pass-wall/passwall-server/internal/app"
-	"github.com/pass-wall/passwall-server/internal/common"
-	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
 )
@@ -18,7 +16,7 @@ func FindSamePassword(s storage.Store) http.HandlerFunc {
 
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&password); err != nil {
-			common.RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 			return
 		}
 		defer r.Body.Close()
@@ -26,17 +24,17 @@ func FindSamePassword(s storage.Store) http.HandlerFunc {
 		urls, err := app.FindSamePassword(s, password)
 
 		if err != nil {
-			common.RespondWithError(w, http.StatusBadRequest, err.Error())
+			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
-		common.RespondWithJSON(w, http.StatusOK, urls)
+		RespondWithJSON(w, http.StatusOK, urls)
 	}
 }
 
 // GeneratePassword generates new password
 func GeneratePassword(w http.ResponseWriter, r *http.Request) {
-	password := encryption.Password()
+	password := app.Password()
 	response := model.Response{http.StatusOK, "Success", password}
-	common.RespondWithJSON(w, http.StatusOK, response)
+	RespondWithJSON(w, http.StatusOK, response)
 }

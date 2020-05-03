@@ -11,7 +11,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/pass-wall/passwall-server/internal/encryption"
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
@@ -30,9 +29,9 @@ func InsertValues(s storage.Store, url, username, password string, file *os.File
 		counter++
 		if counter == 1 {
 			// Match user's fieldnames to passwall's field names (URL, Username, Password)
-			urlIndex = encryption.FindIndex(fields, url)
-			usernameIndex = encryption.FindIndex(fields, username)
-			passwordIndex = encryption.FindIndex(fields, password)
+			urlIndex = FindIndex(fields, url)
+			usernameIndex = FindIndex(fields, username)
+			passwordIndex = FindIndex(fields, password)
 
 			// Check if fields match
 			if urlIndex == -1 || usernameIndex == -1 || passwordIndex == -1 {
@@ -48,7 +47,7 @@ func InsertValues(s storage.Store, url, username, password string, file *os.File
 		login := model.Login{
 			URL:      fields[urlIndex],
 			Username: fields[usernameIndex],
-			Password: base64.StdEncoding.EncodeToString(encryption.Encrypt(fields[passwordIndex], viper.GetString("server.passphrase"))),
+			Password: base64.StdEncoding.EncodeToString(Encrypt(fields[passwordIndex], viper.GetString("server.passphrase"))),
 		}
 
 		// Add to database

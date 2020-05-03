@@ -7,43 +7,30 @@ import (
 	"time"
 
 	_ "github.com/heroku/x/hmetrics/onload"
-	"github.com/pass-wall/passwall-server/internal/api"
-	"github.com/pass-wall/passwall-server/internal/config"
-	"github.com/pass-wall/passwall-server/internal/cron"
+	"github.com/pass-wall/passwall-server/internal/app"
+	"github.com/pass-wall/passwall-server/internal/router"
 	"github.com/pass-wall/passwall-server/internal/storage"
-	"github.com/spf13/viper"
 )
 
 func main() {
-	config.Setup()
+	cfg := setupConfigDefaults()
 
-	port := ":" + viper.GetString("server.port")
 	l := log.New(os.Stdout, "[passwall-server] ", 0)
-	l.Printf("listening on %s", port)
+	l.Printf("listening on %s", cfg.Server.Port)
 
-	cfg := &storage.Configuration{
-		Driver:   viper.GetString("database.driver"),
-		DBName:   viper.GetString("database.dbname"),
-		Username: viper.GetString("database.username"),
-		Password: viper.GetString("database.password"),
-		Host:     viper.GetString("database.host"),
-		Port:     viper.GetString("database.port"),
-		DBPath:   viper.GetString("database.path"),
-	}
-
-	s, err := storage.New(cfg)
+	s, err := storage.New(&cfg.Database)
 	if err != nil {
 		l.Fatalf("failed to open storage: %s\n", err)
 	}
 
-	cron.Setup(s)
+	app.StartCronJob(s)
 
 	srv := &http.Server{
-		Addr:         port,
+		Addr:         ":" + cfg.Server.Port,
 		WriteTimeout: time.Second * 15,
 		ReadTimeout:  time.Second * 15,
 		IdleTimeout:  time.Second * 60,
-		Handler:      api.New(s),
+		Handler:      router.New(s),
 	}
 
 	if err := srv.ListenAndServe(); err != nil {
