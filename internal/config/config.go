@@ -99,17 +99,19 @@ func bindEnvs() {
 }
 
 func setDefaults() {
+
+	// Server defaults
 	viper.SetDefault("server.port", "3625")
 	viper.SetDefault("server.username", "passwall")
 	viper.SetDefault("server.password", "password")
 	viper.SetDefault("server.passphrase", "passphrase-for-encrypting-passwords-do-not-forget")
 	viper.SetDefault("server.secret", "secret-key-for-JWT-TOKEN")
 	viper.SetDefault("server.timeout", 24)
-
 	viper.SetDefault("server.generatedPasswordLength", 16)
 	viper.SetDefault("server.accessTokenExpireDuration", "30m")
 	viper.SetDefault("server.refreshTokenExpireDuration", "15d")
 
+	// Database defaults
 	viper.SetDefault("database.driver", "sqlite")
 	viper.SetDefault("database.name", "passwall")
 	viper.SetDefault("database.username", "user")
@@ -117,7 +119,9 @@ func setDefaults() {
 	viper.SetDefault("database.host", "localhost")
 	viper.SetDefault("database.port", "5432")
 	viper.SetDefault("database.path", "./store/passwall.db")
+	viper.SetDefault("database.logmode", false)
 
+	// Backup defaults
 	viper.SetDefault("backup.folder", "./store/")
 	viper.SetDefault("backup.rotation", 7)
 	viper.SetDefault("backup.period", "24h")

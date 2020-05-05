@@ -60,6 +60,7 @@ func Export(s storage.Store) http.HandlerFunc {
 
 		var logins []model.Login
 		s.Find(&logins)
+
 		logins = app.DecryptLoginPasswords(logins)
 
 		content := [][]string{}

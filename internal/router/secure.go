@@ -30,5 +30,7 @@ func Secure(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	// Feature-Policy
 	w.Header().Add("Feature-Policy", "microphone 'none'; camera 'none'")
 
+	// TODO: public-key-pins header should be added in the future
+
 	next(w, r)
 }
