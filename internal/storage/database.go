@@ -72,7 +72,12 @@ func (db *Database) Create(value interface{}) {
 
 // Find finds the records that match given conditions.
 func (db *Database) Find(value interface{}, where ...interface{}) {
-	db.db.Find(value, where)
+	if len(where) > 0 {
+		db.db.Find(value, where)
+	} else {
+		db.db.Find(value)
+	}
+
 }
 
 // Logins returns the LoginRepository.
