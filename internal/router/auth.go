@@ -14,7 +14,7 @@ import (
 
 //Auth verify authentication
 
-func Auth2(s storage.Store) negroni.HandlerFunc {
+func Auth(s storage.Store) negroni.HandlerFunc {
 
 	return negroni.HandlerFunc(func(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 
@@ -51,22 +51,4 @@ func Auth2(s storage.Store) negroni.HandlerFunc {
 
 		next(w, r)
 	})
-}
-
-func Auth(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-	var token string
-	bearerToken := r.Header.Get("Authorization")
-	strArr := strings.Split(bearerToken, " ")
-	if len(strArr) == 2 {
-		token = strArr[1]
-	}
-
-	_, err := app.TokenValid(token)
-	if err != nil {
-		// it's not good idea to give error information to the requester.
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-
-	next(w, r)
 }
