@@ -86,7 +86,7 @@ func (r *Router) initRoutes() {
 	n.Use(negroni.HandlerFunc(Secure))
 
 	r.router.PathPrefix("/api").Handler(n.With(
-		negroni.HandlerFunc(Auth2(r.store)),
+		negroni.HandlerFunc(Auth(r.store)),
 		negroni.Wrap(apiRouter),
 	))
 
