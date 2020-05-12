@@ -77,8 +77,8 @@ func (r *Router) initRoutes() {
 
 	// Auth endpoints
 	authRouter := mux.NewRouter().PathPrefix("/auth").Subrouter()
-	authRouter.HandleFunc("/signin", api.Signin)
-	authRouter.HandleFunc("/refresh", api.RefreshToken)
+	authRouter.HandleFunc("/signin", api.Signin(r.store))
+	authRouter.HandleFunc("/refresh", api.RefreshToken(r.store))
 	authRouter.HandleFunc("/check", api.CheckToken)
 
 	n := negroni.Classic()
@@ -86,7 +86,7 @@ func (r *Router) initRoutes() {
 	n.Use(negroni.HandlerFunc(Secure))
 
 	r.router.PathPrefix("/api").Handler(n.With(
-		negroni.HandlerFunc(Auth),
+		negroni.HandlerFunc(Auth2(r.store)),
 		negroni.Wrap(apiRouter),
 	))
 

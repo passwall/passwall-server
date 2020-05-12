@@ -8,4 +8,5 @@ type Store interface {
 	CreditCards() CreditCardRepository
 	BankAccounts() BankAccountRepository
 	Notes() NoteRepository
+	Tokens() TokenRepository
 }
