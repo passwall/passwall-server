@@ -1,5 +1,11 @@
 package model
 
+import (
+	"time"
+
+	uuid "github.com/satori/go.uuid"
+)
+
 //AuthLoginDTO ...
 type AuthLoginDTO struct {
 	Username string `validate:"required" json:"username"`
@@ -8,8 +14,10 @@ type AuthLoginDTO struct {
 
 //TokenDetailsDTO ...
 type TokenDetailsDTO struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	AtExpires    int64  `json:"at_expires"`
-	RtExpires    int64  `json:"rt_expires"`
+	AccessToken   string `json:"access_token"`
+	RefreshToken  string `json:"refresh_token"`
+	AtExpiresTime time.Time
+	RtExpiresTime time.Time
+	AtUUID        uuid.UUID
+	RtUUID        uuid.UUID
 }

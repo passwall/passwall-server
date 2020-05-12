@@ -13,6 +13,7 @@ import (
 	"github.com/pass-wall/passwall-server/internal/storage/creditcard"
 	"github.com/pass-wall/passwall-server/internal/storage/login"
 	"github.com/pass-wall/passwall-server/internal/storage/note"
+	"github.com/pass-wall/passwall-server/internal/storage/token"
 )
 
 // Database is the concrete store provider.
@@ -22,6 +23,7 @@ type Database struct {
 	cards    CreditCardRepository
 	accounts BankAccountRepository
 	notes    NoteRepository
+	tokens   TokenRepository
 }
 
 // New opens a database according to configuration.
@@ -62,6 +64,7 @@ func New(cfg *config.DatabaseConfiguration) (*Database, error) {
 		cards:    creditcard.NewRepository(db),
 		accounts: bankaccount.NewRepository(db),
 		notes:    note.NewRepository(db),
+		tokens:   token.NewRepository(db),
 	}, nil
 }
 
@@ -98,4 +101,9 @@ func (db *Database) BankAccounts() BankAccountRepository {
 // Notes returns the BankAccountRepository.
 func (db *Database) Notes() NoteRepository {
 	return db.notes
+}
+
+// Tokens returns the TokenRepository.
+func (db *Database) Tokens() TokenRepository {
+	return db.tokens
 }
