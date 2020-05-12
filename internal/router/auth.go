@@ -30,7 +30,6 @@ func Auth(s storage.Store) negroni.HandlerFunc {
 			if token != nil {
 				claims, _ := token.Claims.(jwt.MapClaims)
 				uuid, _ := claims["uuid"].(string)
-				fmt.Println(uuid)
 				s.Tokens().DeleteByUUID(uuid)
 			}
 			// it's not good idea to give error information to the requester.
