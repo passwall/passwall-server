@@ -1,6 +1,11 @@
 package storage
 
-import "github.com/pass-wall/passwall-server/model"
+import (
+	"time"
+
+	"github.com/pass-wall/passwall-server/model"
+	uuid "github.com/satori/go.uuid"
+)
 
 // LoginRepository interface is the common interface for a repository
 // Each method checks the entity type.
@@ -67,5 +72,13 @@ type NoteRepository interface {
 	// Delete removes the entity from the store
 	Delete(id uint) error
 	// Migrate migrates the repository
+	Migrate() error
+}
+
+type TokenRepository interface {
+	Any(uuid string) bool
+	Save(userid int, uuid uuid.UUID, tkn string, expriydate time.Time)
+	Delete(userid int)
+	DeleteByUUID(uuid string)
 	Migrate() error
 }
