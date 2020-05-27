@@ -19,14 +19,14 @@ func NewBankAccountRepository(db *gorm.DB) BankAccountRepository {
 
 // All ...
 func (p *BankAccountRepository) All() ([]model.BankAccount, error) {
-	bankAccounts := []model.BankAccount{}
+	var bankAccounts []model.BankAccount
 	err := p.DB.Find(&bankAccounts).Error
 	return bankAccounts, err
 }
 
 // FindAll ...
 func (p *BankAccountRepository) FindAll(argsStr map[string]string, argsInt map[string]int) ([]model.BankAccount, error) {
-	bankAccounts := []model.BankAccount{}
+	var bankAccounts []model.BankAccount
 
 	query := p.DB
 	query = query.Limit(argsInt["limit"])
@@ -52,7 +52,7 @@ func (p *BankAccountRepository) FindAll(argsStr map[string]string, argsInt map[s
 
 // FindByID ...
 func (p *BankAccountRepository) FindByID(id uint) (model.BankAccount, error) {
-	bankAccount := model.BankAccount{}
+	var bankAccount model.BankAccount
 	err := p.DB.Where(`id = ?`, id).First(&bankAccount).Error
 	return bankAccount, err
 }

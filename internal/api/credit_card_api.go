@@ -14,6 +14,12 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	InvalidRequestPayload = "Invalid request payload"
+	CreditCardDeleted     = "CreditCard deleted successfully!"
+	Success               = "Success"
+)
+
 // CreditCardAPI ...
 type CreditCardAPI struct {
 	CreditCardService app.CreditCardService
@@ -32,7 +38,7 @@ func (p *CreditCardAPI) GetHandler(w http.ResponseWriter, r *http.Request) {
 	case "backup":
 		app.ListBackup(w, r)
 	default:
-		common.RespondWithError(w, http.StatusNotFound, "Invalid resquest payload")
+		common.RespondWithError(w, http.StatusNotFound, InvalidRequestPayload)
 		return
 	}
 }
@@ -40,7 +46,7 @@ func (p *CreditCardAPI) GetHandler(w http.ResponseWriter, r *http.Request) {
 // FindAll ...
 func (p *CreditCardAPI) FindAll(w http.ResponseWriter, r *http.Request) {
 	var err error
-	creditCards := []model.CreditCard{}
+	var creditCards []model.CreditCard
 
 	fields := []string{"id", "created_at", "updated_at", "bank_name", "bank_code", "account_name", "account_number", "iban", "currency"}
 	argsStr, argsInt := SetArgs(r, fields)
@@ -83,7 +89,7 @@ func (p *CreditCardAPI) Create(w http.ResponseWriter, r *http.Request) {
 
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&creditCardDTO); err != nil {
-		common.RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+		common.RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 		return
 	}
 	defer r.Body.Close()
@@ -114,7 +120,7 @@ func (p *CreditCardAPI) Update(w http.ResponseWriter, r *http.Request) {
 	var creditCardDTO model.CreditCardDTO
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&creditCardDTO); err != nil {
-		common.RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+		common.RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 		return
 	}
 	defer r.Body.Close()
@@ -162,7 +168,7 @@ func (p *CreditCardAPI) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := model.Response{http.StatusOK, "Success", "CreditCard deleted successfully!"}
+	response := model.Response{Code: http.StatusOK, Status: Success, Message: CreditCardDeleted}
 	common.RespondWithJSON(w, http.StatusOK, response)
 }
 

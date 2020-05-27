@@ -14,6 +14,15 @@ import (
 
 var validate *validator.Validate
 
+var (
+	InvalidUser = "Invalid user"
+	InvalidJson = "Invalid json provided"
+
+	ValidToken     = "Token is valid"
+	InvalidToken   = "Token is expired or not valid!"
+	TokenCreateErr = "Token could not be created"
+)
+
 // Signin ...
 func Signin(w http.ResponseWriter, r *http.Request) {
 
@@ -24,7 +33,7 @@ func Signin(w http.ResponseWriter, r *http.Request) {
 	// get loginDTO
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&loginDTO); err != nil {
-		common.RespondWithError(w, http.StatusUnprocessableEntity, "Invalid json provided")
+		common.RespondWithError(w, http.StatusUnprocessableEntity, InvalidJson)
 		return
 	}
 	defer r.Body.Close()
@@ -33,21 +42,21 @@ func Signin(w http.ResponseWriter, r *http.Request) {
 	validateError := validate.Struct(loginDTO)
 	if validateError != nil {
 		errs := common.GetErrors(validateError.(validator.ValidationErrors))
-		common.RespondWithErrors(w, http.StatusBadRequest, "Invalid resquest payload", errs)
+		common.RespondWithErrors(w, http.StatusBadRequest, InvalidRequestPayload, errs)
 		return
 	}
 
 	// check user
 	if viper.GetString("server.username") != loginDTO.Username ||
 		viper.GetString("server.password") != loginDTO.Password {
-		common.RespondWithError(w, http.StatusUnauthorized, "Invalid User")
+		common.RespondWithError(w, http.StatusUnauthorized, InvalidUser)
 		return
 	}
 
 	//create token
 	token, err := a.CreateToken()
 	if err != nil {
-		common.RespondWithError(w, http.StatusInternalServerError, "Token could not be created")
+		common.RespondWithError(w, http.StatusInternalServerError, TokenCreateErr)
 		return
 	}
 
@@ -68,7 +77,7 @@ func RefreshToken(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&mapToken); err != nil {
 		errs := []string{"REFRESH_TOKEN_ERROR"}
-		common.RespondWithErrors(w, http.StatusUnprocessableEntity, "Invalid json provided", errs)
+		common.RespondWithErrors(w, http.StatusUnprocessableEntity, InvalidJson, errs)
 		return
 	}
 	defer r.Body.Close()
@@ -94,10 +103,10 @@ func CheckToken(w http.ResponseWriter, r *http.Request) {
 
 	err := auth.TokenValid(r)
 	if err != nil {
-		common.RespondWithError(w, http.StatusUnauthorized, "Token is expired or not valid!")
+		common.RespondWithError(w, http.StatusUnauthorized, InvalidToken)
 		return
 	}
 
-	response := model.Response{http.StatusOK, "Success", "Token is valid!"}
+	response := model.Response{Code: http.StatusOK, Status: Success, Message: ValidToken}
 	common.RespondWithJSON(w, http.StatusOK, response)
 }

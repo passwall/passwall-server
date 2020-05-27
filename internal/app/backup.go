@@ -20,6 +20,17 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	timeFormat    = "2006-01-02T15-04-05"
+	BackupSuccess = "Backup completed successfully!"
+	Success       = "Success"
+)
+
+var (
+	LoginEncodeError = errors.New("failed to encode login information")
+	BackupError      = errors.New("error occurred while backing up data")
+)
+
 // Backup gets all logins, compresses with passphrase and saves to ./store
 func Backup(w http.ResponseWriter, r *http.Request) {
 	err := BackupData()
@@ -29,7 +40,7 @@ func Backup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := model.Response{http.StatusOK, "Success", "Backup completed successfully!"}
+	response := model.Response{Code: http.StatusOK, Status: Success, Message: BackupSuccess}
 	common.RespondWithJSON(w, http.StatusOK, response)
 }
 
@@ -53,17 +64,19 @@ func ListBackup(w http.ResponseWriter, r *http.Request) {
 // BackupData ...
 func BackupData() error {
 	backupFolder := viper.GetString("backup.folder")
-	backupPath := fmt.Sprintf("%s/passwall-%s.bak", backupFolder, time.Now().Format("2006-01-02T15-04-05"))
+	backupPath := fmt.Sprintf("%s/passwall-%s.bak", backupFolder, time.Now().Format(timeFormat))
 
 	db := storage.GetDB()
 
-	var logins []model.Login
-	db.Find(&logins)
-	logins = DecryptLoginPasswords(logins)
+	var loginList []model.Login
+	db.Find(&loginList)
+	loginList = DecryptLoginPasswords(loginList)
 
 	// Struct to []byte vs. vs.
 	loginBytes := new(bytes.Buffer)
-	json.NewEncoder(loginBytes).Encode(logins)
+	if err := json.NewEncoder(loginBytes).Encode(loginList); err != nil {
+		return LoginEncodeError
+	}
 
 	if _, err := os.Stat(backupFolder); os.IsNotExist(err) {
 		//http://permissions-calculator.org/
@@ -73,13 +86,15 @@ func BackupData() error {
 	} else if err == nil {
 		// is exist folder
 	} else {
-		err := errors.New("Error occured while backuping data")
+		err := BackupError
 		return err
 	}
 
 	encryption.EncryptFile(backupPath, loginBytes.Bytes(), viper.GetString("server.passphrase"))
 
-	rotateBackup()
+	if err := rotateBackup(); err != nil {
+		return err
+	}
 
 	return nil
 }

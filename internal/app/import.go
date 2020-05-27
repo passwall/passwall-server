@@ -20,6 +20,10 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	ImportSuccess = "Import finished successfully!"
+)
+
 // Import ...
 func Import(w http.ResponseWriter, r *http.Request) {
 	url := r.FormValue("url")
@@ -50,7 +54,7 @@ func Import(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := model.Response{http.StatusOK, "Success", "Import finished successfully!"}
+	response := model.Response{Code: http.StatusOK, Status: Success, Message: ImportSuccess}
 	common.RespondWithJSON(w, http.StatusOK, response)
 }
 

@@ -14,6 +14,10 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	LoginDeleteSuccess = "Login deleted successfully!"
+)
+
 // LoginAPI ...
 type LoginAPI struct {
 	LoginService app.LoginService
@@ -32,7 +36,7 @@ func (p *LoginAPI) GetHandler(w http.ResponseWriter, r *http.Request) {
 	case "backup":
 		app.ListBackup(w, r)
 	default:
-		common.RespondWithError(w, http.StatusNotFound, "Invalid resquest payload")
+		common.RespondWithError(w, http.StatusNotFound, InvalidRequestPayload)
 		return
 	}
 }
@@ -55,7 +59,7 @@ func (p *LoginAPI) PostHandler(w http.ResponseWriter, r *http.Request) {
 	case "check-password":
 		p.FindSamePassword(w, r)
 	default:
-		common.RespondWithError(w, http.StatusNotFound, "Invalid resquest payload")
+		common.RespondWithError(w, http.StatusNotFound, InvalidRequestPayload)
 		return
 	}
 }
@@ -63,20 +67,20 @@ func (p *LoginAPI) PostHandler(w http.ResponseWriter, r *http.Request) {
 // FindAll ...
 func (p *LoginAPI) FindAll(w http.ResponseWriter, r *http.Request) {
 	var err error
-	logins := []model.Login{}
+	var loginList []model.Login
 
 	fields := []string{"id", "created_at", "updated_at", "url", "username"}
 	argsStr, argsInt := SetArgs(r, fields)
 
-	logins, err = p.LoginService.FindAll(argsStr, argsInt)
+	loginList, err = p.LoginService.FindAll(argsStr, argsInt)
 
 	if err != nil {
 		common.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
 	}
 
-	logins = app.DecryptLoginPasswords(logins)
-	common.RespondWithJSON(w, http.StatusOK, logins)
+	loginList = app.DecryptLoginPasswords(loginList)
+	common.RespondWithJSON(w, http.StatusOK, loginList)
 }
 
 // FindByID ...
@@ -106,7 +110,7 @@ func (p *LoginAPI) Create(w http.ResponseWriter, r *http.Request) {
 
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&loginDTO); err != nil {
-		common.RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+		common.RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 		return
 	}
 	defer r.Body.Close()
@@ -191,7 +195,7 @@ func (p *LoginAPI) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := model.Response{http.StatusOK, "Success", "Login deleted successfully!"}
+	response := model.Response{Code: http.StatusOK, Status: Success, Message: LoginDeleteSuccess}
 	common.RespondWithJSON(w, http.StatusOK, response)
 }
 
@@ -201,7 +205,7 @@ func (p *LoginAPI) FindSamePassword(w http.ResponseWriter, r *http.Request) {
 
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&password); err != nil {
-		common.RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+		common.RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 		return
 	}
 	defer r.Body.Close()

@@ -11,6 +11,11 @@ import (
 	"github.com/spf13/viper"
 )
 
+var (
+	ExpiredRefreshToken = fmt.Errorf("Refresh token expired or invalid")
+	Unauthorized        = fmt.Errorf("Unauthorized")
+)
+
 //CreateToken ...
 func CreateToken() (*TokenDetailsDTO, error) {
 
@@ -60,12 +65,13 @@ func RefreshToken(refreshToken string) (*TokenDetailsDTO, error) {
 
 	//if there is an error, the token must have expired
 	if err != nil {
-		return nil, fmt.Errorf("Refresh token expired or invalid")
+		return nil, ExpiredRefreshToken
+
 	}
 
 	//is token valid?
 	if _, ok := token.Claims.(jwt.Claims); !ok && !token.Valid {
-		return nil, fmt.Errorf("Unauthorized")
+		return nil, Unauthorized
 	}
 
 	//Since token is valid, get the user_id:
@@ -86,7 +92,7 @@ func RefreshToken(refreshToken string) (*TokenDetailsDTO, error) {
 		return ts, nil
 	}
 
-	return nil, fmt.Errorf("Refresh token expired or invalid")
+	return nil, ExpiredRefreshToken
 
 }
 

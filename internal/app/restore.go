@@ -15,6 +15,11 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	InvalidJson          = "Invalid json provided"
+	RestoreBackupSuccess = "Restore from backup completed successfully!"
+)
+
 // Restore restores logins from backup file ./store/passwall-{BACKUP_DATE}.bak
 func Restore(w http.ResponseWriter, r *http.Request) {
 	var restoreDTO model.RestoreDTO
@@ -22,7 +27,7 @@ func Restore(w http.ResponseWriter, r *http.Request) {
 	// get restoreDTO
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&restoreDTO); err != nil {
-		common.RespondWithError(w, http.StatusUnprocessableEntity, "Invalid json provided")
+		common.RespondWithError(w, http.StatusUnprocessableEntity, InvalidJson)
 		return
 	}
 	defer r.Body.Close()
@@ -58,6 +63,6 @@ func Restore(w http.ResponseWriter, r *http.Request) {
 		db.Save(&login)
 	}
 
-	response := model.Response{http.StatusOK, "Success", "Restore from backup completed successfully!"}
+	response := model.Response{Code: http.StatusOK, Status: Success, Message: RestoreBackupSuccess}
 	common.RespondWithJSON(w, http.StatusOK, response)
 }

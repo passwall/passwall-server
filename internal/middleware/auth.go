@@ -7,13 +7,18 @@ import (
 	"github.com/pass-wall/passwall-server/internal/common"
 )
 
+var (
+	TokenErr        = "TOKEN_ERROR"
+	UnauthorizedErr = "Unauthorized Error"
+)
+
 //Auth verify authentication
 func Auth(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 
 	err := auth.TokenValid(r)
 	if err != nil {
-		errs := []string{"TOKEN_ERROR"}
-		common.RespondWithErrors(w, http.StatusUnauthorized, "Unauthorized Error", errs)
+		errs := []string{TokenErr}
+		common.RespondWithErrors(w, http.StatusUnauthorized, UnauthorizedErr, errs)
 		return
 	}
 
