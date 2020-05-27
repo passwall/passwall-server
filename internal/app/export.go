@@ -13,14 +13,14 @@ import (
 func Export(w http.ResponseWriter, r *http.Request) {
 	db := storage.GetDB()
 
-	var logins []model.Login
-	db.Find(&logins)
-	logins = DecryptLoginPasswords(logins)
+	var loginList []model.Login
+	db.Find(&loginList)
+	loginList = DecryptLoginPasswords(loginList)
 
-	content := [][]string{}
+	var content [][]string
 	content = append(content, []string{"URL", "Username", "Password"})
-	for i := range logins {
-		content = append(content, []string{logins[i].URL, logins[i].Username, logins[i].Password})
+	for i := range loginList {
+		content = append(content, []string{loginList[i].URL, loginList[i].Username, loginList[i].Password})
 	}
 
 	b := &bytes.Buffer{} // creates IO Writer

@@ -19,14 +19,14 @@ func NewCreditCardRepository(db *gorm.DB) CreditCardRepository {
 
 // All ...
 func (p *CreditCardRepository) All() ([]model.CreditCard, error) {
-	creditCards := []model.CreditCard{}
+	var creditCards []model.CreditCard
 	err := p.DB.Find(&creditCards).Error
 	return creditCards, err
 }
 
 // FindAll ...
 func (p *CreditCardRepository) FindAll(argsStr map[string]string, argsInt map[string]int) ([]model.CreditCard, error) {
-	creditCards := []model.CreditCard{}
+	var creditCards []model.CreditCard
 
 	query := p.DB
 	query = query.Limit(argsInt["limit"])

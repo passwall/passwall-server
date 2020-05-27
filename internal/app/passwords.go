@@ -13,20 +13,20 @@ import (
 // GeneratePassword generates new password
 func GeneratePassword(w http.ResponseWriter, r *http.Request) {
 	password := encryption.Password()
-	response := model.Response{http.StatusOK, "Success", password}
+	response := model.Response{Code: http.StatusOK, Status: Success, Message: password}
 	common.RespondWithJSON(w, http.StatusOK, response)
 }
 
 // FindSamePassword ...
 func FindSamePassword(p *LoginService, password model.Password) (model.URLs, error) {
 
-	logins, err := p.LoginRepository.All()
+	loginList, err := p.LoginRepository.All()
 
-	logins = DecryptLoginPasswords(logins)
+	loginList = DecryptLoginPasswords(loginList)
 
 	newUrls := model.URLs{Items: []string{}}
 
-	for _, login := range logins {
+	for _, login := range loginList {
 		if login.Password == password.Password {
 			newUrls.AddItem(login.URL)
 		}
@@ -36,16 +36,16 @@ func FindSamePassword(p *LoginService, password model.Password) (model.URLs, err
 }
 
 // DecryptLoginPasswords ...
-func DecryptLoginPasswords(logins []model.Login) []model.Login {
-	for i := range logins {
-		if logins[i].Password == "" {
+func DecryptLoginPasswords(loginList []model.Login) []model.Login {
+	for i := range loginList {
+		if loginList[i].Password == "" {
 			continue
 		}
-		passByte, _ := base64.StdEncoding.DecodeString(logins[i].Password)
+		passByte, _ := base64.StdEncoding.DecodeString(loginList[i].Password)
 		passB64 := string(encryption.Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
-		logins[i].Password = passB64
+		loginList[i].Password = passB64
 	}
-	return logins
+	return loginList
 }
 
 // DecryptBankAccountPasswords ...

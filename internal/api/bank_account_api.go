@@ -14,6 +14,10 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	BankAccountDeleteSuccess = "BankAccount deleted successfully!"
+)
+
 // BankAccountAPI ...
 type BankAccountAPI struct {
 	BankAccountService app.BankAccountService
@@ -32,7 +36,7 @@ func (p *BankAccountAPI) GetHandler(w http.ResponseWriter, r *http.Request) {
 	case "backup":
 		app.ListBackup(w, r)
 	default:
-		common.RespondWithError(w, http.StatusNotFound, "Invalid resquest payload")
+		common.RespondWithError(w, http.StatusNotFound, InvalidRequestPayload)
 		return
 	}
 }
@@ -40,7 +44,7 @@ func (p *BankAccountAPI) GetHandler(w http.ResponseWriter, r *http.Request) {
 // FindAll ...
 func (p *BankAccountAPI) FindAll(w http.ResponseWriter, r *http.Request) {
 	var err error
-	bankAccounts := []model.BankAccount{}
+	var bankAccounts []model.BankAccount
 
 	fields := []string{"id", "created_at", "updated_at", "bank_name", "bank_code", "account_name", "account_number", "iban", "currency"}
 	argsStr, argsInt := SetArgs(r, fields)
@@ -83,7 +87,7 @@ func (p *BankAccountAPI) Create(w http.ResponseWriter, r *http.Request) {
 
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&bankAccountDTO); err != nil {
-		common.RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+		common.RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 		return
 	}
 	defer r.Body.Close()
@@ -118,7 +122,7 @@ func (p *BankAccountAPI) Update(w http.ResponseWriter, r *http.Request) {
 	var bankAccountDTO model.BankAccountDTO
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&bankAccountDTO); err != nil {
-		common.RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+		common.RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 		return
 	}
 	defer r.Body.Close()
@@ -169,7 +173,7 @@ func (p *BankAccountAPI) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := model.Response{http.StatusOK, "Success", "BankAccount deleted successfully!"}
+	response := model.Response{Code: http.StatusOK, Status: Success, Message: BankAccountDeleteSuccess}
 	common.RespondWithJSON(w, http.StatusOK, response)
 }
 

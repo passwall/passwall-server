@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/spf13/viper"
@@ -13,8 +14,9 @@ import (
 
 var (
 	// DB ...
-	DB  *gorm.DB
-	err error
+	DB            *gorm.DB
+	err           error
+	InvalidDriver = "Invalid database driver"
 )
 
 // Database ...
@@ -33,29 +35,26 @@ func Setup() {
 	host := viper.GetString("database.host")
 	port := viper.GetString("database.port")
 
-	if driver == "sqlite" {
+	switch driver := driver; driver {
 
+	case "sqlite":
 		// Default value is set on configuration.go
 		path := viper.GetString("database.path")
 		db, err = gorm.Open("sqlite3", path)
-		if err != nil {
-			log.Fatal("db err: ", err)
-		}
+		FatalDBErr(err)
 
-	} else if driver == "postgres" {
+	case "postgres":
 
 		db, err = gorm.Open("postgres", "host="+host+" port="+port+" user="+username+" dbname="+database+"  sslmode=disable password="+password)
-		if err != nil {
-			log.Fatal("db err: ", err)
-		}
+		FatalDBErr(err)
 
-	} else if driver == "mysql" {
-
+	case "mysql":
 		db, err = gorm.Open("mysql", username+":"+password+"@tcp("+host+":"+port+")/"+database+"?charset=utf8&parseTime=True&loc=Local")
-		if err != nil {
-			log.Fatal("db err: ", err)
-		}
+		FatalDBErr(err)
 
+	default:
+		// if db driver did not specified or not supported
+		fmt.Printf("Invalid database driver %s", driver)
 	}
 
 	// Change this to true if you want to see SQL queries
@@ -67,4 +66,10 @@ func Setup() {
 // GetDB helps you to get a connection
 func GetDB() *gorm.DB {
 	return DB
+}
+
+func FatalDBErr(err error) {
+	if err != nil {
+		log.Fatal("db err: ", err)
+	}
 }
