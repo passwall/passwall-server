@@ -19,12 +19,10 @@ import (
 
 const (
 	timeFormat = "2006-01-02T15-04-05"
-	Success    = "Success"
 )
 
 var (
-	LoginEncodeError = errors.New("failed to encode login information")
-	BackupError      = errors.New("error occurred while backing up data")
+	BackupError = errors.New("error occurred while backing up data")
 )
 
 // BackupData ...
