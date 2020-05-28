@@ -12,11 +12,15 @@ import (
 	"github.com/gorilla/mux"
 )
 
+const (
+	BankAccountDeleteSuccess = "BankAccount deleted successfully!"
+)
+
 // FindAll ...
 func FindAllBankAccounts(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
-		bankAccounts := []model.BankAccount{}
+		var bankAccounts []model.BankAccount
 
 		fields := []string{"id", "created_at", "updated_at", "bank_name", "bank_code", "account_name", "account_number", "iban", "currency"}
 		argsStr, argsInt := SetArgs(r, fields)
@@ -65,7 +69,7 @@ func CreateBankAccount(s storage.Store) http.HandlerFunc {
 
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&bankAccountDTO); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
@@ -93,7 +97,7 @@ func UpdateBankAccount(s storage.Store) http.HandlerFunc {
 		var bankAccountDTO model.BankAccountDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&bankAccountDTO); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
@@ -138,8 +142,8 @@ func DeleteBankAccount(s storage.Store) http.HandlerFunc {
 
 		response := model.Response{
 			Code:    http.StatusOK,
-			Status:  "Success",
-			Message: "BankAccount deleted successfully!",
+			Status:  Success,
+			Message: BankAccountDeleteSuccess,
 		}
 		RespondWithJSON(w, http.StatusOK, response)
 	}

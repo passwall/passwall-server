@@ -12,6 +12,10 @@ import (
 	"github.com/gorilla/mux"
 )
 
+const (
+	NoteDeleteSuccess = "Note deleted successfully!"
+)
+
 // FindAll ...
 func FindAllNotes(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +70,7 @@ func CreateNote(s storage.Store) http.HandlerFunc {
 
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&noteDTO); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
@@ -94,7 +98,7 @@ func UpdateNote(s storage.Store) http.HandlerFunc {
 		var noteDTO model.NoteDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&noteDTO); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
@@ -139,8 +143,8 @@ func DeleteNote(s storage.Store) http.HandlerFunc {
 
 		response := model.Response{
 			Code:    http.StatusOK,
-			Status:  "Success",
-			Message: "Note deleted successfully!",
+			Status:  Success,
+			Message: NoteDeleteSuccess,
 		}
 		RespondWithJSON(w, http.StatusOK, response)
 	}

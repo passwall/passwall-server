@@ -12,6 +12,11 @@ import (
 	"github.com/spf13/viper"
 )
 
+var (
+	ExpiredToken = fmt.Errorf("Token expired or invalid")
+	Unauthorized = fmt.Errorf("Unauthorized")
+)
+
 //CreateToken ...
 func CreateToken() (*model.TokenDetailsDTO, error) {
 
@@ -64,7 +69,7 @@ func TokenValid(bearerToken string) (*jwt.Token, error) {
 		return nil, err
 	}
 	if _, ok := token.Claims.(jwt.Claims); !ok && !token.Valid {
-		return nil, fmt.Errorf("Unauthorized")
+		return nil, Unauthorized
 	}
 	return token, nil
 }
@@ -79,7 +84,7 @@ func verifyToken(tokenString string) (*jwt.Token, error) {
 		return []byte(viper.GetString("server.secret")), nil
 	})
 	if err != nil {
-		return token, fmt.Errorf("Token expired or invalid")
+		return token, ExpiredToken
 	}
 	return token, nil
 }

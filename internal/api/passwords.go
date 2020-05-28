@@ -16,7 +16,7 @@ func FindSamePassword(s storage.Store) http.HandlerFunc {
 
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&password); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
@@ -37,7 +37,7 @@ func GeneratePassword(w http.ResponseWriter, r *http.Request) {
 	password := app.Password()
 	response := model.Response{
 		Code:    http.StatusOK,
-		Status:  "Success",
+		Status:  Success,
 		Message: password,
 	}
 	RespondWithJSON(w, http.StatusOK, response)

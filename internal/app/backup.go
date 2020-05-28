@@ -17,18 +17,26 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	timeFormat = "2006-01-02T15-04-05"
+)
+
+var (
+	BackupError = errors.New("error occurred while backing up data")
+)
+
 // BackupData ...
 func BackupData(s storage.Store) error {
 	backupFolder := viper.GetString("backup.folder")
-	backupPath := fmt.Sprintf("%s/passwall-%s.bak", backupFolder, time.Now().Format("2006-01-02T15-04-05"))
+	backupPath := fmt.Sprintf("%s/passwall-%s.bak", backupFolder, time.Now().Format(timeFormat))
 
-	var logins []model.Login
-	s.Find(&logins)
-	logins = DecryptLoginPasswords(logins)
+	var loginList []model.Login
+	s.Find(&loginList)
+	loginList = DecryptLoginPasswords(loginList)
 
 	// Struct to []byte vs. vs.
 	loginBytes := new(bytes.Buffer)
-	json.NewEncoder(loginBytes).Encode(logins)
+	json.NewEncoder(loginBytes).Encode(loginList)
 
 	if _, err := os.Stat(backupFolder); os.IsNotExist(err) {
 		//http://permissions-calculator.org/
@@ -38,7 +46,7 @@ func BackupData(s storage.Store) error {
 	} else if err == nil {
 		// is exist folder
 	} else {
-		err := errors.New("Error occured while backuping data")
+		err := BackupError
 		return err
 	}
 

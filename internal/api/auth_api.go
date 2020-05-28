@@ -15,6 +15,13 @@ import (
 	"github.com/spf13/viper"
 )
 
+var (
+	InvalidUser    = "Invalid user"
+	ValidToken     = "Token is valid"
+	InvalidToken   = "Token is expired or not valid!"
+	TokenCreateErr = "Token could not be created"
+)
+
 // Signin ...
 func Signin(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -25,7 +32,7 @@ func Signin(s storage.Store) http.HandlerFunc {
 		// get loginDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&loginDTO); err != nil {
-			RespondWithError(w, http.StatusUnprocessableEntity, "Invalid json provided")
+			RespondWithError(w, http.StatusUnprocessableEntity, InvalidJSON)
 			return
 		}
 		defer r.Body.Close()
@@ -34,21 +41,21 @@ func Signin(s storage.Store) http.HandlerFunc {
 		validateError := validate.Struct(loginDTO)
 		if validateError != nil {
 			errs := GetErrors(validateError.(validator.ValidationErrors))
-			RespondWithErrors(w, http.StatusBadRequest, "Invalid resquest payload", errs)
+			RespondWithErrors(w, http.StatusBadRequest, InvalidRequestPayload, errs)
 			return
 		}
 
 		// check user
 		if viper.GetString("server.username") != loginDTO.Username ||
 			viper.GetString("server.password") != loginDTO.Password {
-			RespondWithError(w, http.StatusUnauthorized, "Invalid User")
+			RespondWithError(w, http.StatusUnauthorized, InvalidUser)
 			return
 		}
 
 		//create token
 		token, err := app.CreateToken()
 		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, "Token could not be created")
+			RespondWithError(w, http.StatusInternalServerError, TokenCreateErr)
 			return
 		}
 
@@ -77,7 +84,7 @@ func RefreshToken(s storage.Store) http.HandlerFunc {
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&mapToken); err != nil {
 			errs := []string{"REFRESH_TOKEN_ERROR"}
-			RespondWithErrors(w, http.StatusUnprocessableEntity, "Invalid json provided", errs)
+			RespondWithErrors(w, http.StatusUnprocessableEntity, InvalidJSON, errs)
 			return
 		}
 		defer r.Body.Close()
@@ -101,14 +108,14 @@ func RefreshToken(s storage.Store) http.HandlerFunc {
 		if !s.Tokens().Any(uuid) {
 			userid, _ := strconv.Atoi(fmt.Sprintf("%.f", claims["user_id"]))
 			s.Tokens().Delete(userid)
-			RespondWithError(w, http.StatusUnauthorized, "Invalid token")
+			RespondWithError(w, http.StatusUnauthorized, InvalidToken)
 			return
 		}
 
 		//create token
 		newtoken, err := app.CreateToken()
 		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, "Token could not be created")
+			RespondWithError(w, http.StatusInternalServerError, TokenCreateErr)
 			return
 		}
 
@@ -141,14 +148,14 @@ func CheckToken(w http.ResponseWriter, r *http.Request) {
 
 	_, err := app.TokenValid(token)
 	if err != nil {
-		RespondWithError(w, http.StatusUnauthorized, "Token is expired or not valid!")
+		RespondWithError(w, http.StatusUnauthorized, InvalidToken)
 		return
 	}
 
 	response := model.Response{
 		Code:    http.StatusOK,
-		Status:  "Success",
-		Message: "Token is valid!",
+		Status:  Success,
+		Message: ValidToken,
 	}
 
 	RespondWithJSON(w, http.StatusOK, response)
