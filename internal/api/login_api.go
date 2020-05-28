@@ -12,6 +12,10 @@ import (
 	"github.com/gorilla/mux"
 )
 
+const (
+	LoginDeleteSuccess = "Login deleted successfully!"
+)
+
 // FindAll ...
 func FindAllLogins(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +70,7 @@ func CreateLogin(s storage.Store) http.HandlerFunc {
 
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&loginDTO); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
@@ -98,7 +102,7 @@ func UpdateLogin(s storage.Store) http.HandlerFunc {
 		var loginDTO model.LoginDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&loginDTO); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
@@ -143,8 +147,8 @@ func DeleteLogin(s storage.Store) http.HandlerFunc {
 
 		response := model.Response{
 			Code:    http.StatusOK,
-			Status:  "Success",
-			Message: "Login deleted successfully!",
+			Status:  Success,
+			Message: LoginDeleteSuccess,
 		}
 		RespondWithJSON(w, http.StatusOK, response)
 	}

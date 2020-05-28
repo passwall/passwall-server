@@ -18,6 +18,13 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	InvalidJSON          = "Invalid json provided"
+	RestoreBackupSuccess = "Restore from backup completed successfully!"
+	ImportSuccess        = "Import finished successfully!"
+	BackupSuccess        = "Backup completed successfully!"
+)
+
 // Import ...
 func Import(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -49,7 +56,7 @@ func Import(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		response := model.Response{http.StatusOK, "Success", "Import finished successfully!"}
+		response := model.Response{http.StatusOK, Success, ImportSuccess}
 		RespondWithJSON(w, http.StatusOK, response)
 	}
 }
@@ -89,7 +96,7 @@ func Restore(s storage.Store) http.HandlerFunc {
 		// get restoreDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&restoreDTO); err != nil {
-			RespondWithError(w, http.StatusUnprocessableEntity, "Invalid json provided")
+			RespondWithError(w, http.StatusUnprocessableEntity, InvalidJSON)
 			return
 		}
 		defer r.Body.Close()
@@ -124,7 +131,7 @@ func Restore(s storage.Store) http.HandlerFunc {
 			s.Logins().Save(login)
 		}
 
-		response := model.Response{http.StatusOK, "Success", "Restore from backup completed successfully!"}
+		response := model.Response{http.StatusOK, Success, RestoreBackupSuccess}
 		RespondWithJSON(w, http.StatusOK, response)
 	}
 }
@@ -139,7 +146,7 @@ func Backup(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		response := model.Response{http.StatusOK, "Success", "Backup completed successfully!"}
+		response := model.Response{http.StatusOK, Success, BackupSuccess}
 		RespondWithJSON(w, http.StatusOK, response)
 	}
 }

@@ -17,10 +17,20 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	timeFormat = "2006-01-02T15-04-05"
+	Success    = "Success"
+)
+
+var (
+	LoginEncodeError = errors.New("failed to encode login information")
+	BackupError      = errors.New("error occurred while backing up data")
+)
+
 // BackupData ...
 func BackupData(s storage.Store) error {
 	backupFolder := viper.GetString("backup.folder")
-	backupPath := fmt.Sprintf("%s/passwall-%s.bak", backupFolder, time.Now().Format("2006-01-02T15-04-05"))
+	backupPath := fmt.Sprintf("%s/passwall-%s.bak", backupFolder, time.Now().Format(timeFormat))
 
 	var logins []model.Login
 	s.Find(&logins)
@@ -38,7 +48,7 @@ func BackupData(s storage.Store) error {
 	} else if err == nil {
 		// is exist folder
 	} else {
-		err := errors.New("Error occured while backuping data")
+		err := BackupError
 		return err
 	}
 

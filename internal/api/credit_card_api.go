@@ -12,6 +12,12 @@ import (
 	"github.com/gorilla/mux"
 )
 
+const (
+	InvalidRequestPayload = "Invalid request payload"
+	CreditCardDeleted     = "CreditCard deleted successfully!"
+	Success               = "Success"
+)
+
 // FindAll ...
 func FindAllCreditCards(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +72,7 @@ func CreateCreditCard(s storage.Store) http.HandlerFunc {
 
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&creditCardDTO); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
@@ -94,7 +100,7 @@ func UpdateCreditCard(s storage.Store) http.HandlerFunc {
 		var creditCardDTO model.CreditCardDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&creditCardDTO); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
@@ -139,8 +145,8 @@ func DeleteCreditCard(s storage.Store) http.HandlerFunc {
 
 		response := model.Response{
 			Code:    http.StatusOK,
-			Status:  "Success",
-			Message: "CreditCard deleted successfully!",
+			Status:  Success,
+			Message: CreditCardDeleted,
 		}
 		RespondWithJSON(w, http.StatusOK, response)
 	}
