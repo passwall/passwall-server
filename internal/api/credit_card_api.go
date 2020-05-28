@@ -22,7 +22,7 @@ const (
 func FindAllCreditCards(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
-		creditCards := []model.CreditCard{}
+		var creditCards []model.CreditCard
 
 		fields := []string{"id", "created_at", "updated_at", "bank_name", "bank_code", "account_name", "account_number", "iban", "currency"}
 		argsStr, argsInt := SetArgs(r, fields)

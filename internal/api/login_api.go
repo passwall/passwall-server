@@ -20,20 +20,20 @@ const (
 func FindAllLogins(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
-		logins := []model.Login{}
+		var loginList []model.Login
 
 		fields := []string{"id", "created_at", "updated_at", "url", "username"}
 		argsStr, argsInt := SetArgs(r, fields)
 
-		logins, err = s.Logins().FindAll(argsStr, argsInt)
+		loginList, err = s.Logins().FindAll(argsStr, argsInt)
 
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		logins = app.DecryptLoginPasswords(logins)
-		RespondWithJSON(w, http.StatusOK, logins)
+		loginList = app.DecryptLoginPasswords(loginList)
+		RespondWithJSON(w, http.StatusOK, loginList)
 	}
 }
 

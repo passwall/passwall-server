@@ -8,14 +8,14 @@ import (
 // FindSamePassword ...
 func FindSamePassword(s storage.Store, password model.Password) (model.URLs, error) {
 
-	logins, err := s.Logins().All()
+	loginList, err := s.Logins().All()
 	if err != nil {
 		return *new(model.URLs), nil
 	}
-	logins = DecryptLoginPasswords(logins)
+	loginList = DecryptLoginPasswords(loginList)
 	newUrls := model.URLs{Items: []string{}}
 
-	for _, login := range logins {
+	for _, login := range loginList {
 		if login.Password == password.Password {
 			newUrls.AddItem(login.URL)
 		}

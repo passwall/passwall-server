@@ -54,14 +54,14 @@ func DecryptLoginPassword(s storage.Store, login *model.Login) (*model.Login, er
 
 // DecryptLoginPasswords ...
 // TODO: convert to pointers
-func DecryptLoginPasswords(logins []model.Login) []model.Login {
-	for i := range logins {
-		if logins[i].Password == "" {
+func DecryptLoginPasswords(loginList []model.Login) []model.Login {
+	for i := range loginList {
+		if loginList[i].Password == "" {
 			continue
 		}
-		passByte, _ := base64.StdEncoding.DecodeString(logins[i].Password)
+		passByte, _ := base64.StdEncoding.DecodeString(loginList[i].Password)
 		passB64 := string(Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
-		logins[i].Password = passB64
+		loginList[i].Password = passB64
 	}
-	return logins
+	return loginList
 }
