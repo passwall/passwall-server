@@ -12,7 +12,7 @@ COPY ./public ./public
 
 RUN mkdir store
 
-RUN CGO_ENABLED=1 GOOS=linux go build -a --ldflags="-s" ./cmd/passwall-server
+RUN CGO_ENABLED=1 GOOS=linux go build -a -ldflags '-w -extldflags "-static"' ./cmd/passwall-server
 
 FROM scratch
 
