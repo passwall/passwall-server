@@ -4,8 +4,6 @@ Contributing to PassWall
 You are here to help on PassWall? Awesome, feel welcome and read the
 following sections in order to know how to ask questions and how to work on something.
 
-Please make sure you are welcoming and friendly in all of our spaces.
-
 Get in touch
 ------------
 
