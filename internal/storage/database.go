@@ -11,6 +11,7 @@ import (
 	"github.com/pass-wall/passwall-server/internal/config"
 	"github.com/pass-wall/passwall-server/internal/storage/bankaccount"
 	"github.com/pass-wall/passwall-server/internal/storage/creditcard"
+	"github.com/pass-wall/passwall-server/internal/storage/email"
 	"github.com/pass-wall/passwall-server/internal/storage/login"
 	"github.com/pass-wall/passwall-server/internal/storage/note"
 	"github.com/pass-wall/passwall-server/internal/storage/token"
@@ -23,6 +24,7 @@ type Database struct {
 	cards    CreditCardRepository
 	accounts BankAccountRepository
 	notes    NoteRepository
+	emails   EmailRepository
 	tokens   TokenRepository
 }
 
@@ -64,6 +66,7 @@ func New(cfg *config.DatabaseConfiguration) (*Database, error) {
 		cards:    creditcard.NewRepository(db),
 		accounts: bankaccount.NewRepository(db),
 		notes:    note.NewRepository(db),
+		emails:   email.NewRepository(db),
 		tokens:   token.NewRepository(db),
 	}, nil
 }
@@ -101,6 +104,11 @@ func (db *Database) BankAccounts() BankAccountRepository {
 // Notes returns the BankAccountRepository.
 func (db *Database) Notes() NoteRepository {
 	return db.notes
+}
+
+// Emails returns the BankAccountRepository.
+func (db *Database) Emails() EmailRepository {
+	return db.emails
 }
 
 // Tokens returns the TokenRepository.
