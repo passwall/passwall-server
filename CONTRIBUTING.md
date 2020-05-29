@@ -40,6 +40,42 @@ Good pull requests - patches, improvements, new features - are a fantastic help.
 
 Please ask first before embarking on any significant pull request (e.g. implementing features, refactoring code), otherwise you risk spending a lot of time working on something that the project's developers might not want to merge into the project.
 
+PassWall uses the branch naming policy below.
+
+### Branch naming policy
+
+<table>
+  <thead>
+    <tr>
+      <th>Instance</th>
+      <th>Branch</th>
+      <th>Description, Instructions, Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Stable</td>
+      <td>stable</td>
+      <td>Accepts merges from Working and Hotfixes</td>
+    </tr>
+    <tr>
+      <td>Working</td>
+      <td>master</td>
+      <td>Accepts merges from Features/Issues and Hotfixes</td>
+    </tr>
+    <tr>
+      <td>Features/Issues</td>
+      <td>topic-*</td>
+      <td>Always branch off HEAD of Working</td>
+    </tr>
+    <tr>
+      <td>Hotfix</td>
+      <td>hotfix-*</td>
+      <td>Always branch off Stable</td>
+    </tr>
+  </tbody>
+</table>
+
 ### For new Contributors
 
 If you never created a pull request before, welcome :tada: :smile: [Here is a great tutorial](https://egghead.io/series/how-to-contribute-to-an-open-source-project-on-github)
@@ -54,7 +90,7 @@ on how to send one :)
    # Navigate to the newly cloned directory
    cd <repo-name>
    # Assign the original repo to a remote called "upstream"
-   git remote add upstream https://github.com/hoodiehq/<repo-name>
+   git remote add upstream https://github.com/pass-wall/<repo-name>
    ```
 
 2. If you cloned a while ago, get the latest changes from upstream:
