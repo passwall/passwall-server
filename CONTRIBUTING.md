@@ -126,8 +126,6 @@ on how to send one :)
 How to report a bug
 ------------
 
-You can even include a template so people can just copy-paste (again, less work for you).
-
 When filing an issue, make sure to answer these five questions:
 1. What version of Go are you using (go version)?
 2. What operating system and processor architecture are you using?
