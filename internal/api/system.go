@@ -183,6 +183,9 @@ func MigrateTables(s storage.Store) {
 	if err := s.Notes().Migrate(); err != nil {
 		log.Println(err)
 	}
+	if err := s.Emails().Migrate(); err != nil {
+		log.Println(err)
+	}
 	if err := s.Tokens().Migrate(); err != nil {
 		log.Println(err)
 	}

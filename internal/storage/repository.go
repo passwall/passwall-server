@@ -58,7 +58,7 @@ type BankAccountRepository interface {
 	Migrate() error
 }
 
-// BankAccountRepository interface is the common interface for a repository
+// NoteRepository interface is the common interface for a repository
 // Each method checks the entity type.
 type NoteRepository interface {
 	// All returns all the data in the repository.
@@ -69,6 +69,23 @@ type NoteRepository interface {
 	FindByID(id uint) (model.Note, error)
 	// Save stores the entity to the repository
 	Save(account model.Note) (model.Note, error)
+	// Delete removes the entity from the store
+	Delete(id uint) error
+	// Migrate migrates the repository
+	Migrate() error
+}
+
+// EmailRepository interface is the common interface for a repository
+// Each method checks the entity type.
+type EmailRepository interface {
+	// All returns all the data in the repository.
+	All() ([]model.Email, error)
+	// FindAll returns the entities matching the arguments.
+	FindAll(argsStr map[string]string, argsInt map[string]int) ([]model.Email, error)
+	// FindByID finds the entity regarding to its ID.
+	FindByID(id uint) (model.Email, error)
+	// Save stores the entity to the repository
+	Save(account model.Email) (model.Email, error)
 	// Delete removes the entity from the store
 	Delete(id uint) error
 	// Migrate migrates the repository

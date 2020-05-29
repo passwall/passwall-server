@@ -1,0 +1,96 @@
+tr:
+    # Categories
+    categories: Kategoriler
+    logins: Girişler
+    bank_accounts: Banka Hesapları
+    credit_cards: Kredi Kartları
+    notes: Notlar
+    emails: Epostalar
+    identities: Kimlik Bilgileri
+    license_keys: Lisans Anahtarları
+    all_items: Tüm Kayıtlar
+    favorites: Favoriler
+    trash: Çöp Kutusu
+
+    # Server
+    server: Sunucu
+    host: Sunucu Adresi
+    port: port
+    protocol: Protokol
+    
+    # Lisans
+    license_key: Lisans Anahtarı
+    key: Anahtar
+
+    # Logins
+    url: Website Adresi
+
+    # Bank Accounts
+    bank_name: Banka
+    bank_code: Şube Kodu
+	account_name: Hesap İsmi
+	account_number: Hesap Numarası
+	iban: IBAN
+    currency: Para Birimi
+    
+    # Credit Cards
+    card_name: Kart İsmi,
+    cardholder_name: Kart Sahibi
+    type: Tür
+    number: Kart Numarası
+    verification_number: Güvenlik Kodu
+    expiry_date: Son Kullanma Tarihi
+
+    # Emails
+    # email and password is defined in Sign in
+
+    # Notes
+    note: Not
+    notes: Notlar
+
+    # System
+    export: Dışa Aktar
+    import: İçe Aktar
+    backup: Yedekle
+    restore: Geri Yükle
+    select_backup: Geri yüklenecek yedeği seçin
+    backup_name: Yedek İsmi
+
+    # Sign in
+    email: Eposta Adresi
+    emails: Eposta Adresleri
+    username: Kullanıcı Adı
+    password: Parola
+    master_password: Master Parola
+    master_password_alert: Master parolanızı unutmayınız! Malesef bunu kurtarmak mümkün değil.
+    signin: Giriş
+    logout: Çıkış
+    base_url: Server Adresi
+    sign_to_dashboard: PassWall panele giriş yapın.
+
+    # Generic
+    use_this: Bunu kullan
+    save: Kaydet
+    cancel: İptal
+    yes: Evet
+    no: Hayır
+    refresh: Yenile
+    copy: Kopyala
+    show: Göster
+    hide: Gizle
+    delete: Sil
+    update: Güncelle
+    new: Yeni
+    required: Zorunlu
+    are_you_sure: Devam etmek istediğine emin misin?
+    auto_generate_password: Güçlü bir parola otomatik oluşturulsun mu?
+    used_password: Bu parola şu hesaplarda zaten kullanılmakta
+    confirm_used_password: Bu parolayı kullanmak istediğine emin misin?
+    created_at: Oluşturulma Tarihi
+    updated_at: Güncellenme Tarihi
+    deleted_at: Silinme Tarihi
+    
+    # Errors and Success
+    network_error: Sunucu bağlantısında bir sorun oluştu
+    error: İşlem esnasında bilinmeyen bir hata ile karşılaşıldı
+    success: İşlem başarıyla gerçekleşti

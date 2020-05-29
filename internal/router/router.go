@@ -63,6 +63,13 @@ func (r *Router) initRoutes() {
 	apiRouter.HandleFunc("/notes/{id:[0-9]+}", api.UpdateNote(r.store)).Methods("PUT")
 	apiRouter.HandleFunc("/notes/{id:[0-9]+}", api.DeleteNote(r.store)).Methods("DELETE")
 
+	// Email endpoints
+	apiRouter.HandleFunc("/emails", api.FindAllEmails(r.store)).Methods("GET")
+	apiRouter.HandleFunc("/emails", api.CreateEmail(r.store)).Methods("POST")
+	apiRouter.HandleFunc("/emails/{id:[0-9]+}", api.FindEmailByID(r.store)).Methods("GET")
+	apiRouter.HandleFunc("/emails/{id:[0-9]+}", api.UpdateEmail(r.store)).Methods("PUT")
+	apiRouter.HandleFunc("/emails/{id:[0-9]+}", api.DeleteEmail(r.store)).Methods("DELETE")
+
 	// System endpoint
 	// TODO: Change these to system endpoints
 	apiRouter.HandleFunc("/logins/check-password", api.FindSamePassword(r.store)).Methods("POST")
