@@ -23,7 +23,7 @@ How to find something to contribute?
 
 1. If you have a good idea as a `feature` or find a `bug`, feel free to open an issue about it and tell us that you want to work on this subject.
 
-Assingnment
+Assignment
 ------------
 
 When you find something to contribute;
