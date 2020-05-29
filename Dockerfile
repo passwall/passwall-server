@@ -12,7 +12,7 @@ COPY ./public ./public
 
 RUN CGO_ENABLED=1 GOOS=linux go build -a --ldflags="-s" ./cmd/passwall-server
 
-FROM alpine:3.11
+FROM scratch
 
 COPY --from=builder /app/passwall-server /app/passwall-server
 
