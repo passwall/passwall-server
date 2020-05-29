@@ -76,6 +76,8 @@ PassWall uses the branch naming policy below.
   </tbody>
 </table>
 
+More about branchs and workflow [here](https://gist.github.com/digitaljhelms/4287848)
+
 ### For new Contributors
 
 If you never created a pull request before, welcome :tada: :smile: [Here is a great tutorial](https://egghead.io/series/how-to-contribute-to-an-open-source-project-on-github)
