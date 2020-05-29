@@ -31,7 +31,7 @@ When you find something to contribute;
 
 1. Make sure that nobody assigned for that issue,
 
-1. tell us that you want to work on the issue and get you assigned.
+1. Tell us that you want to work on the issue and get you assigned.
 
 Commits and Pull Requests
 ------------
