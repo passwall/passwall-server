@@ -12,7 +12,7 @@ Get in touch
 - Ask usage questions ("How do I?") on [StackOverflow](https://stackoverflow.com/questions/tagged/passwall).
 - Report bugs, suggest features or view the source code on [GitHub](https://github.com/pass-wall/passwall-server/issues).
 - Discuss topics on [Slack](https://passwall.slack.com).
-- Email us at [hello@passwall.io](mailto:hello@passwall.io)
+- Email us at [hello@passwall.io](mailto:hello@passwall.io).
 
 How to find something to contribute?
 ------------
