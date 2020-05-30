@@ -8,13 +8,16 @@ import (
 	"encoding/hex"
 	"io"
 	"io/ioutil"
-	"math/big"
-	mathrand "math/rand"
+	"log"
 	"os"
-	"strings"
-	"time"
+
+	"github.com/sethvargo/go-password/password"
 
 	"github.com/spf13/viper"
+)
+
+const (
+	UnableToCreatePassword = "Unable to create password"
 )
 
 // FindIndex ...
@@ -29,24 +32,13 @@ func FindIndex(vs []string, t string) int {
 
 // Password ..
 func Password() string {
-	mathrand.Seed(time.Now().UnixNano())
-	chars := []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
-		"abcdefghijklmnopqrstuvwxyz" +
-		"0123456789" +
-		"=+%*/()[]{}/!@#$?|")
+
 	length := viper.GetInt("server.generatedPasswordLength")
-	if length < 4 {
-		length = 4
+	res, err := password.Generate(length, 10, 10, false, false)
+	if err != nil {
+		log.Fatalf("%s, error: %s", UnableToCreatePassword, err.Error())
 	}
-	var b strings.Builder
-	for i := 0; i < length; i++ {
-		randomNumber, err := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
-		if err != nil { // Fallback if something bad happens
-			randomNumber = big.NewInt(int64(mathrand.Intn(len(chars))))
-		}
-		b.WriteRune(chars[randomNumber.Int64()])
-	}
-	return b.String()
+	return res
 }
 
 // CreateHash ...
