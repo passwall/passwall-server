@@ -8,16 +8,11 @@ import (
 	"encoding/hex"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 
 	"github.com/sethvargo/go-password/password"
 
 	"github.com/spf13/viper"
-)
-
-const (
-	UnableToCreatePassword = "Unable to create password"
 )
 
 // FindIndex ...
@@ -31,14 +26,14 @@ func FindIndex(vs []string, t string) int {
 }
 
 // Password ..
-func Password() string {
+func Password() (string, error) {
 
 	length := viper.GetInt("server.generatedPasswordLength")
 	res, err := password.Generate(length, 10, 10, false, false)
 	if err != nil {
-		log.Fatalf("%s, error: %s", UnableToCreatePassword, err.Error())
+		return "", err
 	}
-	return res
+	return res, nil
 }
 
 // CreateHash ...
