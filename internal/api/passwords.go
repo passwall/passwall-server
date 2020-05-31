@@ -32,9 +32,13 @@ func FindSamePassword(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// GeneratePassword generates new password
+// Password generates new password
 func GeneratePassword(w http.ResponseWriter, r *http.Request) {
-	password := app.Password()
+	generatedPass, err := app.Password()
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, err.Error())
+	}
+	password := generatedPass
 	response := model.Response{
 		Code:    http.StatusOK,
 		Status:  Success,
