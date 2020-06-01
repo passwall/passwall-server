@@ -115,3 +115,7 @@ func (db *Database) Emails() EmailRepository {
 func (db *Database) Tokens() TokenRepository {
 	return db.tokens
 }
+
+func (db *Database) Ping() error {
+	return db.db.DB().Ping()
+}
