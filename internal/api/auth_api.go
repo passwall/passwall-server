@@ -146,7 +146,7 @@ func CheckToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if token != "" {
-		RespondWithError(w, http.StatusUnauthorized, InvalidToken)
+		RespondWithError(w, http.StatusUnauthorized, NoToken)
 		return
 	}
 
