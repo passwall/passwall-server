@@ -1,8 +1,12 @@
 # PASSWALL CHANGELOG
 
-## Version: [1.1.-] (2020-05---)
+## Version: [1.1.1] (2020-06---)
+### Changed
+- Now only supports PostgreSQL
 ### Add
 - Secure notes feature
+### Removed
+- Removed SQLite and MySQL support
 
 ## Version: [1.1.0] (2020-05-03)
 ### Add

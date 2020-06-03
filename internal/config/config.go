@@ -27,13 +27,11 @@ type ServerConfiguration struct {
 
 // DatabaseConfiguration is the required paramters to set up a DB instance
 type DatabaseConfiguration struct {
-	Driver   string `default:"3625"`
 	Name     string `default:"passwall"`
 	Username string `default:"user"`
 	Password string `default:"password"`
 	Host     string `default:"localhost"`
 	Port     string `default:"5432"`
-	Path     string `default:"./store/passwall.db"`
 	LogMode  bool   `default:"false"`
 }
 
@@ -84,13 +82,11 @@ func bindEnvs() {
 	viper.BindEnv("server.accessTokenExpireDuration", "PW_SERVER_ACCESS_TOKEN_EXPIRE_DURATION")
 	viper.BindEnv("server.refreshTokenExpireDuration", "PW_SERVER_REFRESH_TOKEN_EXPIRE_DURATION")
 
-	viper.BindEnv("database.driver", "PW_DB_DRIVER")
 	viper.BindEnv("database.name", "PW_DB_NAME")
 	viper.BindEnv("database.username", "PW_DB_USERNAME")
 	viper.BindEnv("database.password", "PW_DB_PASSWORD")
 	viper.BindEnv("database.host", "PW_DB_HOST")
 	viper.BindEnv("database.port", "PW_DB_PORT")
-	viper.BindEnv("database.path", "PW_DB_PATH")
 	viper.BindEnv("database.logmode", "PW_DB_LOG_MODE")
 
 	viper.BindEnv("backup.folder", "PW_BACKUP_FOLDER")
@@ -112,13 +108,11 @@ func setDefaults() {
 	viper.SetDefault("server.refreshTokenExpireDuration", "15d")
 
 	// Database defaults
-	viper.SetDefault("database.driver", "sqlite")
 	viper.SetDefault("database.name", "passwall")
-	viper.SetDefault("database.username", "user")
-	viper.SetDefault("database.password", "password")
+	viper.SetDefault("database.username", "postgres")
+	viper.SetDefault("database.password", "postgres")
 	viper.SetDefault("database.host", "localhost")
 	viper.SetDefault("database.port", "5432")
-	viper.SetDefault("database.path", "./store/passwall.db")
 	viper.SetDefault("database.logmode", false)
 
 	// Backup defaults

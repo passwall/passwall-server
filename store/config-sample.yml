@@ -1,28 +1,11 @@
+# PostgreSQL
 database:
-  driver: "sqlite"
   name: "passwall"
-  username: "user"
-  password: "password"
-  path: "./store/passwall.db"
+  username: "postgres"
+  password: "postgres"
+  host: "localhost"
+  port: "5432"
   logmod: false
-
-# Uncomment for mysql
-# database:
-#   driver: "mysql"
-#   name: "passwall"
-#   username: "user"
-#   password: "password"
-#   host: "localhost" # or compose service name
-#   port: "3306"
-
-# Uncomment for postgres
-# database:
-#   driver: "postgres"
-#   name: "passwall"
-#   username: "user"
-#   password: "password"
-#   host: "localhost" # or compose service name
-#   port: "5432"
 
 server:
   port: "3625"

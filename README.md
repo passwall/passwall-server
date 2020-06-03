@@ -32,7 +32,7 @@ API documentation available at:
 **Password:** password
 
 ## Database supoort
-PassWall can be used with **SQLite**, **MySQL** or **PostgreSQL** databases. Settings required for connection to database are in **config.yml**.
+PassWall works with **PostgreSQL** databases. Settings required for connection to database are in **./store/config.yml**.
 
 ## What's possible with PassWall Server?
 Currently, this project is focused on storing URL, username and password which is basically called **Login** at PassWall.
@@ -74,13 +74,12 @@ These environment variables are accepted:
 - PW_SERVER_REFRESH_TOKEN_EXPIRE_DURATION 
   
 **Database Variables**
-- PW_DB_DRIVER
 - PW_DB_NAME
 - PW_DB_USERNAME
 - PW_DB_PASSWORD
 - PW_DB_HOST
 - PW_DB_PORT
-- PW_DB_PATH
+- PW_DB_LOG_MODE
 
 **Backup Variables**
 - PW_BACKUP_FOLDER
