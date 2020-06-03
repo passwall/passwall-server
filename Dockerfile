@@ -10,14 +10,16 @@ COPY ./internal ./internal
 COPY ./model ./model
 COPY ./public ./public
 
-RUN CGO_ENABLED=1 GOOS=linux go build -a --ldflags="-s" ./cmd/passwall-server
+RUN mkdir store
 
-FROM alpine:3.11
+RUN CGO_ENABLED=1 GOOS=linux go build -a -ldflags '-w -extldflags "-static"' ./cmd/passwall-server
+
+FROM scratch
 
 COPY --from=builder /app/passwall-server /app/passwall-server
 
-WORKDIR /app
+COPY --from=builder /app/store /app/store
 
-RUN mkdir store
+WORKDIR /app
 
 ENTRYPOINT ["/app/passwall-server"]
