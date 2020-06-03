@@ -14,10 +14,9 @@ func TestHealthCheck(t *testing.T) {
 	// should be same with the one on github actions
 
 	mockDBConfig := &config.DatabaseConfiguration{
-		Driver:   "postgres",
 		Name:     "passwall",
-		Username: "user",
-		Password: "password",
+		Username: "postgres",
+		Password: "postgres",
 		Host:     "localhost",
 		Port:     "5432",
 		LogMode:  false,
