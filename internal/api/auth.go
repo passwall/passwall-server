@@ -19,6 +19,7 @@ var (
 	InvalidUser    = "Invalid user"
 	ValidToken     = "Token is valid"
 	InvalidToken   = "Token is expired or not valid!"
+	NoToken        = "Token could not found! "
 	TokenCreateErr = "Token could not be created"
 )
 
@@ -144,7 +145,11 @@ func CheckToken(w http.ResponseWriter, r *http.Request) {
 		token = strArr[1]
 	}
 
-	//TODO: maybe check if there is any token? If not, return early.
+	if token != "" {
+		RespondWithError(w, http.StatusUnauthorized, NoToken)
+		return
+	}
+
 
 	_, err := app.TokenValid(token)
 	if err != nil {
