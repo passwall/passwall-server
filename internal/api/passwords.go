@@ -37,6 +37,7 @@ func GeneratePassword(w http.ResponseWriter, r *http.Request) {
 	generatedPass, err := app.Password()
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 	password := generatedPass
 	response := model.Response{

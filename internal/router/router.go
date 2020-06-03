@@ -70,17 +70,15 @@ func (r *Router) initRoutes() {
 	apiRouter.HandleFunc("/emails/{id:[0-9]+}", api.UpdateEmail(r.store)).Methods(http.MethodPut)
 	apiRouter.HandleFunc("/emails/{id:[0-9]+}", api.DeleteEmail(r.store)).Methods(http.MethodDelete)
 
-	// System endpoint
-	// TODO: Change these to system endpoints
-	apiRouter.HandleFunc("/logins/check-password", api.FindSamePassword(r.store)).Methods(http.MethodPost)
-	apiRouter.HandleFunc("/logins/generate-password", api.GeneratePassword).Methods(http.MethodPost)
+	apiRouter.HandleFunc("/system/check-password", api.FindSamePassword(r.store)).Methods(http.MethodPost)
+	apiRouter.HandleFunc("/system/generate-password", api.GeneratePassword).Methods(http.MethodPost)
 
-	apiRouter.HandleFunc("/logins/backup", api.Backup(r.store)).Methods(http.MethodPost)
-	apiRouter.HandleFunc("/logins/backup", api.ListBackup).Methods(http.MethodGet)
-	apiRouter.HandleFunc("/logins/restore", api.Restore(r.store)).Methods(http.MethodPost)
+	apiRouter.HandleFunc("/system/backup", api.Backup(r.store)).Methods(http.MethodPost)
+	apiRouter.HandleFunc("/system/backup", api.ListBackup).Methods(http.MethodGet)
+	apiRouter.HandleFunc("/system/restore", api.Restore(r.store)).Methods(http.MethodPost)
 
-	apiRouter.HandleFunc("/logins/import", api.Import(r.store)).Methods(http.MethodPost)
-	apiRouter.HandleFunc("/logins/export", api.Export(r.store)).Methods(http.MethodPost)
+	apiRouter.HandleFunc("/system/import", api.Import(r.store)).Methods(http.MethodPost)
+	apiRouter.HandleFunc("/system/export", api.Export(r.store)).Methods(http.MethodPost)
 
 	// Auth endpoints
 	authRouter := mux.NewRouter().PathPrefix("/auth").Subrouter()
@@ -103,5 +101,7 @@ func (r *Router) initRoutes() {
 		negroni.Wrap(authRouter),
 	))
 
+	// Insecure endpoints
 	r.router.HandleFunc("/health", api.HealthCheck(r.store)).Methods(http.MethodGet)
+
 }
