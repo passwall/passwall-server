@@ -11,8 +11,8 @@ jobs:
       postgres:
         image: postgres:alpine
         env:
-          POSTGRES_PASSWORD: password
-          POSTGRES_USER: user
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
           POSTGRES_DB: passwall
         options: >-
           --health-cmd pg_isready
