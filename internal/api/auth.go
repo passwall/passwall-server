@@ -150,6 +150,7 @@ func CheckToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+
 	_, err := app.TokenValid(token)
 	if err != nil {
 		RespondWithError(w, http.StatusUnauthorized, InvalidToken)

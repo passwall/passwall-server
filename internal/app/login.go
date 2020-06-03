@@ -28,7 +28,11 @@ func CreateLogin(s storage.Store, dto *model.LoginDTO) (*model.Login, error) {
 func UpdateLogin(s storage.Store, login *model.Login, dto *model.LoginDTO) (*model.Login, error) {
 
 	if dto.Password == "" {
-		dto.Password = Password()
+		generatedPass, err := Password()
+		if err != nil {
+			return nil, err
+		}
+		dto.Password = generatedPass
 	}
 	rawPass := dto.Password
 	dto.Password = base64.StdEncoding.EncodeToString(Encrypt(dto.Password, viper.GetString("server.passphrase")))
