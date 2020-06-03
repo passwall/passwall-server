@@ -9,6 +9,10 @@ import (
 	"github.com/spf13/viper"
 )
 
+var (
+	configuration *Configuration
+)
+
 // Configuration ...
 type Configuration struct {
 	Server   ServerConfiguration
@@ -39,8 +43,6 @@ type DatabaseConfiguration struct {
 
 // SetupConfigDefaults ...
 func SetupConfigDefaults() *Configuration {
-
-	var configuration *Configuration
 
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")

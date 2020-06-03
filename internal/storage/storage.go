@@ -10,4 +10,6 @@ type Store interface {
 	Notes() NoteRepository
 	Emails() EmailRepository
 	Tokens() TokenRepository
+	// used to ping database
+	Ping() error
 }
