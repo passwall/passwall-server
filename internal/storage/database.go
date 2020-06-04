@@ -49,19 +49,19 @@ func New(cfg *config.DatabaseConfiguration) (*Database, error) {
 }
 
 // Create inserts the value into database.
-func (db *Database) Create(value interface{}) {
-	db.db.Create(value)
-}
+// func (db *Database) Create(value interface{}) {
+// 	db.db.Create(value)
+// }
 
 // Find finds the records that match given conditions.
-func (db *Database) Find(value interface{}, where ...interface{}) {
-	if len(where) > 0 {
-		db.db.Find(value, where)
-	} else {
-		db.db.Find(value)
-	}
+// func (db *Database) Find(value interface{}, where ...interface{}) {
+// 	if len(where) > 0 {
+// 		db.db.Find(value, where)
+// 	} else {
+// 		db.db.Find(value)
+// 	}
 
-}
+// }
 
 // Logins returns the LoginRepository.
 func (db *Database) Logins() LoginRepository {

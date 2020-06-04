@@ -1,9 +1,7 @@
 package api
 
 import (
-	"bytes"
 	"encoding/base64"
-	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -79,7 +77,7 @@ func Language(s storage.Store) http.HandlerFunc {
 }
 
 // Import ...
-func Import(s storage.Store) http.HandlerFunc {
+/* func Import(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		url := r.FormValue("url")
 		username := r.FormValue("username")
@@ -112,10 +110,10 @@ func Import(s storage.Store) http.HandlerFunc {
 		response := model.Response{http.StatusOK, Success, ImportSuccess}
 		RespondWithJSON(w, http.StatusOK, response)
 	}
-}
+} */
 
 // Export exports all logins as CSV file
-func Export(s storage.Store) http.HandlerFunc {
+/* func Export(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		var loginList []model.Login
@@ -139,7 +137,7 @@ func Export(s storage.Store) http.HandlerFunc {
 		w.Header().Set("Content-Disposition", "attachment;filename=PassWall.csv")
 		w.Write(b.Bytes())
 	}
-}
+} */
 
 // Restore restores logins from backup file ./store/passwall-{BACKUP_DATE}.bak
 func Restore(s storage.Store) http.HandlerFunc {
@@ -190,7 +188,7 @@ func Restore(s storage.Store) http.HandlerFunc {
 }
 
 // Backup backups the store
-func Backup(s storage.Store) http.HandlerFunc {
+/* func Backup(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		err := app.BackupData(s)
 
@@ -202,10 +200,10 @@ func Backup(s storage.Store) http.HandlerFunc {
 		response := model.Response{http.StatusOK, Success, BackupSuccess}
 		RespondWithJSON(w, http.StatusOK, response)
 	}
-}
+} */
 
 // ListBackup all backups
-func ListBackup(w http.ResponseWriter, r *http.Request) {
+/* func ListBackup(w http.ResponseWriter, r *http.Request) {
 	backupFiles, err := app.GetBackupFiles()
 
 	if err != nil {
@@ -219,7 +217,7 @@ func ListBackup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	RespondWithJSON(w, http.StatusOK, response)
-}
+} */
 
 // MigrateTables runs auto migration for the models, will only add missing fields
 // won't delete/change current data in the store.
