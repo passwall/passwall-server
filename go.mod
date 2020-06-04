@@ -25,4 +25,5 @@ require (
 	github.com/ulule/limiter/v3 v3.5.0
 	github.com/urfave/negroni v1.0.0
 	golang.org/x/sys v0.0.0-20200420163511-1957bb5e6d1f // indirect
+	gopkg.in/yaml.v2 v2.2.8
 )

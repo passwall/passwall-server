@@ -12,10 +12,12 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gorilla/mux"
 	"github.com/pass-wall/passwall-server/internal/app"
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -24,6 +26,57 @@ const (
 	ImportSuccess        = "Import finished successfully!"
 	BackupSuccess        = "Backup completed successfully!"
 )
+
+// Languages ...
+func Languages(s storage.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		type Languages struct {
+			Item []string `json:"languages"`
+		}
+
+		// TODO: Read store folder and parse of localization files for this slice
+		langs := Languages{
+			Item: []string{"tr", "en"},
+		}
+
+		RespondWithJSON(w, http.StatusOK, langs.Item)
+	}
+}
+
+// Language ...
+func Language(s storage.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		lang := vars["lang"]
+
+		if lang != "tr" && lang != "en" {
+			RespondWithError(w, http.StatusNotFound, "Language not found")
+			return
+		}
+
+		yamlFile, err := os.Open("./store/localization-" + lang + ".yml")
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		defer yamlFile.Close()
+
+		byteValue, err := ioutil.ReadAll(yamlFile)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		var langs model.Language
+		err = yaml.Unmarshal(byteValue, &langs)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		RespondWithJSON(w, http.StatusOK, langs)
+	}
+}
 
 // Import ...
 func Import(s storage.Store) http.HandlerFunc {

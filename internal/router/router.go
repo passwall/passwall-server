@@ -80,6 +80,9 @@ func (r *Router) initRoutes() {
 	apiRouter.HandleFunc("/system/import", api.Import(r.store)).Methods(http.MethodPost)
 	apiRouter.HandleFunc("/system/export", api.Export(r.store)).Methods(http.MethodPost)
 
+	apiRouter.HandleFunc("/system/languages", api.Languages(r.store)).Methods(http.MethodGet)
+	apiRouter.HandleFunc("/system/languages/{lang}", api.Language(r.store)).Methods(http.MethodGet)
+
 	// Auth endpoints
 	authRouter := mux.NewRouter().PathPrefix("/auth").Subrouter()
 	authRouter.HandleFunc("/signin", api.Signin(r.store))
