@@ -21,12 +21,12 @@ type Configuration struct {
 
 // ServerConfiguration is the required paramters to set up a server
 type ServerConfiguration struct {
-	Port       string `default:"3625"`
-	Username   string `default:"passwall"`
-	Password   string `default:"password"`
-	Passphrase string `default:"passphrase-for-encrypting-passwords-do-not-forget"`
-	Secret     string `default:"secret-key-for-JWT-TOKEN"`
-	Timeout    int    `default:"24"`
+	Port           string `default:"3625"`
+	Email          string `default:"hello@passwall.io"`
+	MasterPassword string `default:"master_password"`
+	Passphrase     string `default:"passphrase-for-encrypting-passwords-do-not-forget"`
+	Secret         string `default:"secret-key-for-JWT-TOKEN"`
+	Timeout        int    `default:"24"`
 }
 
 // DatabaseConfiguration is the required paramters to set up a DB instance
@@ -74,8 +74,8 @@ func SetupConfigDefaults() *Configuration {
 
 func bindEnvs() {
 	viper.BindEnv("server.port", "PORT")
-	viper.BindEnv("server.username", "PW_SERVER_USERNAME")
-	viper.BindEnv("server.password", "PW_SERVER_PASSWORD")
+	viper.BindEnv("server.email", "PW_SERVER_EMAIL")
+	viper.BindEnv("server.masterpassword", "PW_SERVER_MASTER_PASSWORD")
 	viper.BindEnv("server.passphrase", "PW_SERVER_PASSPHRASE")
 	viper.BindEnv("server.secret", "PW_SERVER_SECRET")
 	viper.BindEnv("server.timeout", "PW_SERVER_TIMEOUT")
@@ -100,8 +100,8 @@ func setDefaults() {
 
 	// Server defaults
 	viper.SetDefault("server.port", "3625")
-	viper.SetDefault("server.username", "passwall")
-	viper.SetDefault("server.password", "password")
+	viper.SetDefault("server.email", "hello@passwall.io")
+	viper.SetDefault("server.masterpassword", "password")
 	viper.SetDefault("server.passphrase", "passphrase-for-encrypting-passwords-do-not-forget")
 	viper.SetDefault("server.secret", "secret-key-for-JWT-TOKEN")
 	viper.SetDefault("server.timeout", 24)

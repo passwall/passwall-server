@@ -9,8 +9,8 @@ database:
 
 server:
   port: "3625"
-  username: "passwall"
-  password: "password"
+  email: "passwall"
+  master_password: "password"
   passphrase: "passphrase-for-encrypting-passwords-do-not-forget"
   secret: "secret-key-for-JWT-TOKEN"
   timeout: 24 # Token duration in hours format

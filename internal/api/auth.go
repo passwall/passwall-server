@@ -47,8 +47,8 @@ func Signin(s storage.Store) http.HandlerFunc {
 		}
 
 		// check user
-		if viper.GetString("server.username") != loginDTO.Username ||
-			viper.GetString("server.password") != loginDTO.Password {
+		if viper.GetString("server.email") != loginDTO.Email ||
+			viper.GetString("server.masterpassword") != loginDTO.MasterPassword {
 			RespondWithError(w, http.StatusUnauthorized, InvalidUser)
 			return
 		}
@@ -149,7 +149,6 @@ func CheckToken(w http.ResponseWriter, r *http.Request) {
 		RespondWithError(w, http.StatusUnauthorized, NoToken)
 		return
 	}
-
 
 	_, err := app.TokenValid(token)
 	if err != nil {
