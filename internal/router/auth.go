@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -48,6 +49,16 @@ func Auth(s storage.Store) negroni.HandlerFunc {
 			return
 		}
 
-		next(w, r)
+		ctxAuthorized := claims["authorized"].(bool)
+		ctxUserID := claims["user_id"].(float64)
+		ctx := r.Context()
+		ctxWithID := context.WithValue(ctx, "id", ctxUserID)
+		ctxWithAuthorized := context.WithValue(ctxWithID, "authorized", ctxAuthorized)
+
+		// These context variables can be accesable with
+		// ctxAuthorized := r.Context().Value("authorized").(bool)
+		// ctxID := r.Context().Value("id").(float64)
+
+		next(w, r.WithContext(ctxWithAuthorized))
 	})
 }

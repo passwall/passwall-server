@@ -12,6 +12,13 @@ type AuthLoginDTO struct {
 	MasterPassword string `validate:"required" json:"master_password"`
 }
 
+//AuthLoginResponse ...
+type AuthLoginResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	UserDTOTable
+}
+
 //TokenDetailsDTO ...
 type TokenDetailsDTO struct {
 	AccessToken   string `json:"access_token"`

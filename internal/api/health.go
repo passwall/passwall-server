@@ -3,26 +3,27 @@ package api
 import (
 	"net/http"
 
-	"github.com/pass-wall/passwall-server/internal/config"
 	"github.com/pass-wall/passwall-server/internal/storage"
 )
 
 var (
-	// should be improved
-	Port          = config.SetupConfigDefaults().Server.Port
+	Port          = "3625"
 	ServerAddress = "0.0.0.0" + ":" + Port
 )
 
+// HealthProp ...
 type HealthProp struct {
-	StatusCode int
-	Err        error
+	StatusCode int   `json:"status_code"`
+	Err        error `json:"error"`
 }
 
+// Services ...
 type Services struct {
-	API      *HealthProp
-	Database *HealthProp
+	API      *HealthProp `json:"api"`
+	Database *HealthProp `json:"database"`
 }
 
+// HealthCheck ...
 func HealthCheck(s storage.Store) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {

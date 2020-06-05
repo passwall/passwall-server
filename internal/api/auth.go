@@ -2,9 +2,7 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/dgrijalva/jwt-go"
@@ -12,7 +10,6 @@ import (
 	"github.com/pass-wall/passwall-server/internal/app"
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
-	"github.com/spf13/viper"
 )
 
 var (
@@ -46,33 +43,34 @@ func Signin(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// check user
-		if viper.GetString("server.email") != loginDTO.Email ||
-			viper.GetString("server.masterpassword") != loginDTO.MasterPassword {
+		// Check if user exist in database and credentials are true
+		user, err := s.Users().FindByCredentials(loginDTO.Email, loginDTO.MasterPassword)
+		if err != nil {
 			RespondWithError(w, http.StatusUnauthorized, InvalidUser)
 			return
 		}
 
 		//create token
-		token, err := app.CreateToken()
+		token, err := app.CreateToken(user)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, TokenCreateErr)
 			return
 		}
 
 		//delete tokens from db
-		s.Tokens().Delete(1)
+		s.Tokens().Delete(int(user.ID))
 
 		//create tokens on db
-		s.Tokens().Save(1, token.AtUUID, token.AccessToken, token.AtExpiresTime)
-		s.Tokens().Save(1, token.RtUUID, token.RefreshToken, token.RtExpiresTime)
+		s.Tokens().Save(int(user.ID), token.AtUUID, token.AccessToken, token.AtExpiresTime)
+		s.Tokens().Save(int(user.ID), token.RtUUID, token.RefreshToken, token.RtExpiresTime)
 
-		tokens := map[string]string{
-			"access_token":  token.AccessToken,
-			"refresh_token": token.RefreshToken,
+		authLoginResponse := model.AuthLoginResponse{
+			AccessToken:  token.AccessToken,
+			RefreshToken: token.RefreshToken,
+			UserDTOTable: model.ToUserDTOTable(*user),
 		}
 
-		RespondWithJSON(w, 200, tokens)
+		RespondWithJSON(w, 200, authLoginResponse)
 	}
 }
 
@@ -94,73 +92,90 @@ func RefreshToken(s storage.Store) http.HandlerFunc {
 
 		if err != nil {
 			if token != nil {
-				claims, _ := token.Claims.(jwt.MapClaims)
-				userid, _ := strconv.Atoi(fmt.Sprintf("%.f", claims["user_id"]))
-				s.Tokens().Delete(userid)
+				claims := token.Claims.(jwt.MapClaims)
+				userid := claims["user_id"].(float64)
+				s.Tokens().Delete(int(userid))
 			}
 			RespondWithError(w, http.StatusUnauthorized, err.Error())
 			return
 		}
 
-		claims, _ := token.Claims.(jwt.MapClaims)
-		uuid, _ := claims["uuid"].(string)
+		claims := token.Claims.(jwt.MapClaims)
+		uuid := claims["uuid"].(string)
 
-		//check from db
+		//Check from tokens db table
 		if !s.Tokens().Any(uuid) {
-			userid, _ := strconv.Atoi(fmt.Sprintf("%.f", claims["user_id"]))
-			s.Tokens().Delete(userid)
+			userid := claims["user_id"].(float64)
+			s.Tokens().Delete(int(userid))
 			RespondWithError(w, http.StatusUnauthorized, InvalidToken)
 			return
 		}
 
+		// Get user info
+		userid := claims["user_id"].(float64)
+		user, err := s.Users().FindByID(uint(userid))
+		if err != nil {
+			RespondWithError(w, http.StatusUnauthorized, InvalidUser)
+			return
+		}
+
 		//create token
-		newtoken, err := app.CreateToken()
+		newtoken, err := app.CreateToken(user)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, TokenCreateErr)
 			return
 		}
 
 		//delete tokens from db
-		s.Tokens().Delete(1)
+		s.Tokens().Delete(int(userid))
 
 		//create tokens on db
-		s.Tokens().Save(1, newtoken.AtUUID, newtoken.AccessToken, newtoken.AtExpiresTime)
-		s.Tokens().Save(1, newtoken.RtUUID, newtoken.RefreshToken, newtoken.RtExpiresTime)
+		s.Tokens().Save(int(userid), newtoken.AtUUID, newtoken.AccessToken, newtoken.AtExpiresTime)
+		s.Tokens().Save(int(userid), newtoken.RtUUID, newtoken.RefreshToken, newtoken.RtExpiresTime)
 
-		tokens := map[string]string{
-			"access_token":  newtoken.AccessToken,
-			"refresh_token": newtoken.RefreshToken,
+		authLoginResponse := model.AuthLoginResponse{
+			AccessToken:  newtoken.AccessToken,
+			RefreshToken: newtoken.RefreshToken,
+			UserDTOTable: model.ToUserDTOTable(*user),
 		}
 
-		RespondWithJSON(w, 200, tokens)
+		RespondWithJSON(w, 200, authLoginResponse)
 	}
 }
 
 // CheckToken ...
-func CheckToken(w http.ResponseWriter, r *http.Request) {
-	var token string
-	bearerToken := r.Header.Get("Authorization")
-	strArr := strings.Split(bearerToken, " ")
-	if len(strArr) == 2 {
-		token = strArr[1]
-	}
+func CheckToken(s storage.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var tokenStr string
+		bearerToken := r.Header.Get("Authorization")
+		strArr := strings.Split(bearerToken, " ")
+		if len(strArr) == 2 {
+			tokenStr = strArr[1]
+		}
 
-	if token != "" {
-		RespondWithError(w, http.StatusUnauthorized, NoToken)
-		return
-	}
+		if tokenStr == "" {
+			RespondWithError(w, http.StatusUnauthorized, NoToken)
+			return
+		}
 
-	_, err := app.TokenValid(token)
-	if err != nil {
-		RespondWithError(w, http.StatusUnauthorized, InvalidToken)
-		return
-	}
+		token, err := app.TokenValid(tokenStr)
+		if err != nil {
+			RespondWithError(w, http.StatusUnauthorized, InvalidToken)
+			return
+		}
 
-	response := model.Response{
-		Code:    http.StatusOK,
-		Status:  Success,
-		Message: ValidToken,
-	}
+		claims := token.Claims.(jwt.MapClaims)
+		userID := claims["user_id"].(float64)
 
-	RespondWithJSON(w, http.StatusOK, response)
+		// Check if user exist in database and credentials are true
+		user, err := s.Users().FindByID(uint(userID))
+		if err != nil {
+			RespondWithError(w, http.StatusUnauthorized, InvalidUser)
+			return
+		}
+
+		response := model.ToUserDTOTable(*user)
+
+		RespondWithJSON(w, http.StatusOK, response)
+	}
 }

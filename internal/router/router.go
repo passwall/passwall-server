@@ -70,10 +70,17 @@ func (r *Router) initRoutes() {
 	apiRouter.HandleFunc("/emails/{id:[0-9]+}", api.UpdateEmail(r.store)).Methods(http.MethodPut)
 	apiRouter.HandleFunc("/emails/{id:[0-9]+}", api.DeleteEmail(r.store)).Methods(http.MethodDelete)
 
-	apiRouter.HandleFunc("/system/check-password", api.FindSamePassword(r.store)).Methods(http.MethodPost)
+	// User endpoints
+	apiRouter.HandleFunc("/users", api.FindAllUsers(r.store)).Methods(http.MethodGet)
+	apiRouter.HandleFunc("/users", api.CreateUser(r.store)).Methods(http.MethodPost)
+	apiRouter.HandleFunc("/users/{id:[0-9]+}", api.FindUserByID(r.store)).Methods(http.MethodGet)
+	apiRouter.HandleFunc("/users/{id:[0-9]+}", api.UpdateUser(r.store)).Methods(http.MethodPut)
+	apiRouter.HandleFunc("/users/{id:[0-9]+}", api.DeleteUser(r.store)).Methods(http.MethodDelete)
+
 	apiRouter.HandleFunc("/system/generate-password", api.GeneratePassword).Methods(http.MethodPost)
 
 	// These endpoints designed just for logins. Now we have extra types like bank accounts
+	// apiRouter.HandleFunc("/system/check-password", api.FindSamePassword(r.store)).Methods(http.MethodPost)
 	// apiRouter.HandleFunc("/system/backup", api.Backup(r.store)).Methods(http.MethodPost)
 	// apiRouter.HandleFunc("/system/backup", api.ListBackup).Methods(http.MethodGet)
 	// apiRouter.HandleFunc("/system/restore", api.Restore(r.store)).Methods(http.MethodPost)
@@ -87,7 +94,7 @@ func (r *Router) initRoutes() {
 	authRouter := mux.NewRouter().PathPrefix("/auth").Subrouter()
 	authRouter.HandleFunc("/signin", api.Signin(r.store))
 	authRouter.HandleFunc("/refresh", api.RefreshToken(r.store))
-	authRouter.HandleFunc("/check", api.CheckToken)
+	authRouter.HandleFunc("/check", api.CheckToken(r.store))
 
 	n := negroni.Classic()
 	n.Use(negroni.HandlerFunc(CORS))

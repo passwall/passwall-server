@@ -240,6 +240,9 @@ func MigrateTables(s storage.Store) {
 	if err := s.Tokens().Migrate(); err != nil {
 		log.Println(err)
 	}
+	if err := s.Users().Migrate("public"); err != nil {
+		log.Println(err)
+	}
 }
 
 /* func MigrateTables(s storage.Store) http.HandlerFunc {
