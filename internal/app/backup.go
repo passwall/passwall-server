@@ -1,19 +1,13 @@
 package app
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
-	"github.com/pass-wall/passwall-server/internal/storage"
-	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
 )
 
@@ -26,7 +20,7 @@ var (
 )
 
 // BackupData ...
-func BackupData(s storage.Store) error {
+/* func BackupData(s storage.Store) error {
 	backupFolder := viper.GetString("backup.folder")
 	backupPath := fmt.Sprintf("%s/passwall-%s.bak", backupFolder, time.Now().Format(timeFormat))
 
@@ -55,7 +49,7 @@ func BackupData(s storage.Store) error {
 	rotateBackup()
 
 	return nil
-}
+} */
 
 // Rotate backup files
 func rotateBackup() error {

@@ -33,7 +33,7 @@ func (p *Repository) Any(uuid string) bool {
 func (p *Repository) Save(userid int, uid uuid.UUID, tkn string, expriydate time.Time) {
 
 	token := &model.Token{
-		UserId:     userid,
+		UserID:     userid,
 		UUID:       uid,
 		Token:      tkn,
 		ExpiryTime: expriydate,

@@ -1,13 +1,10 @@
 package storage
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/mysql"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
-	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"github.com/pass-wall/passwall-server/internal/config"
 	"github.com/pass-wall/passwall-server/internal/storage/bankaccount"
 	"github.com/pass-wall/passwall-server/internal/storage/creditcard"
@@ -15,6 +12,7 @@ import (
 	"github.com/pass-wall/passwall-server/internal/storage/login"
 	"github.com/pass-wall/passwall-server/internal/storage/note"
 	"github.com/pass-wall/passwall-server/internal/storage/token"
+	"github.com/pass-wall/passwall-server/internal/storage/user"
 )
 
 // Database is the concrete store provider.
@@ -26,6 +24,7 @@ type Database struct {
 	notes    NoteRepository
 	emails   EmailRepository
 	tokens   TokenRepository
+	users    UserRepository
 }
 
 // New opens a database according to configuration.
@@ -33,29 +32,9 @@ func New(cfg *config.DatabaseConfiguration) (*Database, error) {
 	var db *gorm.DB
 	var err error
 
-	switch cfg.Driver {
-	case "sqlite":
-		path := cfg.Path
-
-		if cfg.Path == "" {
-			return nil, errors.New("sqlite db path should not be empty")
-		}
-		db, err = gorm.Open("sqlite3", path)
-		if err != nil {
-			return nil, fmt.Errorf("could not open sqlite database: %w", err)
-		}
-	case "postgres":
-		db, err = gorm.Open("postgres", "host="+cfg.Host+" port="+cfg.Port+" user="+cfg.Username+" dbname="+cfg.Name+"  sslmode=disable password="+cfg.Password)
-		if err != nil {
-			return nil, fmt.Errorf("could not open postgresql connection: %w", err)
-		}
-	case "mysql":
-		db, err = gorm.Open("mysql", cfg.Username+":"+cfg.Password+"@tcp("+cfg.Host+":"+cfg.Port+")/"+cfg.Name+"?charset=utf8&parseTime=True&loc=Local")
-		if err != nil {
-			return nil, fmt.Errorf("could not open mysql connection: %w", err)
-		}
-	default:
-		return nil, fmt.Errorf("could not recognize database type %q", cfg.Driver)
+	db, err = gorm.Open("postgres", "host="+cfg.Host+" port="+cfg.Port+" user="+cfg.Username+" dbname="+cfg.Name+"  sslmode=disable password="+cfg.Password)
+	if err != nil {
+		return nil, fmt.Errorf("could not open postgresql connection: %w", err)
 	}
 
 	db.LogMode(cfg.LogMode)
@@ -68,23 +47,24 @@ func New(cfg *config.DatabaseConfiguration) (*Database, error) {
 		notes:    note.NewRepository(db),
 		emails:   email.NewRepository(db),
 		tokens:   token.NewRepository(db),
+		users:    user.NewRepository(db),
 	}, nil
 }
 
 // Create inserts the value into database.
-func (db *Database) Create(value interface{}) {
-	db.db.Create(value)
-}
+// func (db *Database) Create(value interface{}) {
+// 	db.db.Create(value)
+// }
 
 // Find finds the records that match given conditions.
-func (db *Database) Find(value interface{}, where ...interface{}) {
-	if len(where) > 0 {
-		db.db.Find(value, where)
-	} else {
-		db.db.Find(value)
-	}
+// func (db *Database) Find(value interface{}, where ...interface{}) {
+// 	if len(where) > 0 {
+// 		db.db.Find(value, where)
+// 	} else {
+// 		db.db.Find(value)
+// 	}
 
-}
+// }
 
 // Logins returns the LoginRepository.
 func (db *Database) Logins() LoginRepository {
@@ -114,4 +94,13 @@ func (db *Database) Emails() EmailRepository {
 // Tokens returns the TokenRepository.
 func (db *Database) Tokens() TokenRepository {
 	return db.tokens
+}
+
+// Users returns the UserRepository.
+func (db *Database) Users() UserRepository {
+	return db.users
+}
+
+func (db *Database) Ping() error {
+	return db.db.DB().Ping()
 }

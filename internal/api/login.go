@@ -76,7 +76,11 @@ func CreateLogin(s storage.Store) http.HandlerFunc {
 		defer r.Body.Close()
 
 		if loginDTO.Password == "" {
-			loginDTO.Password = app.Password()
+			generatedPass, err := app.Password()
+			if err != nil {
+				RespondWithError(w, http.StatusInternalServerError, err.Error())
+			}
+			loginDTO.Password = generatedPass
 		}
 
 		createdLogin, err := app.CreateLogin(s, &loginDTO)

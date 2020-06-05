@@ -18,7 +18,7 @@ var (
 )
 
 //CreateToken ...
-func CreateToken() (*model.TokenDetailsDTO, error) {
+func CreateToken(user *model.User) (*model.TokenDetailsDTO, error) {
 
 	var err error
 	accessSecret := viper.GetString("server.secret")
@@ -35,8 +35,12 @@ func CreateToken() (*model.TokenDetailsDTO, error) {
 
 	//create access token
 	atClaims := jwt.MapClaims{}
-	atClaims["authorized"] = true
-	atClaims["user_id"] = 1
+
+	atClaims["authorized"] = false
+	if user.Role == "Admin" {
+		atClaims["authorized"] = true
+	}
+	atClaims["user_id"] = user.ID
 	atClaims["exp"] = td.AtExpiresTime.Unix()
 	atClaims["uuid"] = td.AtUUID.String()
 	at := jwt.NewWithClaims(jwt.SigningMethodHS256, atClaims)
@@ -47,7 +51,7 @@ func CreateToken() (*model.TokenDetailsDTO, error) {
 
 	//create refresh token
 	rtClaims := jwt.MapClaims{}
-	rtClaims["user_id"] = 1
+	rtClaims["user_id"] = user.ID
 	rtClaims["exp"] = td.RtExpiresTime.Unix()
 	rtClaims["uuid"] = td.RtUUID.String()
 
@@ -108,7 +112,7 @@ func resolveTokenExpireDuration(config string) time.Duration {
 /* it may need us later to read access detail
 
 type AccessDetailsDTO struct {
-	UserId uint64
+	UserID uint64
 }
 
 func extractTokenMetadata(r *http.Request) (*AccessDetailsDTO, error) {
@@ -123,7 +127,7 @@ func extractTokenMetadata(r *http.Request) (*AccessDetailsDTO, error) {
 			return nil, err
 		}
 		return &AccessDetailsDTO{
-			UserId: userID,
+			UserID: userID,
 		}, nil
 	}
 	return nil, err

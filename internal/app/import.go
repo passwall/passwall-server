@@ -1,22 +1,7 @@
 package app
 
-import (
-	"bufio"
-	"encoding/base64"
-	"errors"
-	"fmt"
-	"log"
-	"os"
-	"path/filepath"
-	"strings"
-
-	"github.com/pass-wall/passwall-server/internal/storage"
-	"github.com/pass-wall/passwall-server/model"
-	"github.com/spf13/viper"
-)
-
 // InsertValues ...
-func InsertValues(s storage.Store, url, username, password string, file *os.File) error {
+/* func InsertValues(s storage.Store, url, username, password string, file *os.File) error {
 	var urlIndex, usernameIndex, passwordIndex int
 
 	scanner := bufio.NewScanner(file)
@@ -59,4 +44,4 @@ func InsertValues(s storage.Store, url, username, password string, file *os.File
 	}
 
 	return nil
-}
+} */

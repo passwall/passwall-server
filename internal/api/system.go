@@ -1,9 +1,7 @@
 package api
 
 import (
-	"bytes"
 	"encoding/base64"
-	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -12,10 +10,12 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gorilla/mux"
 	"github.com/pass-wall/passwall-server/internal/app"
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
 	"github.com/spf13/viper"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -25,8 +25,59 @@ const (
 	BackupSuccess        = "Backup completed successfully!"
 )
 
+// Languages ...
+func Languages(s storage.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		type Languages struct {
+			Item []string `json:"languages"`
+		}
+
+		// TODO: Read store folder and parse of localization files for this slice
+		langs := Languages{
+			Item: []string{"tr", "en"},
+		}
+
+		RespondWithJSON(w, http.StatusOK, langs.Item)
+	}
+}
+
+// Language ...
+func Language(s storage.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		lang := vars["lang"]
+
+		if lang != "tr" && lang != "en" {
+			RespondWithError(w, http.StatusNotFound, "Language not found")
+			return
+		}
+
+		yamlFile, err := os.Open("./store/localization-" + lang + ".yml")
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		defer yamlFile.Close()
+
+		byteValue, err := ioutil.ReadAll(yamlFile)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		var langs model.Language
+		err = yaml.Unmarshal(byteValue, &langs)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		RespondWithJSON(w, http.StatusOK, langs)
+	}
+}
+
 // Import ...
-func Import(s storage.Store) http.HandlerFunc {
+/* func Import(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		url := r.FormValue("url")
 		username := r.FormValue("username")
@@ -59,10 +110,10 @@ func Import(s storage.Store) http.HandlerFunc {
 		response := model.Response{http.StatusOK, Success, ImportSuccess}
 		RespondWithJSON(w, http.StatusOK, response)
 	}
-}
+} */
 
 // Export exports all logins as CSV file
-func Export(s storage.Store) http.HandlerFunc {
+/* func Export(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		var loginList []model.Login
@@ -86,7 +137,7 @@ func Export(s storage.Store) http.HandlerFunc {
 		w.Header().Set("Content-Disposition", "attachment;filename=PassWall.csv")
 		w.Write(b.Bytes())
 	}
-}
+} */
 
 // Restore restores logins from backup file ./store/passwall-{BACKUP_DATE}.bak
 func Restore(s storage.Store) http.HandlerFunc {
@@ -137,7 +188,7 @@ func Restore(s storage.Store) http.HandlerFunc {
 }
 
 // Backup backups the store
-func Backup(s storage.Store) http.HandlerFunc {
+/* func Backup(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		err := app.BackupData(s)
 
@@ -149,10 +200,10 @@ func Backup(s storage.Store) http.HandlerFunc {
 		response := model.Response{http.StatusOK, Success, BackupSuccess}
 		RespondWithJSON(w, http.StatusOK, response)
 	}
-}
+} */
 
 // ListBackup all backups
-func ListBackup(w http.ResponseWriter, r *http.Request) {
+/* func ListBackup(w http.ResponseWriter, r *http.Request) {
 	backupFiles, err := app.GetBackupFiles()
 
 	if err != nil {
@@ -166,7 +217,7 @@ func ListBackup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	RespondWithJSON(w, http.StatusOK, response)
-}
+} */
 
 // MigrateTables runs auto migration for the models, will only add missing fields
 // won't delete/change current data in the store.
@@ -187,6 +238,9 @@ func MigrateTables(s storage.Store) {
 		log.Println(err)
 	}
 	if err := s.Tokens().Migrate(); err != nil {
+		log.Println(err)
+	}
+	if err := s.Users().Migrate("public"); err != nil {
 		log.Println(err)
 	}
 }

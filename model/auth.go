@@ -8,8 +8,15 @@ import (
 
 //AuthLoginDTO ...
 type AuthLoginDTO struct {
-	Username string `validate:"required" json:"username"`
-	Password string `validate:"required" json:"password"`
+	Email          string `validate:"required" json:"email"`
+	MasterPassword string `validate:"required" json:"master_password"`
+}
+
+//AuthLoginResponse ...
+type AuthLoginResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	UserDTOTable
 }
 
 //TokenDetailsDTO ...

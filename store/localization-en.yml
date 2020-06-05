@@ -1,0 +1,93 @@
+# Categories
+categories: Categories
+logins: Logins
+bank_accounts: Bank Accounts
+credit_cards: Credit Cards
+notes: Notes
+emails: Email Addresses
+identities: Identities
+license_keys: License Leys
+all_items: All Items
+favorites: Favorites
+trash: Trash
+
+# Server
+server: Server
+host: Server Address
+port: Port
+protocol: Protocol
+
+# Lisans
+license_key: License Key
+key: Anahtar
+
+# Logins
+url: Website
+
+# Bank Accounts
+bank_name: Bank Name
+bank_code: Bank Code
+account_name: Acount Name
+account_number: Account Number
+iban: IBAN
+currency: Currency
+
+# Credit Cards
+card_name: Card Name
+cardholder_name: Cardholder Name
+type: Type
+number: Number
+verification_number: Verification Number
+expiry_date: Expiry Date
+
+# Emails
+# email and password is defined in Sign in
+
+# Notes
+note: Note
+
+# System
+export: Export
+import: Import
+backup: Backup
+restore: Restore
+select_backup: Select backup file to restore
+backup_name: Backup Name
+
+# Sign in
+email: Email Address
+username: Username
+password: Password
+master_password: Master Password
+master_password_alert: Do not forget your master password! It is not possible to recover it.
+signin: Signin
+logout: Logout
+base_url: Server Address
+sign_to_dashboard: Signin to Dashboard
+
+# Generic
+use_this: User this
+save: Save
+cancel: Cance
+yes: Yes
+no: No
+refresh: Refresh
+copy: Copy
+show: Show
+hide: Hide
+delete: Delete
+update: Update
+new: New
+required: Required
+are_you_sure: Are you sure to continue?
+auto_generate_password: Do you want to use a strong auto-generated password?
+used_password: You have used this password on urls
+confirm_used_password: Are you sure to use this password again?
+created_at: Created At
+updated_at: Updated At
+deleted_at: Deleted At
+
+# Errors and Success
+network_error: An error occured on network connection
+error: An unknown error occured
+success: The action completed successfully
