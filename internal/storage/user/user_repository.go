@@ -89,19 +89,18 @@ func (p *Repository) Delete(id uint, schema string) error {
 }
 
 // Migrate ...
-func (p *Repository) Migrate(schema string) error {
+func (p *Repository) Migrate() error {
+	return p.db.AutoMigrate(&model.User{}).Error
+}
 
-	if schema != "public" {
+// CreateSchema ...
+func (p *Repository) CreateSchema(schema string) error {
+	var err error
+	if schema != "" && schema != "public" {
 		err := p.db.Exec("CREATE SCHEMA IF NOT EXISTS " + schema).Error
 		if err != nil {
 			log.Println(err)
 		}
-
-		err = p.db.Table(schema + ".logins").AutoMigrate(&model.Login{}).Error
-		if err != nil {
-			log.Println(err)
-		}
 	}
-
-	return p.db.AutoMigrate(&model.User{}).Error
+	return err
 }

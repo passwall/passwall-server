@@ -64,6 +64,6 @@ func (p *Repository) Delete(id uint) error {
 }
 
 // Migrate ...
-func (p *Repository) Migrate() error {
-	return p.db.AutoMigrate(&model.Note{}).Error
+func (p *Repository) Migrate(schema string) error {
+	return p.db.Table(schema + ".notes").AutoMigrate(&model.Note{}).Error
 }

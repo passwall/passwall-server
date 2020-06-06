@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -10,7 +9,6 @@ import (
 	"github.com/pass-wall/passwall-server/internal/app"
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
-	uuid "github.com/satori/go.uuid"
 
 	"github.com/gorilla/mux"
 )
@@ -94,45 +92,33 @@ func CreateUser(s storage.Store) http.HandlerFunc {
 		}
 
 		// 4. Create new user
-		// Hasing the master password with SHA256
-		userDTO.MasterPassword = app.NewSHA256([]byte(userDTO.MasterPassword))
-
-		// All new users are free member and Member (not Admin)
-		userDTO.Plan = "Free"
-		userDTO.Role = "Member"
-
-		// Generate new UUID for user
-		userDTO.UUID = uuid.NewV4()
-
 		createdUser, err := app.CreateUser(s, userDTO)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		// 5. Generate Schema and update user Schema field
-		// TODO: I am not sure if we need this schema field
-		isAuthorized := r.Context().Value("authorized").(bool)
-		userDTO.Schema = fmt.Sprintf("user%d", createdUser.ID)
-		fmt.Println(userDTO.Schema)
-		updatedUser, err := app.UpdateUser(s, createdUser, userDTO, isAuthorized)
+		// 5. Generate schema name and update user
+		updatedUser, err := app.GenerateSchema(s, createdUser)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		// 6. Migrate user specific tables in user's schema
-		err = s.Users().Migrate(updatedUser.Schema)
+		// 6. Create user schema and tables
+		err = s.Users().CreateSchema(updatedUser.Schema)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+
+		// 7. Create user tables in user schema
+		app.MigrateUserTables(s, updatedUser.Schema)
 
 		RespondWithJSON(w, http.StatusOK, model.ToUserDTO(updatedUser))
 	}
 }
 
-// TODO:
 // UpdateUser ...
 func UpdateUser(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -160,11 +146,6 @@ func UpdateUser(s storage.Store) http.HandlerFunc {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
-
-		// claims := token.Claims.(jwt.MapClaims)
-		// fmt.Printf("Token for user %v expires %v", claims["user"], claims["exp"])
-
-		// atClaims["authorized"] = true
 
 		// Check if user exist in database with new email address
 		if userDTO.Email != user.Email {
