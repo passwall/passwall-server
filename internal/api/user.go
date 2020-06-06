@@ -98,19 +98,22 @@ func CreateUser(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// 5. Update user once to generate schema
-		updatedUser, err := app.UpdateUser(s, createdUser, userDTO, true)
+		// 5. Generate schema name and update user
+		updatedUser, err := app.GenerateSchema(s, createdUser)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		// 6. Migrate user specific tables in user's schema
-		err = s.Users().Migrate(updatedUser.Schema)
+		// 6. Create user schema and tables
+		err = s.Users().CreateSchema(updatedUser.Schema)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+
+		// 7. Create user tables in user schema
+		app.MigrateUserTables(s, updatedUser.Schema)
 
 		RespondWithJSON(w, http.StatusOK, model.ToUserDTO(updatedUser))
 	}

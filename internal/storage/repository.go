@@ -21,7 +21,7 @@ type LoginRepository interface {
 	// Delete removes the entity from the store
 	Delete(id uint) error
 	// Migrate migrates the repository
-	Migrate() error
+	Migrate(schema string) error
 }
 
 // CreditCardRepository interface is the common interface for a repository
@@ -38,7 +38,7 @@ type CreditCardRepository interface {
 	// Delete removes the entity from the store
 	Delete(id uint) error
 	// Migrate migrates the repository
-	Migrate() error
+	Migrate(schema string) error
 }
 
 // BankAccountRepository interface is the common interface for a repository
@@ -55,7 +55,7 @@ type BankAccountRepository interface {
 	// Delete removes the entity from the store
 	Delete(id uint) error
 	// Migrate migrates the repository
-	Migrate() error
+	Migrate(schema string) error
 }
 
 // NoteRepository interface is the common interface for a repository
@@ -72,7 +72,7 @@ type NoteRepository interface {
 	// Delete removes the entity from the store
 	Delete(id uint) error
 	// Migrate migrates the repository
-	Migrate() error
+	Migrate(schema string) error
 }
 
 // EmailRepository interface is the common interface for a repository
@@ -89,7 +89,7 @@ type EmailRepository interface {
 	// Delete removes the entity from the store
 	Delete(id uint) error
 	// Migrate migrates the repository
-	Migrate() error
+	Migrate(schema string) error
 }
 
 // TODO: Add explanation to functions in TokenRepository
@@ -119,5 +119,7 @@ type UserRepository interface {
 	// Delete removes the entity from the store
 	Delete(id uint, schema string) error
 	// Migrate migrates the repository
-	Migrate(schema string) error
+	Migrate() error
+	// CreateSchema creates schema for user
+	CreateSchema(schema string) error
 }

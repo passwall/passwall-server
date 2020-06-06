@@ -7,7 +7,7 @@ import (
 	"time"
 
 	_ "github.com/heroku/x/hmetrics/onload"
-	"github.com/pass-wall/passwall-server/internal/api"
+	"github.com/pass-wall/passwall-server/internal/app"
 	"github.com/pass-wall/passwall-server/internal/config"
 	"github.com/pass-wall/passwall-server/internal/router"
 	"github.com/pass-wall/passwall-server/internal/storage"
@@ -26,7 +26,7 @@ func main() {
 
 	// Migrate database tables
 	// TODO: Migrate should be in storege.New functions of categories
-	api.MigrateTables(s)
+	app.MigrateSystemTables(s)
 
 	// Start cron jobs like backup
 	// app.StartCronJob(s)

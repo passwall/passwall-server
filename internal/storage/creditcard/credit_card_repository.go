@@ -68,6 +68,6 @@ func (p *Repository) Delete(id uint) error {
 }
 
 // Migrate ...
-func (p *Repository) Migrate() error {
-	return p.db.AutoMigrate(&model.CreditCard{}).Error
+func (p *Repository) Migrate(schema string) error {
+	return p.db.Table(schema + ".credit_cards").AutoMigrate(&model.CreditCard{}).Error
 }

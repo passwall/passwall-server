@@ -31,7 +31,9 @@ func CreateUser(s storage.Store, userDTO *model.UserDTO) (*model.User, error) {
 
 // UpdateUser updates the user with the dto and applies the changes in the store
 func UpdateUser(s storage.Store, user *model.User, userDTO *model.UserDTO, isAuthorized bool) (*model.User, error) {
-	if userDTO.MasterPassword != "" {
+
+	// TODO: Refactor the contents of updated user with a logical way
+	if userDTO.MasterPassword != "" && NewSHA256([]byte(userDTO.MasterPassword)) != user.MasterPassword {
 		userDTO.MasterPassword = NewSHA256([]byte(userDTO.MasterPassword))
 	} else {
 		userDTO.MasterPassword = user.MasterPassword
@@ -57,7 +59,12 @@ func UpdateUser(s storage.Store, user *model.User, userDTO *model.UserDTO, isAut
 	return updatedUser, nil
 }
 
-// Migrate ...
-func Migrate(s storage.Store, schema string) error {
-	return s.Users().Migrate(schema)
+// GenerateSchema creates user schema and tables
+func GenerateSchema(s storage.Store, user *model.User) (*model.User, error) {
+	user.Schema = fmt.Sprintf("user%d", user.ID)
+	savedUser, err := s.Users().Save(user)
+	if err != nil {
+		return nil, err
+	}
+	return savedUser, nil
 }

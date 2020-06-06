@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -217,53 +216,6 @@ func Restore(s storage.Store) http.HandlerFunc {
 	}
 
 	RespondWithJSON(w, http.StatusOK, response)
-} */
-
-// MigrateTables runs auto migration for the models, will only add missing fields
-// won't delete/change current data in the store.
-func MigrateTables(s storage.Store) {
-	if err := s.Logins().Migrate(); err != nil {
-		log.Println(err)
-	}
-	if err := s.CreditCards().Migrate(); err != nil {
-		log.Println(err)
-	}
-	if err := s.BankAccounts().Migrate(); err != nil {
-		log.Println(err)
-	}
-	if err := s.Notes().Migrate(); err != nil {
-		log.Println(err)
-	}
-	if err := s.Emails().Migrate(); err != nil {
-		log.Println(err)
-	}
-	if err := s.Tokens().Migrate(); err != nil {
-		log.Println(err)
-	}
-	if err := s.Users().Migrate("public"); err != nil {
-		log.Println(err)
-	}
-}
-
-/* func MigrateTables(s storage.Store) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if err := s.Logins().Migrate(); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		if err := s.CreditCards().Migrate(); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		if err := s.BankAccounts().Migrate(); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		if err := s.Notes().Migrate(); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-	}
 } */
 
 func upload(r *http.Request) (*os.File, error) {
