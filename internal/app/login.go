@@ -9,23 +9,23 @@ import (
 )
 
 // CreateLogin creates a login and saves it to the store
-func CreateLogin(s storage.Store, dto *model.LoginDTO) (*model.Login, error) {
+func CreateLogin(s storage.Store, dto *model.LoginDTO, schema string) (*model.Login, error) {
 
 	rawPass := dto.Password
 	dto.Password = base64.StdEncoding.EncodeToString(Encrypt(dto.Password, viper.GetString("server.passphrase")))
 
-	createdLogin, err := s.Logins().Save(*model.ToLogin(dto))
+	createdLogin, err := s.Logins().Save(model.ToLogin(dto), schema)
 	if err != nil {
 		return nil, err
 	}
 
 	createdLogin.Password = rawPass
-	return &createdLogin, nil
+	return createdLogin, nil
 
 }
 
 // UpdateLogin updates the login with the dto and applies the changes in the store
-func UpdateLogin(s storage.Store, login *model.Login, dto *model.LoginDTO) (*model.Login, error) {
+func UpdateLogin(s storage.Store, login *model.Login, dto *model.LoginDTO, schema string) (*model.Login, error) {
 
 	if dto.Password == "" {
 		generatedPass, err := Password()
@@ -40,12 +40,12 @@ func UpdateLogin(s storage.Store, login *model.Login, dto *model.LoginDTO) (*mod
 	login.URL = dto.URL
 	login.Username = dto.Username
 	login.Password = dto.Password
-	updatedLogin, err := s.Logins().Save(*login)
+	updatedLogin, err := s.Logins().Save(login, schema)
 	if err != nil {
 		return nil, err
 	}
 	updatedLogin.Password = rawPass
-	return &updatedLogin, nil
+	return updatedLogin, nil
 }
 
 // DecryptLoginPassword decrypts password

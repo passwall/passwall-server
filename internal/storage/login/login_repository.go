@@ -16,17 +16,18 @@ func NewRepository(db *gorm.DB) *Repository {
 }
 
 // All ...
-func (p *Repository) All() ([]model.Login, error) {
+func (p *Repository) All(schema string) ([]model.Login, error) {
 	logins := []model.Login{}
-	err := p.db.Find(&logins).Error
+	err := p.db.Table(schema + ".logins").Find(&logins).Error
 	return logins, err
 }
 
 // FindAll ...
-func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int) ([]model.Login, error) {
+func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.Login, error) {
 	logins := []model.Login{}
 
 	query := p.db
+	query = query.Table(schema + ".logins")
 	query = query.Limit(argsInt["limit"])
 	if argsInt["limit"] > 0 {
 		// offset can't be declared without a valid limit
@@ -44,25 +45,25 @@ func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int) 
 }
 
 // FindByID ...
-func (p *Repository) FindByID(id uint) (model.Login, error) {
-	login := model.Login{}
-	err := p.db.Where(`id = ?`, id).First(&login).Error
+func (p *Repository) FindByID(id uint, schema string) (*model.Login, error) {
+	login := new(model.Login)
+	err := p.db.Table(schema+".logins").Where(`id = ?`, id).First(&login).Error
 	return login, err
 }
 
 // Save ...
-func (p *Repository) Save(login model.Login) (model.Login, error) {
-	err := p.db.Save(&login).Error
+func (p *Repository) Save(login *model.Login, schema string) (*model.Login, error) {
+	err := p.db.Table(schema + ".logins").Save(&login).Error
 	return login, err
 }
 
 // Delete ...
-func (p *Repository) Delete(id uint) error {
-	err := p.db.Delete(&model.Login{ID: id}).Error
+func (p *Repository) Delete(id uint, schema string) error {
+	err := p.db.Table(schema + ".logins").Delete(&model.Login{ID: id}).Error
 	return err
 }
 
 // Migrate ...
 func (p *Repository) Migrate(schema string) error {
-	return p.db.Table(schema + ".logins").AutoMigrate(&model.Login{}).Error
+	return p.db.Table(schema + ".logins").Table(schema + ".logins").AutoMigrate(&model.Login{}).Error
 }

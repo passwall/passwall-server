@@ -51,14 +51,17 @@ func Auth(s storage.Store) negroni.HandlerFunc {
 
 		ctxAuthorized := claims["authorized"].(bool)
 		ctxUserID := claims["user_id"].(float64)
+		ctxSchema := fmt.Sprintf("user%v", claims["user_id"])
+
 		ctx := r.Context()
 		ctxWithID := context.WithValue(ctx, "id", ctxUserID)
 		ctxWithAuthorized := context.WithValue(ctxWithID, "authorized", ctxAuthorized)
+		ctxWithSchema := context.WithValue(ctxWithAuthorized, "schema", ctxSchema)
 
 		// These context variables can be accesable with
 		// ctxAuthorized := r.Context().Value("authorized").(bool)
 		// ctxID := r.Context().Value("id").(float64)
 
-		next(w, r.WithContext(ctxWithAuthorized))
+		next(w, r.WithContext(ctxWithSchema))
 	})
 }
