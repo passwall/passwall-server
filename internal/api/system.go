@@ -169,16 +169,16 @@ func Restore(s storage.Store) http.HandlerFunc {
 
 		var loginDTOs []model.LoginDTO
 		json.Unmarshal(loginsByte, &loginDTOs)
-
+		schema := r.Context().Value("schema").(string)
 		for i := range loginDTOs {
 
-			login := model.Login{
+			login := &model.Login{
 				URL:      loginDTOs[i].URL,
 				Username: loginDTOs[i].Username,
 				Password: base64.StdEncoding.EncodeToString(app.Encrypt(loginDTOs[i].Password, viper.GetString("server.passphrase"))),
 			}
 
-			s.Logins().Save(login)
+			s.Logins().Save(login, schema)
 		}
 
 		response := model.Response{http.StatusOK, Success, RestoreBackupSuccess}

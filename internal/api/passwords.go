@@ -21,7 +21,8 @@ func FindSamePassword(s storage.Store) http.HandlerFunc {
 		}
 		defer r.Body.Close()
 
-		urls, err := app.FindSamePassword(s, password)
+		schema := r.Context().Value("schema").(string)
+		urls, err := app.FindSamePassword(s, password, schema)
 
 		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, err.Error())

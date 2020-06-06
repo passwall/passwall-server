@@ -11,15 +11,15 @@ import (
 // Each method checks the entity type.
 type LoginRepository interface {
 	// All returns all the data in the repository.
-	All() ([]model.Login, error)
+	All(schema string) ([]model.Login, error)
 	// FindAll returns the entities matching the arguments.
-	FindAll(argsStr map[string]string, argsInt map[string]int) ([]model.Login, error)
+	FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.Login, error)
 	// FindByID finds the entity regarding to its ID.
-	FindByID(id uint) (model.Login, error)
+	FindByID(id uint, schema string) (*model.Login, error)
 	// Save stores the entity to the repository
-	Save(login model.Login) (model.Login, error)
+	Save(login *model.Login, schema string) (*model.Login, error)
 	// Delete removes the entity from the store
-	Delete(id uint) error
+	Delete(id uint, schema string) error
 	// Migrate migrates the repository
 	Migrate(schema string) error
 }

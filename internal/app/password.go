@@ -6,9 +6,9 @@ import (
 )
 
 // FindSamePassword ...
-func FindSamePassword(s storage.Store, password model.Password) (model.URLs, error) {
+func FindSamePassword(s storage.Store, password model.Password, schema string) (model.URLs, error) {
 
-	loginList, err := s.Logins().All()
+	loginList, err := s.Logins().All(schema)
 	if err != nil {
 		return *new(model.URLs), nil
 	}

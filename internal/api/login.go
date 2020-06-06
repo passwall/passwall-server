@@ -25,7 +25,8 @@ func FindAllLogins(s storage.Store) http.HandlerFunc {
 		fields := []string{"id", "created_at", "updated_at", "url", "username"}
 		argsStr, argsInt := SetArgs(r, fields)
 
-		loginList, err = s.Logins().FindAll(argsStr, argsInt)
+		schema := r.Context().Value("schema").(string)
+		loginList, err = s.Logins().FindAll(argsStr, argsInt, schema)
 
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
@@ -47,13 +48,14 @@ func FindLoginsByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		login, err := s.Logins().FindByID(uint(id))
+		schema := r.Context().Value("schema").(string)
+		login, err := s.Logins().FindByID(uint(id), schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		uLogin, err := app.DecryptLoginPassword(s, &login)
+		uLogin, err := app.DecryptLoginPassword(s, login)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -83,7 +85,8 @@ func CreateLogin(s storage.Store) http.HandlerFunc {
 			loginDTO.Password = generatedPass
 		}
 
-		createdLogin, err := app.CreateLogin(s, &loginDTO)
+		schema := r.Context().Value("schema").(string)
+		createdLogin, err := app.CreateLogin(s, &loginDTO, schema)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -110,14 +113,14 @@ func UpdateLogin(s storage.Store) http.HandlerFunc {
 			return
 		}
 		defer r.Body.Close()
-
-		login, err := s.Logins().FindByID(uint(id))
+		schema := r.Context().Value("schema").(string)
+		login, err := s.Logins().FindByID(uint(id), schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		updatedLogin, err := app.UpdateLogin(s, &login, &loginDTO)
+		updatedLogin, err := app.UpdateLogin(s, login, &loginDTO, schema)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -137,13 +140,14 @@ func DeleteLogin(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		login, err := s.Logins().FindByID(uint(id))
+		schema := r.Context().Value("schema").(string)
+		login, err := s.Logins().FindByID(uint(id), schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		err = s.Logins().Delete(login.ID)
+		err = s.Logins().Delete(login.ID, schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
