@@ -43,6 +43,9 @@ func Signin(s storage.Store) http.HandlerFunc {
 			return
 		}
 
+		// Create hash from master password
+		loginDTO.MasterPassword = app.NewSHA256([]byte(loginDTO.MasterPassword))
+
 		// Check if user exist in database and credentials are true
 		user, err := s.Users().FindByCredentials(loginDTO.Email, loginDTO.MasterPassword)
 		if err != nil {

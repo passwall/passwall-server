@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/md5"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"io"
 	"io/ioutil"
@@ -27,13 +28,18 @@ func FindIndex(vs []string, t string) int {
 
 // Password ..
 func Password() (string, error) {
-
 	length := viper.GetInt("server.generatedPasswordLength")
 	res, err := password.Generate(length, 10, 10, false, false)
 	if err != nil {
 		return "", err
 	}
 	return res, nil
+}
+
+// NewSHA256 ...
+func NewSHA256(data []byte) string {
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:])
 }
 
 // CreateHash ...

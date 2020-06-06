@@ -18,10 +18,15 @@ func CreateUser(s storage.Store, dto *model.UserDTO) (*model.User, error) {
 
 // UpdateUser updates the user with the dto and applies the changes in the store
 func UpdateUser(s storage.Store, user *model.User, userDTO *model.UserDTO, isAuthorized bool) (*model.User, error) {
+	if userDTO.MasterPassword != "" {
+		userDTO.MasterPassword = NewSHA256([]byte(userDTO.MasterPassword))
+	} else {
+		userDTO.MasterPassword = user.MasterPassword
+	}
+
 	user.Name = userDTO.Name
 	user.Email = userDTO.Email
 	user.MasterPassword = userDTO.MasterPassword
-	user.Schema = userDTO.Schema
 
 	// Only Admin's can change plan and role
 	if isAuthorized {
