@@ -114,6 +114,7 @@ func CreateUser(s storage.Store) http.HandlerFunc {
 		// TODO: I am not sure if we need this schema field
 		isAuthorized := r.Context().Value("authorized").(bool)
 		userDTO.Schema = fmt.Sprintf("user%d", createdUser.ID)
+		fmt.Println(userDTO.Schema)
 		updatedUser, err := app.UpdateUser(s, createdUser, userDTO, isAuthorized)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
@@ -127,7 +128,7 @@ func CreateUser(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		RespondWithJSON(w, http.StatusOK, model.ToUserDTO(createdUser))
+		RespondWithJSON(w, http.StatusOK, model.ToUserDTO(updatedUser))
 	}
 }
 

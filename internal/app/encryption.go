@@ -37,9 +37,10 @@ func Password() (string, error) {
 }
 
 // NewSHA256 ...
-func NewSHA256(data []byte) string {
-	hash := sha256.Sum256(data)
-	return hex.EncodeToString(hash[:])
+func NewSHA256(key []byte) string {
+	hasher := sha256.New()
+	hasher.Write([]byte(key))
+	return hex.EncodeToString(hasher.Sum(nil))
 }
 
 // CreateHash ...
