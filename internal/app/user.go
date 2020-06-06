@@ -27,6 +27,7 @@ func UpdateUser(s storage.Store, user *model.User, userDTO *model.UserDTO, isAut
 	user.Name = userDTO.Name
 	user.Email = userDTO.Email
 	user.MasterPassword = userDTO.MasterPassword
+	user.Schema = userDTO.Schema
 
 	// Only Admin's can change plan and role
 	if isAuthorized {
