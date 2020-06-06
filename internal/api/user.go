@@ -11,6 +11,7 @@ import (
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
 	uuid "github.com/satori/go.uuid"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gorilla/mux"
 )
@@ -94,11 +95,21 @@ func CreateUser(s storage.Store) http.HandlerFunc {
 		}
 
 		// 4. Create new user
+		// Hasing the master password with bcrypt
+		pwdHash, err := bcrypt.GenerateFromPassword([]byte(userDTO.MasterPassword), bcrypt.MinCost)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		userDTO.MasterPassword = string(pwdHash)
+
 		// All new users are free member and Member (not Admin)
 		userDTO.Plan = "Free"
 		userDTO.Role = "Member"
 
+		// Generate new UUID for user
 		userDTO.UUID = uuid.NewV4()
+
 		createdUser, err := app.CreateUser(s, userDTO)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
