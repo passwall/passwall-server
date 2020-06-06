@@ -1,14 +1,27 @@
 package app
 
 import (
+	"fmt"
+
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
+	uuid "github.com/satori/go.uuid"
 )
 
 // CreateUser creates a user and saves it to the store
-func CreateUser(s storage.Store, dto *model.UserDTO) (*model.User, error) {
+func CreateUser(s storage.Store, userDTO *model.UserDTO) (*model.User, error) {
 
-	createdUser, err := s.Users().Save(model.ToUser(dto))
+	// Hasing the master password with SHA256
+	userDTO.MasterPassword = NewSHA256([]byte(userDTO.MasterPassword))
+
+	// New user's plan is Free and role is Member (not Admin)
+	userDTO.Plan = "Free"
+	userDTO.Role = "Member"
+
+	// Generate new UUID for user
+	userDTO.UUID = uuid.NewV4()
+
+	createdUser, err := s.Users().Save(model.ToUser(userDTO))
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +40,9 @@ func UpdateUser(s storage.Store, user *model.User, userDTO *model.UserDTO, isAut
 	user.Name = userDTO.Name
 	user.Email = userDTO.Email
 	user.MasterPassword = userDTO.MasterPassword
-	user.Schema = userDTO.Schema
+
+	// This never changes
+	user.Schema = fmt.Sprintf("user%d", user.ID)
 
 	// Only Admin's can change plan and role
 	if isAuthorized {
