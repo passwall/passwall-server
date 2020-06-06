@@ -33,7 +33,7 @@ func TestHealthCheck(t *testing.T) {
 
 	handler.ServeHTTP(rr, req)
 	// more test cases could be added
-	expected := `{"API":{"StatusCode":200,"Err":null},"Database":{"StatusCode":200,"Err":null}}`
+	expected := `{"api":{"status_code":200,"error":null},"database":{"status_code":200,"error":null}}`
 
 	if rr.Body.String() != expected {
 		t.Errorf("handler returned unexpected body: got %v want %v",
