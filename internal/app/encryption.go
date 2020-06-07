@@ -5,13 +5,13 @@ import (
 	"crypto/cipher"
 	"crypto/md5"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/hex"
 	"io"
 	"io/ioutil"
 	"os"
 
 	"github.com/sethvargo/go-password/password"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/spf13/viper"
 )
@@ -36,11 +36,10 @@ func Password() (string, error) {
 	return res, nil
 }
 
-// NewSHA256 ...
-func NewSHA256(key []byte) string {
-	hasher := sha256.New()
-	hasher.Write([]byte(key))
-	return hex.EncodeToString(hasher.Sum(nil))
+// NewBcrypt ...
+func NewBcrypt(key []byte) string {
+	hasher, _ := bcrypt.GenerateFromPassword(key, bcrypt.DefaultCost)
+	return string(hasher)
 }
 
 // CreateHash ...

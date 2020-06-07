@@ -33,7 +33,7 @@ func FindAllLogins(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		loginList = app.DecryptLoginPasswords(loginList)
+		// loginList = app.DecryptLoginPasswords(loginList)
 		RespondWithJSON(w, http.StatusOK, loginList)
 	}
 }
@@ -55,13 +55,13 @@ func FindLoginsByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		uLogin, err := app.DecryptLoginPassword(s, login)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
+		// uLogin, err := app.DecryptLoginPassword(s, login)
+		// if err != nil {
+		// 	RespondWithError(w, http.StatusInternalServerError, err.Error())
+		// 	return
+		// }
 
-		RespondWithJSON(w, http.StatusOK, model.ToLoginDTO(uLogin))
+		RespondWithJSON(w, http.StatusOK, model.ToLoginDTO(login))
 	}
 }
 

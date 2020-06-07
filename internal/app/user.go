@@ -12,7 +12,7 @@ import (
 func CreateUser(s storage.Store, userDTO *model.UserDTO) (*model.User, error) {
 
 	// Hasing the master password with SHA256
-	userDTO.MasterPassword = NewSHA256([]byte(userDTO.MasterPassword))
+	userDTO.MasterPassword = NewBcrypt([]byte(userDTO.MasterPassword))
 
 	// New user's plan is Free and role is Member (not Admin)
 	userDTO.Plan = "Free"
@@ -33,8 +33,8 @@ func CreateUser(s storage.Store, userDTO *model.UserDTO) (*model.User, error) {
 func UpdateUser(s storage.Store, user *model.User, userDTO *model.UserDTO, isAuthorized bool) (*model.User, error) {
 
 	// TODO: Refactor the contents of updated user with a logical way
-	if userDTO.MasterPassword != "" && NewSHA256([]byte(userDTO.MasterPassword)) != user.MasterPassword {
-		userDTO.MasterPassword = NewSHA256([]byte(userDTO.MasterPassword))
+	if userDTO.MasterPassword != "" && NewBcrypt([]byte(userDTO.MasterPassword)) != user.MasterPassword {
+		userDTO.MasterPassword = NewBcrypt([]byte(userDTO.MasterPassword))
 	} else {
 		userDTO.MasterPassword = user.MasterPassword
 	}

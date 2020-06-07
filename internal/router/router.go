@@ -92,13 +92,10 @@ func (r *Router) initRoutes() {
 
 	// Auth endpoints
 	authRouter := mux.NewRouter().PathPrefix("/auth").Subrouter()
-	authRouter.HandleFunc("/signin", api.Signin(r.store))
-	authRouter.HandleFunc("/refresh", api.RefreshToken(r.store))
-	authRouter.HandleFunc("/check", api.CheckToken(r.store))
-
-	// Web public endpoints
-	webRouter := mux.NewRouter().PathPrefix("/web").Subrouter()
-	webRouter.HandleFunc("/signup", api.Signup(r.store)).Methods(http.MethodPost)
+	authRouter.HandleFunc("/signup", api.Signup(r.store)).Methods(http.MethodPost)
+	authRouter.HandleFunc("/signin", api.Signin(r.store)).Methods(http.MethodPost)
+	authRouter.HandleFunc("/refresh", api.RefreshToken(r.store)).Methods(http.MethodPost)
+	authRouter.HandleFunc("/check", api.CheckToken(r.store)).Methods(http.MethodPost)
 
 	n := negroni.Classic()
 	n.Use(negroni.HandlerFunc(CORS))
@@ -112,11 +109,6 @@ func (r *Router) initRoutes() {
 	r.router.PathPrefix("/auth").Handler(n.With(
 		LimitHandler(),
 		negroni.Wrap(authRouter),
-	))
-
-	r.router.PathPrefix("/web").Handler(n.With(
-		LimitHandler(),
-		negroni.Wrap(webRouter),
 	))
 
 	// Insecure endpoints
