@@ -25,7 +25,8 @@ func FindAllBankAccounts(s storage.Store) http.HandlerFunc {
 		fields := []string{"id", "created_at", "updated_at", "bank_name", "bank_code", "account_name", "account_number", "iban", "currency"}
 		argsStr, argsInt := SetArgs(r, fields)
 
-		bankAccounts, err = s.BankAccounts().FindAll(argsStr, argsInt)
+		schema := r.Context().Value("schema").(string)
+		bankAccounts, err = s.BankAccounts().FindAll(argsStr, argsInt, schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
@@ -46,13 +47,14 @@ func FindBankAccountByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		account, err := s.BankAccounts().FindByID(uint(id))
+		schema := r.Context().Value("schema").(string)
+		account, err := s.BankAccounts().FindByID(uint(id), schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		bankAccount, err := app.DecryptBankAccountPassword(s, &account)
+		bankAccount, err := app.DecryptBankAccountPassword(s, account)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -74,7 +76,8 @@ func CreateBankAccount(s storage.Store) http.HandlerFunc {
 		}
 		defer r.Body.Close()
 
-		createdBankAccount, err := app.CreateBankAccount(s, &bankAccountDTO)
+		schema := r.Context().Value("schema").(string)
+		createdBankAccount, err := app.CreateBankAccount(s, &bankAccountDTO, schema)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -102,13 +105,14 @@ func UpdateBankAccount(s storage.Store) http.HandlerFunc {
 		}
 		defer r.Body.Close()
 
-		bankAccount, err := s.BankAccounts().FindByID(uint(id))
+		schema := r.Context().Value("schema").(string)
+		bankAccount, err := s.BankAccounts().FindByID(uint(id), schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		updatedBankAccount, err := app.UpdateBankAccount(s, &bankAccount, &bankAccountDTO)
+		updatedBankAccount, err := app.UpdateBankAccount(s, bankAccount, &bankAccountDTO, schema)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -118,7 +122,7 @@ func UpdateBankAccount(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// Delete ...
+// DeleteBankAccount ...
 func DeleteBankAccount(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
@@ -128,13 +132,14 @@ func DeleteBankAccount(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		bankAccount, err := s.BankAccounts().FindByID(uint(id))
+		schema := r.Context().Value("schema").(string)
+		bankAccount, err := s.BankAccounts().FindByID(uint(id), schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		err = s.BankAccounts().Delete(bankAccount.ID)
+		err = s.BankAccounts().Delete(bankAccount.ID, schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return

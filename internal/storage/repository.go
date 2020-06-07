@@ -28,15 +28,15 @@ type LoginRepository interface {
 // Each method checks the entity type.
 type CreditCardRepository interface {
 	// All returns all the data in the repository.
-	All() ([]model.CreditCard, error)
+	All(schema string) ([]model.CreditCard, error)
 	// FindAll returns the entities matching the arguments.
-	FindAll(argsStr map[string]string, argsInt map[string]int) ([]model.CreditCard, error)
+	FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.CreditCard, error)
 	// FindByID finds the entity regarding to its ID.
-	FindByID(id uint) (model.CreditCard, error)
+	FindByID(id uint, schema string) (*model.CreditCard, error)
 	// Save stores the entity to the repository
-	Save(card model.CreditCard) (model.CreditCard, error)
+	Save(card *model.CreditCard, schema string) (*model.CreditCard, error)
 	// Delete removes the entity from the store
-	Delete(id uint) error
+	Delete(id uint, schema string) error
 	// Migrate migrates the repository
 	Migrate(schema string) error
 }
@@ -45,15 +45,15 @@ type CreditCardRepository interface {
 // Each method checks the entity type.
 type BankAccountRepository interface {
 	// All returns all the data in the repository.
-	All() ([]model.BankAccount, error)
+	All(schema string) ([]model.BankAccount, error)
 	// FindAll returns the entities matching the arguments.
-	FindAll(argsStr map[string]string, argsInt map[string]int) ([]model.BankAccount, error)
+	FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.BankAccount, error)
 	// FindByID finds the entity regarding to its ID.
-	FindByID(id uint) (model.BankAccount, error)
+	FindByID(id uint, schema string) (*model.BankAccount, error)
 	// Save stores the entity to the repository
-	Save(account model.BankAccount) (model.BankAccount, error)
+	Save(account *model.BankAccount, schema string) (*model.BankAccount, error)
 	// Delete removes the entity from the store
-	Delete(id uint) error
+	Delete(id uint, schema string) error
 	// Migrate migrates the repository
 	Migrate(schema string) error
 }
@@ -62,15 +62,15 @@ type BankAccountRepository interface {
 // Each method checks the entity type.
 type NoteRepository interface {
 	// All returns all the data in the repository.
-	All() ([]model.Note, error)
+	All(schema string) ([]model.Note, error)
 	// FindAll returns the entities matching the arguments.
-	FindAll(argsStr map[string]string, argsInt map[string]int) ([]model.Note, error)
+	FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.Note, error)
 	// FindByID finds the entity regarding to its ID.
-	FindByID(id uint) (model.Note, error)
+	FindByID(id uint, schema string) (*model.Note, error)
 	// Save stores the entity to the repository
-	Save(account model.Note) (model.Note, error)
+	Save(account *model.Note, schema string) (*model.Note, error)
 	// Delete removes the entity from the store
-	Delete(id uint) error
+	Delete(id uint, schema string) error
 	// Migrate migrates the repository
 	Migrate(schema string) error
 }
@@ -79,19 +79,20 @@ type NoteRepository interface {
 // Each method checks the entity type.
 type EmailRepository interface {
 	// All returns all the data in the repository.
-	All() ([]model.Email, error)
+	All(schema string) ([]model.Email, error)
 	// FindAll returns the entities matching the arguments.
-	FindAll(argsStr map[string]string, argsInt map[string]int) ([]model.Email, error)
+	FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.Email, error)
 	// FindByID finds the entity regarding to its ID.
-	FindByID(id uint) (model.Email, error)
+	FindByID(id uint, schema string) (*model.Email, error)
 	// Save stores the entity to the repository
-	Save(account model.Email) (model.Email, error)
+	Save(account *model.Email, schema string) (*model.Email, error)
 	// Delete removes the entity from the store
-	Delete(id uint) error
+	Delete(id uint, schema string) error
 	// Migrate migrates the repository
 	Migrate(schema string) error
 }
 
+// TokenRepository ...
 // TODO: Add explanation to functions in TokenRepository
 type TokenRepository interface {
 	Any(uuid string) bool

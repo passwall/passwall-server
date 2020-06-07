@@ -25,7 +25,8 @@ func FindAllNotes(s storage.Store) http.HandlerFunc {
 		fields := []string{"id", "created_at", "updated_at", "note"}
 		argsStr, argsInt := SetArgs(r, fields)
 
-		notes, err = s.Notes().FindAll(argsStr, argsInt)
+		schema := r.Context().Value("schema").(string)
+		notes, err = s.Notes().FindAll(argsStr, argsInt, schema)
 
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
@@ -47,13 +48,14 @@ func FindNoteByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		note, err := s.Notes().FindByID(uint(id))
+		schema := r.Context().Value("schema").(string)
+		note, err := s.Notes().FindByID(uint(id), schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		uNote, err := app.DecryptNote(s, &note)
+		uNote, err := app.DecryptNote(s, note)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -75,7 +77,8 @@ func CreateNote(s storage.Store) http.HandlerFunc {
 		}
 		defer r.Body.Close()
 
-		createdNote, err := app.CreateNote(s, &noteDTO)
+		schema := r.Context().Value("schema").(string)
+		createdNote, err := app.CreateNote(s, &noteDTO, schema)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -103,13 +106,14 @@ func UpdateNote(s storage.Store) http.HandlerFunc {
 		}
 		defer r.Body.Close()
 
-		note, err := s.Notes().FindByID(uint(id))
+		schema := r.Context().Value("schema").(string)
+		note, err := s.Notes().FindByID(uint(id), schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		updatedNote, err := app.UpdateNote(s, &note, &noteDTO)
+		updatedNote, err := app.UpdateNote(s, note, &noteDTO, schema)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -119,7 +123,7 @@ func UpdateNote(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// Delete ...
+// DeleteNote ...
 func DeleteNote(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
@@ -129,13 +133,14 @@ func DeleteNote(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		note, err := s.Notes().FindByID(uint(id))
+		schema := r.Context().Value("schema").(string)
+		note, err := s.Notes().FindByID(uint(id), schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		err = s.Notes().Delete(note.ID)
+		err = s.Notes().Delete(note.ID, schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return

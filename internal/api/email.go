@@ -21,7 +21,8 @@ func FindAllEmails(s storage.Store) http.HandlerFunc {
 		fields := []string{"id", "created_at", "updated_at", "email"}
 		argsStr, argsInt := SetArgs(r, fields)
 
-		emails, err = s.Emails().FindAll(argsStr, argsInt)
+		schema := r.Context().Value("schema").(string)
+		emails, err = s.Emails().FindAll(argsStr, argsInt, schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
@@ -42,13 +43,14 @@ func FindEmailByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		account, err := s.Emails().FindByID(uint(id))
+		schema := r.Context().Value("schema").(string)
+		account, err := s.Emails().FindByID(uint(id), schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		email, err := app.DecryptEmailPassword(s, &account)
+		email, err := app.DecryptEmailPassword(s, account)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -70,7 +72,8 @@ func CreateEmail(s storage.Store) http.HandlerFunc {
 		}
 		defer r.Body.Close()
 
-		createdEmail, err := app.CreateEmail(s, &emailDTO)
+		schema := r.Context().Value("schema").(string)
+		createdEmail, err := app.CreateEmail(s, &emailDTO, schema)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -98,13 +101,14 @@ func UpdateEmail(s storage.Store) http.HandlerFunc {
 		}
 		defer r.Body.Close()
 
-		email, err := s.Emails().FindByID(uint(id))
+		schema := r.Context().Value("schema").(string)
+		email, err := s.Emails().FindByID(uint(id), schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		updatedEmail, err := app.UpdateEmail(s, &email, &emailDTO)
+		updatedEmail, err := app.UpdateEmail(s, email, &emailDTO, schema)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -124,13 +128,14 @@ func DeleteEmail(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		email, err := s.Emails().FindByID(uint(id))
+		schema := r.Context().Value("schema").(string)
+		email, err := s.Emails().FindByID(uint(id), schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		err = s.Emails().Delete(email.ID)
+		err = s.Emails().Delete(email.ID, schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return

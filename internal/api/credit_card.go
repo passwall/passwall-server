@@ -27,7 +27,8 @@ func FindAllCreditCards(s storage.Store) http.HandlerFunc {
 		fields := []string{"id", "created_at", "updated_at", "bank_name", "bank_code", "account_name", "account_number", "iban", "currency"}
 		argsStr, argsInt := SetArgs(r, fields)
 
-		creditCards, err = s.CreditCards().FindAll(argsStr, argsInt)
+		schema := r.Context().Value("schema").(string)
+		creditCards, err = s.CreditCards().FindAll(argsStr, argsInt, schema)
 
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
@@ -49,13 +50,14 @@ func FindCreditCardByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		card, err := s.CreditCards().FindByID(uint(id))
+		schema := r.Context().Value("schema").(string)
+		card, err := s.CreditCards().FindByID(uint(id), schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		creditCard, err := app.DecryptCreditCardVerificationNumber(s, &card)
+		creditCard, err := app.DecryptCreditCardVerificationNumber(s, card)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -77,7 +79,8 @@ func CreateCreditCard(s storage.Store) http.HandlerFunc {
 		}
 		defer r.Body.Close()
 
-		createdCreditCard, err := app.CreateCreditCard(s, &creditCardDTO)
+		schema := r.Context().Value("schema").(string)
+		createdCreditCard, err := app.CreateCreditCard(s, &creditCardDTO, schema)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -105,13 +108,14 @@ func UpdateCreditCard(s storage.Store) http.HandlerFunc {
 		}
 		defer r.Body.Close()
 
-		creditCard, err := s.CreditCards().FindByID(uint(id))
+		schema := r.Context().Value("schema").(string)
+		creditCard, err := s.CreditCards().FindByID(uint(id), schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		updatedCreditCard, err := app.UpdateCreditCard(s, &creditCard, &creditCardDTO)
+		updatedCreditCard, err := app.UpdateCreditCard(s, creditCard, &creditCardDTO, schema)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -131,13 +135,14 @@ func DeleteCreditCard(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		creditCard, err := s.CreditCards().FindByID(uint(id))
+		schema := r.Context().Value("schema").(string)
+		creditCard, err := s.CreditCards().FindByID(uint(id), schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		err = s.CreditCards().Delete(creditCard.ID)
+		err = s.CreditCards().Delete(creditCard.ID, schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
