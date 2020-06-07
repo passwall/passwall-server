@@ -9,22 +9,22 @@ import (
 )
 
 // CreateNote creates a new note and saves it to the store
-func CreateNote(s storage.Store, dto *model.NoteDTO) (*model.Note, error) {
+func CreateNote(s storage.Store, dto *model.NoteDTO, schema string) (*model.Note, error) {
 
 	rawPass := dto.Note
 	dto.Note = base64.StdEncoding.EncodeToString(Encrypt(dto.Note, viper.GetString("server.passphrase")))
 
-	createdNote, err := s.Notes().Save(*model.ToNote(dto))
+	createdNote, err := s.Notes().Save(model.ToNote(dto), schema)
 	if err != nil {
 		return nil, err
 	}
 
 	createdNote.Note = rawPass
-	return &createdNote, nil
+	return createdNote, nil
 }
 
 // UpdateNote updates the note with the dto and applies the changes in the store
-func UpdateNote(s storage.Store, note *model.Note, dto *model.NoteDTO) (*model.Note, error) {
+func UpdateNote(s storage.Store, note *model.Note, dto *model.NoteDTO, schema string) (*model.Note, error) {
 	rawPass := dto.Note
 	dto.Note = base64.StdEncoding.EncodeToString(Encrypt(dto.Note, viper.GetString("server.passphrase")))
 
@@ -32,13 +32,13 @@ func UpdateNote(s storage.Store, note *model.Note, dto *model.NoteDTO) (*model.N
 	note = model.ToNote(dto)
 	note.ID = uint(note.ID)
 
-	updatedNote, err := s.Notes().Save(*note)
+	updatedNote, err := s.Notes().Save(note, schema)
 	if err != nil {
 
 		return nil, err
 	}
 	updatedNote.Note = rawPass
-	return &updatedNote, nil
+	return updatedNote, nil
 }
 
 // DecryptNote decrypts note

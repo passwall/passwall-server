@@ -9,7 +9,7 @@ import (
 )
 
 // CreateBankAccount creates a new bank account and saves it to the store
-func CreateBankAccount(s storage.Store, dto *model.BankAccountDTO) (*model.BankAccount, error) {
+func CreateBankAccount(s storage.Store, dto *model.BankAccountDTO, schema string) (*model.BankAccount, error) {
 	if dto.Password == "" {
 		generatedPass, err := Password()
 		if err != nil {
@@ -21,18 +21,18 @@ func CreateBankAccount(s storage.Store, dto *model.BankAccountDTO) (*model.BankA
 	rawPass := dto.Password
 	dto.Password = base64.StdEncoding.EncodeToString(Encrypt(dto.Password, viper.GetString("server.passphrase")))
 
-	createdBankAccount, err := s.BankAccounts().Save(*model.ToBankAccount(dto))
+	createdBankAccount, err := s.BankAccounts().Save(model.ToBankAccount(dto), schema)
 	if err != nil {
 		return nil, err
 	}
 
 	createdBankAccount.Password = rawPass
 
-	return &createdBankAccount, nil
+	return createdBankAccount, nil
 }
 
 // UpdateBankAccount updates the account with the dto and applies the changes in the store
-func UpdateBankAccount(s storage.Store, account *model.BankAccount, dto *model.BankAccountDTO) (*model.BankAccount, error) {
+func UpdateBankAccount(s storage.Store, account *model.BankAccount, dto *model.BankAccountDTO, schema string) (*model.BankAccount, error) {
 	if dto.Password == "" {
 		generatedPass, err := Password()
 		if err != nil {
@@ -47,14 +47,14 @@ func UpdateBankAccount(s storage.Store, account *model.BankAccount, dto *model.B
 	bankAccount := model.ToBankAccount(dto)
 	bankAccount.ID = uint(account.ID)
 
-	updatedBankAccount, err := s.BankAccounts().Save(*bankAccount)
+	updatedBankAccount, err := s.BankAccounts().Save(bankAccount, schema)
 	if err != nil {
 
 		return nil, err
 	}
 
 	updatedBankAccount.Password = rawPass
-	return &updatedBankAccount, nil
+	return updatedBankAccount, nil
 }
 
 // DecryptBankAccountPassword decrypts password

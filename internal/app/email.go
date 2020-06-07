@@ -9,7 +9,7 @@ import (
 )
 
 // CreateEmail creates a new bank account and saves it to the store
-func CreateEmail(s storage.Store, dto *model.EmailDTO) (*model.Email, error) {
+func CreateEmail(s storage.Store, dto *model.EmailDTO, schema string) (*model.Email, error) {
 	if dto.Password == "" {
 		generatedPass, err := Password()
 		if err != nil {
@@ -21,18 +21,18 @@ func CreateEmail(s storage.Store, dto *model.EmailDTO) (*model.Email, error) {
 	rawPass := dto.Password
 	dto.Password = base64.StdEncoding.EncodeToString(Encrypt(dto.Password, viper.GetString("server.passphrase")))
 
-	createdEmail, err := s.Emails().Save(*model.ToEmail(dto))
+	createdEmail, err := s.Emails().Save(model.ToEmail(dto), schema)
 	if err != nil {
 		return nil, err
 	}
 
 	createdEmail.Password = rawPass
 
-	return &createdEmail, nil
+	return createdEmail, nil
 }
 
 // UpdateEmail updates the account with the dto and applies the changes in the store
-func UpdateEmail(s storage.Store, account *model.Email, dto *model.EmailDTO) (*model.Email, error) {
+func UpdateEmail(s storage.Store, account *model.Email, dto *model.EmailDTO, schema string) (*model.Email, error) {
 	if dto.Password == "" {
 		generatedPass, err := Password()
 		if err != nil {
@@ -47,14 +47,14 @@ func UpdateEmail(s storage.Store, account *model.Email, dto *model.EmailDTO) (*m
 	email := model.ToEmail(dto)
 	email.ID = uint(account.ID)
 
-	updatedEmail, err := s.Emails().Save(*email)
+	updatedEmail, err := s.Emails().Save(email, schema)
 	if err != nil {
 
 		return nil, err
 	}
 
 	updatedEmail.Password = rawPass
-	return &updatedEmail, nil
+	return updatedEmail, nil
 }
 
 // DecryptEmailPassword decrypts password

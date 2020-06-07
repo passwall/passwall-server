@@ -9,24 +9,24 @@ import (
 )
 
 // CreateCreditCard creates a new credit card and saves it to the store
-func CreateCreditCard(s storage.Store, dto *model.CreditCardDTO) (*model.CreditCard, error) {
+func CreateCreditCard(s storage.Store, dto *model.CreditCardDTO, schema string) (*model.CreditCard, error) {
 
 	rawPass := dto.VerificationNumber
 	dto.VerificationNumber = base64.StdEncoding.EncodeToString(Encrypt(dto.VerificationNumber, viper.GetString("server.passphrase")))
 
-	createdCreditCard, err := s.CreditCards().Save(*model.ToCreditCard(dto))
+	createdCreditCard, err := s.CreditCards().Save(model.ToCreditCard(dto), schema)
 	if err != nil {
 		return nil, err
 	}
 
 	createdCreditCard.VerificationNumber = rawPass
 
-	return &createdCreditCard, nil
+	return createdCreditCard, nil
 
 }
 
 // UpdateCreditCard updates the credit card with the dto and applies the changes in the store
-func UpdateCreditCard(s storage.Store, card *model.CreditCard, dto *model.CreditCardDTO) (*model.CreditCard, error) {
+func UpdateCreditCard(s storage.Store, card *model.CreditCard, dto *model.CreditCardDTO, schema string) (*model.CreditCard, error) {
 	rawPass := dto.VerificationNumber
 	dto.VerificationNumber = base64.StdEncoding.EncodeToString(Encrypt(dto.VerificationNumber, viper.GetString("server.passphrase")))
 
@@ -34,12 +34,12 @@ func UpdateCreditCard(s storage.Store, card *model.CreditCard, dto *model.Credit
 	creditCard := model.ToCreditCard(dto)
 	creditCard.ID = uint(card.ID)
 
-	updatedCreditCard, err := s.CreditCards().Save(*creditCard)
+	updatedCreditCard, err := s.CreditCards().Save(creditCard, schema)
 	if err != nil {
 		return nil, err
 	}
 	updatedCreditCard.VerificationNumber = rawPass
-	return &updatedCreditCard, nil
+	return updatedCreditCard, nil
 }
 
 // DecryptCreditCardVerificationNumber decrypts verification number
