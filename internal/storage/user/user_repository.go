@@ -5,6 +5,7 @@ import (
 
 	"github.com/jinzhu/gorm"
 	"github.com/pass-wall/passwall-server/model"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // Repository ...
@@ -66,8 +67,18 @@ func (p *Repository) FindByEmail(email string) (*model.User, error) {
 // FindByCredentials ...
 func (p *Repository) FindByCredentials(email, masterPassword string) (*model.User, error) {
 	user := new(model.User)
-	err := p.db.Where(`email = ? AND master_password = ?`, email, masterPassword).First(&user).Error
-	return user, err
+	err := p.db.Where(`email = ?`, email).First(&user).Error
+	if err != nil {
+		return user, err
+	}
+
+	// Comparing the password with the bcrypt hash
+	err = bcrypt.CompareHashAndPassword([]byte(user.MasterPassword), []byte(masterPassword))
+	if err != nil {
+		return user, err
+	}
+
+	return user, nil
 }
 
 // Save ...
