@@ -40,7 +40,7 @@ func GenerateSecureKey() string {
 // Password ..
 func Password() (string, error) {
 	length := viper.GetInt("server.generatedPasswordLength")
-	res, err := password.Generate(length, 10, 10, false, false)
+	res, err := password.Generate(length, 10, 6, false, false)
 	if err != nil {
 		return "", err
 	}
