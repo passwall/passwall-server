@@ -11,5 +11,6 @@ type Token struct {
 	UserID     int
 	UUID       uuid.UUID `gorm:"type:uuid;type:varchar(100);"`
 	Token      string    `gorm:"type:text;"`
+	SecureKey  string    `gorm:"type:text;"`
 	ExpiryTime time.Time
 }

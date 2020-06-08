@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/md5"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"io"
 	"io/ioutil"
@@ -26,10 +27,20 @@ func FindIndex(vs []string, t string) int {
 	return -1
 }
 
+func GenerateSecureKey() string {
+	key := make([]byte, 32)
+	_, err := rand.Read(key)
+	if err != nil {
+		// handle error here
+	}
+	keyEnc := base64.StdEncoding.EncodeToString(key)
+	return keyEnc
+}
+
 // Password ..
 func Password() (string, error) {
 	length := viper.GetInt("server.generatedPasswordLength")
-	res, err := password.Generate(length, 10, 10, false, false)
+	res, err := password.Generate(length, 10, 6, false, false)
 	if err != nil {
 		return "", err
 	}

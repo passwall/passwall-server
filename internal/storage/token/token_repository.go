@@ -30,13 +30,14 @@ func (p *Repository) Any(uuid string) bool {
 
 }
 
-func (p *Repository) Save(userid int, uid uuid.UUID, tkn string, expriydate time.Time) {
+func (p *Repository) Save(userid int, uid uuid.UUID, tkn string, expriydate time.Time, secureKey string) {
 
 	token := &model.Token{
 		UserID:     userid,
 		UUID:       uid,
 		Token:      tkn,
 		ExpiryTime: expriydate,
+		SecureKey:  secureKey,
 	}
 	p.db.Create(token)
 
