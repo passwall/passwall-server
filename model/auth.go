@@ -16,6 +16,7 @@ type AuthLoginDTO struct {
 type AuthLoginResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
+	SecureKey    string `json:"secure_key"`
 	UserDTOTable
 }
 
@@ -27,4 +28,5 @@ type TokenDetailsDTO struct {
 	RtExpiresTime time.Time
 	AtUUID        uuid.UUID
 	RtUUID        uuid.UUID
+	SecureKey     string `json:"secure_key"`
 }

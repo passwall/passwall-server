@@ -60,6 +60,9 @@ func CreateToken(user *model.User) (*model.TokenDetailsDTO, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	td.SecureKey = GenerateSecureKey()
+
 	return td, nil
 }
 

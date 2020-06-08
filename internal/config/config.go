@@ -1,8 +1,6 @@
 package config
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"log"
 	"os"
 
@@ -52,8 +50,8 @@ func SetupConfigDefaults() *Configuration {
 
 	// Auto generate config.yml file if it doesn't exist
 	if !fileExists("./store/config.yml") {
-		viper.Set("server.passphrase", generateSecureKey())
-		viper.Set("server.secret", generateSecureKey())
+		viper.Set("server.passphrase", "dont forget")
+		viper.Set("server.secret", "secretkey")
 		viper.WriteConfigAs("./store/config.yml")
 	}
 
@@ -115,16 +113,6 @@ func setDefaults() {
 	viper.SetDefault("backup.folder", "./store/")
 	viper.SetDefault("backup.rotation", 7)
 	viper.SetDefault("backup.period", "24h")
-}
-
-func generateSecureKey() string {
-	key := make([]byte, 64)
-	_, err := rand.Read(key)
-	if err != nil {
-		// handle error here
-	}
-	keyEnc := base64.StdEncoding.EncodeToString(key)
-	return keyEnc
 }
 
 func fileExists(filename string) bool {
