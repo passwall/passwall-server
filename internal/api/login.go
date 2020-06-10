@@ -8,6 +8,7 @@ import (
 	"github.com/pass-wall/passwall-server/internal/app"
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
+	"github.com/spf13/viper"
 
 	"github.com/gorilla/mux"
 )
@@ -78,10 +79,7 @@ func CreateLogin(s storage.Store) http.HandlerFunc {
 		defer r.Body.Close()
 
 		if loginDTO.Password == "" {
-			generatedPass, err := app.Password()
-			if err != nil {
-				RespondWithError(w, http.StatusInternalServerError, err.Error())
-			}
+			generatedPass := app.GenerateSecureKey(viper.GetInt("server.generatedPasswordLength"))
 			loginDTO.Password = generatedPass
 		}
 

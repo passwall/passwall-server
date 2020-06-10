@@ -11,11 +11,7 @@ import (
 // CreateBankAccount creates a new bank account and saves it to the store
 func CreateBankAccount(s storage.Store, dto *model.BankAccountDTO, schema string) (*model.BankAccount, error) {
 	if dto.Password == "" {
-		generatedPass, err := Password()
-		if err != nil {
-			return nil, err
-		}
-		dto.Password = generatedPass
+		dto.Password = GenerateSecureKey(viper.GetInt("server.generatedPasswordLength"))
 	}
 
 	rawPass := dto.Password
@@ -34,11 +30,7 @@ func CreateBankAccount(s storage.Store, dto *model.BankAccountDTO, schema string
 // UpdateBankAccount updates the account with the dto and applies the changes in the store
 func UpdateBankAccount(s storage.Store, account *model.BankAccount, dto *model.BankAccountDTO, schema string) (*model.BankAccount, error) {
 	if dto.Password == "" {
-		generatedPass, err := Password()
-		if err != nil {
-			return nil, err
-		}
-		dto.Password = generatedPass
+		dto.Password = GenerateSecureKey(viper.GetInt("server.generatedPasswordLength"))
 	}
 	rawPass := dto.Password
 	dto.Password = base64.StdEncoding.EncodeToString(Encrypt(dto.Password, viper.GetString("server.passphrase")))

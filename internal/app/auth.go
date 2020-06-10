@@ -61,8 +61,7 @@ func CreateToken(user *model.User) (*model.TokenDetailsDTO, error) {
 		return nil, err
 	}
 
-	td.SecureKey, err = Password()
-	fmt.Println(err)
+	td.SecureKey = GenerateSecureKey(32)
 
 	return td, nil
 }
