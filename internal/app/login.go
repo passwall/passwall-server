@@ -28,14 +28,9 @@ func CreateLogin(s storage.Store, dto *model.LoginDTO, schema string) (*model.Lo
 func UpdateLogin(s storage.Store, login *model.Login, dto *model.LoginDTO, schema string) (*model.Login, error) {
 
 	if dto.Password == "" {
-		generatedPass, err := Password()
-		if err != nil {
-			return nil, err
-		}
-		dto.Password = generatedPass
+		dto.Password = GenerateSecureKey(viper.GetInt("server.generatedPasswordLength"))
 	}
 	rawPass := dto.Password
-	// dto.Password = base64.StdEncoding.EncodeToString(Encrypt(dto.Password, viper.GetString("server.passphrase")))
 
 	login.URL = dto.URL
 	login.Username = dto.Username

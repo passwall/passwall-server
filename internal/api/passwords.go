@@ -7,6 +7,7 @@ import (
 	"github.com/pass-wall/passwall-server/internal/app"
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
+	"github.com/spf13/viper"
 )
 
 // FindSamePassword ...
@@ -35,11 +36,7 @@ func FindSamePassword(s storage.Store) http.HandlerFunc {
 
 // Password generates new password
 func GeneratePassword(w http.ResponseWriter, r *http.Request) {
-	generatedPass, err := app.Password()
-	if err != nil {
-		RespondWithError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
+	generatedPass := app.GenerateSecureKey(viper.GetInt("server.generatedPasswordLength"))
 	password := generatedPass
 	response := model.Response{
 		Code:    http.StatusOK,

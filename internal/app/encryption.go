@@ -9,12 +9,11 @@ import (
 	"encoding/hex"
 	"io"
 	"io/ioutil"
+	mathRand "math/rand"
 	"os"
+	"time"
 
-	"github.com/sethvargo/go-password/password"
 	"golang.org/x/crypto/bcrypt"
-
-	"github.com/spf13/viper"
 )
 
 // FindIndex ...
@@ -27,24 +26,31 @@ func FindIndex(vs []string, t string) int {
 	return -1
 }
 
-func GenerateSecureKey() string {
-	key := make([]byte, 32)
+func FallbackInsecureKey(length int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyz" +
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
+		"0123456789" +
+		"~!@#$%^&*()_+{}|<>?,./:"
+
+	var seededRand *mathRand.Rand = mathRand.New(
+		mathRand.NewSource(time.Now().UnixNano()))
+
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = charset[seededRand.Intn(len(charset))]
+	}
+
+	return string(b)
+}
+
+func GenerateSecureKey(length int) string {
+	key := make([]byte, length)
 	_, err := rand.Read(key)
 	if err != nil {
-		// handle error here
+		return FallbackInsecureKey(length)
 	}
 	keyEnc := base64.StdEncoding.EncodeToString(key)
 	return keyEnc
-}
-
-// Password ..
-func Password() (string, error) {
-	length := viper.GetInt("server.generatedPasswordLength")
-	res, err := password.Generate(length, 10, 6, false, false)
-	if err != nil {
-		return "", err
-	}
-	return res, nil
 }
 
 // NewBcrypt ...
