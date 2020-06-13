@@ -17,7 +17,7 @@ type AuthLoginResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	SecureKey    string `json:"secure_key"`
-	UserDTOTable
+	*UserDTO
 }
 
 //TokenDetailsDTO ...

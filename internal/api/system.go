@@ -24,6 +24,31 @@ const (
 	BackupSuccess        = "Backup completed successfully!"
 )
 
+// GeneratePassword generates new password
+func CheckUpdate(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	product := vars["product"]
+
+	if product != "1" {
+		RespondWithError(w, http.StatusNotFound, "Product not found")
+		return
+	}
+
+	type Update struct {
+		LatestVersion string `json:"latest_version"`
+		DownloadUrl   string `json:"download_url"`
+		ProductUrl    string `json:"product_url"`
+	}
+
+	update := Update{
+		LatestVersion: "0.1.1",
+		DownloadUrl:   "https://passwall.io/download/passwall-macos/",
+		ProductUrl:    "https://signup.passwall.io",
+	}
+
+	RespondWithJSON(w, http.StatusOK, update)
+}
+
 // Languages ...
 func Languages(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

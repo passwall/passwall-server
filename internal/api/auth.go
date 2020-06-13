@@ -134,7 +134,7 @@ func Signin(s storage.Store) http.HandlerFunc {
 			AccessToken:  token.AccessToken,
 			RefreshToken: token.RefreshToken,
 			SecureKey:    token.SecureKey,
-			UserDTOTable: model.ToUserDTOTable(*user),
+			UserDTO:      model.ToUserDTO(user),
 		}
 
 		RespondWithJSON(w, 200, authLoginResponse)
@@ -204,7 +204,7 @@ func RefreshToken(s storage.Store) http.HandlerFunc {
 			AccessToken:  newtoken.AccessToken,
 			RefreshToken: newtoken.RefreshToken,
 			SecureKey:    newtoken.SecureKey,
-			UserDTOTable: model.ToUserDTOTable(*user),
+			UserDTO:      model.ToUserDTO(user),
 		}
 
 		RespondWithJSON(w, 200, authLoginResponse)
