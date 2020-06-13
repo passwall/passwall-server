@@ -97,9 +97,18 @@ func (r *Router) initRoutes() {
 	authRouter.HandleFunc("/refresh", api.RefreshToken(r.store)).Methods(http.MethodPost)
 	authRouter.HandleFunc("/check", api.CheckToken(r.store)).Methods(http.MethodPost)
 
+	// Check Updated
+	webRouter := mux.NewRouter().PathPrefix("/web").Subrouter()
+	webRouter.HandleFunc("/check-update/{product:[0-9]+}", api.CheckUpdate).Methods(http.MethodGet)
+
 	n := negroni.Classic()
 	n.Use(negroni.HandlerFunc(CORS))
 	n.Use(negroni.HandlerFunc(Secure))
+
+	r.router.PathPrefix("/web").Handler(n.With(
+		LimitHandler(),
+		negroni.Wrap(webRouter),
+	))
 
 	r.router.PathPrefix("/api").Handler(n.With(
 		Auth(r.store),
@@ -113,5 +122,6 @@ func (r *Router) initRoutes() {
 
 	// Insecure endpoints
 	r.router.HandleFunc("/health", api.HealthCheck(r.store)).Methods(http.MethodGet)
+	// r.router.HandleFunc("/check-update/{product:[0-9]+}", api.CheckUpdate).Methods(http.MethodGet)
 
 }
