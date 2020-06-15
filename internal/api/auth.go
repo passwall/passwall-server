@@ -127,14 +127,14 @@ func Signin(s storage.Store) http.HandlerFunc {
 		s.Tokens().Delete(int(user.ID))
 
 		//create tokens on db
-		s.Tokens().Save(int(user.ID), token.AtUUID, token.AccessToken, token.AtExpiresTime, token.SecureKey)
+		s.Tokens().Save(int(user.ID), token.AtUUID, token.AccessToken, token.AtExpiresTime, token.TransmissionKey)
 		s.Tokens().Save(int(user.ID), token.RtUUID, token.RefreshToken, token.RtExpiresTime, "")
 
 		authLoginResponse := model.AuthLoginResponse{
-			AccessToken:  token.AccessToken,
-			RefreshToken: token.RefreshToken,
-			SecureKey:    token.SecureKey,
-			UserDTO:      model.ToUserDTO(user),
+			AccessToken:     token.AccessToken,
+			RefreshToken:    token.RefreshToken,
+			TransmissionKey: token.TransmissionKey,
+			UserDTO:         model.ToUserDTO(user),
 		}
 
 		RespondWithJSON(w, 200, authLoginResponse)
@@ -197,14 +197,14 @@ func RefreshToken(s storage.Store) http.HandlerFunc {
 		s.Tokens().Delete(int(userid))
 
 		//create tokens on db
-		s.Tokens().Save(int(userid), newtoken.AtUUID, newtoken.AccessToken, newtoken.AtExpiresTime, newtoken.SecureKey)
+		s.Tokens().Save(int(userid), newtoken.AtUUID, newtoken.AccessToken, newtoken.AtExpiresTime, newtoken.TransmissionKey)
 		s.Tokens().Save(int(userid), newtoken.RtUUID, newtoken.RefreshToken, newtoken.RtExpiresTime, "")
 
 		authLoginResponse := model.AuthLoginResponse{
-			AccessToken:  newtoken.AccessToken,
-			RefreshToken: newtoken.RefreshToken,
-			SecureKey:    newtoken.SecureKey,
-			UserDTO:      model.ToUserDTO(user),
+			AccessToken:     newtoken.AccessToken,
+			RefreshToken:    newtoken.RefreshToken,
+			TransmissionKey: newtoken.TransmissionKey,
+			UserDTO:         model.ToUserDTO(user),
 		}
 
 		RespondWithJSON(w, 200, authLoginResponse)
