@@ -61,7 +61,7 @@ func CreateToken(user *model.User) (*model.TokenDetailsDTO, error) {
 		return nil, err
 	}
 
-	td.SecureKey = GenerateSecureKey(32)
+	td.TransmissionKey = GenerateSecureKey(32)
 
 	return td, nil
 }

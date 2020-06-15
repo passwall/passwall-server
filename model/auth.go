@@ -14,19 +14,19 @@ type AuthLoginDTO struct {
 
 //AuthLoginResponse ...
 type AuthLoginResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	SecureKey    string `json:"secure_key"`
+	AccessToken     string `json:"access_token"`
+	RefreshToken    string `json:"refresh_token"`
+	TransmissionKey string `json:"transmission_key"`
 	*UserDTO
 }
 
 //TokenDetailsDTO ...
 type TokenDetailsDTO struct {
-	AccessToken   string `json:"access_token"`
-	RefreshToken  string `json:"refresh_token"`
-	AtExpiresTime time.Time
-	RtExpiresTime time.Time
-	AtUUID        uuid.UUID
-	RtUUID        uuid.UUID
-	SecureKey     string `json:"secure_key"`
+	AccessToken     string `json:"access_token"`
+	RefreshToken    string `json:"refresh_token"`
+	AtExpiresTime   time.Time
+	RtExpiresTime   time.Time
+	AtUUID          uuid.UUID
+	RtUUID          uuid.UUID
+	TransmissionKey string `json:"transmission_key"`
 }
