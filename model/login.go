@@ -80,6 +80,7 @@ type Password struct {
 // You can send this data to API /posts/ endpoint with POST method to create dummy content
 /*
 {
+	"Title":"Dummy Title",
 	"URL":"http://dummywebsite.com",
 	"Username": "dummyuser",
 	"Password": "dummypassword"
