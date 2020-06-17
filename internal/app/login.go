@@ -32,6 +32,7 @@ func UpdateLogin(s storage.Store, login *model.Login, dto *model.LoginDTO, schem
 	}
 	rawPass := dto.Password
 
+	login.Title = dto.Title
 	login.URL = dto.URL
 	login.Username = dto.Username
 	login.Password = dto.Password

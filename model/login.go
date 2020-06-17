@@ -1,7 +1,6 @@
 package model
 
 import (
-	"strings"
 	"time"
 )
 
@@ -11,6 +10,7 @@ type Login struct {
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"deleted_at"`
+	Title     string     `json:"title"`
 	URL       string     `json:"url"`
 	Username  string     `json:"username"`
 	Password  string     `json:"password"`
@@ -18,6 +18,7 @@ type Login struct {
 
 type LoginDTO struct {
 	ID       uint   `json:"id"`
+	Title    string `json:"title"`
 	URL      string `json:"url"`
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -26,6 +27,7 @@ type LoginDTO struct {
 // ToLogin ...
 func ToLogin(loginDTO *LoginDTO) *Login {
 	return &Login{
+		Title:    loginDTO.Title,
 		URL:      loginDTO.URL,
 		Username: loginDTO.Username,
 		Password: loginDTO.Password,
@@ -35,13 +37,14 @@ func ToLogin(loginDTO *LoginDTO) *Login {
 // ToLoginDTO ...
 func ToLoginDTO(login *Login) *LoginDTO {
 
-	trims := []string{"https://", "http://", "www."}
-	for i := range trims {
-		login.URL = strings.TrimPrefix(login.URL, trims[i])
-	}
+	// trims := []string{"https://", "http://", "www."}
+	// for i := range trims {
+	// 	login.URL = strings.TrimPrefix(login.URL, trims[i])
+	// }
 
 	return &LoginDTO{
 		ID:       login.ID,
+		Title:    login.Title,
 		URL:      login.URL,
 		Username: login.Username,
 		Password: login.Password,
