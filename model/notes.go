@@ -10,27 +10,31 @@ type Note struct {
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"deleted_at"`
+	Title     string     `json:"title"`
 	Note      string     `json:"note"`
 }
 
 // NoteDTO ...
 type NoteDTO struct {
-	ID   uint   `json:"id"`
-	Note string `json:"note"`
+	ID    uint   `json:"id"`
+	Title string `json:"title"`
+	Note  string `json:"note"`
 }
 
 // ToNote ...
 func ToNote(noteDTO *NoteDTO) *Note {
 	return &Note{
-		Note: noteDTO.Note,
+		Title: noteDTO.Title,
+		Note:  noteDTO.Note,
 	}
 }
 
 // ToNoteDTO ...
 func ToNoteDTO(note *Note) *NoteDTO {
 	return &NoteDTO{
-		ID:   note.ID,
-		Note: note.Note,
+		ID:    note.ID,
+		Title: note.Title,
+		Note:  note.Note,
 	}
 }
 
@@ -47,6 +51,7 @@ func ToNoteDTOs(notes []*Note) []*NoteDTO {
 
 /* EXAMPLE JSON OBJECT
 {
+	"title":"Lorem ipsum",
 	"note":"Lorem ipsum",
 }
 */
