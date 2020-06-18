@@ -10,13 +10,16 @@ import (
 
 // CreateUser creates a user and saves it to the store
 func CreateUser(s storage.Store, userDTO *model.UserDTO) (*model.User, error) {
-
+	var err error
 	// Hasing the master password with Bcrypt
 	userDTO.MasterPassword = NewBcrypt([]byte(userDTO.MasterPassword))
 
 	// Generate secret to use as salt
-	userDTO.Secret = GenerateSecureKey(16)
-
+	// todo: do not use place in int variables, pass them as const
+	userDTO.Secret, err = GenerateSecureKey(16)
+	if err != nil {
+		return nil, err
+	}
 	// New user's plan is Free and role is Member (not Admin)
 	userDTO.Plan = "Free"
 	userDTO.Role = "Member"

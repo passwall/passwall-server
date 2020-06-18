@@ -61,7 +61,11 @@ func CreateToken(user *model.User) (*model.TokenDetailsDTO, error) {
 		return nil, err
 	}
 
-	td.TransmissionKey = GenerateSecureKey(32)
+	generatedPass, err := GenerateSecureKey(viper.GetInt("server.generatedPasswordLength"))
+	if err != nil {
+		return nil, err
+	}
+	td.TransmissionKey = generatedPass
 
 	return td, nil
 }

@@ -79,7 +79,10 @@ func CreateLogin(s storage.Store) http.HandlerFunc {
 		defer r.Body.Close()
 
 		if loginDTO.Password == "" {
-			generatedPass := app.GenerateSecureKey(viper.GetInt("server.generatedPasswordLength"))
+			generatedPass, err := app.GenerateSecureKey(viper.GetInt("server.generatedPasswordLength"))
+			if err != nil {
+				RespondWithError(w, http.StatusSeeOther, err.Error())
+			}
 			loginDTO.Password = generatedPass
 		}
 

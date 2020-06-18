@@ -16,7 +16,8 @@ const (
 )
 
 var (
-	BackupError = errors.New("error occurred while backing up data")
+	BackupError      = errors.New("error occurred while backing up data")
+	NoBackupFilesErr = errors.New("no backup file  provided")
 )
 
 // BackupData ...
@@ -52,13 +53,12 @@ var (
 } */
 
 // Rotate backup files
-func rotateBackup() error {
+func rotateBackup(backupFiles []os.FileInfo) error {
 	backupRotation := viper.GetInt("backup.rotation")
 	backupFolder := viper.GetString("backup.folder")
 
-	backupFiles, err := GetBackupFiles()
-	if err != nil {
-		return err
+	if backupFiles == nil {
+		return NoBackupFilesErr
 	}
 
 	if len(backupFiles) > backupRotation {
@@ -70,7 +70,6 @@ func rotateBackup() error {
 			_ = os.Remove(filepath.Join(backupFolder, file.Name()))
 		}
 	}
-
 	return nil
 }
 
