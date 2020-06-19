@@ -18,6 +18,11 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+var (
+	MinSecureKeyLength = 8
+	ShortSecureKeyErr  = errors.New("length of secure key does not meet with minimum requirements")
+)
+
 // FindIndex ...
 func FindIndex(vs []string, t string) int {
 	for i, v := range vs {
@@ -28,11 +33,22 @@ func FindIndex(vs []string, t string) int {
 	return -1
 }
 
-func FallbackInsecureKey(length int) string {
+func checkSecureKeyLen(length int) error {
+	if length < MinSecureKeyLength {
+		return ShortSecureKeyErr
+	}
+	return nil
+}
+
+func FallbackInsecureKey(length int) (string, error) {
 	const charset = "abcdefghijklmnopqrstuvwxyz" +
 		"ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
 		"0123456789" +
 		"~!@#$%^&*()_+{}|<>?,./:"
+
+	if err := checkSecureKeyLen(length); err != nil {
+		return "", err
+	}
 
 	var seededRand *mathRand.Rand = mathRand.New(
 		mathRand.NewSource(time.Now().UnixNano()))
@@ -42,17 +58,22 @@ func FallbackInsecureKey(length int) string {
 		b[i] = charset[seededRand.Intn(len(charset))]
 	}
 
-	return string(b)
+	return string(b), nil
 }
 
-func GenerateSecureKey(length int) string {
+func GenerateSecureKey(length int) (string, error) {
 	key := make([]byte, length)
+
+	if err := checkSecureKeyLen(length); err != nil {
+		return "", err
+	}
 	_, err := rand.Read(key)
 	if err != nil {
 		return FallbackInsecureKey(length)
 	}
+	// encrypted key length > provided key length
 	keyEnc := base64.StdEncoding.EncodeToString(key)
-	return keyEnc
+	return keyEnc, nil
 }
 
 // NewBcrypt ...
