@@ -11,7 +11,11 @@ import (
 // CreateEmail creates a new bank account and saves it to the store
 func CreateEmail(s storage.Store, dto *model.EmailDTO, schema string) (*model.Email, error) {
 	if dto.Password == "" {
-		dto.Password = GenerateSecureKey(viper.GetInt("server.generatedPasswordLength"))
+		generatedPass, err := GenerateSecureKey(viper.GetInt("server.generatedPasswordLength"))
+		if err != nil {
+			return nil, err
+		}
+		dto.Password = generatedPass
 	}
 
 	rawPass := dto.Password
@@ -30,7 +34,11 @@ func CreateEmail(s storage.Store, dto *model.EmailDTO, schema string) (*model.Em
 // UpdateEmail updates the account with the dto and applies the changes in the store
 func UpdateEmail(s storage.Store, account *model.Email, dto *model.EmailDTO, schema string) (*model.Email, error) {
 	if dto.Password == "" {
-		dto.Password = GenerateSecureKey(viper.GetInt("server.generatedPasswordLength"))
+		generatedPass, err := GenerateSecureKey(viper.GetInt("server.generatedPasswordLength"))
+		if err != nil {
+			return nil, err
+		}
+		dto.Password = generatedPass
 	}
 	rawPass := dto.Password
 	dto.Password = base64.StdEncoding.EncodeToString(Encrypt(dto.Password, viper.GetString("server.passphrase")))
