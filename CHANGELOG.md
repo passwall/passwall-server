@@ -1,6 +1,6 @@
 # PASSWALL CHANGELOG
 
-## Version: [1.1.1] (2020-06---)
+## Version: [1.1.2] (2020-06-22)
 ### Changed
 - Now only supports PostgreSQL
 ### Add
