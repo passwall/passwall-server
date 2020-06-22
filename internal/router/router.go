@@ -77,6 +77,13 @@ func (r *Router) initRoutes() {
 	apiRouter.HandleFunc("/users/{id:[0-9]+}", api.UpdateUser(r.store)).Methods(http.MethodPut)
 	apiRouter.HandleFunc("/users/{id:[0-9]+}", api.DeleteUser(r.store)).Methods(http.MethodDelete)
 
+	// Server endpoints
+	apiRouter.HandleFunc("/servers", api.FindAllServers(r.store)).Methods(http.MethodGet)
+	apiRouter.HandleFunc("/servers", api.CreateServer(r.store)).Methods(http.MethodPost)
+	apiRouter.HandleFunc("/servers/{id:[0-9]+}", api.FindServerByID(r.store)).Methods(http.MethodGet)
+	apiRouter.HandleFunc("/servers/{id:[0-9]+}", api.UpdateServer(r.store)).Methods(http.MethodPut)
+	apiRouter.HandleFunc("/servers/{id:[0-9]+}", api.DeleteServer(r.store)).Methods(http.MethodDelete)
+
 	apiRouter.HandleFunc("/system/generate-password", api.GeneratePassword).Methods(http.MethodPost)
 
 	// These endpoints designed just for logins. Now we have extra types like bank accounts

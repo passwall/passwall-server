@@ -124,3 +124,20 @@ type UserRepository interface {
 	// CreateSchema creates schema for user
 	CreateSchema(schema string) error
 }
+
+// ServerRepository interface is the common interface for a repository
+// Each method checks the entity type.
+type ServerRepository interface {
+	// All returns all the data in the repository.
+	All(schema string) ([]model.Server, error)
+	// FindAll returns the entities matching the arguments.
+	FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.Server, error)
+	// FindByID finds the entity regarding to its ID.
+	FindByID(id uint, schema string) (*model.Server, error)
+	// Save stores the entity to the repository
+	Save(server *model.Server, schema string) (*model.Server, error)
+	// Delete removes the entity from the store
+	Delete(id uint, schema string) error
+	// Migrate migrates the repository
+	Migrate(schema string) error
+}

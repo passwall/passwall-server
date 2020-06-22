@@ -11,6 +11,7 @@ import (
 	"github.com/pass-wall/passwall-server/internal/storage/email"
 	"github.com/pass-wall/passwall-server/internal/storage/login"
 	"github.com/pass-wall/passwall-server/internal/storage/note"
+	"github.com/pass-wall/passwall-server/internal/storage/server"
 	"github.com/pass-wall/passwall-server/internal/storage/token"
 	"github.com/pass-wall/passwall-server/internal/storage/user"
 )
@@ -25,6 +26,7 @@ type Database struct {
 	emails   EmailRepository
 	tokens   TokenRepository
 	users    UserRepository
+	servers  ServerRepository
 }
 
 // New opens a database according to configuration.
@@ -48,6 +50,7 @@ func New(cfg *config.DatabaseConfiguration) (*Database, error) {
 		emails:   email.NewRepository(db),
 		tokens:   token.NewRepository(db),
 		users:    user.NewRepository(db),
+		servers:  server.NewRepository(db),
 	}, nil
 }
 
@@ -101,6 +104,12 @@ func (db *Database) Users() UserRepository {
 	return db.users
 }
 
+// Servers returns the UserRepository.
+func (db *Database) Servers() ServerRepository {
+	return db.servers
+}
+
+// Ping checks if database is up
 func (db *Database) Ping() error {
 	return db.db.DB().Ping()
 }

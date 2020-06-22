@@ -35,4 +35,7 @@ func MigrateUserTables(s storage.Store, schema string) {
 	if err := s.Emails().Migrate(schema); err != nil {
 		log.Println(err)
 	}
+	if err := s.Servers().Migrate(schema); err != nil {
+		log.Println(err)
+	}
 }
