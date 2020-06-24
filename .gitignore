@@ -53,3 +53,5 @@ config.yml
 
 #Vs Code
 .vscode
+
+/dist/

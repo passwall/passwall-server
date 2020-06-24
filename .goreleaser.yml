@@ -7,8 +7,9 @@ before:
     # you may remove this if you don't need go generate
     # - go generate ./...
 builds:
-- env:
-  - CGO_ENABLED=0
+  - main: ./cmd/passwall-server/main.go
+    env:
+      - CGO_ENABLED=0
 archives:
 - replacements:
     darwin: Darwin
