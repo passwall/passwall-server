@@ -1,14 +1,22 @@
 package config
 
 import (
-	"log"
 	"os"
+	"path/filepath"
+	"runtime"
 
 	"github.com/spf13/viper"
 )
 
 var (
-	configuration *Configuration
+	configuration  *Configuration
+	configFileName = "config"
+	configFileExt  = ".yml"
+	configType     = "yaml"
+	appName        = "passwall-server"
+
+	configurationDirectory = filepath.Join(osConfigDirectory(runtime.GOOS), appName)
+	configFileAbsPath      = filepath.Join(configurationDirectory, configFileName)
 )
 
 // Configuration ...
@@ -36,11 +44,12 @@ type DatabaseConfiguration struct {
 }
 
 // SetupConfigDefaults ...
-func SetupConfigDefaults() *Configuration {
+func SetupConfigDefaults() (*Configuration, error) {
 
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath("./store")
+	// initialize viper configuration
+	if err := initializeConfig(); err != nil {
+		return nil, err
+	}
 
 	// Bind environment variables
 	bindEnvs()
@@ -48,24 +57,49 @@ func SetupConfigDefaults() *Configuration {
 	// Set default values
 	setDefaults()
 
-	// Auto generate config.yml file if it doesn't exist
-	if !fileExists("./store/config.yml") {
-		viper.Set("server.passphrase", "dont forget")
-		viper.Set("server.secret", "secretkey")
-		viper.WriteConfigAs("./store/config.yml")
+	// Read or create configuration file
+	if err := readConfiguration(); err != nil {
+		return nil, err
 	}
 
-	if err := viper.ReadInConfig(); err != nil {
-		log.Println(err)
-	}
+	// Auto read env variables
 	viper.AutomaticEnv()
 
-	err := viper.Unmarshal(&configuration)
-	if err != nil {
-		log.Println(err)
+	// Unmarshal config file to struct
+	if err := viper.Unmarshal(&configuration); err != nil {
+		return nil, err
 	}
 
-	return configuration
+	return configuration, nil
+}
+
+// read configuration from file
+func readConfiguration() error {
+	err := viper.ReadInConfig() // Find and read the config file
+	if err != nil {             // Handle errors reading the config file
+		// if file does not exist, simply create one
+		if _, err := os.Stat(configFileAbsPath + configFileExt); os.IsNotExist(err) {
+			os.MkdirAll(configurationDirectory, 0755)
+			os.Create(configFileAbsPath + configFileExt)
+		} else {
+			return err
+		}
+		// let's write defaults
+		if err := viper.WriteConfig(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// initialize the configuration manager
+func initializeConfig() error {
+	// config viper
+	viper.AddConfigPath(configurationDirectory)
+	viper.SetConfigName(configFileName)
+	viper.SetConfigType(configType)
+
+	return nil
 }
 
 func bindEnvs() {
@@ -115,10 +149,15 @@ func setDefaults() {
 	viper.SetDefault("backup.period", "24h")
 }
 
-func fileExists(filename string) bool {
-	info, err := os.Stat(filename)
-	if os.IsNotExist(err) {
-		return false
+// returns OS dependent config directory
+func osConfigDirectory(osName string) (osConfigDirectory string) {
+	switch osName {
+	case "windows":
+		osConfigDirectory = os.Getenv("APPDATA")
+	case "darwin":
+		osConfigDirectory = os.Getenv("HOME") + "/Library/Application Support"
+	case "linux":
+		osConfigDirectory = os.Getenv("HOME") + "/.config"
 	}
-	return !info.IsDir()
+	return osConfigDirectory
 }

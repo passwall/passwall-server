@@ -14,10 +14,12 @@ import (
 )
 
 func main() {
-	cfg := config.SetupConfigDefaults()
-
 	logger := log.New(os.Stdout, "[passwall-server] ", 0)
-	logger.Printf("listening on %s", cfg.Server.Port)
+
+	cfg, err := config.SetupConfigDefaults()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	s, err := storage.New(&cfg.Database)
 	if err != nil {
@@ -39,6 +41,7 @@ func main() {
 		Handler:      router.New(s),
 	}
 
+	logger.Printf("listening on %s", cfg.Server.Port)
 	if err := srv.ListenAndServe(); err != nil {
 		logger.Fatal(err)
 	}
