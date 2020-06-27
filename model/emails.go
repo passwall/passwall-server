@@ -10,6 +10,7 @@ type Email struct {
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"deleted_at"`
+	Title     string     `json:"title"`
 	Email     string     `json:"email"`
 	Password  string     `json:"password"`
 }
@@ -17,6 +18,7 @@ type Email struct {
 // EmailDTO ...
 type EmailDTO struct {
 	ID       uint   `json:"id"`
+	Title    string `json:"title"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
@@ -24,6 +26,7 @@ type EmailDTO struct {
 // ToEmail ...
 func ToEmail(emailDTO *EmailDTO) *Email {
 	return &Email{
+		Title:    emailDTO.Title,
 		Email:    emailDTO.Email,
 		Password: emailDTO.Password,
 	}
@@ -33,6 +36,7 @@ func ToEmail(emailDTO *EmailDTO) *Email {
 func ToEmailDTO(email *Email) *EmailDTO {
 	return &EmailDTO{
 		ID:       email.ID,
+		Title:    email.Title,
 		Email:    email.Email,
 		Password: email.Password,
 	}
@@ -51,6 +55,7 @@ func ToEmailDTOs(emails []*Email) []*EmailDTO {
 
 /* EXAMPLE JSON OBJECT
 {
+	"title":"PassWall",
 	"email":"hello@passwall.io",
 	"password": "dummypassword"
 }

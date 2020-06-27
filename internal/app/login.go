@@ -12,7 +12,7 @@ import (
 func CreateLogin(s storage.Store, dto *model.LoginDTO, schema string) (*model.Login, error) {
 
 	rawPass := dto.Password
-	// dto.Password = base64.StdEncoding.EncodeToString(Encrypt(dto.Password, viper.GetString("server.passphrase")))
+	dto.Password = base64.StdEncoding.EncodeToString(Encrypt(dto.Password, viper.GetString("server.passphrase")))
 
 	createdLogin, err := s.Logins().Save(model.ToLogin(dto), schema)
 	if err != nil {
@@ -27,19 +27,12 @@ func CreateLogin(s storage.Store, dto *model.LoginDTO, schema string) (*model.Lo
 // UpdateLogin updates the login with the dto and applies the changes in the store
 func UpdateLogin(s storage.Store, login *model.Login, dto *model.LoginDTO, schema string) (*model.Login, error) {
 
-	if dto.Password == "" {
-		generatedPass, err := GenerateSecureKey(viper.GetInt("server.generatedPasswordLength"))
-		if err != nil {
-			return nil, err
-		}
-		dto.Password = generatedPass
-	}
 	rawPass := dto.Password
+	dto.Password = base64.StdEncoding.EncodeToString(Encrypt(dto.Password, viper.GetString("server.passphrase")))
 
 	login.Title = dto.Title
 	login.URL = dto.URL
 	login.Username = dto.Username
-	login.Password = dto.Password
 	updatedLogin, err := s.Logins().Save(login, schema)
 	if err != nil {
 		return nil, err

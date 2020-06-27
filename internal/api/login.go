@@ -8,7 +8,6 @@ import (
 	"github.com/pass-wall/passwall-server/internal/app"
 	"github.com/pass-wall/passwall-server/internal/storage"
 	"github.com/pass-wall/passwall-server/model"
-	"github.com/spf13/viper"
 
 	"github.com/gorilla/mux"
 )
@@ -56,13 +55,13 @@ func FindLoginsByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// uLogin, err := app.DecryptLoginPassword(s, login)
-		// if err != nil {
-		// 	RespondWithError(w, http.StatusInternalServerError, err.Error())
-		// 	return
-		// }
+		uLogin, err := app.DecryptLoginPassword(s, login)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 
-		RespondWithJSON(w, http.StatusOK, model.ToLoginDTO(login))
+		RespondWithJSON(w, http.StatusOK, model.ToLoginDTO(uLogin))
 	}
 }
 
@@ -77,14 +76,6 @@ func CreateLogin(s storage.Store) http.HandlerFunc {
 			return
 		}
 		defer r.Body.Close()
-
-		if loginDTO.Password == "" {
-			generatedPass, err := app.GenerateSecureKey(viper.GetInt("server.generatedPasswordLength"))
-			if err != nil {
-				RespondWithError(w, http.StatusSeeOther, err.Error())
-			}
-			loginDTO.Password = generatedPass
-		}
 
 		schema := r.Context().Value("schema").(string)
 		createdLogin, err := app.CreateLogin(s, &loginDTO, schema)
