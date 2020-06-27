@@ -47,9 +47,7 @@ type DatabaseConfiguration struct {
 func SetupConfigDefaults() (*Configuration, error) {
 
 	// initialize viper configuration
-	if err := initializeConfig(); err != nil {
-		return nil, err
-	}
+	initializeConfig()
 
 	// Bind environment variables
 	bindEnvs()
@@ -93,13 +91,10 @@ func readConfiguration() error {
 }
 
 // initialize the configuration manager
-func initializeConfig() error {
-	// config viper
+func initializeConfig() {
 	viper.AddConfigPath(configurationDirectory)
 	viper.SetConfigName(configFileName)
 	viper.SetConfigType(configType)
-
-	return nil
 }
 
 func bindEnvs() {
