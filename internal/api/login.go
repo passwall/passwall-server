@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -16,7 +17,7 @@ const (
 	LoginDeleteSuccess = "Login deleted successfully!"
 )
 
-// FindAll ...
+// FindAllLogins ...
 func FindAllLogins(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
@@ -38,7 +39,7 @@ func FindAllLogins(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// FindByID ...
+// FindLoginsByID ...
 func FindLoginsByID(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
@@ -149,6 +150,22 @@ func DeleteLogin(s storage.Store) http.HandlerFunc {
 			Code:    http.StatusOK,
 			Status:  Success,
 			Message: LoginDeleteSuccess,
+		}
+		RespondWithJSON(w, http.StatusOK, response)
+	}
+}
+
+// Test endpoint ...
+func TestLogin(s storage.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		schema := r.Context().Value("schema").(string)
+		fmt.Println(schema)
+
+		response := model.Response{
+			Code:    http.StatusOK,
+			Status:  Success,
+			Message: "Test success!",
 		}
 		RespondWithJSON(w, http.StatusOK, response)
 	}

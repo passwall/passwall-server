@@ -29,8 +29,7 @@ type Database struct {
 	servers  ServerRepository
 }
 
-// New opens a database according to configuration.
-func New(cfg *config.DatabaseConfiguration) (*Database, error) {
+func DBConn(cfg *config.DatabaseConfiguration) (*gorm.DB, error) {
 	var db *gorm.DB
 	var err error
 
@@ -41,6 +40,11 @@ func New(cfg *config.DatabaseConfiguration) (*Database, error) {
 
 	db.LogMode(cfg.LogMode)
 
+	return db, err
+}
+
+// New opens a database according to configuration.
+func New(db *gorm.DB) *Database {
 	return &Database{
 		db:       db,
 		logins:   login.NewRepository(db),
@@ -51,7 +55,7 @@ func New(cfg *config.DatabaseConfiguration) (*Database, error) {
 		tokens:   token.NewRepository(db),
 		users:    user.NewRepository(db),
 		servers:  server.NewRepository(db),
-	}, nil
+	}
 }
 
 // Create inserts the value into database.

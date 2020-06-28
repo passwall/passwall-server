@@ -36,6 +36,7 @@ func (r *Router) initRoutes() {
 	apiRouter := mux.NewRouter().PathPrefix("/api").Subrouter()
 
 	// Login endpoints
+	apiRouter.HandleFunc("/login-test", api.TestLogin(r.store)).Methods(http.MethodGet)
 	apiRouter.HandleFunc("/logins", api.FindAllLogins(r.store)).Methods(http.MethodGet)
 	apiRouter.HandleFunc("/logins", api.CreateLogin(r.store)).Methods(http.MethodPost)
 	apiRouter.HandleFunc("/logins/{id:[0-9]+}", api.FindLoginsByID(r.store)).Methods(http.MethodGet)

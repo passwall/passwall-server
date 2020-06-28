@@ -21,10 +21,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-	s, err := storage.New(&cfg.Database)
+	db, err := storage.DBConn(&cfg.Database)
 	if err != nil {
-		logger.Fatalf("failed to open storage: %s\n", err)
+		log.Fatal(err)
 	}
+
+	s := storage.New(db)
 
 	// Migrate database tables
 	// TODO: Migrate should be in storege.New functions of categories

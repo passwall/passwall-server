@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -22,7 +23,12 @@ func TestHealthCheck(t *testing.T) {
 		LogMode:  false,
 	}
 
-	db, err := storage.New(mockDBConfig)
+	mockDB, err := storage.DBConn(mockDBConfig)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	db := storage.New(mockDB)
 
 	req, err := http.NewRequest("GET", "/health", nil)
 	if err != nil {
