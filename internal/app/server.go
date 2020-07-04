@@ -22,7 +22,7 @@ func CreateServer(s storage.Store, dto *model.ServerDTO, schema string) (*model.
 func UpdateServer(s storage.Store, server *model.Server, dto *model.ServerDTO, schema string) (*model.Server, error) {
 
 	server.Title = dto.Title
-	server.IP = dto.Title
+	server.IP = dto.IP
 	server.Username = dto.Username
 	server.Password = dto.Password
 	server.URL = dto.URL

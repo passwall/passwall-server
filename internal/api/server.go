@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -71,6 +72,8 @@ func CreateServer(s storage.Store) http.HandlerFunc {
 		}
 		defer r.Body.Close()
 
+		fmt.Println(serverDTO)
+
 		schema := r.Context().Value("schema").(string)
 		createdServer, err := app.CreateServer(s, &serverDTO, schema)
 		if err != nil {
@@ -99,6 +102,9 @@ func UpdateServer(s storage.Store) http.HandlerFunc {
 			return
 		}
 		defer r.Body.Close()
+
+		fmt.Println(serverDTO)
+
 		schema := r.Context().Value("schema").(string)
 		server, err := s.Servers().FindByID(uint(id), schema)
 		if err != nil {
