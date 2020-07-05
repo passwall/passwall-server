@@ -14,8 +14,8 @@ import (
 	"github.com/go-test/deep"
 	"github.com/gorilla/mux"
 	"github.com/jinzhu/gorm"
-	"github.com/pass-wall/passwall-server/internal/storage"
-	"github.com/pass-wall/passwall-server/model"
+	"github.com/passwall/passwall-server/internal/storage"
+	"github.com/passwall/passwall-server/model"
 	"github.com/stretchr/testify/assert"
 )
 

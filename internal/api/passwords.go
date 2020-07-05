@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/pass-wall/passwall-server/internal/app"
-	"github.com/pass-wall/passwall-server/internal/storage"
-	"github.com/pass-wall/passwall-server/model"
+	"github.com/passwall/passwall-server/internal/app"
+	"github.com/passwall/passwall-server/internal/storage"
+	"github.com/passwall/passwall-server/model"
 	"github.com/spf13/viper"
 )
 

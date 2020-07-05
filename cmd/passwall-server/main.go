@@ -7,10 +7,10 @@ import (
 	"time"
 
 	_ "github.com/heroku/x/hmetrics/onload"
-	"github.com/pass-wall/passwall-server/internal/app"
-	"github.com/pass-wall/passwall-server/internal/config"
-	"github.com/pass-wall/passwall-server/internal/router"
-	"github.com/pass-wall/passwall-server/internal/storage"
+	"github.com/passwall/passwall-server/internal/app"
+	"github.com/passwall/passwall-server/internal/config"
+	"github.com/passwall/passwall-server/internal/router"
+	"github.com/passwall/passwall-server/internal/storage"
 )
 
 func main() {

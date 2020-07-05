@@ -2,7 +2,7 @@ package server
 
 import (
 	"github.com/jinzhu/gorm"
-	"github.com/pass-wall/passwall-server/model"
+	"github.com/passwall/passwall-server/model"
 )
 
 // Repository ...

@@ -5,15 +5,15 @@ import (
 
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
-	"github.com/pass-wall/passwall-server/internal/config"
-	"github.com/pass-wall/passwall-server/internal/storage/bankaccount"
-	"github.com/pass-wall/passwall-server/internal/storage/creditcard"
-	"github.com/pass-wall/passwall-server/internal/storage/email"
-	"github.com/pass-wall/passwall-server/internal/storage/login"
-	"github.com/pass-wall/passwall-server/internal/storage/note"
-	"github.com/pass-wall/passwall-server/internal/storage/server"
-	"github.com/pass-wall/passwall-server/internal/storage/token"
-	"github.com/pass-wall/passwall-server/internal/storage/user"
+	"github.com/passwall/passwall-server/internal/config"
+	"github.com/passwall/passwall-server/internal/storage/bankaccount"
+	"github.com/passwall/passwall-server/internal/storage/creditcard"
+	"github.com/passwall/passwall-server/internal/storage/email"
+	"github.com/passwall/passwall-server/internal/storage/login"
+	"github.com/passwall/passwall-server/internal/storage/note"
+	"github.com/passwall/passwall-server/internal/storage/server"
+	"github.com/passwall/passwall-server/internal/storage/token"
+	"github.com/passwall/passwall-server/internal/storage/user"
 )
 
 // Database is the concrete store provider.

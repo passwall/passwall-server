@@ -3,8 +3,8 @@ package app
 import (
 	"fmt"
 
-	"github.com/pass-wall/passwall-server/internal/storage"
-	"github.com/pass-wall/passwall-server/model"
+	"github.com/passwall/passwall-server/internal/storage"
+	"github.com/passwall/passwall-server/model"
 	uuid "github.com/satori/go.uuid"
 )
 

@@ -7,17 +7,17 @@ PassWall'e yardım etmek mi istiyorsun? Mükemmel, aramıza hoşgeldin. Bu dokü
 ------------
 
 - "Nasıl yapılır?" soruları için [StackOverflow](https://stackoverflow.com/questions/tagged/passwall).
-- Hata (Bug) bildirimi, özellik (feature) önerisi veya proje kaynak kodu için [GitHub](https://github.com/pass-wall/passwall-server/issues).
+- Hata (Bug) bildirimi, özellik (feature) önerisi veya proje kaynak kodu için [GitHub](https://github.com/passwall/passwall-server/issues).
 - Konu tartışmaları için [Slack](https://passwall.slack.com).
 - E-posta ile iletişim için [hello@passwall.io](mailto:hello@passwall.io).
 
 Katkıda bulunacak bir şeyi nasıl bulabilirim ?
 ------------
-1. Öncelikle katkıda bulunulacak her konunun bir issue'su olması gerektiğini unutmayın. Bunun için [issue](https://github.com/pass-wall/passwall-server/issues) sayfasına bakabilirsiniz.
+1. Öncelikle katkıda bulunulacak her konunun bir issue'su olması gerektiğini unutmayın. Bunun için [issue](https://github.com/passwall/passwall-server/issues) sayfasına bakabilirsiniz.
 
-1. Issue sayfasında öncelikle [help wanted](https://github.com/pass-wall/passwall-server/issues?q=is%3Aopen+is%3Aissue+label%3A%22help+wanted%22) issue'larına bakın.
+1. Issue sayfasında öncelikle [help wanted](https://github.com/passwall/passwall-server/issues?q=is%3Aopen+is%3Aissue+label%3A%22help+wanted%22) issue'larına bakın.
 
-1. Sonrasında koddaki  [// TODO:](https://github.com/pass-wall/passwall-server/search?q=TODO&unscoped_q=TODO)  kısımlarını düzeltmeyi deneyebilirsiniz.
+1. Sonrasında koddaki  [// TODO:](https://github.com/passwall/passwall-server/search?q=TODO&unscoped_q=TODO)  kısımlarını düzeltmeyi deneyebilirsiniz.
 
 1. Eğer yeni bir özellik (feature) olarak iyi bir fikriniz varsa veya bir hata (bug) bulursanız bu konuda bir konu (issue) açmaktan çekinmeyin ve eğer konu üzerinde çalışmak istiyorsanız mutlaka belirtin.
 

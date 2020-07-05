@@ -6,8 +6,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/urfave/negroni"
 
-	"github.com/pass-wall/passwall-server/internal/api"
-	"github.com/pass-wall/passwall-server/internal/storage"
+	"github.com/passwall/passwall-server/internal/api"
+	"github.com/passwall/passwall-server/internal/storage"
 )
 
 // Router ...

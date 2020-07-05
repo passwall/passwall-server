@@ -1,4 +1,4 @@
-module github.com/pass-wall/passwall-server
+module github.com/passwall/passwall-server
 
 go 1.14
 

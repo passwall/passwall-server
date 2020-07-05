@@ -1,8 +1,8 @@
 package app
 
 import (
-	"github.com/pass-wall/passwall-server/internal/storage"
-	"github.com/pass-wall/passwall-server/model"
+	"github.com/passwall/passwall-server/internal/storage"
+	"github.com/passwall/passwall-server/model"
 )
 
 // FindSamePassword ...

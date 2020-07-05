@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
-	"github.com/pass-wall/passwall-server/model"
+	"github.com/passwall/passwall-server/model"
 
 	uuid "github.com/satori/go.uuid"
 	"github.com/spf13/viper"

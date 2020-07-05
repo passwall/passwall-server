@@ -3,8 +3,8 @@ package app
 import (
 	"encoding/base64"
 
-	"github.com/pass-wall/passwall-server/internal/storage"
-	"github.com/pass-wall/passwall-server/model"
+	"github.com/passwall/passwall-server/internal/storage"
+	"github.com/passwall/passwall-server/model"
 	"github.com/spf13/viper"
 )
 

@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	"github.com/pass-wall/passwall-server/internal/storage"
+	"github.com/passwall/passwall-server/internal/storage"
 )
 
 var (

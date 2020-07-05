@@ -2,10 +2,10 @@
 
 **PassWall Server** is the core backend for open source password manager PassWall platform. Using this server, you can safely store your passwords and access them from anywhere. 
 
-[![License](https://img.shields.io/github/license/pass-wall/passwall-server)](https://github.com/pass-wall/passwall-server/blob/master/LICENSE)
-[![GitHub issues](https://img.shields.io/github/issues/pass-wall/passwall-server)](https://github.com/pass-wall/passwall-server/issues)
-[![Build Status](https://travis-ci.org/pass-wall/passwall-server.svg?branch=master)](https://travis-ci.org/pass-wall/passwall-server) 
-[![Coverage Status](https://coveralls.io/repos/github/pass-wall/passwall-server/badge.svg?branch=master)](https://coveralls.io/github/pass-wall/passwall-server?branch=master)
+[![License](https://img.shields.io/github/license/passwall/passwall-server)](https://github.com/passwall/passwall-server/blob/master/LICENSE)
+[![GitHub issues](https://img.shields.io/github/issues/passwall/passwall-server)](https://github.com/passwall/passwall-server/issues)
+[![Build Status](https://travis-ci.org/passwall/passwall-server.svg?branch=master)](https://travis-ci.org/passwall/passwall-server) 
+[![Coverage Status](https://coveralls.io/repos/github/passwall/passwall-server/badge.svg?branch=master)](https://coveralls.io/github/passwall/passwall-server?branch=master)
 [![Docker Pull Status](https://img.shields.io/docker/pulls/passwall/passwall-server)](https://hub.docker.com/u/passwall/)  
 [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy)
 
@@ -14,41 +14,24 @@ I promise all the coffee you have ordered will be spent on this project
 [![Become a Patron](https://www.yakuter.com/wp-content/yuklemeler/yakuter-patreon.png)](https://www.patreon.com/bePatron?u=33541638)
 
 ## Clients
-PassWall can be used by these clients or you can write your own client by using [API Documentation](https://documenter.getpostman.com/view/3658426/SzYbyHXj)     
-[PassWall Web](https://github.com/pass-wall/passwall-web)  
-[PassWall Desktop](https://github.com/pass-wall/passwall-desktop)  
-[PassWall Mobile](https://github.com/pass-wall/passwall-mobile)  
+**PassWall Server** can be used with [**PassWall Desktop**](https://github.com/passwall/passwall-desktop)
 
-The screenshot of Passwall Desktop working with Passwall Server is as follows  
-![PassWall Desktop Screenshot](https://www.yakuter.com/wp-content/yuklemeler/PassWall-Desktop-Screenshot.png "PassWall Desktop")
+<p align="center">
+    <img src="https://www.yakuter.com/wp-content/yuklemeler/passwall-screenshot.png" alt="" width="800" height="450" />
+</p>
 
 ## API Documentation
-API documentation available at:   
-[Click to see at Public Postman](https://documenter.getpostman.com/view/3658426/SzYbyHXj)   
+API documentation available at [Postman Public Directory](https://documenter.getpostman.com/view/3658426/SzYbyHXj)   
 
-## DEMO
-**Address:** https://passwall-server.herokuapp.com  
-**Username:** passwall  
-**Password:** password
+## Database support
+PassWall works with **PostgreSQL** databases. 
 
-## Database supoort
-PassWall works with **PostgreSQL** databases. Settings required for connection to database are in **./store/config.yml**.
+## Configuration
+When PassWall Server starts, it automatically generates **config.yml** in the folders below:
+**MacOS:** $HOME/Library/Application Support/passwall-server
+**Windows:** $APPDATA/passwall-server
+**Linux:** $HOME/.config/passwall-server
 
-## What's possible with PassWall Server?
-Currently, this project is focused on storing URL, username and password which is basically called **Login** at PassWall.
-
-An admin can;  
-- View and search logins
-- Create login with automatically generated strong password
-- Update login
-- Delete login
-- Import logins from other password managers
-- Export logins as CSV format
-
-## Authentication and Security
-This server uses **JWT Token** to secure endpoints. So user must generate token with **/auth/signin** first. Then with generated token, all endpoints in API documentation can be reachable. 
-  
-User information for signin is in **config.yml** file.
 
 ## Security
 1. PassWall uses The Advanced Encryption Standard (AES) encryption algorithm with Galois/Counter Mode (GCM) symmetric-key cryptographic mode. Passwords encrypted with AES can only be decrypted with the passphrase defined in the **config.yml** file.
@@ -90,10 +73,8 @@ These environment variables are accepted:
 Install Go to your computer. Pull the server repo. Execute the command in server folder.
 
 ```
-go run ./cmd/passwall-server/main.go
+go run ./cmd/passwall-server
 ```
-
-The server uses config file end environment variables. If you want to set variables manually, just change **config-sample.yml** to **config.yml** in **store** folder.
 
 ## Docker
 
@@ -106,13 +87,6 @@ docker pull passwall/passwall-server
 cp ./store/config-sample.yml ./store/config.yml
 docker run --name passwall-server --rm -v $(pwd)/store:/app/store -p 3625:3625 passwall/passwall-server
 ```
-
-## Import
-There are different kinds of password managers. Almost all of them can export login information as CSV file. Here is an example CSV file (let's say example.csv).  
-![example csv](https://www.yakuter.com/wp-content/yuklemeler/example-csv.png "Example CSV File")  
-  
-You need to fill the import form as below picture.  
-![passwall-server import](https://www.yakuter.com/wp-content/yuklemeler/gpass-import-csv.png "Import Form and Request Example")
 
 ## Hello Contributors
 

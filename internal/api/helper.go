@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pass-wall/passwall-server/internal/app"
+	"github.com/passwall/passwall-server/internal/app"
 )
 
 // SetArgs ...

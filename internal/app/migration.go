@@ -3,7 +3,7 @@ package app
 import (
 	"log"
 
-	"github.com/pass-wall/passwall-server/internal/storage"
+	"github.com/passwall/passwall-server/internal/storage"
 )
 
 // MigrateSystemTables runs auto migration for the system models (Token and User),

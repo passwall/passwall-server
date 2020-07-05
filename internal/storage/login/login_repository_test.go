@@ -8,7 +8,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/go-test/deep"
 	"github.com/jinzhu/gorm"
-	"github.com/pass-wall/passwall-server/model"
+	"github.com/passwall/passwall-server/model"
 	"github.com/stretchr/testify/assert"
 )
 

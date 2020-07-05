@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/pass-wall/passwall-server/internal/config"
-	"github.com/pass-wall/passwall-server/internal/storage"
+	"github.com/passwall/passwall-server/internal/config"
+	"github.com/passwall/passwall-server/internal/storage"
 )
 
 func TestHealthCheck(t *testing.T) {
