@@ -27,10 +27,10 @@ API documentation available at [Postman Public Directory](https://documenter.get
 PassWall works with **PostgreSQL** databases. 
 
 ## Configuration
-When PassWall Server starts, it automatically generates **config.yml** in the folders below:
-**MacOS:** $HOME/Library/Application Support/passwall-server
-**Windows:** $APPDATA/passwall-server
-**Linux:** $HOME/.config/passwall-server
+When PassWall Server starts, it automatically generates **config.yml** in the folders below:  
+**MacOS:** $HOME/Library/Application Support/passwall-server  
+**Windows:** $APPDATA/passwall-server  
+**Linux:** $HOME/.config/passwall-server  
 
 
 ## Security
