@@ -1,5 +1,9 @@
 # PASSWALL CHANGELOG
 
+## Version: [1.1.-] (2020-07-**)
+### Changed
+- Github organization name pass-wall to passwall
+
 ## Version: [1.1.2] (2020-06-22)
 ### Changed
 - Config file folder

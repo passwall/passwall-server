@@ -17,7 +17,7 @@ I promise all the coffee you have ordered will be spent on this project
 **PassWall Server** can be used with [**PassWall Desktop**](https://github.com/passwall/passwall-desktop)
 
 <p align="center">
-    <img src="https://www.yakuter.com/wp-content/yuklemeler/passwall-screenshot.png" alt="" width="800" height="450" />
+    <img src="https://www.yakuter.com/wp-content/yuklemeler/passwall-screenshot.png" alt="" width="600" height="425" />
 </p>
 
 ## API Documentation
