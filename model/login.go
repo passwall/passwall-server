@@ -1,12 +1,7 @@
 package model
 
 import (
-	"encoding/base64"
-	"reflect"
 	"time"
-
-	"github.com/passwall/passwall-server/internal/app"
-	"github.com/spf13/viper"
 )
 
 // Login ...
@@ -29,46 +24,10 @@ type LoginDTO struct {
 	Password string `json:"password" encrypt:"true"`
 }
 
-func encryptLogin(loginDTO LoginDTO) LoginDTO {
-	num := reflect.TypeOf(loginDTO).NumField()
-
-	var tagVal string
-
-	for i := 0; i < num; i++ {
-		tagVal = reflect.TypeOf(loginDTO).Field(i).Tag.Get("encrypt")
-		value := reflect.ValueOf(loginDTO).Field(i).String()
-
-		if tagVal == "true" {
-			value = base64.StdEncoding.EncodeToString(app.Encrypt(value, viper.GetString("server.passphrase")))
-			reflect.ValueOf(&loginDTO).Elem().Field(i).SetString(value)
-		}
-	}
-
-	return loginDTO
-}
-
-func decryptLogin(login Login) Login {
-	num := reflect.TypeOf(login).NumField()
-
-	var tagVal string
-
-	for i := 0; i < num; i++ {
-		tagVal = reflect.TypeOf(login).Field(i).Tag.Get("encrypt")
-		value := reflect.ValueOf(login).Field(i).String()
-
-		if tagVal == "true" {
-			valueByte, _ := base64.StdEncoding.DecodeString(value)
-			value = string(app.Decrypt(string(valueByte[:]), viper.GetString("server.passphrase")))
-		}
-	}
-
-	return login
-}
-
 // ToLogin ...
 func ToLogin(loginDTO *LoginDTO) *Login {
 
-	*loginDTO = encryptField(*loginDTO)
+	//*loginDTO = app.EncryptLogin(*loginDTO)
 
 	return &Login{
 		Title:    loginDTO.Title,
@@ -86,7 +45,7 @@ func ToLoginDTO(login *Login) *LoginDTO {
 	// 	login.URL = strings.TrimPrefix(login.URL, trims[i])
 	// }
 
-	*login = decryptField(*login)
+	//*login = app.DecryptLogin(*login)
 
 	return &LoginDTO{
 		ID:       login.ID,
