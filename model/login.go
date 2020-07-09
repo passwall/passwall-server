@@ -29,7 +29,7 @@ type LoginDTO struct {
 	Password string `json:"password" encrypt:"true"`
 }
 
-func encryptField(loginDTO LoginDTO) LoginDTO {
+func encryptLogin(loginDTO LoginDTO) LoginDTO {
 	num := reflect.TypeOf(loginDTO).NumField()
 
 	var tagVal string
@@ -47,7 +47,7 @@ func encryptField(loginDTO LoginDTO) LoginDTO {
 	return loginDTO
 }
 
-func decryptField(login Login) Login {
+func decryptLogin(login Login) Login {
 	num := reflect.TypeOf(login).NumField()
 
 	var tagVal string
