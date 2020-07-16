@@ -8,6 +8,10 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
+const (
+	SecureKeyLenght = 16
+)
+
 // CreateUser creates a user and saves it to the store
 func CreateUser(s storage.Store, userDTO *model.UserDTO) (*model.User, error) {
 	var err error
@@ -15,8 +19,7 @@ func CreateUser(s storage.Store, userDTO *model.UserDTO) (*model.User, error) {
 	userDTO.MasterPassword = NewBcrypt([]byte(userDTO.MasterPassword))
 
 	// Generate secret to use as salt
-	// todo: do not use place in int variables, pass them as const
-	userDTO.Secret, err = GenerateSecureKey(16)
+	userDTO.Secret, err = GenerateSecureKey(SecureKeyLenght)
 	if err != nil {
 		return nil, err
 	}

@@ -51,8 +51,7 @@ func DecryptCreditCardVerificationNumber(s storage.Store, card *model.CreditCard
 }
 
 // DecryptCreditCardVerificationNumbers ...
-// TODO: convert to pointers
-func DecryptCreditCardVerificationNumbers(creditCards []model.CreditCard) []model.CreditCard {
+func DecryptCreditCardVerificationNumbers(creditCards []model.CreditCard) {
 	for i := range creditCards {
 		if creditCards[i].VerificationNumber == "" {
 			continue
@@ -61,5 +60,4 @@ func DecryptCreditCardVerificationNumbers(creditCards []model.CreditCard) []mode
 		passB64 := string(Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
 		creditCards[i].VerificationNumber = passB64
 	}
-	return creditCards
 }

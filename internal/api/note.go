@@ -33,7 +33,7 @@ func FindAllNotes(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		notes = app.DecryptNotes(notes)
+		app.DecryptNotes(notes)
 		RespondWithJSON(w, http.StatusOK, notes)
 	}
 }

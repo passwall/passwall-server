@@ -50,8 +50,7 @@ func DecryptLoginPassword(s storage.Store, login *model.Login) (*model.Login, er
 }
 
 // DecryptLoginPasswords ...
-// TODO: convert to pointers
-func DecryptLoginPasswords(loginList []model.Login) []model.Login {
+func DecryptLoginPasswords(loginList []model.Login) {
 	for i := range loginList {
 		if loginList[i].Password == "" {
 			continue
@@ -60,5 +59,4 @@ func DecryptLoginPasswords(loginList []model.Login) []model.Login {
 		passB64 := string(Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
 		loginList[i].Password = passB64
 	}
-	return loginList
 }

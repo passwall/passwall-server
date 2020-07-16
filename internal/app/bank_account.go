@@ -53,8 +53,7 @@ func DecryptBankAccountPassword(s storage.Store, account *model.BankAccount) (*m
 }
 
 // DecryptBankAccountPasswords ...
-// TODO: convert to pointers
-func DecryptBankAccountPasswords(bankAccounts []model.BankAccount) []model.BankAccount {
+func DecryptBankAccountPasswords(bankAccounts []model.BankAccount) {
 	for i := range bankAccounts {
 		if bankAccounts[i].Password == "" {
 			continue
@@ -63,5 +62,4 @@ func DecryptBankAccountPasswords(bankAccounts []model.BankAccount) []model.BankA
 		passB64 := string(Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
 		bankAccounts[i].Password = passB64
 	}
-	return bankAccounts
 }

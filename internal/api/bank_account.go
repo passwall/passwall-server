@@ -32,7 +32,7 @@ func FindAllBankAccounts(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		bankAccounts = app.DecryptBankAccountPasswords(bankAccounts)
+		app.DecryptBankAccountPasswords(bankAccounts)
 		RespondWithJSON(w, http.StatusOK, bankAccounts)
 	}
 }

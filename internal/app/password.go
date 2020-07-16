@@ -12,7 +12,7 @@ func FindSamePassword(s storage.Store, password model.Password, schema string) (
 	if err != nil {
 		return *new(model.URLs), nil
 	}
-	loginList = DecryptLoginPasswords(loginList)
+	DecryptLoginPasswords(loginList)
 	newUrls := model.URLs{Items: []string{}}
 
 	for _, login := range loginList {

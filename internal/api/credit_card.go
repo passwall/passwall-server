@@ -35,7 +35,7 @@ func FindAllCreditCards(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		creditCards = app.DecryptCreditCardVerificationNumbers(creditCards)
+		app.DecryptCreditCardVerificationNumbers(creditCards)
 		RespondWithJSON(w, http.StatusOK, creditCards)
 	}
 }

@@ -48,8 +48,7 @@ func DecryptNote(s storage.Store, note *model.Note) (*model.Note, error) {
 }
 
 // DecryptNotes ...
-// TODO: convert to pointers
-func DecryptNotes(notes []model.Note) []model.Note {
+func DecryptNotes(notes []model.Note) {
 	for i := range notes {
 		if notes[i].Note == "" {
 			continue
@@ -58,5 +57,4 @@ func DecryptNotes(notes []model.Note) []model.Note {
 		passB64 := string(Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
 		notes[i].Note = passB64
 	}
-	return notes
 }

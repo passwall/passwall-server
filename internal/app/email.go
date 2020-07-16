@@ -53,8 +53,7 @@ func DecryptEmailPassword(s storage.Store, account *model.Email) (*model.Email, 
 }
 
 // DecryptEmailPasswords ...
-// TODO: convert to pointers
-func DecryptEmailPasswords(emails []model.Email) []model.Email {
+func DecryptEmailPasswords(emails []model.Email) {
 	for i := range emails {
 		if emails[i].Password == "" {
 			continue
@@ -63,5 +62,4 @@ func DecryptEmailPasswords(emails []model.Email) []model.Email {
 		passB64 := string(Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
 		emails[i].Password = passB64
 	}
-	return emails
 }
