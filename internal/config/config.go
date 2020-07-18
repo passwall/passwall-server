@@ -51,6 +51,7 @@ type EmailConfiguration struct {
 	Username string `default:"hello@passwall.io"`
 	Password string `default:"password"`
 	From     string `default:"hello@passwall.io"`
+	Admin    string `default:"hello@passwall.io"`
 }
 
 // SetupConfigDefaults ...
@@ -129,6 +130,7 @@ func bindEnvs() {
 	viper.BindEnv("email.username", "PW_EMAIL_USERNAME")
 	viper.BindEnv("email.password", "PW_EMAIL_PASSWORD")
 	viper.BindEnv("email.from", "PW_EMAIL_FROM")
+	viper.BindEnv("email.admin", "PW_EMAIL_ADMIN")
 
 	viper.BindEnv("backup.folder", "PW_BACKUP_FOLDER")
 	viper.BindEnv("backup.rotation", "PW_BACKUP_ROTATION")
@@ -160,6 +162,7 @@ func setDefaults() {
 	viper.SetDefault("email.username", "hello@passwall.io")
 	viper.SetDefault("email.password", "password")
 	viper.SetDefault("email.from", "hello@passwall.io")
+	viper.SetDefault("email.admin", "hello@passwall.io")
 
 	// Backup defaults
 	viper.SetDefault("backup.folder", "./store/")
