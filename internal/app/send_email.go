@@ -42,6 +42,6 @@ func SendMail(to []string, subject, body string) {
 		[]byte(message),
 	)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
+	"github.com/spf13/viper"
 )
 
 var (
@@ -76,6 +77,15 @@ func Signup(s storage.Store) http.HandlerFunc {
 
 		// 7. Create user tables in user schema
 		app.MigrateUserTables(s, updatedUser.Schema)
+
+		// 8. Send email to admin adbout new user subscription
+		subject := "PassWall New User Subscription"
+
+		body := "PassWall has new a user. User details:\n\n"
+		body += "Name: " + userDTO.Name + "\n"
+		body += "Email: " + userDTO.Email + "\n"
+
+		go app.SendMail([]string{viper.GetString("email.admin")}, subject, body)
 
 		response := model.Response{
 			Code:    http.StatusOK,
