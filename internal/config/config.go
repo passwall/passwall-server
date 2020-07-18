@@ -23,6 +23,7 @@ var (
 type Configuration struct {
 	Server   ServerConfiguration
 	Database DatabaseConfiguration
+	Email    EmailConfiguration
 }
 
 // ServerConfiguration is the required paramters to set up a server
@@ -41,6 +42,15 @@ type DatabaseConfiguration struct {
 	Host     string `default:"localhost"`
 	Port     string `default:"5432"`
 	LogMode  bool   `default:"false"`
+}
+
+// EmailConfiguration is the required paramters to send emails
+type EmailConfiguration struct {
+	Host     string `default:"smtp.passwall.io"`
+	Port     string `default:"25"`
+	Username string `default:"hello@passwall.io"`
+	Password string `default:"password"`
+	From     string `default:"hello@passwall.io"`
 }
 
 // SetupConfigDefaults ...
@@ -114,6 +124,12 @@ func bindEnvs() {
 	viper.BindEnv("database.port", "PW_DB_PORT")
 	viper.BindEnv("database.logmode", "PW_DB_LOG_MODE")
 
+	viper.BindEnv("email.host", "PW_EMAIL_HOST")
+	viper.BindEnv("email.port", "PW_EMAIL_PORT")
+	viper.BindEnv("email.username", "PW_EMAIL_USERNAME")
+	viper.BindEnv("email.password", "PW_EMAIL_PASSWORD")
+	viper.BindEnv("email.from", "PW_EMAIL_FROM")
+
 	viper.BindEnv("backup.folder", "PW_BACKUP_FOLDER")
 	viper.BindEnv("backup.rotation", "PW_BACKUP_ROTATION")
 	viper.BindEnv("backup.period", "PW_BACKUP_PERIOD")
@@ -137,6 +153,13 @@ func setDefaults() {
 	viper.SetDefault("database.host", "localhost")
 	viper.SetDefault("database.port", "5432")
 	viper.SetDefault("database.logmode", false)
+
+	// Email defaults
+	viper.SetDefault("email.host", "smtp.passwall.io")
+	viper.SetDefault("email.port", "25")
+	viper.SetDefault("email.username", "hello@passwall.io")
+	viper.SetDefault("email.password", "password")
+	viper.SetDefault("email.from", "hello@passwall.io")
 
 	// Backup defaults
 	viper.SetDefault("backup.folder", "./store/")
