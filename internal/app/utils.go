@@ -7,9 +7,9 @@ import (
 )
 
 // GetMD5Hash ...
-func GetMD5Hash(text string) string {
+func GetMD5Hash(text []byte) string {
 	hasher := md5.New()
-	hasher.Write([]byte(text))
+	hasher.Write(text)
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
@@ -17,5 +17,5 @@ func GetMD5Hash(text string) string {
 func RandomMD5Hash() string {
 	b := make([]byte, 16)
 	rand.Read(b)
-	return GetMD5Hash(string(b))
+	return GetMD5Hash(b)
 }
