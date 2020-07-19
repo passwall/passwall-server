@@ -142,7 +142,7 @@ func setDefaults() {
 
 	// Server defaults
 	viper.SetDefault("server.port", "3625")
-	viper.SetDefault("server.domain", "passwall.io")
+	viper.SetDefault("server.domain", "https://vault.passwall.io")
 	viper.SetDefault("server.passphrase", "passphrase-for-encrypting-passwords-do-not-forget")
 	viper.SetDefault("server.secret", "secret-key-for-JWT-TOKEN")
 	viper.SetDefault("server.timeout", 24)

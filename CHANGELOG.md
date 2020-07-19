@@ -4,6 +4,7 @@
 ### Add
 - Email configuration
 - SendEmail function to app package
+- Email verification for new users
 ### Changed
 - Github organization name pass-wall to passwall
 

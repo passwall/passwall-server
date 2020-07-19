@@ -95,7 +95,7 @@ func Signup(s storage.Store) http.HandlerFunc {
 		go app.SendMail([]string{viper.GetString("email.admin")}, subject, body)
 
 		confirmationBody := "Last step for use Passwall\n\n"
-		confirmationBody += "Confirmation link: " + "http://" + viper.GetString("server.domain") + ":" + viper.GetString("server.port")
+		confirmationBody += "Confirmation link: " + viper.GetString("server.domain")
 		confirmationBody += "/auth/confirm/" + userDTO.Email + "/" + confirmationCode
 
 		go app.SendMail([]string{userDTO.Email}, "Passwall Email Confirmation", confirmationBody)
