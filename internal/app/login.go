@@ -2,11 +2,50 @@ package app
 
 import (
 	"encoding/base64"
+	"reflect"
 
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
 	"github.com/spf13/viper"
 )
+
+// Model encryption
+func EncryptLogin(loginDTO model.LoginDTO) model.LoginDTO {
+	num := reflect.TypeOf(loginDTO).NumField()
+
+	var tagVal string
+
+	for i := 0; i < num; i++ {
+		tagVal = reflect.TypeOf(loginDTO).Field(i).Tag.Get("encrypt")
+		value := reflect.ValueOf(loginDTO).Field(i).String()
+
+		if tagVal == "true" {
+			value = base64.StdEncoding.EncodeToString(Encrypt(value, viper.GetString("server.passphrase")))
+			reflect.ValueOf(&loginDTO).Elem().Field(i).SetString(value)
+		}
+	}
+
+	return loginDTO
+}
+
+// Model decryption
+func DecryptLogin(login model.Login) model.Login {
+	num := reflect.TypeOf(login).NumField()
+
+	var tagVal string
+
+	for i := 0; i < num; i++ {
+		tagVal = reflect.TypeOf(login).Field(i).Tag.Get("encrypt")
+		value := reflect.ValueOf(login).Field(i).String()
+
+		if tagVal == "true" {
+			valueByte, _ := base64.StdEncoding.DecodeString(value)
+			value = string(Decrypt(string(valueByte[:]), viper.GetString("server.passphrase")))
+		}
+	}
+
+	return login
+}
 
 // CreateLogin creates a login and saves it to the store
 func CreateLogin(s storage.Store, dto *model.LoginDTO, schema string) (*model.Login, error) {
