@@ -109,6 +109,7 @@ func initializeConfig() {
 }
 
 func bindEnvs() {
+	viper.BindEnv("server.domain", "DOMAIN")
 	viper.BindEnv("server.port", "PORT")
 	viper.BindEnv("server.passphrase", "PW_SERVER_PASSPHRASE")
 	viper.BindEnv("server.secret", "PW_SERVER_SECRET")
@@ -141,6 +142,7 @@ func setDefaults() {
 
 	// Server defaults
 	viper.SetDefault("server.port", "3625")
+	viper.SetDefault("server.domain", "passwall.io")
 	viper.SetDefault("server.passphrase", "passphrase-for-encrypting-passwords-do-not-forget")
 	viper.SetDefault("server.secret", "secret-key-for-JWT-TOKEN")
 	viper.SetDefault("server.timeout", 24)

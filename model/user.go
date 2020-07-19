@@ -8,30 +8,34 @@ import (
 
 // User model should be something like this
 type User struct {
-	ID             uint       `gorm:"primary_key" json:"id"`
-	UUID           uuid.UUID  `gorm:"type:uuid; type:varchar(100);"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
-	DeletedAt      *time.Time `json:"deleted_at"`
-	Name           string     `json:"name"`
-	Email          string     `json:"email"`
-	MasterPassword string     `json:"master_password"`
-	Secret         string     `json:"secret"`
-	Plan           string     `json:"plan"`
-	Schema         string     `json:"schema"`
-	Role           string     `json:"role"`
+	ID               uint       `gorm:"primary_key" json:"id"`
+	UUID             uuid.UUID  `gorm:"type:uuid; type:varchar(100);"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+	DeletedAt        *time.Time `json:"deleted_at"`
+	Name             string     `json:"name"`
+	Email            string     `json:"email"`
+	MasterPassword   string     `json:"master_password"`
+	Secret           string     `json:"secret"`
+	Plan             string     `json:"plan"`
+	Schema           string     `json:"schema"`
+	Role             string     `json:"role"`
+	ConfirmationCode string     `json:"confirmation_code"`
+	EmailVerifiedAt  time.Time  `json:"email_verified_at"`
 }
 
 type UserDTO struct {
-	ID             uint      `json:"id"`
-	UUID           uuid.UUID `json:"uuid"`
-	Name           string    `json:"name" validate:"max=100"`
-	Email          string    `json:"email" validate:"required,email"`
-	MasterPassword string    `json:"master_password" validate:"required,max=100,min=6"`
-	Secret         string    `json:"secret"`
-	Plan           string    `json:"plan"`
-	Schema         string    `json:"schema"`
-	Role           string    `json:"role"`
+	ID               uint      `json:"id"`
+	UUID             uuid.UUID `json:"uuid"`
+	Name             string    `json:"name" validate:"max=100"`
+	Email            string    `json:"email" validate:"required,email"`
+	MasterPassword   string    `json:"master_password" validate:"required,max=100,min=6"`
+	Secret           string    `json:"secret"`
+	Plan             string    `json:"plan"`
+	Schema           string    `json:"schema"`
+	Role             string    `json:"role"`
+	ConfirmationCode string    `json:"confirmation_code"`
+	EmailVerifiedAt  time.Time `json:"email_verified_at"`
 }
 
 type UserDTOTable struct {

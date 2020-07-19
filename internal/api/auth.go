@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
+
+	"github.com/gorilla/mux"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/go-playground/validator/v10"
@@ -20,6 +23,7 @@ var (
 	NoToken        = "Token could not found! "
 	TokenCreateErr = "Token could not be created"
 	SignupSuccess  = "User created successfully"
+	VerifySuccess  = "Email verified succesfully"
 )
 
 // Signup ...
@@ -61,6 +65,9 @@ func Signup(s storage.Store) http.HandlerFunc {
 			return
 		}
 
+		confirmationCode := app.RandomMD5Hash()
+		createdUser.ConfirmationCode = confirmationCode
+
 		// 5. Update user once to generate schema
 		updatedUser, err := app.GenerateSchema(s, createdUser)
 		if err != nil {
@@ -87,9 +94,56 @@ func Signup(s storage.Store) http.HandlerFunc {
 
 		go app.SendMail([]string{viper.GetString("email.admin")}, subject, body)
 
+		confirmationBody := "Last step for use Passwall\n\n"
+		confirmationBody += "Confirmation link: " + "http://" + viper.GetString("server.domain") + ":" + viper.GetString("server.port")
+		confirmationBody += "/auth/confirm/" + userDTO.Email + "/" + confirmationCode
+
+		go app.SendMail([]string{userDTO.Email}, "Passwall Email Confirmation", confirmationBody)
 		response := model.Response{
 			Code:    http.StatusOK,
 			Status:  Success,
+			Message: SignupSuccess,
+		}
+		RespondWithJSON(w, http.StatusOK, response)
+	}
+}
+
+// Confirm ...
+func Confirm(s storage.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		email := mux.Vars(r)["email"]
+		code := mux.Vars(r)["code"]
+		usr, err := s.Users().FindByEmail(email)
+		if err != nil {
+			errs := []string{"Email not found!"}
+			message := "Email couldn't confirm!"
+			RespondWithErrors(w, http.StatusBadRequest, message, errs)
+			return
+		} else if !usr.EmailVerifiedAt.IsZero() {
+			errs := []string{"Email is already verified!"}
+			message := "Email couldn't confirm!"
+			RespondWithErrors(w, http.StatusBadRequest, message, errs)
+			return
+		} else if code != usr.ConfirmationCode {
+			errs := []string{"Confirmation code is wrong!"}
+			message := "Email couldn't confirm!"
+			RespondWithErrors(w, http.StatusBadRequest, message, errs)
+			return
+		}
+
+		updatedUser := model.ToUserDTO(usr)
+		updatedUser.EmailVerifiedAt = time.Now()
+
+		_, err = app.UpdateUser(s, usr, updatedUser, false)
+		if err != nil {
+			errs := []string{"User can't updated!"}
+			message := "Email couldn't confirm!"
+			RespondWithErrors(w, http.StatusBadRequest, message, errs)
+			return
+		}
+		response := model.Response{
+			Code:    http.StatusOK,
+			Status:  VerifySuccess,
 			Message: SignupSuccess,
 		}
 		RespondWithJSON(w, http.StatusOK, response)
