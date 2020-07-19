@@ -115,7 +115,7 @@ func Confirm(s storage.Store) http.HandlerFunc {
 		code := mux.Vars(r)["code"]
 		usr, err := s.Users().FindByEmail(email)
 		if err != nil {
-			errs := []string{"Email not found!"}
+			errs := []string{"Email not found!", "Raw error: " + err.Error()}
 			message := "Email couldn't confirm!"
 			RespondWithErrors(w, http.StatusBadRequest, message, errs)
 			return
@@ -136,7 +136,7 @@ func Confirm(s storage.Store) http.HandlerFunc {
 
 		_, err = app.UpdateUser(s, usr, updatedUser, false)
 		if err != nil {
-			errs := []string{"User can't updated!"}
+			errs := []string{"User can't updated!", "Raw error: " + err.Error()}
 			message := "Email couldn't confirm!"
 			RespondWithErrors(w, http.StatusBadRequest, message, errs)
 			return
