@@ -101,6 +101,7 @@ func (r *Router) initRoutes() {
 	// Auth endpoints
 	authRouter := mux.NewRouter().PathPrefix("/auth").Subrouter()
 	authRouter.HandleFunc("/signup", api.Signup(r.store)).Methods(http.MethodPost)
+	authRouter.HandleFunc("/confirm/{email}/{code}", api.Confirm(r.store)).Methods(http.MethodGet)
 	authRouter.HandleFunc("/signin", api.Signin(r.store)).Methods(http.MethodPost)
 	authRouter.HandleFunc("/refresh", api.RefreshToken(r.store)).Methods(http.MethodPost)
 	authRouter.HandleFunc("/check", api.CheckToken(r.store)).Methods(http.MethodPost)
