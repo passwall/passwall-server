@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -94,11 +95,14 @@ func Signup(s storage.Store) http.HandlerFunc {
 
 		go app.SendMail([]string{viper.GetString("email.admin")}, subject, body)
 
+		// 9. Send confirmation email to new user
 		confirmationBody := "Last step for use Passwall\n\n"
 		confirmationBody += "Confirmation link: " + viper.GetString("server.domain")
 		confirmationBody += "/auth/confirm/" + userDTO.Email + "/" + confirmationCode
 
 		go app.SendMail([]string{userDTO.Email}, "Passwall Email Confirmation", confirmationBody)
+
+		// Return success message
 		response := model.Response{
 			Code:    http.StatusOK,
 			Status:  Success,
@@ -131,10 +135,11 @@ func Confirm(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		updatedUser := model.ToUserDTO(usr)
-		updatedUser.EmailVerifiedAt = time.Now()
+		userDTO := model.ToUserDTO(usr)
+		userDTO.MasterPassword = "" // Fix for not to update password
+		userDTO.EmailVerifiedAt = time.Now()
 
-		_, err = app.UpdateUser(s, usr, updatedUser, false)
+		_, err = app.UpdateUser(s, usr, userDTO, false)
 		if err != nil {
 			errs := []string{"User can't updated!", "Raw error: " + err.Error()}
 			message := "Email couldn't confirm!"
@@ -175,8 +180,15 @@ func Signin(s storage.Store) http.HandlerFunc {
 
 		// Check if user exist in database and credentials are true
 		user, err := s.Users().FindByCredentials(loginDTO.Email, loginDTO.MasterPassword)
+		fmt.Println(err)
 		if err != nil {
 			RespondWithError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+
+		// Check if users email is verified
+		if user.EmailVerifiedAt.IsZero() {
+			RespondWithError(w, http.StatusUnauthorized, "Email is not verified!")
 			return
 		}
 
