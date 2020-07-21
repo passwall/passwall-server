@@ -95,7 +95,7 @@ type EmailRepository interface {
 // TokenRepository ...
 // TODO: Add explanation to functions in TokenRepository
 type TokenRepository interface {
-	Any(uuid string) bool
+	Any(uuid string) (model.Token, bool)
 	Save(userid int, uuid uuid.UUID, tkn string, expriydate time.Time, transmissionKey string)
 	Delete(userid int)
 	DeleteByUUID(uuid string)

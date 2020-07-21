@@ -2,21 +2,18 @@ package app
 
 import (
 	"encoding/json"
-	"log"
 
 	openssl "github.com/Luzifer/go-openssl/v4"
-	"github.com/spf13/viper"
 )
 
 // DecryptJSON ...
-func DecryptJSON(encrypted []byte, v interface{}) error {
+func DecryptJSON(key string, encrypted []byte, v interface{}) error {
 
-	// 1. Get a openssl object and secret key from configs
+	// 1. Get a openssl object
 	o := openssl.New()
-	secret := viper.GetString("server.aesKey")
 
 	// 2. Decrypt string
-	dec, err := o.DecryptBytes(secret, encrypted, openssl.BytesToKeyMD5)
+	dec, err := o.DecryptBytes(key, encrypted, openssl.BytesToKeyMD5)
 	if err != nil {
 		return err
 	}
@@ -30,11 +27,10 @@ func DecryptJSON(encrypted []byte, v interface{}) error {
 }
 
 // EncryptJSON ...
-func EncryptJSON(v interface{}) ([]byte, error) {
+func EncryptJSON(key string, v interface{}) ([]byte, error) {
 
-	// 1. Get a openssl object and secret key from configs
+	// 1. Get a openssl object
 	o := openssl.New()
-	secret := viper.GetString("server.aesKey")
 
 	// 2. Marshall to text
 	text, err := json.Marshal(v)
@@ -43,10 +39,10 @@ func EncryptJSON(v interface{}) ([]byte, error) {
 	}
 
 	// 3. Encrypt it
-	enc, err := o.EncryptBytes(secret, text, openssl.BytesToKeyMD5)
+	enc, err := o.EncryptBytes(key, text, openssl.BytesToKeyMD5)
 	if err != nil {
 		return nil, err
 	}
-	log.Println(string(enc))
+
 	return enc, nil
 }

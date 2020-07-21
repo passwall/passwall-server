@@ -69,15 +69,28 @@ func FindLoginsByID(s storage.Store) http.HandlerFunc {
 // Create ...
 func CreateLogin(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var loginDTO model.LoginDTO
+		type Payload struct {
+			Data string `json:"data"`
+		}
+		var payload Payload
 
 		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&loginDTO); err != nil {
+		if err := decoder.Decode(&payload); err != nil {
 			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
 
+		var loginDTO model.LoginDTO
+
+		key := r.Context().Value("transmissionKey").(string)
+		err := app.DecryptJSON(key, []byte(payload.Data), &loginDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		fmt.Println(loginDTO)
 		schema := r.Context().Value("schema").(string)
 		createdLogin, err := app.CreateLogin(s, &loginDTO, schema)
 		if err != nil {
