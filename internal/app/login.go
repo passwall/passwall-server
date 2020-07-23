@@ -72,6 +72,7 @@ func UpdateLogin(s storage.Store, login *model.Login, dto *model.LoginDTO, schem
 	login.Title = dto.Title
 	login.URL = dto.URL
 	login.Username = dto.Username
+	login.Password = dto.Password
 	updatedLogin, err := s.Logins().Save(login, schema)
 	if err != nil {
 		return nil, err

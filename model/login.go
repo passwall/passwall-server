@@ -26,9 +26,6 @@ type LoginDTO struct {
 
 // ToLogin ...
 func ToLogin(loginDTO *LoginDTO) *Login {
-
-	//*loginDTO = app.EncryptLogin(*loginDTO)
-
 	return &Login{
 		Title:    loginDTO.Title,
 		URL:      loginDTO.URL,
@@ -39,14 +36,6 @@ func ToLogin(loginDTO *LoginDTO) *Login {
 
 // ToLoginDTO ...
 func ToLoginDTO(login *Login) *LoginDTO {
-
-	// trims := []string{"https://", "http://", "www."}
-	// for i := range trims {
-	// 	login.URL = strings.TrimPrefix(login.URL, trims[i])
-	// }
-
-	//*login = app.DecryptLogin(*login)
-
 	return &LoginDTO{
 		ID:       login.ID,
 		Title:    login.Title,
