@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -229,9 +228,6 @@ func DeleteLogin(s storage.Store) http.HandlerFunc {
 // Test endpoint ...
 func TestLogin(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		schema := r.Context().Value("schema").(string)
-		fmt.Println(schema)
 
 		response := model.Response{
 			Code:    http.StatusOK,

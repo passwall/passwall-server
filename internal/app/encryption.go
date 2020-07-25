@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	mathRand "math/rand"
@@ -125,56 +124,6 @@ func Decrypt(dataStr string, passphrase string) []byte {
 	}
 	return plainByte
 	// return string(plainByte[:])
-}
-
-// Decrypt decrypts cipher text string into plain text string
-func DecryptCBC(encrypted string) (string, error) {
-	key := []byte("1234123412341234")
-	cipherText := []byte(encrypted)
-
-	fmt.Println(len(cipherText))
-
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		panic(err)
-	}
-
-	if len(cipherText) < aes.BlockSize {
-		panic("cipherText too short")
-	}
-	iv := cipherText[:aes.BlockSize]
-	cipherText = cipherText[aes.BlockSize:]
-	if len(cipherText)%aes.BlockSize != 0 {
-		panic("cipherText is not a multiple of the block size")
-	}
-
-	mode := cipher.NewCBCDecrypter(block, iv)
-	mode.CryptBlocks(cipherText, cipherText)
-
-	cipherText, _ = Unpad(cipherText, aes.BlockSize)
-	return fmt.Sprintf("%s", cipherText), nil
-}
-
-func Pad(buf []byte, size int) ([]byte, error) {
-	bufLen := len(buf)
-	padLen := size - bufLen%size
-	padded := make([]byte, bufLen+padLen)
-	copy(padded, buf)
-	for i := 0; i < padLen; i++ {
-		padded[bufLen+i] = byte(padLen)
-	}
-	return padded, nil
-}
-
-func Unpad(padded []byte, size int) ([]byte, error) {
-	if len(padded)%size != 0 {
-		return nil, errors.New("pkcs7: Padded value wasn't in correct size.")
-	}
-
-	bufLen := len(padded) - int(padded[len(padded)-1])
-	buf := make([]byte, bufLen)
-	copy(buf, padded[:bufLen])
-	return buf, nil
 }
 
 // EncryptFile ...

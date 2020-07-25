@@ -32,8 +32,19 @@ func FindAllBankAccounts(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		bankAccounts = app.DecryptBankAccountPasswords(bankAccounts)
-		RespondWithJSON(w, http.StatusOK, bankAccounts)
+		// bankAccounts = app.DecryptBankAccountPasswords(bankAccounts)
+
+		// Encrypt payload
+		var payload model.Payload
+		key := r.Context().Value("transmissionKey").(string)
+		encrypted, err := app.EncryptJSON(key, bankAccounts)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		payload.Data = string(encrypted)
+
+		RespondWithJSON(w, http.StatusOK, payload)
 	}
 }
 
@@ -60,21 +71,45 @@ func FindBankAccountByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		RespondWithJSON(w, http.StatusOK, model.ToBankAccountDTO(bankAccount))
+		bankAccountDTO := model.ToBankAccountDTO(bankAccount)
+
+		// Encrypt payload
+		var payload model.Payload
+		key := r.Context().Value("transmissionKey").(string)
+		encrypted, err := app.EncryptJSON(key, bankAccountDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		payload.Data = string(encrypted)
+
+		RespondWithJSON(w, http.StatusOK, payload)
 	}
 }
 
 // Create ...
 func CreateBankAccount(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var bankAccountDTO model.BankAccountDTO
 
+		// TODO BEGIN: This part should be in a helper function
+		// Unmarshal request body to payload
+		var payload model.Payload
 		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&bankAccountDTO); err != nil {
+		if err := decoder.Decode(&payload); err != nil {
 			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
+		// TODO END:
+
+		// Decrypt payload
+		var bankAccountDTO model.BankAccountDTO
+		key := r.Context().Value("transmissionKey").(string)
+		err := app.DecryptJSON(key, []byte(payload.Data), &bankAccountDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 
 		schema := r.Context().Value("schema").(string)
 		createdBankAccount, err := app.CreateBankAccount(s, &bankAccountDTO, schema)
@@ -83,7 +118,17 @@ func CreateBankAccount(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		RespondWithJSON(w, http.StatusOK, model.ToBankAccountDTO(createdBankAccount))
+		createdBankAccountDTO := model.ToBankAccountDTO(createdBankAccount)
+
+		// Encrypt payload
+		encrypted, err := app.EncryptJSON(key, createdBankAccountDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		payload.Data = string(encrypted)
+
+		RespondWithJSON(w, http.StatusOK, payload)
 	}
 }
 
@@ -97,13 +142,23 @@ func UpdateBankAccount(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		var bankAccountDTO model.BankAccountDTO
+		// Unmarshal request body to payload
+		var payload model.Payload
 		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&bankAccountDTO); err != nil {
+		if err := decoder.Decode(&payload); err != nil {
 			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
+
+		// Decrypt payload
+		var bankAccountDTO model.BankAccountDTO
+		key := r.Context().Value("transmissionKey").(string)
+		err = app.DecryptJSON(key, []byte(payload.Data), &bankAccountDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 
 		schema := r.Context().Value("schema").(string)
 		bankAccount, err := s.BankAccounts().FindByID(uint(id), schema)
@@ -118,7 +173,17 @@ func UpdateBankAccount(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		RespondWithJSON(w, http.StatusOK, model.ToBankAccountDTO(updatedBankAccount))
+		updatedBankAccountDTO := model.ToBankAccountDTO(updatedBankAccount)
+
+		// Encrypt payload
+		encrypted, err := app.EncryptJSON(key, updatedBankAccountDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		payload.Data = string(encrypted)
+
+		RespondWithJSON(w, http.StatusOK, payload)
 	}
 }
 

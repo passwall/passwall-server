@@ -35,8 +35,19 @@ func FindAllCreditCards(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		creditCards = app.DecryptCreditCardVerificationNumbers(creditCards)
-		RespondWithJSON(w, http.StatusOK, creditCards)
+		// creditCards = app.DecryptCreditCardVerificationNumbers(creditCards)
+
+		// Encrypt payload
+		var payload model.Payload
+		key := r.Context().Value("transmissionKey").(string)
+		encrypted, err := app.EncryptJSON(key, creditCards)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		payload.Data = string(encrypted)
+
+		RespondWithJSON(w, http.StatusOK, payload)
 	}
 }
 
@@ -63,21 +74,45 @@ func FindCreditCardByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		RespondWithJSON(w, http.StatusOK, model.ToCreditCardDTO(creditCard))
+		creditCardDTO := model.ToCreditCardDTO(creditCard)
+
+		// Encrypt payload
+		var payload model.Payload
+		key := r.Context().Value("transmissionKey").(string)
+		encrypted, err := app.EncryptJSON(key, creditCardDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		payload.Data = string(encrypted)
+
+		RespondWithJSON(w, http.StatusOK, payload)
 	}
 }
 
 // Create ...
 func CreateCreditCard(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var creditCardDTO model.CreditCardDTO
 
+		// TODO BEGIN: This part should be in a helper function
+		// Unmarshal request body to payload
+		var payload model.Payload
 		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&creditCardDTO); err != nil {
+		if err := decoder.Decode(&payload); err != nil {
 			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
+		// TODO END:
+
+		// Decrypt payload
+		var creditCardDTO model.CreditCardDTO
+		key := r.Context().Value("transmissionKey").(string)
+		err := app.DecryptJSON(key, []byte(payload.Data), &creditCardDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 
 		schema := r.Context().Value("schema").(string)
 		createdCreditCard, err := app.CreateCreditCard(s, &creditCardDTO, schema)
@@ -86,7 +121,17 @@ func CreateCreditCard(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		RespondWithJSON(w, http.StatusOK, model.ToCreditCardDTO(createdCreditCard))
+		createdCreditCardDTO := model.ToCreditCardDTO(createdCreditCard)
+
+		// Encrypt payload
+		encrypted, err := app.EncryptJSON(key, createdCreditCardDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		payload.Data = string(encrypted)
+
+		RespondWithJSON(w, http.StatusOK, payload)
 	}
 }
 
@@ -100,13 +145,23 @@ func UpdateCreditCard(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		var creditCardDTO model.CreditCardDTO
+		// Unmarshal request body to payload
+		var payload model.Payload
 		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&creditCardDTO); err != nil {
+		if err := decoder.Decode(&payload); err != nil {
 			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
+
+		// Decrypt payload
+		var creditCardDTO model.CreditCardDTO
+		key := r.Context().Value("transmissionKey").(string)
+		err = app.DecryptJSON(key, []byte(payload.Data), &creditCardDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 
 		schema := r.Context().Value("schema").(string)
 		creditCard, err := s.CreditCards().FindByID(uint(id), schema)
@@ -121,7 +176,17 @@ func UpdateCreditCard(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		RespondWithJSON(w, http.StatusOK, model.ToCreditCardDTO(updatedCreditCard))
+		updatedCreditCardDTO := model.ToCreditCardDTO(updatedCreditCard)
+
+		// Encrypt payload
+		encrypted, err := app.EncryptJSON(key, updatedCreditCardDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		payload.Data = string(encrypted)
+
+		RespondWithJSON(w, http.StatusOK, payload)
 	}
 }
 

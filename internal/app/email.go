@@ -25,14 +25,15 @@ func CreateEmail(s storage.Store, dto *model.EmailDTO, schema string) (*model.Em
 }
 
 // UpdateEmail updates the account with the dto and applies the changes in the store
-func UpdateEmail(s storage.Store, account *model.Email, dto *model.EmailDTO, schema string) (*model.Email, error) {
+func UpdateEmail(s storage.Store, email *model.Email, emailDTO *model.EmailDTO, schema string) (*model.Email, error) {
 
-	rawPass := dto.Password
-	dto.Password = base64.StdEncoding.EncodeToString(Encrypt(dto.Password, viper.GetString("server.passphrase")))
+	rawPass := emailDTO.Password
+	emailDTO.Password = base64.StdEncoding.EncodeToString(Encrypt(emailDTO.Password, viper.GetString("server.passphrase")))
 
-	dto.ID = uint(account.ID)
-	email := model.ToEmail(dto)
-	email.ID = uint(account.ID)
+	email.ID = uint(email.ID)
+	email.Title = emailDTO.Title
+	email.Email = emailDTO.Email
+	email.Password = emailDTO.Password
 
 	updatedEmail, err := s.Emails().Save(email, schema)
 	if err != nil {

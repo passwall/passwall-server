@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -180,7 +179,6 @@ func Signin(s storage.Store) http.HandlerFunc {
 
 		// Check if user exist in database and credentials are true
 		user, err := s.Users().FindByCredentials(loginDTO.Email, loginDTO.MasterPassword)
-		fmt.Println(err)
 		if err != nil {
 			RespondWithError(w, http.StatusUnauthorized, err.Error())
 			return
