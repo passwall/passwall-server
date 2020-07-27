@@ -68,7 +68,6 @@ func Languages(s storage.Store) http.HandlerFunc {
 			e := strings.Split(f.Name(), ".")
 			// Than split from the language part eg localization-xx
 			l := strings.Split(e[0], "-")
-			fmt.Println(l)
 			s = append(s, l[1])
 		}
 
