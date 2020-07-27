@@ -6,22 +6,22 @@ import (
 
 // Login ...
 type Login struct {
-	ID        uint       `gorm:"primary_key" json:"id"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
-	DeletedAt *time.Time `json:"deleted_at"`
-	Title     string     `json:"title"`
-	URL       string     `json:"url"`
-	Username  string     `json:"username"`
-	Password  string     `json:"password"`
+	ID        uint       `gorm:"primary_key" json:"id" encrypt:"false"`
+	CreatedAt time.Time  `json:"created_at" encrypt:"true"`
+	UpdatedAt time.Time  `json:"updated_at" encrypt:"true"`
+	DeletedAt *time.Time `json:"deleted_at" encrypt:"true"`
+	Title     string     `json:"title" encrypt:"false"`
+	URL       string     `json:"url" encrypt:"true"`
+	Username  string     `json:"username" encrypt:"true"`
+	Password  string     `json:"password" encrypt:"true"`
 }
 
 type LoginDTO struct {
-	ID       uint   `json:"id"`
-	Title    string `json:"title"`
-	URL      string `json:"url"`
-	Username string `json:"username"`
-	Password string `json:"password"`
+	ID       uint   `json:"id" encrypt:"false"`
+	Title    string `json:"title" encrypt:"false"`
+	URL      string `json:"url" encrypt:"true"`
+	Username string `json:"username" encrypt:"true"`
+	Password string `json:"password" encrypt:"true"`
 }
 
 // ToLogin ...
@@ -36,12 +36,6 @@ func ToLogin(loginDTO *LoginDTO) *Login {
 
 // ToLoginDTO ...
 func ToLoginDTO(login *Login) *LoginDTO {
-
-	// trims := []string{"https://", "http://", "www."}
-	// for i := range trims {
-	// 	login.URL = strings.TrimPrefix(login.URL, trims[i])
-	// }
-
 	return &LoginDTO{
 		ID:       login.ID,
 		Title:    login.Title,

@@ -28,8 +28,19 @@ func FindAllEmails(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		emails = app.DecryptEmailPasswords(emails)
-		RespondWithJSON(w, http.StatusOK, emails)
+		// emails = app.DecryptEmailPasswords(emails)
+
+		// Encrypt payload
+		var payload model.Payload
+		key := r.Context().Value("transmissionKey").(string)
+		encrypted, err := app.EncryptJSON(key, emails)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		payload.Data = string(encrypted)
+
+		RespondWithJSON(w, http.StatusOK, payload)
 	}
 }
 
@@ -56,21 +67,45 @@ func FindEmailByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		RespondWithJSON(w, http.StatusOK, model.ToEmailDTO(email))
+		emailDTO := model.ToEmailDTO(email)
+
+		// Encrypt payload
+		var payload model.Payload
+		key := r.Context().Value("transmissionKey").(string)
+		encrypted, err := app.EncryptJSON(key, emailDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		payload.Data = string(encrypted)
+
+		RespondWithJSON(w, http.StatusOK, payload)
 	}
 }
 
 // CreateEmail ...
 func CreateEmail(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var emailDTO model.EmailDTO
 
+		// TODO BEGIN: This part should be in a helper function
+		// Unmarshal request body to payload
+		var payload model.Payload
 		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&emailDTO); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+		if err := decoder.Decode(&payload); err != nil {
+			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
+		// TODO END:
+
+		// Decrypt payload
+		var emailDTO model.EmailDTO
+		key := r.Context().Value("transmissionKey").(string)
+		err := app.DecryptJSON(key, []byte(payload.Data), &emailDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 
 		schema := r.Context().Value("schema").(string)
 		createdEmail, err := app.CreateEmail(s, &emailDTO, schema)
@@ -79,7 +114,17 @@ func CreateEmail(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		RespondWithJSON(w, http.StatusOK, model.ToEmailDTO(createdEmail))
+		createdEmailDTO := model.ToEmailDTO(createdEmail)
+
+		// Encrypt payload
+		encrypted, err := app.EncryptJSON(key, createdEmailDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		payload.Data = string(encrypted)
+
+		RespondWithJSON(w, http.StatusOK, payload)
 	}
 }
 
@@ -93,13 +138,23 @@ func UpdateEmail(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		var emailDTO model.EmailDTO
+		// Unmarshal request body to payload
+		var payload model.Payload
 		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&emailDTO); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+		if err := decoder.Decode(&payload); err != nil {
+			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
+
+		// Decrypt payload
+		var emailDTO model.EmailDTO
+		key := r.Context().Value("transmissionKey").(string)
+		err = app.DecryptJSON(key, []byte(payload.Data), &emailDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 
 		schema := r.Context().Value("schema").(string)
 		email, err := s.Emails().FindByID(uint(id), schema)
@@ -114,7 +169,17 @@ func UpdateEmail(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		RespondWithJSON(w, http.StatusOK, model.ToEmailDTO(updatedEmail))
+		updatedEmailDTO := model.ToEmailDTO(updatedEmail)
+
+		// Encrypt payload
+		encrypted, err := app.EncryptJSON(key, updatedEmailDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		payload.Data = string(encrypted)
+
+		RespondWithJSON(w, http.StatusOK, payload)
 	}
 }
 

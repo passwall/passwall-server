@@ -18,16 +18,15 @@ func NewRepository(db *gorm.DB) *Repository {
 	return &Repository{db: db}
 }
 
-func (p *Repository) Any(uuid string) bool {
+func (p *Repository) Any(uuid string) (model.Token, bool) {
 
-	var token model.Token
+	token := model.Token{}
 
 	if !p.db.Where("uuid = ?", uuid).First(&token).RecordNotFound() {
-		return true
+		return token, true
 	}
 
-	return false
-
+	return token, false
 }
 
 func (p *Repository) Save(userid int, uid uuid.UUID, tkn string, expriydate time.Time, transmissionKey string) {

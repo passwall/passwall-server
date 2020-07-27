@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -28,20 +27,30 @@ func FindAllLogins(s storage.Store) http.HandlerFunc {
 
 		schema := r.Context().Value("schema").(string)
 		loginList, err = s.Logins().FindAll(argsStr, argsInt, schema)
-
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		// loginList = app.DecryptLoginPasswords(loginList)
-		RespondWithJSON(w, http.StatusOK, loginList)
+		// Encrypt payload
+		var payload model.Payload
+		key := r.Context().Value("transmissionKey").(string)
+		encrypted, err := app.EncryptJSON(key, loginList)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		payload.Data = string(encrypted)
+
+		RespondWithJSON(w, http.StatusOK, payload)
 	}
 }
 
 // FindLoginsByID ...
 func FindLoginsByID(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+
+		// Check if id is integer
 		vars := mux.Vars(r)
 		id, err := strconv.Atoi(vars["id"])
 		if err != nil {
@@ -49,6 +58,7 @@ func FindLoginsByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
+		// Find login by id from db
 		schema := r.Context().Value("schema").(string)
 		login, err := s.Logins().FindByID(uint(id), schema)
 		if err != nil {
@@ -56,28 +66,55 @@ func FindLoginsByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
+		// Decrypt server side encrypted fields
 		uLogin, err := app.DecryptLoginPassword(s, login)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		RespondWithJSON(w, http.StatusOK, model.ToLoginDTO(uLogin))
+		// Create DTO
+		loginDTO := model.ToLoginDTO(uLogin)
+
+		// Encrypt payload
+		var payload model.Payload
+		key := r.Context().Value("transmissionKey").(string)
+		encrypted, err := app.EncryptJSON(key, loginDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		payload.Data = string(encrypted)
+
+		RespondWithJSON(w, http.StatusOK, payload)
 	}
 }
 
 // Create ...
 func CreateLogin(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var loginDTO model.LoginDTO
 
+		// TODO BEGIN: This part should be in a helper function
+		// Unmarshal request body to payload
+		var payload model.Payload
 		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&loginDTO); err != nil {
+		if err := decoder.Decode(&payload); err != nil {
 			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
+		// TODO END:
 
+		// Decrypt payload
+		var loginDTO model.LoginDTO
+		key := r.Context().Value("transmissionKey").(string)
+		err := app.DecryptJSON(key, []byte(payload.Data), &loginDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		// Add new login to db
 		schema := r.Context().Value("schema").(string)
 		createdLogin, err := app.CreateLogin(s, &loginDTO, schema)
 		if err != nil {
@@ -85,7 +122,18 @@ func CreateLogin(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		RespondWithJSON(w, http.StatusOK, model.ToLoginDTO(createdLogin))
+		// Create DTO
+		createdLoginDTO := model.ToLoginDTO(createdLogin)
+
+		// Encrypt payload
+		encrypted, err := app.EncryptJSON(key, createdLoginDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		payload.Data = string(encrypted)
+
+		RespondWithJSON(w, http.StatusOK, payload)
 	}
 }
 
@@ -99,13 +147,24 @@ func UpdateLogin(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		var loginDTO model.LoginDTO
+		// Unmarshal request body to payload
+		var payload model.Payload
 		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&loginDTO); err != nil {
+		if err := decoder.Decode(&payload); err != nil {
 			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
+
+		// Decrypt payload
+		var loginDTO model.LoginDTO
+		key := r.Context().Value("transmissionKey").(string)
+		err = app.DecryptJSON(key, []byte(payload.Data), &loginDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
 		schema := r.Context().Value("schema").(string)
 		login, err := s.Logins().FindByID(uint(id), schema)
 		if err != nil {
@@ -119,7 +178,18 @@ func UpdateLogin(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		RespondWithJSON(w, http.StatusOK, model.ToLoginDTO(updatedLogin))
+		// Create DTO
+		updatedLoginDTO := model.ToLoginDTO(updatedLogin)
+
+		// Encrypt payload
+		encrypted, err := app.EncryptJSON(key, updatedLoginDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		payload.Data = string(encrypted)
+
+		RespondWithJSON(w, http.StatusOK, payload)
 	}
 }
 
@@ -158,9 +228,6 @@ func DeleteLogin(s storage.Store) http.HandlerFunc {
 // Test endpoint ...
 func TestLogin(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		schema := r.Context().Value("schema").(string)
-		fmt.Println(schema)
 
 		response := model.Response{
 			Code:    http.StatusOK,

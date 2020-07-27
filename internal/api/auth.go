@@ -4,12 +4,16 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
+
+	"github.com/gorilla/mux"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/go-playground/validator/v10"
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
+	"github.com/spf13/viper"
 )
 
 var (
@@ -19,6 +23,7 @@ var (
 	NoToken        = "Token could not found! "
 	TokenCreateErr = "Token could not be created"
 	SignupSuccess  = "User created successfully"
+	VerifySuccess  = "Email verified succesfully"
 )
 
 // Signup ...
@@ -60,6 +65,9 @@ func Signup(s storage.Store) http.HandlerFunc {
 			return
 		}
 
+		confirmationCode := app.RandomMD5Hash()
+		createdUser.ConfirmationCode = confirmationCode
+
 		// 5. Update user once to generate schema
 		updatedUser, err := app.GenerateSchema(s, createdUser)
 		if err != nil {
@@ -77,9 +85,69 @@ func Signup(s storage.Store) http.HandlerFunc {
 		// 7. Create user tables in user schema
 		app.MigrateUserTables(s, updatedUser.Schema)
 
+		// 8. Send email to admin adbout new user subscription
+		subject := "PassWall New User Subscription"
+
+		body := "PassWall has new a user. User details:\n\n"
+		body += "Name: " + userDTO.Name + "\n"
+		body += "Email: " + userDTO.Email + "\n"
+
+		go app.SendMail([]string{viper.GetString("email.admin")}, subject, body)
+
+		// 9. Send confirmation email to new user
+		confirmationBody := "Last step for use Passwall\n\n"
+		confirmationBody += "Confirmation link: " + viper.GetString("server.domain")
+		confirmationBody += "/auth/confirm/" + userDTO.Email + "/" + confirmationCode
+
+		go app.SendMail([]string{userDTO.Email}, "Passwall Email Confirmation", confirmationBody)
+
+		// Return success message
 		response := model.Response{
 			Code:    http.StatusOK,
 			Status:  Success,
+			Message: SignupSuccess,
+		}
+		RespondWithJSON(w, http.StatusOK, response)
+	}
+}
+
+// Confirm ...
+func Confirm(s storage.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		email := mux.Vars(r)["email"]
+		code := mux.Vars(r)["code"]
+		usr, err := s.Users().FindByEmail(email)
+		if err != nil {
+			errs := []string{"Email not found!", "Raw error: " + err.Error()}
+			message := "Email couldn't confirm!"
+			RespondWithErrors(w, http.StatusBadRequest, message, errs)
+			return
+		} else if !usr.EmailVerifiedAt.IsZero() {
+			errs := []string{"Email is already verified!"}
+			message := "Email couldn't confirm!"
+			RespondWithErrors(w, http.StatusBadRequest, message, errs)
+			return
+		} else if code != usr.ConfirmationCode {
+			errs := []string{"Confirmation code is wrong!"}
+			message := "Email couldn't confirm!"
+			RespondWithErrors(w, http.StatusBadRequest, message, errs)
+			return
+		}
+
+		userDTO := model.ToUserDTO(usr)
+		userDTO.MasterPassword = "" // Fix for not to update password
+		userDTO.EmailVerifiedAt = time.Now()
+
+		_, err = app.UpdateUser(s, usr, userDTO, false)
+		if err != nil {
+			errs := []string{"User can't updated!", "Raw error: " + err.Error()}
+			message := "Email couldn't confirm!"
+			RespondWithErrors(w, http.StatusBadRequest, message, errs)
+			return
+		}
+		response := model.Response{
+			Code:    http.StatusOK,
+			Status:  VerifySuccess,
 			Message: SignupSuccess,
 		}
 		RespondWithJSON(w, http.StatusOK, response)
@@ -113,6 +181,12 @@ func Signin(s storage.Store) http.HandlerFunc {
 		user, err := s.Users().FindByCredentials(loginDTO.Email, loginDTO.MasterPassword)
 		if err != nil {
 			RespondWithError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+
+		// Check if users email is verified
+		if user.EmailVerifiedAt.IsZero() {
+			RespondWithError(w, http.StatusUnauthorized, "Email is not verified!")
 			return
 		}
 
@@ -171,7 +245,8 @@ func RefreshToken(s storage.Store) http.HandlerFunc {
 		uuid := claims["uuid"].(string)
 
 		//Check from tokens db table
-		if !s.Tokens().Any(uuid) {
+		_, tokenExist := s.Tokens().Any(uuid)
+		if !tokenExist {
 			userid := claims["user_id"].(float64)
 			s.Tokens().Delete(int(userid))
 			RespondWithError(w, http.StatusUnauthorized, InvalidToken)

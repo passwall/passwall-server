@@ -24,12 +24,12 @@ func CreateNote(s storage.Store, dto *model.NoteDTO, schema string) (*model.Note
 }
 
 // UpdateNote updates the note with the dto and applies the changes in the store
-func UpdateNote(s storage.Store, note *model.Note, dto *model.NoteDTO, schema string) (*model.Note, error) {
-	rawNote := dto.Note
-	dto.Note = base64.StdEncoding.EncodeToString(Encrypt(dto.Note, viper.GetString("server.passphrase")))
+func UpdateNote(s storage.Store, note *model.Note, noteDTO *model.NoteDTO, schema string) (*model.Note, error) {
+	rawNote := noteDTO.Note
+	noteDTO.Note = base64.StdEncoding.EncodeToString(Encrypt(noteDTO.Note, viper.GetString("server.passphrase")))
 
-	note.Title = dto.Title
-	note.Note = dto.Note
+	note.Title = noteDTO.Title
+	note.Note = noteDTO.Note
 
 	updatedNote, err := s.Notes().Save(note, schema)
 	if err != nil {

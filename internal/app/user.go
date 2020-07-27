@@ -48,7 +48,9 @@ func UpdateUser(s storage.Store, user *model.User, userDTO *model.UserDTO, isAut
 	user.Name = userDTO.Name
 	user.Email = userDTO.Email
 	user.MasterPassword = userDTO.MasterPassword
-
+	if !userDTO.EmailVerifiedAt.IsZero() {
+		user.EmailVerifiedAt = userDTO.EmailVerifiedAt
+	}
 	// This never changes
 	user.Schema = fmt.Sprintf("user%d", user.ID)
 

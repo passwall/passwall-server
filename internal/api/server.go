@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -35,7 +34,18 @@ func FindAllServers(s storage.Store) http.HandlerFunc {
 		}
 
 		// serverList = app.DecryptServerPasswords(serverList)
-		RespondWithJSON(w, http.StatusOK, serverList)
+
+		// Encrypt payload
+		var payload model.Payload
+		key := r.Context().Value("transmissionKey").(string)
+		encrypted, err := app.EncryptJSON(key, serverList)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		payload.Data = string(encrypted)
+
+		RespondWithJSON(w, http.StatusOK, payload)
 	}
 }
 
@@ -56,23 +66,45 @@ func FindServerByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		RespondWithJSON(w, http.StatusOK, model.ToServerDTO(server))
+		serverDTO := model.ToServerDTO(server)
+
+		// Encrypt payload
+		var payload model.Payload
+		key := r.Context().Value("transmissionKey").(string)
+		encrypted, err := app.EncryptJSON(key, serverDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		payload.Data = string(encrypted)
+
+		RespondWithJSON(w, http.StatusOK, payload)
 	}
 }
 
 // CreateServer ...
 func CreateServer(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var serverDTO model.ServerDTO
 
+		// TODO BEGIN: This part should be in a helper function
+		// Unmarshal request body to payload
+		var payload model.Payload
 		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&serverDTO); err != nil {
+		if err := decoder.Decode(&payload); err != nil {
 			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
+		// TODO END:
 
-		fmt.Println(serverDTO)
+		// Decrypt payload
+		var serverDTO model.ServerDTO
+		key := r.Context().Value("transmissionKey").(string)
+		err := app.DecryptJSON(key, []byte(payload.Data), &serverDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 
 		schema := r.Context().Value("schema").(string)
 		createdServer, err := app.CreateServer(s, &serverDTO, schema)
@@ -81,7 +113,17 @@ func CreateServer(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		RespondWithJSON(w, http.StatusOK, model.ToServerDTO(createdServer))
+		createdServerDTO := model.ToServerDTO(createdServer)
+
+		// Encrypt payload
+		encrypted, err := app.EncryptJSON(key, createdServerDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		payload.Data = string(encrypted)
+
+		RespondWithJSON(w, http.StatusOK, payload)
 	}
 }
 
@@ -95,15 +137,23 @@ func UpdateServer(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		var serverDTO model.ServerDTO
+		// Unmarshal request body to payload
+		var payload model.Payload
 		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&serverDTO); err != nil {
+		if err := decoder.Decode(&payload); err != nil {
 			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
 
-		fmt.Println(serverDTO)
+		// Decrypt payload
+		var serverDTO model.ServerDTO
+		key := r.Context().Value("transmissionKey").(string)
+		err = app.DecryptJSON(key, []byte(payload.Data), &serverDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 
 		schema := r.Context().Value("schema").(string)
 		server, err := s.Servers().FindByID(uint(id), schema)
@@ -118,7 +168,17 @@ func UpdateServer(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		RespondWithJSON(w, http.StatusOK, model.ToServerDTO(updatedServer))
+		updatedServerDTO := model.ToServerDTO(updatedServer)
+
+		// Encrypt payload
+		encrypted, err := app.EncryptJSON(key, updatedServerDTO)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		payload.Data = string(encrypted)
+
+		RespondWithJSON(w, http.StatusOK, payload)
 	}
 }
 
