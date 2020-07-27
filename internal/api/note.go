@@ -33,7 +33,7 @@ func FindAllNotes(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// notes = app.DecryptNotes(notes)
+		noteList = app.DecryptNotes(noteList)
 
 		// Encrypt payload
 		var payload model.Payload

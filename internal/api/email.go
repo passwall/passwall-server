@@ -28,7 +28,7 @@ func FindAllEmails(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// emails = app.DecryptEmailPasswords(emails)
+		emails = app.DecryptEmailPasswords(emails)
 
 		// Encrypt payload
 		var payload model.Payload

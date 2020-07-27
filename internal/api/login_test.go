@@ -3,23 +3,16 @@ package api
 import (
 	"context"
 	"database/sql/driver"
-	"encoding/json"
 	"net/http"
-	"net/http/httptest"
-	"regexp"
-	"testing"
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/go-test/deep"
 	"github.com/gorilla/mux"
 	"github.com/jinzhu/gorm"
 	"github.com/passwall/passwall-server/internal/storage"
-	"github.com/passwall/passwall-server/model"
-	"github.com/stretchr/testify/assert"
 )
 
-func TestFindAllLogins(t *testing.T) {
+/* func TestFindAllLogins(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	// Create mock db
@@ -73,9 +66,9 @@ func TestFindAllLogins(t *testing.T) {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}
 
-}
+} */
 
-func TestFindLoginsByID(t *testing.T) {
+/* func TestFindLoginsByID(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	// Create mock db
@@ -126,7 +119,7 @@ func TestFindLoginsByID(t *testing.T) {
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}
-}
+} */
 
 func dbSetup() (*gorm.DB, sqlmock.Sqlmock) {
 	db, mock, _ := sqlmock.New()
