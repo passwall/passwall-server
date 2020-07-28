@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/passwall/passwall-server/internal/app"
@@ -56,9 +57,22 @@ func Languages(s storage.Store) http.HandlerFunc {
 			Item []string `json:"languages"`
 		}
 
-		// TODO: Read store folder and parse of localization files for this slice
+		files, err := ioutil.ReadDir("./store")
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+		}
+
+		s := []string{}
+		for _, f := range files {
+			// Since Split function returns string slice first split filename from extension
+			e := strings.Split(f.Name(), ".")
+			// Than split from the language part eg localization-xx
+			l := strings.Split(e[0], "-")
+			s = append(s, l[1])
+		}
+
 		langs := Languages{
-			Item: []string{"tr", "en"},
+			Item: s,
 		}
 
 		RespondWithJSON(w, http.StatusOK, langs.Item)
