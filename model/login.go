@@ -6,12 +6,12 @@ import (
 
 // Login ...
 type Login struct {
-	ID        uint       `gorm:"primary_key" json:"id" encrypt:"false"`
-	CreatedAt time.Time  `json:"created_at" encrypt:"false"`
-	UpdatedAt time.Time  `json:"updated_at" encrypt:"false"`
-	DeletedAt *time.Time `json:"deleted_at" encrypt:"false"`
-	Title     string     `json:"title" encrypt:"false"`
-	URL       string     `json:"url" encrypt:"false"`
+	ID        uint       `gorm:"primary_key" json:"id"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	DeletedAt *time.Time `json:"deleted_at"`
+	Title     string     `json:"title"`
+	URL       string     `json:"url"`
 	Username  string     `json:"username" encrypt:"true"`
 	Password  string     `json:"password" encrypt:"true"`
 }

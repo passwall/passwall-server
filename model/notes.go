@@ -11,7 +11,7 @@ type Note struct {
 	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"deleted_at"`
 	Title     string     `json:"title"`
-	Note      string     `json:"note"`
+	Note      string     `json:"note" encrypt:"true"`
 }
 
 // NoteDTO ...

@@ -20,17 +20,18 @@ func CreateLogin(s storage.Store, dto *model.LoginDTO, schema string) (*model.Lo
 
 // UpdateLogin updates the login with the dto and applies the changes in the store
 func UpdateLogin(s storage.Store, login *model.Login, dto *model.LoginDTO, schema string) (*model.Login, error) {
-	rawLogin := model.ToLogin(dto)
-	encLogin := EncryptModel(rawLogin).(*model.Login)
+	rawModel := model.ToLogin(dto)
+	encModel := EncryptModel(rawModel).(*model.Login)
 
-	login.Title = encLogin.Title
-	login.URL = encLogin.URL
-	login.Username = encLogin.Username
-	login.Password = encLogin.Password
+	login.Title = encModel.Title
+	login.URL = encModel.URL
+	login.Username = encModel.Username
+	login.Password = encModel.Password
+
 	updatedLogin, err := s.Logins().Save(login, schema)
 	if err != nil {
 		return nil, err
 	}
-	updatedLogin.Password = rawLogin.Password
+
 	return updatedLogin, nil
 }
