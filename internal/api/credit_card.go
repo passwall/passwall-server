@@ -35,7 +35,7 @@ func FindAllCreditCards(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// creditCards = app.DecryptCreditCardVerificationNumbers(creditCards)
+		creditCards = app.DecryptCreditCardVerificationNumbers(creditCards)
 
 		// Encrypt payload
 		var payload model.Payload

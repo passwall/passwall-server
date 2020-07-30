@@ -33,7 +33,7 @@ func FindAllServers(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// serverList = app.DecryptServerPasswords(serverList)
+		serverList = app.DecryptServerPasswords(serverList)
 
 		// Encrypt payload
 		var payload model.Payload
