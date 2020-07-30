@@ -32,8 +32,6 @@ func FindAllBankAccounts(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		bankAccounts = app.DecryptBankAccountPasswords(bankAccounts)
-
 		// Encrypt payload
 		var payload model.Payload
 		key := r.Context().Value("transmissionKey").(string)
@@ -59,19 +57,20 @@ func FindBankAccountByID(s storage.Store) http.HandlerFunc {
 		}
 
 		schema := r.Context().Value("schema").(string)
-		account, err := s.BankAccounts().FindByID(uint(id), schema)
+		bankAccount, err := s.BankAccounts().FindByID(uint(id), schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		bankAccount, err := app.DecryptBankAccountPassword(s, account)
+		// Decrypt server side encrypted fields
+		decBankAccount, err := app.DecryptModel(bankAccount)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		bankAccountDTO := model.ToBankAccountDTO(bankAccount)
+		bankAccountDTO := model.ToBankAccountDTO(decBankAccount.(*model.BankAccount))
 
 		// Encrypt payload
 		var payload model.Payload

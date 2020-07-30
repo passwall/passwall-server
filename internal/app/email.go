@@ -29,7 +29,6 @@ func UpdateEmail(s storage.Store, email *model.Email, dto *model.EmailDTO, schem
 
 	updatedEmail, err := s.Emails().Save(email, schema)
 	if err != nil {
-
 		return nil, err
 	}
 
