@@ -7,21 +7,21 @@ import (
 // Login ...
 type Login struct {
 	ID        uint       `gorm:"primary_key" json:"id" encrypt:"false"`
-	CreatedAt time.Time  `json:"created_at" encrypt:"true"`
-	UpdatedAt time.Time  `json:"updated_at" encrypt:"true"`
-	DeletedAt *time.Time `json:"deleted_at" encrypt:"true"`
+	CreatedAt time.Time  `json:"created_at" encrypt:"false"`
+	UpdatedAt time.Time  `json:"updated_at" encrypt:"false"`
+	DeletedAt *time.Time `json:"deleted_at" encrypt:"false"`
 	Title     string     `json:"title" encrypt:"false"`
-	URL       string     `json:"url" encrypt:"true"`
+	URL       string     `json:"url" encrypt:"false"`
 	Username  string     `json:"username" encrypt:"true"`
 	Password  string     `json:"password" encrypt:"true"`
 }
 
 type LoginDTO struct {
-	ID       uint   `json:"id" encrypt:"false"`
-	Title    string `json:"title" encrypt:"false"`
-	URL      string `json:"url" encrypt:"true"`
-	Username string `json:"username" encrypt:"true"`
-	Password string `json:"password" encrypt:"true"`
+	ID       uint   `json:"id"`
+	Title    string `json:"title"`
+	URL      string `json:"url"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 // ToLogin ...
