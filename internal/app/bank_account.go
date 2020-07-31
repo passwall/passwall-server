@@ -1,11 +1,8 @@
 package app
 
 import (
-	"encoding/base64"
-
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
-	"github.com/spf13/viper"
 )
 
 // CreateBankAccount creates a new bank account and saves it to the store
@@ -40,26 +37,4 @@ func UpdateBankAccount(s storage.Store, bankAccount *model.BankAccount, dto *mod
 	}
 
 	return updatedBankAccount, nil
-}
-
-// DecryptBankAccountPassword decrypts password
-func DecryptBankAccountPassword(s storage.Store, account *model.BankAccount) (*model.BankAccount, error) {
-	passByte, _ := base64.StdEncoding.DecodeString(account.Password)
-	account.Password = string(Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
-
-	return account, nil
-}
-
-// DecryptBankAccountPasswords ...
-// TODO: convert to pointers
-func DecryptBankAccountPasswords(bankAccounts []model.BankAccount) []model.BankAccount {
-	for i := range bankAccounts {
-		if bankAccounts[i].Password == "" {
-			continue
-		}
-		passByte, _ := base64.StdEncoding.DecodeString(bankAccounts[i].Password)
-		passB64 := string(Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
-		bankAccounts[i].Password = passB64
-	}
-	return bankAccounts
 }

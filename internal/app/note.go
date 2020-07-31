@@ -1,62 +1,35 @@
 package app
 
 import (
-	"encoding/base64"
-
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
-	"github.com/spf13/viper"
 )
 
 // CreateNote creates a new note and saves it to the store
 func CreateNote(s storage.Store, dto *model.NoteDTO, schema string) (*model.Note, error) {
+	rawModel := model.ToNote(dto)
+	encModel := EncryptModel(rawModel)
 
-	rawPass := dto.Note
-	dto.Note = base64.StdEncoding.EncodeToString(Encrypt(dto.Note, viper.GetString("server.passphrase")))
-
-	createdNote, err := s.Notes().Save(model.ToNote(dto), schema)
+	createdNote, err := s.Notes().Save(encModel.(*model.Note), schema)
 	if err != nil {
 		return nil, err
 	}
 
-	createdNote.Note = rawPass
 	return createdNote, nil
 }
 
 // UpdateNote updates the note with the dto and applies the changes in the store
-func UpdateNote(s storage.Store, note *model.Note, noteDTO *model.NoteDTO, schema string) (*model.Note, error) {
-	rawNote := noteDTO.Note
-	noteDTO.Note = base64.StdEncoding.EncodeToString(Encrypt(noteDTO.Note, viper.GetString("server.passphrase")))
+func UpdateNote(s storage.Store, note *model.Note, dto *model.NoteDTO, schema string) (*model.Note, error) {
+	rawModel := model.ToNote(dto)
+	encModel := EncryptModel(rawModel).(*model.Note)
 
-	note.Title = noteDTO.Title
-	note.Note = noteDTO.Note
+	note.Title = encModel.Title
+	note.Note = encModel.Note
 
 	updatedNote, err := s.Notes().Save(note, schema)
 	if err != nil {
 		return nil, err
 	}
-	updatedNote.Note = rawNote
+
 	return updatedNote, nil
-}
-
-// DecryptNote decrypts note
-func DecryptNote(s storage.Store, note *model.Note) (*model.Note, error) {
-	passByte, _ := base64.StdEncoding.DecodeString(note.Note)
-	note.Note = string(Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
-
-	return note, nil
-}
-
-// DecryptNotes ...
-// TODO: convert to pointers
-func DecryptNotes(notes []model.Note) []model.Note {
-	for i := range notes {
-		if notes[i].Note == "" {
-			continue
-		}
-		passByte, _ := base64.StdEncoding.DecodeString(notes[i].Note)
-		passB64 := string(Decrypt(string(passByte[:]), viper.GetString("server.passphrase")))
-		notes[i].Note = passB64
-	}
-	return notes
 }

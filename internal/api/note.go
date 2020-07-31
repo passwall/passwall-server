@@ -33,8 +33,6 @@ func FindAllNotes(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		noteList = app.DecryptNotes(noteList)
-
 		// Encrypt payload
 		var payload model.Payload
 		key := r.Context().Value("transmissionKey").(string)
@@ -66,13 +64,14 @@ func FindNoteByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		uNote, err := app.DecryptNote(s, note)
+		// Decrypt server side encrypted fields
+		decNote, err := app.DecryptModel(note)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		noteDTO := model.ToNoteDTO(uNote)
+		noteDTO := model.ToNoteDTO(decNote.(*model.Note))
 
 		// Encrypt payload
 		var payload model.Payload

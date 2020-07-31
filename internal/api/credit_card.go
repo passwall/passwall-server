@@ -35,8 +35,6 @@ func FindAllCreditCards(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		creditCards = app.DecryptCreditCardVerificationNumbers(creditCards)
-
 		// Encrypt payload
 		var payload model.Payload
 		key := r.Context().Value("transmissionKey").(string)
@@ -62,19 +60,20 @@ func FindCreditCardByID(s storage.Store) http.HandlerFunc {
 		}
 
 		schema := r.Context().Value("schema").(string)
-		card, err := s.CreditCards().FindByID(uint(id), schema)
+		creditCard, err := s.CreditCards().FindByID(uint(id), schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		creditCard, err := app.DecryptCreditCardVerificationNumber(s, card)
+		// Decrypt server side encrypted fields
+		decCreditCard, err := app.DecryptModel(creditCard)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		creditCardDTO := model.ToCreditCardDTO(creditCard)
+		creditCardDTO := model.ToCreditCardDTO(decCreditCard.(*model.CreditCard))
 
 		// Encrypt payload
 		var payload model.Payload
