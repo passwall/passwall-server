@@ -11,11 +11,11 @@ type CreditCard struct {
 	UpdatedAt          time.Time  `json:"updated_at"`
 	DeletedAt          *time.Time `json:"deleted_at"`
 	CardName           string     `json:"card_name"`
-	CardholderName     string     `json:"cardholder_name"`
-	Type               string     `json:"type"`
-	Number             string     `json:"number"`
-	VerificationNumber string     `json:"verification_number"`
-	ExpiryDate         string     `json:"expiry_date"`
+	CardholderName     string     `json:"cardholder_name" encrypt:"true"`
+	Type               string     `json:"type" encrypt:"true"`
+	Number             string     `json:"number" encrypt:"true"`
+	VerificationNumber string     `json:"verification_number" encrypt:"true"`
+	ExpiryDate         string     `json:"expiry_date" encrypt:"true"`
 }
 
 type CreditCardDTO struct {

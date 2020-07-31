@@ -11,14 +11,14 @@ type Server struct {
 	UpdatedAt       time.Time  `json:"updated_at"`
 	DeletedAt       *time.Time `json:"deleted_at"`
 	Title           string     `json:"title"`
-	IP              string     `json:"ip"`
-	Username        string     `json:"username"`
-	Password        string     `json:"password"`
+	IP              string     `json:"ip" encrypt:"true"`
+	Username        string     `json:"username" encrypt:"true"`
+	Password        string     `json:"password" encrypt:"true"`
 	URL             string     `json:"url"`
-	HostingUsername string     `json:"hosting_username"`
-	HostingPassword string     `json:"hosting_password"`
-	AdminUsername   string     `json:"admin_username"`
-	AdminPassword   string     `json:"admin_password"`
+	HostingUsername string     `json:"hosting_username" encrypt:"true"`
+	HostingPassword string     `json:"hosting_password" encrypt:"true"`
+	AdminUsername   string     `json:"admin_username" encrypt:"true"`
+	AdminPassword   string     `json:"admin_password" encrypt:"true"`
 }
 
 type ServerDTO struct {

@@ -67,14 +67,14 @@ func FindLoginsByID(s storage.Store) http.HandlerFunc {
 		}
 
 		// Decrypt server side encrypted fields
-		uLogin, err := app.DecryptLoginPassword(s, login)
+		uLogin, err := app.DecryptModel(login)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
 		// Create DTO
-		loginDTO := model.ToLoginDTO(uLogin)
+		loginDTO := model.ToLoginDTO(uLogin.(*model.Login))
 
 		// Encrypt payload
 		var payload model.Payload

@@ -28,8 +28,6 @@ func FindAllEmails(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// emails = app.DecryptEmailPasswords(emails)
-
 		// Encrypt payload
 		var payload model.Payload
 		key := r.Context().Value("transmissionKey").(string)
@@ -55,19 +53,20 @@ func FindEmailByID(s storage.Store) http.HandlerFunc {
 		}
 
 		schema := r.Context().Value("schema").(string)
-		account, err := s.Emails().FindByID(uint(id), schema)
+		email, err := s.Emails().FindByID(uint(id), schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		email, err := app.DecryptEmailPassword(s, account)
+		// Decrypt server side encrypted fields
+		decEmail, err := app.DecryptModel(email)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		emailDTO := model.ToEmailDTO(email)
+		emailDTO := model.ToEmailDTO(decEmail.(*model.Email))
 
 		// Encrypt payload
 		var payload model.Payload

@@ -33,8 +33,6 @@ func FindAllServers(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// serverList = app.DecryptServerPasswords(serverList)
-
 		// Encrypt payload
 		var payload model.Payload
 		key := r.Context().Value("transmissionKey").(string)
@@ -66,7 +64,14 @@ func FindServerByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		serverDTO := model.ToServerDTO(server)
+		// Decrypt server side encrypted fields
+		decServer, err := app.DecryptModel(server)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		serverDTO := model.ToServerDTO(decServer.(*model.Server))
 
 		// Encrypt payload
 		var payload model.Payload

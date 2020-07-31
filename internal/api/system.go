@@ -51,28 +51,42 @@ func CheckUpdate(w http.ResponseWriter, r *http.Request) {
 }
 
 // Languages ...
+func findLanguageFiles(folder string) ([]string, error) {
+	items := []string{}
+
+	files, err := ioutil.ReadDir(folder)
+	if err != nil {
+		return items, err
+	}
+
+	fmt.Println(files)
+
+	s := []string{}
+	for _, f := range files {
+		// Since Split function returns string slice first split filename from extension
+		e := strings.Split(f.Name(), ".")
+		// Than split from the language part eg localization-xx
+		l := strings.Split(e[0], "-")
+		s = append(s, l[1])
+	}
+
+	return items, nil
+}
+
+// Languages ...
 func Languages(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		type Languages struct {
 			Item []string `json:"languages"`
 		}
 
-		files, err := ioutil.ReadDir("./store")
+		langItems, err := findLanguageFiles("../../store")
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 		}
 
-		s := []string{}
-		for _, f := range files {
-			// Since Split function returns string slice first split filename from extension
-			e := strings.Split(f.Name(), ".")
-			// Than split from the language part eg localization-xx
-			l := strings.Split(e[0], "-")
-			s = append(s, l[1])
-		}
-
 		langs := Languages{
-			Item: s,
+			Item: langItems,
 		}
 
 		RespondWithJSON(w, http.StatusOK, langs.Item)

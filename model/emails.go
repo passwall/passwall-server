@@ -11,8 +11,8 @@ type Email struct {
 	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"deleted_at"`
 	Title     string     `json:"title"`
-	Email     string     `json:"email"`
-	Password  string     `json:"password"`
+	Email     string     `json:"email" encrypt:"true"`
+	Password  string     `json:"password" encrypt:"true"`
 }
 
 // EmailDTO ...

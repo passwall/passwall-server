@@ -12,11 +12,11 @@ type BankAccount struct {
 	DeletedAt     *time.Time `json:"deleted_at"`
 	BankName      string     `json:"bank_name"`
 	BankCode      string     `json:"bank_code"`
-	AccountName   string     `json:"account_name"`
-	AccountNumber string     `json:"account_number"`
-	IBAN          string     `json:"iban"`
-	Currency      string     `json:"currency"`
-	Password      string     `json:"password"`
+	AccountName   string     `json:"account_name" encrypt:"true"`
+	AccountNumber string     `json:"account_number" encrypt:"true"`
+	IBAN          string     `json:"iban" encrypt:"true"`
+	Currency      string     `json:"currency" encrypt:"true"`
+	Password      string     `json:"password" encrypt:"true"`
 }
 
 type BankAccountDTO struct {
