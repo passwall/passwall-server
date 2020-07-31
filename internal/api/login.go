@@ -94,21 +94,17 @@ func FindLoginsByID(s storage.Store) http.HandlerFunc {
 func CreateLogin(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		// TODO BEGIN: This part should be in a helper function
-		// Unmarshal request body to payload
-		var payload model.Payload
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&payload); err != nil {
+		payload, err := ToPayload(r)
+		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
-		// TODO END:
 
 		// Decrypt payload
 		var loginDTO model.LoginDTO
 		key := r.Context().Value("transmissionKey").(string)
-		err := app.DecryptJSON(key, []byte(payload.Data), &loginDTO)
+		err = app.DecryptJSON(key, []byte(payload.Data), &loginDTO)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return

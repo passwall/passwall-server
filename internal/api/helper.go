@@ -1,6 +1,8 @@
 package api
 
 import (
+	"encoding/json"
+	"github.com/passwall/passwall-server/model"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -87,4 +89,14 @@ func ToSnakeCase(str string) string {
 	snake = matchAllCap.ReplaceAllString(snake, "${1}_${2}")
 
 	return strings.ToLower(snake)
+}
+
+// ToPayload unmarshal request body to payload
+func ToPayload(r *http.Request) (model.Payload, error) {
+	var payload model.Payload
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&payload); err != nil {
+		return model.Payload{}, err
+	}
+	return payload, nil
 }

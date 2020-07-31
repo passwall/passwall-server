@@ -86,21 +86,17 @@ func FindEmailByID(s storage.Store) http.HandlerFunc {
 func CreateEmail(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		// TODO BEGIN: This part should be in a helper function
-		// Unmarshal request body to payload
-		var payload model.Payload
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&payload); err != nil {
+		payload, err := ToPayload(r)
+		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
-		// TODO END:
 
 		// Decrypt payload
 		var emailDTO model.EmailDTO
 		key := r.Context().Value("transmissionKey").(string)
-		err := app.DecryptJSON(key, []byte(payload.Data), &emailDTO)
+		err = app.DecryptJSON(key, []byte(payload.Data), &emailDTO)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
