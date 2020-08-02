@@ -128,41 +128,42 @@ func Language(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// Import ...
-/* func Import(s storage.Store) http.HandlerFunc {
+// Create ...
+func Import(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		url := r.FormValue("url")
-		username := r.FormValue("username")
-		password := r.FormValue("password")
 
-		uploadedFile, err := upload(r)
+		payload, err := ToPayload(r)
 		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
-		defer uploadedFile.Close()
+		defer r.Body.Close()
 
-		// Go to first line of file
-		uploadedFile.Seek(0, 0)
-
-		// Read file content and add logins to db
-		err = app.InsertValues(s, url, username, password, uploadedFile)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-
-		// Delete imported file
-		err = os.Remove(uploadedFile.Name())
+		// Decrypt payload
+		var loginDTOs []model.LoginDTO
+		key := r.Context().Value("transmissionKey").(string)
+		err = app.DecryptJSON(key, []byte(payload.Data), &loginDTOs)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		response := model.Response{http.StatusOK, Success, ImportSuccess}
+		// Add new login to db
+		schema := r.Context().Value("schema").(string)
+		err = app.CreateLogins(s, loginDTOs, schema)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		response := model.Response{
+			Code:    http.StatusOK,
+			Status:  "Success",
+			Message: "Import completed successfully!",
+		}
 		RespondWithJSON(w, http.StatusOK, response)
 	}
-} */
+}
 
 // Export exports all logins as CSV file
 /* func Export(s storage.Store) http.HandlerFunc {

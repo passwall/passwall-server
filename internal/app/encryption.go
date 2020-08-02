@@ -143,7 +143,7 @@ func DecryptFile(filename string, passphrase string) []byte {
 	return Decrypt(string(data[:]), passphrase)
 }
 
-// Model encryption
+// EncryptModel encrypts struct pointer according to struct tags
 func EncryptModel(rawModel interface{}) interface{} {
 	num := reflect.ValueOf(rawModel).Elem().NumField()
 
@@ -162,7 +162,7 @@ func EncryptModel(rawModel interface{}) interface{} {
 	return rawModel
 }
 
-// Model decryption
+// DecryptModel decrypts struct pointer according to struct tags
 func DecryptModel(rawModel interface{}) (interface{}, error) {
 	var err error
 	var valueByte []byte
