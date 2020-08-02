@@ -131,29 +131,30 @@ func Language(s storage.Store) http.HandlerFunc {
 // Create ...
 func Import(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		var payloadList []model.Payload
+		var loginDTO model.LoginDTO
 
-		payload, err := ToPayload(r)
-		if err != nil {
-			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
-			return
+		decoder := json.NewDecoder(r.Body)
+		if err := decoder.Decode(&payloadList); err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
 		}
 		defer r.Body.Close()
 
-		// Decrypt payload
-		var loginDTOs []model.LoginDTO
-		key := r.Context().Value("transmissionKey").(string)
-		err = app.DecryptJSON(key, []byte(payload.Data), &loginDTOs)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
+		for i := range payloadList {
+			// Decrypt payload
+			key := r.Context().Value("transmissionKey").(string)
+			if err := app.DecryptJSON(key, []byte(payloadList[i].Data), &loginDTO); err != nil {
+				RespondWithError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
 
-		// Add new login to db
-		schema := r.Context().Value("schema").(string)
-		err = app.CreateLogins(s, loginDTOs, schema)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
+			// Add new login to db
+			schema := r.Context().Value("schema").(string)
+			_, err := app.CreateLogin(s, &loginDTO, schema)
+			if err != nil {
+				RespondWithError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
 		}
 
 		response := model.Response{
