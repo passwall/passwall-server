@@ -42,7 +42,7 @@ func CheckUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	update := Update{
-		LatestVersion: "0.1.3",
+		LatestVersion: "0.1.4",
 		DownloadUrl:   "https://passwall.io/download/passwall-macos/",
 		ProductUrl:    "https://signup.passwall.io",
 	}
