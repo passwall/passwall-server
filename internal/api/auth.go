@@ -6,10 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
-
 	"github.com/dgrijalva/jwt-go"
 	"github.com/go-playground/validator/v10"
+	"github.com/gorilla/mux"
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
@@ -145,12 +144,15 @@ func Confirm(s storage.Store) http.HandlerFunc {
 			RespondWithErrors(w, http.StatusBadRequest, message, errs)
 			return
 		}
+
 		response := model.Response{
 			Code:    http.StatusOK,
 			Status:  VerifySuccess,
 			Message: SignupSuccess,
 		}
+
 		RespondWithJSON(w, http.StatusOK, response)
+		// RespondWithHTML(w, http.StatusOK, response)
 	}
 }
 
