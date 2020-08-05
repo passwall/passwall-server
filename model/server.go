@@ -19,6 +19,7 @@ type Server struct {
 	HostingPassword string     `json:"hosting_password" encrypt:"true"`
 	AdminUsername   string     `json:"admin_username" encrypt:"true"`
 	AdminPassword   string     `json:"admin_password" encrypt:"true"`
+	Extra           string     `json:"extra" encrypt:"true"`
 }
 
 type ServerDTO struct {
@@ -32,6 +33,7 @@ type ServerDTO struct {
 	HostingPassword string `json:"hosting_password"`
 	AdminUsername   string `json:"admin_username"`
 	AdminPassword   string `json:"admin_password"`
+	Extra           string `json:"extra"`
 }
 
 // ToServer ...
@@ -46,6 +48,7 @@ func ToServer(serverDTO *ServerDTO) *Server {
 		HostingPassword: serverDTO.HostingPassword,
 		AdminUsername:   serverDTO.AdminUsername,
 		AdminPassword:   serverDTO.AdminPassword,
+		Extra:           serverDTO.Extra,
 	}
 }
 
@@ -62,6 +65,7 @@ func ToServerDTO(server *Server) *ServerDTO {
 		HostingPassword: server.HostingPassword,
 		AdminUsername:   server.AdminUsername,
 		AdminPassword:   server.AdminPassword,
+		Extra:           server.Extra,
 	}
 }
 

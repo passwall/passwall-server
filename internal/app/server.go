@@ -32,6 +32,7 @@ func UpdateServer(s storage.Store, server *model.Server, dto *model.ServerDTO, s
 	server.HostingPassword = encModel.HostingPassword
 	server.AdminUsername = encModel.AdminUsername
 	server.AdminPassword = encModel.AdminPassword
+	server.Extra = encModel.Extra
 
 	updatedServer, err := s.Servers().Save(server, schema)
 	if err != nil {
