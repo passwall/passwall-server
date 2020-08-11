@@ -173,14 +173,20 @@ func setDefaults() {
 }
 
 // returns OS dependent config directory
-func osConfigDirectory(osName string) (osConfigDirectory string) {
+func osConfigDirectory(osName string) string {
+	if os.Getenv("PW_DIR") != "" {
+		return os.Getenv("PW_DIR")
+	}
+
 	switch osName {
 	case "windows":
-		osConfigDirectory = os.Getenv("APPDATA")
+		return os.Getenv("APPDATA")
 	case "darwin":
-		osConfigDirectory = os.Getenv("HOME") + "/Library/Application Support"
+		return os.Getenv("HOME") + "/Library/Application Support"
 	case "linux":
-		osConfigDirectory = os.Getenv("HOME") + "/.config"
+		return os.Getenv("HOME") + "/.config"
+	default:
+		dir, _ := os.Getwd()
+		return dir
 	}
-	return osConfigDirectory
 }
