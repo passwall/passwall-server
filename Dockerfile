@@ -22,4 +22,6 @@ COPY --from=builder /app/store /app/store
 
 WORKDIR /app
 
+ENV PW_DIR=/app/store
+
 ENTRYPOINT ["/app/passwall-server"]
