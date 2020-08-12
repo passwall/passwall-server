@@ -1,4 +1,4 @@
-FROM golang:1.13-alpine AS builder
+FROM golang:1.14-alpine AS builder
 WORKDIR /app
 RUN apk add gcc g++ --no-cache
 COPY go.mod .
@@ -21,5 +21,7 @@ COPY --from=builder /app/passwall-server /app/passwall-server
 COPY --from=builder /app/store /app/store
 
 WORKDIR /app
+
+ENV PW_DIR=/app/store
 
 ENTRYPOINT ["/app/passwall-server"]
