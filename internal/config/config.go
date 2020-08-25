@@ -1,6 +1,8 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -38,6 +40,7 @@ type ServerConfiguration struct {
 	GeneratedPasswordLength    int    `default:"16"`
 	AccessTokenExpireDuration  string `default:"30m"`
 	RefreshTokenExpireDuration string `default:"15d"`
+	APIKey                     string `default:"my-secret-api-key"`
 }
 
 // DatabaseConfiguration is the required paramters to set up a DB instance
@@ -133,6 +136,8 @@ func bindEnvs() {
 	viper.BindEnv("server.accessTokenExpireDuration", "PW_SERVER_ACCESS_TOKEN_EXPIRE_DURATION")
 	viper.BindEnv("server.refreshTokenExpireDuration", "PW_SERVER_REFRESH_TOKEN_EXPIRE_DURATION")
 
+	viper.BindEnv("server.apiKey", "PW_SERVER_API_KEY")
+
 	viper.BindEnv("database.name", "PW_DB_NAME")
 	viper.BindEnv("database.username", "PW_DB_USERNAME")
 	viper.BindEnv("database.password", "PW_DB_PASSWORD")
@@ -158,12 +163,13 @@ func setDefaults() {
 	viper.SetDefault("server.port", "3625")
 	viper.SetDefault("server.domain", "https://vault.passwall.io")
 	viper.SetDefault("server.dir", osConfigDirectory(runtime.GOOS))
-	viper.SetDefault("server.passphrase", "passphrase-for-encrypting-passwords-do-not-forget")
-	viper.SetDefault("server.secret", "secret-key-for-JWT-TOKEN")
+	viper.SetDefault("server.passphrase", generateKey())
+	viper.SetDefault("server.secret", generateKey())
 	viper.SetDefault("server.timeout", 24)
 	viper.SetDefault("server.generatedPasswordLength", 16)
 	viper.SetDefault("server.accessTokenExpireDuration", "30m")
 	viper.SetDefault("server.refreshTokenExpireDuration", "15d")
+	viper.SetDefault("server.apiKey", generateKey())
 
 	// Database defaults
 	viper.SetDefault("database.name", "passwall")
@@ -204,4 +210,14 @@ func osConfigDirectory(osName string) string {
 		dir, _ := os.Getwd()
 		return dir
 	}
+}
+
+func generateKey() string {
+	key := make([]byte, 32)
+	_, err := rand.Read(key)
+	if err != nil {
+		return "add-your-key-to-here"
+	}
+	keyEnc := base64.StdEncoding.EncodeToString(key)
+	return keyEnc
 }
