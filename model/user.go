@@ -17,6 +17,7 @@ type User struct {
 	Email            string     `json:"email"`
 	MasterPassword   string     `json:"master_password"`
 	Secret           string     `json:"secret"`
+	SubscriptionID   int        `json:"subscription_id"`
 	Plan             string     `json:"plan"`
 	Schema           string     `json:"schema"`
 	Role             string     `json:"role"`
@@ -31,6 +32,7 @@ type UserDTO struct {
 	Email            string    `json:"email" validate:"required,email"`
 	MasterPassword   string    `json:"master_password" validate:"required,max=100,min=6"`
 	Secret           string    `json:"secret"`
+	SubscriptionID   int       `json:"subscription_id"`
 	Plan             string    `json:"plan"`
 	Schema           string    `json:"schema"`
 	Role             string    `json:"role"`
@@ -57,6 +59,7 @@ func ToUser(userDTO *UserDTO) *User {
 		Email:          userDTO.Email,
 		MasterPassword: userDTO.MasterPassword,
 		Secret:         userDTO.Secret,
+		SubscriptionID: userDTO.SubscriptionID,
 		Plan:           userDTO.Plan,
 		Schema:         userDTO.Schema,
 		Role:           userDTO.Role,
@@ -72,6 +75,7 @@ func ToUserDTO(user *User) *UserDTO {
 		Email:          user.Email,
 		MasterPassword: user.MasterPassword,
 		Secret:         user.Secret,
+		SubscriptionID: user.SubscriptionID,
 		Plan:           user.Plan,
 		Schema:         user.Schema,
 		Role:           user.Role,

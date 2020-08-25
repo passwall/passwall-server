@@ -59,8 +59,6 @@ func findLanguageFiles(folder string) ([]string, error) {
 		return items, err
 	}
 
-	fmt.Println(files)
-
 	s := []string{}
 	for _, f := range files {
 		// Since Split function returns string slice first split filename from extension

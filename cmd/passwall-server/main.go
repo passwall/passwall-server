@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -35,8 +34,6 @@ func main() {
 
 	// Start cron jobs like backup
 	// app.StartCronJob(s)
-
-	fmt.Println(cfg.Server.Dir)
 
 	srv := &http.Server{
 		MaxHeaderBytes: 10, // 10 MB
