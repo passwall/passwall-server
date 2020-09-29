@@ -15,6 +15,9 @@ func MigrateSystemTables(s storage.Store) {
 	if err := s.Users().Migrate(); err != nil {
 		log.Println(err)
 	}
+	if err := s.Subscriptions().Migrate(); err != nil {
+		log.Println(err)
+	}
 }
 
 // MigrateUserTables runs auto migration for user models in user schema,

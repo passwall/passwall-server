@@ -12,21 +12,23 @@ import (
 	"github.com/passwall/passwall-server/internal/storage/login"
 	"github.com/passwall/passwall-server/internal/storage/note"
 	"github.com/passwall/passwall-server/internal/storage/server"
+	"github.com/passwall/passwall-server/internal/storage/subscription"
 	"github.com/passwall/passwall-server/internal/storage/token"
 	"github.com/passwall/passwall-server/internal/storage/user"
 )
 
 // Database is the concrete store provider.
 type Database struct {
-	db       *gorm.DB
-	logins   LoginRepository
-	cards    CreditCardRepository
-	accounts BankAccountRepository
-	notes    NoteRepository
-	emails   EmailRepository
-	tokens   TokenRepository
-	users    UserRepository
-	servers  ServerRepository
+	db            *gorm.DB
+	logins        LoginRepository
+	cards         CreditCardRepository
+	accounts      BankAccountRepository
+	notes         NoteRepository
+	emails        EmailRepository
+	tokens        TokenRepository
+	users         UserRepository
+	servers       ServerRepository
+	subscriptions SubscriptionRepository
 }
 
 func DBConn(cfg *config.DatabaseConfiguration) (*gorm.DB, error) {
@@ -46,32 +48,18 @@ func DBConn(cfg *config.DatabaseConfiguration) (*gorm.DB, error) {
 // New opens a database according to configuration.
 func New(db *gorm.DB) *Database {
 	return &Database{
-		db:       db,
-		logins:   login.NewRepository(db),
-		cards:    creditcard.NewRepository(db),
-		accounts: bankaccount.NewRepository(db),
-		notes:    note.NewRepository(db),
-		emails:   email.NewRepository(db),
-		tokens:   token.NewRepository(db),
-		users:    user.NewRepository(db),
-		servers:  server.NewRepository(db),
+		db:            db,
+		logins:        login.NewRepository(db),
+		cards:         creditcard.NewRepository(db),
+		accounts:      bankaccount.NewRepository(db),
+		notes:         note.NewRepository(db),
+		emails:        email.NewRepository(db),
+		tokens:        token.NewRepository(db),
+		users:         user.NewRepository(db),
+		servers:       server.NewRepository(db),
+		subscriptions: subscription.NewRepository(db),
 	}
 }
-
-// Create inserts the value into database.
-// func (db *Database) Create(value interface{}) {
-// 	db.db.Create(value)
-// }
-
-// Find finds the records that match given conditions.
-// func (db *Database) Find(value interface{}, where ...interface{}) {
-// 	if len(where) > 0 {
-// 		db.db.Find(value, where)
-// 	} else {
-// 		db.db.Find(value)
-// 	}
-
-// }
 
 // Logins returns the LoginRepository.
 func (db *Database) Logins() LoginRepository {
@@ -111,6 +99,11 @@ func (db *Database) Users() UserRepository {
 // Servers returns the UserRepository.
 func (db *Database) Servers() ServerRepository {
 	return db.servers
+}
+
+// Subscriptions returns the UserRepository.
+func (db *Database) Subscriptions() SubscriptionRepository {
+	return db.subscriptions
 }
 
 // Ping checks if database is up
