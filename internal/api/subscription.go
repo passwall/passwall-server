@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
@@ -83,6 +84,83 @@ func PostSubscription(s storage.Store) http.HandlerFunc {
 			}
 		}
 
+		if bodyMap["alert_name"] == "subscription_updated" {
+			planID, err := strconv.Atoi(bodyMap["subscription_plan_id"])
+			if err != nil {
+				RespondWithError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+
+			subID, err := strconv.Atoi(bodyMap["subscription_id"])
+			if err != nil {
+				RespondWithError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+
+			nextBillDate, err := time.Parse("2006-01-02", bodyMap["next_bill_date"])
+			if err != nil {
+				RespondWithError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+
+			subscription, err := s.Subscriptions().FindBySubscriptionID(uint(subID))
+			if err != nil {
+				message := "Subscription is not exist!"
+				RespondWithError(w, http.StatusNotFound, message)
+				return
+			}
+
+			subscription.PlanID = planID
+			subscription.NextBillDate = nextBillDate
+			subscription.Status = bodyMap["status"]
+
+			_, err = s.Subscriptions().Save(subscription)
+			if err != nil {
+				RespondWithError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+
+		}
+
+		if bodyMap["alert_name"] == "subscription_cancelled" {
+			subID, err := strconv.Atoi(bodyMap["subscription_id"])
+			if err != nil {
+				RespondWithError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+
+			nextBillDate, err := time.Parse("2006-01-02", "0001-01-01")
+			if err != nil {
+				RespondWithError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+
+			subscription, err := s.Subscriptions().FindBySubscriptionID(uint(subID))
+			if err != nil {
+				message := "Subscription is not exist!"
+				RespondWithError(w, http.StatusNotFound, message)
+				return
+			}
+
+			subscription.NextBillDate = nextBillDate
+			subscription.Status = bodyMap["status"]
+			subscription.CancelledAt = time.Now()
+
+			_, err = s.Subscriptions().Save(subscription)
+			if err != nil {
+				RespondWithError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+
+		}
+		// case 'subscription_updated':
+		// // The next billing date of this user's subscription.
+		// $next_bill_date = $db->real_escape_string($_POST['next_bill_date']);
+
+		// $db->query("UPDATE subscriptions SET next_bill_date = '$next_bill_date', plan_id = '$plan_id', status = '$status' WHERE subscription_id = '$subscription_id'");
+
+		// break;
+
 		//subscriptionDTO := new(AlertName)
 
 		// TODO: There are 6 action here. These should be moved to service layer
@@ -111,7 +189,7 @@ func PostSubscription(s storage.Store) http.HandlerFunc {
 		response := model.Response{
 			Code:    http.StatusOK,
 			Status:  Success,
-			Message: "Subscription created successfully.",
+			Message: "Subscription created/updated successfully.",
 		}
 
 		RespondWithJSON(w, http.StatusOK, response)
