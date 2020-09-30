@@ -16,18 +16,17 @@ func NewRepository(db *gorm.DB) *Repository {
 }
 
 // All ...
-func (p *Repository) All(schema string) ([]model.Subscription, error) {
+func (p *Repository) All() ([]model.Subscription, error) {
 	subscriptions := []model.Subscription{}
-	err := p.db.Table(schema + ".subscriptions").Find(&subscriptions).Error
+	err := p.db.Find(&subscriptions).Error
 	return subscriptions, err
 }
 
 // FindAll ...
-func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.Subscription, error) {
+func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int) ([]model.Subscription, error) {
 	subscriptions := []model.Subscription{}
 
 	query := p.db
-	query = query.Table(schema + ".subscriptions")
 	query = query.Limit(argsInt["limit"])
 	if argsInt["limit"] > 0 {
 		// offset can't be declared without a valid limit
@@ -45,21 +44,28 @@ func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int, 
 }
 
 // FindByID ...
-func (p *Repository) FindByID(id uint, schema string) (*model.Subscription, error) {
+func (p *Repository) FindByID(id uint) (*model.Subscription, error) {
 	subscription := new(model.Subscription)
-	err := p.db.Table(schema+".subscriptions").Where(`id = ?`, id).First(&subscription).Error
+	err := p.db.Where(`id = ?`, id).First(&subscription).Error
+	return subscription, err
+}
+
+// FindBySubscriptionID ...
+func (p *Repository) FindBySubscriptionID(id uint) (*model.Subscription, error) {
+	subscription := new(model.Subscription)
+	err := p.db.Where(`subscription_id = ?`, id).First(&subscription).Error
 	return subscription, err
 }
 
 // Save ...
-func (p *Repository) Save(subscription *model.Subscription, schema string) (*model.Subscription, error) {
-	err := p.db.Table(schema + ".subscriptions").Save(&subscription).Error
+func (p *Repository) Save(subscription *model.Subscription) (*model.Subscription, error) {
+	err := p.db.Save(&subscription).Error
 	return subscription, err
 }
 
 // Delete ...
-func (p *Repository) Delete(id uint, schema string) error {
-	err := p.db.Table(schema + ".subscriptions").Delete(&model.Subscription{ID: id}).Error
+func (p *Repository) Delete(id uint) error {
+	err := p.db.Delete(&model.Subscription{ID: id}).Error
 	return err
 }
 

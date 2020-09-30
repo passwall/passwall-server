@@ -63,8 +63,20 @@ func PostSubscription(s storage.Store) http.HandlerFunc {
 			}
 			defer r.Body.Close()
 
-			schema := "public"
-			subscriptionResult, err := s.Subscriptions().Save(model.FromCreToSub(subscriptionCreated), schema)
+			subID, err := strconv.Atoi(subscriptionCreated.SubscriptionID)
+			if err != nil {
+				RespondWithError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+
+			_, err = s.Subscriptions().FindBySubscriptionID(uint(subID))
+			if err == nil {
+				message := "Subscription already exist!"
+				RespondWithError(w, http.StatusBadRequest, message)
+				return
+			}
+
+			_, err = s.Subscriptions().Save(model.FromCreToSub(subscriptionCreated))
 			if err != nil {
 				RespondWithError(w, http.StatusInternalServerError, err.Error())
 				return
@@ -96,7 +108,13 @@ func PostSubscription(s storage.Store) http.HandlerFunc {
 
 		// createdSubscriptionDTO := model.ToSubscriptionDTO(createdSubscription)
 
-		RespondWithJSON(w, http.StatusOK, subscriptionResult)
+		response := model.Response{
+			Code:    http.StatusOK,
+			Status:  Success,
+			Message: "Subscription created successfully.",
+		}
+
+		RespondWithJSON(w, http.StatusOK, response)
 	}
 }
 
@@ -109,8 +127,7 @@ func FindAllSubscriptions(s storage.Store) http.HandlerFunc {
 		fields := []string{"id", "created_at", "updated_at", "title", "ip", "url"}
 		argsStr, argsInt := SetArgs(r, fields)
 
-		schema := "public"
-		subscriptionList, err = s.Subscriptions().FindAll(argsStr, argsInt, schema)
+		subscriptionList, err = s.Subscriptions().FindAll(argsStr, argsInt)
 
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
@@ -141,8 +158,7 @@ func FindSubscriptionByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		schema := "public"
-		subscription, err := s.Subscriptions().FindByID(uint(id), schema)
+		subscription, err := s.Subscriptions().FindByID(uint(id))
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
@@ -192,8 +208,7 @@ func CreateSubscription(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		schema := "public"
-		createdSubscription, err := s.Subscriptions().Save(model.ToSubscription(&subscriptionDTO), schema)
+		createdSubscription, err := s.Subscriptions().Save(model.ToSubscription(&subscriptionDTO))
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -278,14 +293,13 @@ func DeleteSubscription(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		schema := "public"
-		subscription, err := s.Subscriptions().FindByID(uint(id), schema)
+		subscription, err := s.Subscriptions().FindByID(uint(id))
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		err = s.Subscriptions().Delete(subscription.ID, schema)
+		err = s.Subscriptions().Delete(subscription.ID)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
