@@ -85,13 +85,6 @@ func (r *Router) initRoutes() {
 	apiRouter.HandleFunc("/servers/{id:[0-9]+}", api.UpdateServer(r.store)).Methods(http.MethodPut)
 	apiRouter.HandleFunc("/servers/{id:[0-9]+}", api.DeleteServer(r.store)).Methods(http.MethodDelete)
 
-	// Subscription endpoints
-	apiRouter.HandleFunc("/subscriptions", api.FindAllSubscriptions(r.store)).Methods(http.MethodGet)
-	apiRouter.HandleFunc("/subscriptions", api.PostSubscription(r.store)).Methods(http.MethodPost)
-	apiRouter.HandleFunc("/subscriptions/{id:[0-9]+}", api.FindSubscriptionByID(r.store)).Methods(http.MethodGet)
-	// apiRouter.HandleFunc("/subscriptions/{id:[0-9]+}", api.UpdateSubscription(r.store)).Methods(http.MethodPut)
-	apiRouter.HandleFunc("/subscriptions/{id:[0-9]+}", api.DeleteSubscription(r.store)).Methods(http.MethodDelete)
-
 	apiRouter.HandleFunc("/system/generate-password", api.GeneratePassword).Methods(http.MethodPost)
 	apiRouter.HandleFunc("/system/import", api.Import(r.store)).Methods(http.MethodPost)
 
@@ -117,6 +110,9 @@ func (r *Router) initRoutes() {
 	// Check Updated
 	webRouter := mux.NewRouter().PathPrefix("/web").Subrouter()
 	webRouter.HandleFunc("/check-update/{product:[0-9]+}", api.CheckUpdate).Methods(http.MethodGet)
+
+	// Subscription endpoints under web
+	webRouter.HandleFunc("/subscriptions", api.PostSubscription(r.store)).Methods(http.MethodPost)
 
 	n := negroni.Classic()
 	n.Use(negroni.HandlerFunc(CORS))

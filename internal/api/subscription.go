@@ -7,11 +7,11 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
+	"github.com/spf13/viper"
 
 	"github.com/gorilla/mux"
 )
@@ -20,28 +20,32 @@ const (
 	SubscriptionDeleteSuccess = "Subscription deleted successfully!"
 )
 
-func getAlertName(r *http.Request) (string, error) {
-	alertNameDTO := new(model.AlertName)
-
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&alertNameDTO); err != nil {
-		return "", err
-	}
-	// defer r.Body.Close()
-
-	return alertNameDTO.AlertName, nil
-}
-
 // PostSubscription ...
 func PostSubscription(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
+		// 0. API Key Check
+		keys, ok := r.URL.Query()["api_key"]
+
+		if !ok || len(keys[0]) < 1 {
+			RespondWithError(w, http.StatusBadRequest, "API Key is missing")
+			return
+		}
+
+		if keys[0] != viper.GetString("server.apiKey") {
+			RespondWithError(w, http.StatusUnauthorized, "API Key is wrong")
+			return
+		}
+
+		// Read request body as byte[]
 		bodyBytes, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 			return
 		}
+		r.Body.Close()
 
+		// Convert body byte[] to map
 		bodyMap := make(map[string]string)
 		err = json.Unmarshal(bodyBytes, &bodyMap)
 		if err != nil {
@@ -49,149 +53,38 @@ func PostSubscription(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		r.Body.Close() //  must close
-
 		// Generate body again for alert type
 		r.Body = ioutil.NopCloser(bytes.NewBuffer(bodyBytes))
 
-		if bodyMap["alert_name"] == "subscription_created" {
-			subscriptionCreated := new(model.SubscriptionCreated)
+		var code int
+		var msg string
 
-			decoder := json.NewDecoder(r.Body)
-			if err := decoder.Decode(&subscriptionCreated); err != nil {
-				RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
-				return
-			}
-			defer r.Body.Close()
-
-			subID, err := strconv.Atoi(subscriptionCreated.SubscriptionID)
-			if err != nil {
-				RespondWithError(w, http.StatusBadRequest, err.Error())
-				return
-			}
-
-			_, err = s.Subscriptions().FindBySubscriptionID(uint(subID))
-			if err == nil {
-				message := "Subscription already exist!"
-				RespondWithError(w, http.StatusBadRequest, message)
-				return
-			}
-
-			_, err = s.Subscriptions().Save(model.FromCreToSub(subscriptionCreated))
-			if err != nil {
-				RespondWithError(w, http.StatusInternalServerError, err.Error())
-				return
-			}
+		switch bodyMap["alert_name"] {
+		case "subscription_created":
+			code, msg = app.CreateSubscription(s, r)
+		case "subscription_updated":
+			code, msg = app.UpdateSubscription(s, bodyMap)
+		case "subscription_cancelled":
+			code, msg = app.CancelSubscription(s, bodyMap)
+		case "subscription_payment_succeeded":
+			code, msg = app.PaymentSucceedSubscription(s, bodyMap)
+		case "subscription_payment_failed":
+			code, msg = app.PaymentFailedSubscription(s, bodyMap)
+		default:
+			RespondWithError(w, http.StatusBadRequest, "Invalid resquest")
+			return
 		}
 
-		if bodyMap["alert_name"] == "subscription_updated" {
-			planID, err := strconv.Atoi(bodyMap["subscription_plan_id"])
-			if err != nil {
-				RespondWithError(w, http.StatusBadRequest, err.Error())
-				return
-			}
-
-			subID, err := strconv.Atoi(bodyMap["subscription_id"])
-			if err != nil {
-				RespondWithError(w, http.StatusBadRequest, err.Error())
-				return
-			}
-
-			nextBillDate, err := time.Parse("2006-01-02", bodyMap["next_bill_date"])
-			if err != nil {
-				RespondWithError(w, http.StatusBadRequest, err.Error())
-				return
-			}
-
-			subscription, err := s.Subscriptions().FindBySubscriptionID(uint(subID))
-			if err != nil {
-				message := "Subscription is not exist!"
-				RespondWithError(w, http.StatusNotFound, message)
-				return
-			}
-
-			subscription.PlanID = planID
-			subscription.NextBillDate = nextBillDate
-			subscription.Status = bodyMap["status"]
-
-			_, err = s.Subscriptions().Save(subscription)
-			if err != nil {
-				RespondWithError(w, http.StatusInternalServerError, err.Error())
-				return
-			}
-
+		if code != http.StatusOK {
+			RespondWithError(w, code, msg)
+			return
 		}
-
-		if bodyMap["alert_name"] == "subscription_cancelled" {
-			subID, err := strconv.Atoi(bodyMap["subscription_id"])
-			if err != nil {
-				RespondWithError(w, http.StatusBadRequest, err.Error())
-				return
-			}
-
-			nextBillDate, err := time.Parse("2006-01-02", "0001-01-01")
-			if err != nil {
-				RespondWithError(w, http.StatusBadRequest, err.Error())
-				return
-			}
-
-			subscription, err := s.Subscriptions().FindBySubscriptionID(uint(subID))
-			if err != nil {
-				message := "Subscription is not exist!"
-				RespondWithError(w, http.StatusNotFound, message)
-				return
-			}
-
-			subscription.NextBillDate = nextBillDate
-			subscription.Status = bodyMap["status"]
-			subscription.CancelledAt = time.Now()
-
-			_, err = s.Subscriptions().Save(subscription)
-			if err != nil {
-				RespondWithError(w, http.StatusInternalServerError, err.Error())
-				return
-			}
-
-		}
-		// case 'subscription_updated':
-		// // The next billing date of this user's subscription.
-		// $next_bill_date = $db->real_escape_string($_POST['next_bill_date']);
-
-		// $db->query("UPDATE subscriptions SET next_bill_date = '$next_bill_date', plan_id = '$plan_id', status = '$status' WHERE subscription_id = '$subscription_id'");
-
-		// break;
-
-		//subscriptionDTO := new(AlertName)
-
-		// TODO: There are 6 action here. These should be moved to service layer
-		// user's service layer functions located in /app/user.go file is
-
-		// 1. Decode request body to userDTO object
-		// decoder := json.NewDecoder(r.Body)
-		// if err := decoder.Decode(&subscriptionDTO); err != nil {
-		// 	RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
-		// 	return
-		// }
-		// defer r.Body.Close()
-
-		// j, _ := json.Marshal(subscriptionDTO)
-		// fmt.Println(string(j))
-
-		// schema := "public"
-		// createdSubscription, err := s.Subscriptions().Save(model.ToSubscription(&subscriptionDTO), schema)
-		// if err != nil {
-		// 	RespondWithError(w, http.StatusInternalServerError, err.Error())
-		// 	return
-		// }
-
-		// createdSubscriptionDTO := model.ToSubscriptionDTO(createdSubscription)
 
 		response := model.Response{
 			Code:    http.StatusOK,
 			Status:  Success,
-			Message: "Subscription created/updated successfully.",
+			Message: msg,
 		}
-
 		RespondWithJSON(w, http.StatusOK, response)
 	}
 }
