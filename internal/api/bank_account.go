@@ -13,10 +13,11 @@ import (
 )
 
 const (
+	// BankAccountDeleteSuccess represents message when deleting bank account successfully
 	BankAccountDeleteSuccess = "BankAccount deleted successfully!"
 )
 
-// FindAll ...
+// FindAllBankAccounts finds all bank accounts
 func FindAllBankAccounts(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
@@ -46,7 +47,7 @@ func FindAllBankAccounts(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// FindByID ...
+// FindBankAccountByID finds a bank account by id
 func FindBankAccountByID(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
@@ -86,7 +87,7 @@ func FindBankAccountByID(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// Create ...
+// CreateBankAccount creates a bank aaccount
 func CreateBankAccount(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
@@ -127,7 +128,7 @@ func CreateBankAccount(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// Update ...
+// UpdateBankAccount updates a bank account
 func UpdateBankAccount(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
@@ -182,7 +183,7 @@ func UpdateBankAccount(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// DeleteBankAccount ...
+// DeleteBankAccount deletes a bank account
 func DeleteBankAccount(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)

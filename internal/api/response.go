@@ -11,6 +11,7 @@ import (
 	"github.com/passwall/passwall-server/model"
 )
 
+//ErrorResponseDTO represents error resposne
 type ErrorResponseDTO struct {
 	Code    int      `json:"code"`
 	Status  string   `json:"status"`
@@ -40,7 +41,7 @@ func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Write(response)
 }
 
-// RespondWithJSON write json
+// RespondWithHTML write html
 func RespondWithHTML(w http.ResponseWriter, code int, payload interface{}) {
 	w.WriteHeader(200)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

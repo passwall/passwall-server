@@ -13,10 +13,11 @@ import (
 )
 
 const (
+	// LoginDeleteSuccess represents message when deleting login successfully
 	LoginDeleteSuccess = "Login deleted successfully!"
 )
 
-// FindAllLogins ...
+// FindAllLogins finds all logins
 func FindAllLogins(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
@@ -46,7 +47,7 @@ func FindAllLogins(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// FindLoginsByID ...
+// FindLoginsByID finds a login by id
 func FindLoginsByID(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
@@ -90,7 +91,7 @@ func FindLoginsByID(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// Create ...
+// CreateLogin creates a login
 func CreateLogin(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
@@ -133,7 +134,7 @@ func CreateLogin(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// Update ...
+// UpdateLogin updates a login
 func UpdateLogin(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
@@ -189,7 +190,7 @@ func UpdateLogin(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// Delete ...
+// DeleteLogin deletes a login
 func DeleteLogin(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
@@ -221,7 +222,7 @@ func DeleteLogin(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// Test endpoint ...
+// TestLogin login endpoint for test purposes
 func TestLogin(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
