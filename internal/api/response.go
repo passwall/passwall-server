@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"text/template"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/passwall/passwall-server/model"
 )
 
 type ErrorResponseDTO struct {
@@ -36,6 +38,26 @@ func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	w.Write(response)
+}
+
+// RespondWithJSON write json
+func RespondWithHTML(w http.ResponseWriter, code int, payload interface{}) {
+	w.WriteHeader(200)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	t, err := template.ParseFiles("./store/template/email_confirmation_success.html")
+	if err != nil {
+		fmt.Fprintf(w, "Unable to load template")
+	}
+
+	// user := User{
+	//               Id: 1,
+	//               Name: "John Doe",
+	//               Email: "johndoe@gmail.com",
+	//               Phone: "000099999"
+	//            }
+
+	t.Execute(w, payload.(model.Response))
 }
 
 // GetErrors ...

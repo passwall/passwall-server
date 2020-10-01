@@ -44,6 +44,8 @@ services:
     container_name: passwall-server
     image: passwall/passwall-server:latest
     restart: always
+    environment:
+      - PW_DIR=/app/store
     build:
       context: .
     # Uncomment a database service which one of you're using

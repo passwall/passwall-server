@@ -42,7 +42,7 @@ func CheckUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	update := Update{
-		LatestVersion: "0.1.3",
+		LatestVersion: "0.1.4",
 		DownloadUrl:   "https://passwall.io/download/passwall-macos/",
 		ProductUrl:    "https://signup.passwall.io",
 	}
@@ -58,8 +58,6 @@ func findLanguageFiles(folder string) ([]string, error) {
 	if err != nil {
 		return items, err
 	}
-
-	fmt.Println(files)
 
 	s := []string{}
 	for _, f := range files {
@@ -128,41 +126,43 @@ func Language(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// Import ...
-/* func Import(s storage.Store) http.HandlerFunc {
+// Create ...
+func Import(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		url := r.FormValue("url")
-		username := r.FormValue("username")
-		password := r.FormValue("password")
+		var payloadList []model.Payload
+		var loginDTO model.LoginDTO
 
-		uploadedFile, err := upload(r)
-		if err != nil {
+		decoder := json.NewDecoder(r.Body)
+		if err := decoder.Decode(&payloadList); err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
 		}
-		defer uploadedFile.Close()
+		defer r.Body.Close()
 
-		// Go to first line of file
-		uploadedFile.Seek(0, 0)
+		for i := range payloadList {
+			// Decrypt payload
+			key := r.Context().Value("transmissionKey").(string)
+			if err := app.DecryptJSON(key, []byte(payloadList[i].Data), &loginDTO); err != nil {
+				RespondWithError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
 
-		// Read file content and add logins to db
-		err = app.InsertValues(s, url, username, password, uploadedFile)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-
-		// Delete imported file
-		err = os.Remove(uploadedFile.Name())
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
+			// Add new login to db
+			schema := r.Context().Value("schema").(string)
+			_, err := app.CreateLogin(s, &loginDTO, schema)
+			if err != nil {
+				RespondWithError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
 		}
 
-		response := model.Response{http.StatusOK, Success, ImportSuccess}
+		response := model.Response{
+			Code:    http.StatusOK,
+			Status:  "Success",
+			Message: "Import completed successfully!",
+		}
 		RespondWithJSON(w, http.StatusOK, response)
 	}
-} */
+}
 
 // Export exports all logins as CSV file
 /* func Export(s storage.Store) http.HandlerFunc {

@@ -22,7 +22,7 @@ func FindAllLogins(s storage.Store) http.HandlerFunc {
 		var err error
 		var loginList []model.Login
 
-		fields := []string{"id", "created_at", "updated_at", "url", "username"}
+		fields := []string{"id", "created_at", "updated_at", "title"}
 		argsStr, argsInt := SetArgs(r, fields)
 
 		schema := r.Context().Value("schema").(string)

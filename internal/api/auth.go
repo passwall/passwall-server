@@ -6,10 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
-
 	"github.com/dgrijalva/jwt-go"
 	"github.com/go-playground/validator/v10"
+	"github.com/gorilla/mux"
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
@@ -30,9 +29,21 @@ var (
 func Signup(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		userDTO := new(model.UserDTO)
+		// 0. API Key Check
+		keys, ok := r.URL.Query()["api_key"]
+
+		if !ok || len(keys[0]) < 1 {
+			RespondWithError(w, http.StatusBadRequest, "API Key is missing")
+			return
+		}
+
+		if keys[0] != viper.GetString("server.apiKey") {
+			RespondWithError(w, http.StatusUnauthorized, "API Key is wrong")
+			return
+		}
 
 		// 1. Decode request body to userDTO object
+		userDTO := new(model.UserDTO)
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&userDTO); err != nil {
 			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
@@ -145,12 +156,15 @@ func Confirm(s storage.Store) http.HandlerFunc {
 			RespondWithErrors(w, http.StatusBadRequest, message, errs)
 			return
 		}
+
 		response := model.Response{
 			Code:    http.StatusOK,
 			Status:  VerifySuccess,
 			Message: SignupSuccess,
 		}
+
 		RespondWithJSON(w, http.StatusOK, response)
+		// RespondWithHTML(w, http.StatusOK, response)
 	}
 }
 

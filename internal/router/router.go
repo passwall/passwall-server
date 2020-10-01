@@ -86,13 +86,14 @@ func (r *Router) initRoutes() {
 	apiRouter.HandleFunc("/servers/{id:[0-9]+}", api.DeleteServer(r.store)).Methods(http.MethodDelete)
 
 	apiRouter.HandleFunc("/system/generate-password", api.GeneratePassword).Methods(http.MethodPost)
+	apiRouter.HandleFunc("/system/import", api.Import(r.store)).Methods(http.MethodPost)
 
 	// These endpoints designed just for logins. Now we have extra types like bank accounts
 	// apiRouter.HandleFunc("/system/check-password", api.FindSamePassword(r.store)).Methods(http.MethodPost)
 	// apiRouter.HandleFunc("/system/backup", api.Backup(r.store)).Methods(http.MethodPost)
 	// apiRouter.HandleFunc("/system/backup", api.ListBackup).Methods(http.MethodGet)
 	// apiRouter.HandleFunc("/system/restore", api.Restore(r.store)).Methods(http.MethodPost)
-	// apiRouter.HandleFunc("/system/import", api.Import(r.store)).Methods(http.MethodPost)
+
 	// apiRouter.HandleFunc("/system/export", api.Export(r.store)).Methods(http.MethodPost)
 
 	apiRouter.HandleFunc("/system/languages", api.Languages(r.store)).Methods(http.MethodGet)
@@ -109,6 +110,9 @@ func (r *Router) initRoutes() {
 	// Check Updated
 	webRouter := mux.NewRouter().PathPrefix("/web").Subrouter()
 	webRouter.HandleFunc("/check-update/{product:[0-9]+}", api.CheckUpdate).Methods(http.MethodGet)
+
+	// Subscription endpoints under web
+	webRouter.HandleFunc("/subscriptions", api.PostSubscription(r.store)).Methods(http.MethodPost)
 
 	n := negroni.Classic()
 	n.Use(negroni.HandlerFunc(CORS))

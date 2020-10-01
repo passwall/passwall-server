@@ -2,8 +2,6 @@ package storage
 
 // Store is the minimal interface for the various repositories
 type Store interface {
-	// Create(interface{})
-	// Find(interface{}, ...interface{})
 	Logins() LoginRepository
 	CreditCards() CreditCardRepository
 	BankAccounts() BankAccountRepository
@@ -12,6 +10,6 @@ type Store interface {
 	Tokens() TokenRepository
 	Users() UserRepository
 	Servers() ServerRepository
-	// used to ping database
+	Subscriptions() SubscriptionRepository
 	Ping() error
 }

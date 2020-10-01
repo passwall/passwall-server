@@ -1,6 +1,8 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -24,14 +26,21 @@ type Configuration struct {
 	Server   ServerConfiguration
 	Database DatabaseConfiguration
 	Email    EmailConfiguration
+	Backup   BackupConfiguration
 }
 
 // ServerConfiguration is the required paramters to set up a server
 type ServerConfiguration struct {
-	Port       string `default:"3625"`
-	Passphrase string `default:"passphrase-for-encrypting-passwords-do-not-forget"`
-	Secret     string `default:"secret-key-for-JWT-TOKEN"`
-	Timeout    int    `default:"24"`
+	Port                       string `default:"3625"`
+	Domain                     string `default:"https://vault.passwall.io"`
+	Dir                        string `default:"/app/config"`
+	Passphrase                 string `default:"passphrase-for-encrypting-passwords-do-not-forget"`
+	Secret                     string `default:"secret-key-for-JWT-TOKEN"`
+	Timeout                    int    `default:"24"`
+	GeneratedPasswordLength    int    `default:"16"`
+	AccessTokenExpireDuration  string `default:"30m"`
+	RefreshTokenExpireDuration string `default:"15d"`
+	APIKey                     string `default:"my-secret-api-key"`
 }
 
 // DatabaseConfiguration is the required paramters to set up a DB instance
@@ -52,6 +61,13 @@ type EmailConfiguration struct {
 	Password string `default:"password"`
 	From     string `default:"hello@passwall.io"`
 	Admin    string `default:"hello@passwall.io"`
+}
+
+// BackupConfiguration is the required paramters to backup
+type BackupConfiguration struct {
+	Folder   string `default:"./store/"`
+	Rotation string `default:"7"`
+	Period   string `default:"24h"`
 }
 
 // SetupConfigDefaults ...
@@ -111,6 +127,7 @@ func initializeConfig() {
 func bindEnvs() {
 	viper.BindEnv("server.domain", "DOMAIN")
 	viper.BindEnv("server.port", "PORT")
+	viper.BindEnv("server.dir", "PW_DIR")
 	viper.BindEnv("server.passphrase", "PW_SERVER_PASSPHRASE")
 	viper.BindEnv("server.secret", "PW_SERVER_SECRET")
 	viper.BindEnv("server.timeout", "PW_SERVER_TIMEOUT")
@@ -118,6 +135,8 @@ func bindEnvs() {
 	viper.BindEnv("server.generatedPasswordLength", "PW_SERVER_GENERATED_PASSWORD_LENGTH")
 	viper.BindEnv("server.accessTokenExpireDuration", "PW_SERVER_ACCESS_TOKEN_EXPIRE_DURATION")
 	viper.BindEnv("server.refreshTokenExpireDuration", "PW_SERVER_REFRESH_TOKEN_EXPIRE_DURATION")
+
+	viper.BindEnv("server.apiKey", "PW_SERVER_API_KEY")
 
 	viper.BindEnv("database.name", "PW_DB_NAME")
 	viper.BindEnv("database.username", "PW_DB_USERNAME")
@@ -143,12 +162,14 @@ func setDefaults() {
 	// Server defaults
 	viper.SetDefault("server.port", "3625")
 	viper.SetDefault("server.domain", "https://vault.passwall.io")
-	viper.SetDefault("server.passphrase", "passphrase-for-encrypting-passwords-do-not-forget")
-	viper.SetDefault("server.secret", "secret-key-for-JWT-TOKEN")
+	viper.SetDefault("server.dir", osConfigDirectory(runtime.GOOS))
+	viper.SetDefault("server.passphrase", generateKey())
+	viper.SetDefault("server.secret", generateKey())
 	viper.SetDefault("server.timeout", 24)
 	viper.SetDefault("server.generatedPasswordLength", 16)
 	viper.SetDefault("server.accessTokenExpireDuration", "30m")
 	viper.SetDefault("server.refreshTokenExpireDuration", "15d")
+	viper.SetDefault("server.apiKey", generateKey())
 
 	// Database defaults
 	viper.SetDefault("database.name", "passwall")
@@ -167,20 +188,36 @@ func setDefaults() {
 	viper.SetDefault("email.admin", "hello@passwall.io")
 
 	// Backup defaults
-	viper.SetDefault("backup.folder", "./store/")
+	viper.SetDefault("backup.folder", osConfigDirectory(runtime.GOOS))
 	viper.SetDefault("backup.rotation", 7)
 	viper.SetDefault("backup.period", "24h")
 }
 
 // returns OS dependent config directory
-func osConfigDirectory(osName string) (osConfigDirectory string) {
+func osConfigDirectory(osName string) string {
+	if os.Getenv("PW_DIR") != "" {
+		return os.Getenv("PW_DIR")
+	}
+
 	switch osName {
 	case "windows":
-		osConfigDirectory = os.Getenv("APPDATA")
+		return os.Getenv("APPDATA")
 	case "darwin":
-		osConfigDirectory = os.Getenv("HOME") + "/Library/Application Support"
+		return os.Getenv("HOME") + "/Library/Application Support"
 	case "linux":
-		osConfigDirectory = os.Getenv("HOME") + "/.config"
+		return os.Getenv("HOME") + "/.config"
+	default:
+		dir, _ := os.Getwd()
+		return dir
 	}
-	return osConfigDirectory
+}
+
+func generateKey() string {
+	key := make([]byte, 32)
+	_, err := rand.Read(key)
+	if err != nil {
+		return "add-your-key-to-here"
+	}
+	keyEnc := base64.StdEncoding.EncodeToString(key)
+	return keyEnc
 }

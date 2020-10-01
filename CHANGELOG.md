@@ -1,17 +1,15 @@
 # PASSWALL CHANGELOG
 
-## Version: [1.1.-] (2020-07-**)
+## Version: [1.1.2] (2020-08-03)
 ### Add
 - Email configuration
 - SendEmail function to app package
 - Email verification for new users
 - AES encrypt and decrypt functions
 - Encryption to all jsons in API
+- Import feature
 ### Changed
 - Github organization name pass-wall to passwall
-
-## Version: [1.1.2] (2020-06-22)
-### Changed
 - Config file folder
 
 ## Version: [1.1.1] (2020-06-22)

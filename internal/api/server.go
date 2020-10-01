@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -22,7 +23,7 @@ func FindAllServers(s storage.Store) http.HandlerFunc {
 		var err error
 		var serverList []model.Server
 
-		fields := []string{"id", "created_at", "updated_at", "title", "ip", "username", "url", "hosting_username", "admin_username"}
+		fields := []string{"id", "created_at", "updated_at", "title", "ip", "url"}
 		argsStr, argsInt := SetArgs(r, fields)
 
 		schema := r.Context().Value("schema").(string)
@@ -103,6 +104,7 @@ func CreateServer(s storage.Store) http.HandlerFunc {
 		key := r.Context().Value("transmissionKey").(string)
 		err = app.DecryptJSON(key, []byte(payload.Data), &serverDTO)
 		if err != nil {
+			fmt.Println("burada")
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}

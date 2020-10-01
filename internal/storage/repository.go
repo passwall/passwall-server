@@ -141,3 +141,22 @@ type ServerRepository interface {
 	// Migrate migrates the repository
 	Migrate(schema string) error
 }
+
+// SubscriptionRepository interface is the common interface for a repository
+// Each method checks the entity type.
+type SubscriptionRepository interface {
+	// All returns all the data in the repository.
+	All() ([]model.Subscription, error)
+	// FindAll returns the entities matching the arguments.
+	FindAll(argsStr map[string]string, argsInt map[string]int) ([]model.Subscription, error)
+	// FindByID finds the entity regarding to its ID.
+	FindByID(id uint) (*model.Subscription, error)
+	// FindBySubscriptionID finds the entity regarding to its Subscription ID.
+	FindBySubscriptionID(id uint) (*model.Subscription, error)
+	// Save stores the entity to the repository
+	Save(subscription *model.Subscription) (*model.Subscription, error)
+	// Delete removes the entity from the store
+	Delete(id uint) error
+	// Migrate migrates the repository
+	Migrate() error
+}

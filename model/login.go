@@ -14,6 +14,7 @@ type Login struct {
 	URL       string     `json:"url"`
 	Username  string     `json:"username" encrypt:"true"`
 	Password  string     `json:"password" encrypt:"true"`
+	Extra     string     `json:"extra" encrypt:"true"`
 }
 
 type LoginDTO struct {
@@ -22,6 +23,7 @@ type LoginDTO struct {
 	URL      string `json:"url"`
 	Username string `json:"username"`
 	Password string `json:"password"`
+	Extra    string `json:"extra"`
 }
 
 // ToLogin ...
@@ -31,6 +33,7 @@ func ToLogin(loginDTO *LoginDTO) *Login {
 		URL:      loginDTO.URL,
 		Username: loginDTO.Username,
 		Password: loginDTO.Password,
+		Extra:    loginDTO.Extra,
 	}
 }
 
@@ -42,6 +45,7 @@ func ToLoginDTO(login *Login) *LoginDTO {
 		URL:      login.URL,
 		Username: login.Username,
 		Password: login.Password,
+		Extra:    login.Extra,
 	}
 }
 
@@ -78,5 +82,6 @@ type Password struct {
 	"URL":"http://dummywebsite.com",
 	"Username": "dummyuser",
 	"Password": "dummypassword"
+	"Extra": "additional information"
 }
 */

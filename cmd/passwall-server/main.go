@@ -36,11 +36,12 @@ func main() {
 	// app.StartCronJob(s)
 
 	srv := &http.Server{
-		Addr:         ":" + cfg.Server.Port,
-		WriteTimeout: time.Second * time.Duration(cfg.Server.Timeout),
-		ReadTimeout:  time.Second * time.Duration(cfg.Server.Timeout),
-		IdleTimeout:  time.Second * 60,
-		Handler:      router.New(s),
+		MaxHeaderBytes: 10, // 10 MB
+		Addr:           ":" + cfg.Server.Port,
+		WriteTimeout:   time.Second * time.Duration(cfg.Server.Timeout),
+		ReadTimeout:    time.Second * time.Duration(cfg.Server.Timeout),
+		IdleTimeout:    time.Second * 60,
+		Handler:        router.New(s),
 	}
 
 	logger.Printf("listening on %s", cfg.Server.Port)
