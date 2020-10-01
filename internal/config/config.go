@@ -29,7 +29,7 @@ type Configuration struct {
 	Backup   BackupConfiguration
 }
 
-// ServerConfiguration is the required paramters to set up a server
+// ServerConfiguration is the required parameters to set up a server
 type ServerConfiguration struct {
 	Port                       string `default:"3625"`
 	Domain                     string `default:"https://vault.passwall.io"`
@@ -43,7 +43,7 @@ type ServerConfiguration struct {
 	APIKey                     string `default:"my-secret-api-key"`
 }
 
-// DatabaseConfiguration is the required paramters to set up a DB instance
+// DatabaseConfiguration is the required parameters to set up a DB instance
 type DatabaseConfiguration struct {
 	Name     string `default:"passwall"`
 	Username string `default:"user"`
@@ -53,7 +53,7 @@ type DatabaseConfiguration struct {
 	LogMode  bool   `default:"false"`
 }
 
-// EmailConfiguration is the required paramters to send emails
+// EmailConfiguration is the required parameters to send emails
 type EmailConfiguration struct {
 	Host     string `default:"smtp.passwall.io"`
 	Port     string `default:"25"`
@@ -63,7 +63,7 @@ type EmailConfiguration struct {
 	Admin    string `default:"hello@passwall.io"`
 }
 
-// BackupConfiguration is the required paramters to backup
+// BackupConfiguration is the required parameters to backup
 type BackupConfiguration struct {
 	Folder   string `default:"./store/"`
 	Rotation string `default:"7"`

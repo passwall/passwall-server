@@ -10,7 +10,7 @@ import (
 	"github.com/passwall/passwall-server/model"
 )
 
-// CreateServer creates a server and saves it to the store
+//CreateSubscription creates a subscription and saves it to the store
 func CreateSubscription(s storage.Store, r *http.Request) (int, string) {
 	subscriptionCreated := new(model.SubscriptionCreated)
 
@@ -39,6 +39,7 @@ func CreateSubscription(s storage.Store, r *http.Request) (int, string) {
 	return http.StatusOK, "Subscription created successfully."
 }
 
+//UpdateSubscription updates a subscription
 func UpdateSubscription(s storage.Store, bodyMap map[string]string) (int, string) {
 	subID, err := strconv.Atoi(bodyMap["subscription_id"])
 	if err != nil {
@@ -72,6 +73,7 @@ func UpdateSubscription(s storage.Store, bodyMap map[string]string) (int, string
 	return http.StatusOK, "Subscription updated successfully."
 }
 
+//CancelSubscription cancels a subscription
 func CancelSubscription(s storage.Store, bodyMap map[string]string) (int, string) {
 	subID, err := strconv.Atoi(bodyMap["subscription_id"])
 	if err != nil {
@@ -100,6 +102,7 @@ func CancelSubscription(s storage.Store, bodyMap map[string]string) (int, string
 	return http.StatusOK, "Subscription cancelled."
 }
 
+//PaymentSucceedSubscription payment succeed for subscription
 func PaymentSucceedSubscription(s storage.Store, bodyMap map[string]string) (int, string) {
 	subID, err := strconv.Atoi(bodyMap["subscription_id"])
 	if err != nil {
@@ -126,6 +129,7 @@ func PaymentSucceedSubscription(s storage.Store, bodyMap map[string]string) (int
 	return http.StatusOK, "Subscription payment succeeded."
 }
 
+//PaymentFailedSubscription payment failed for subscription
 func PaymentFailedSubscription(s storage.Store, bodyMap map[string]string) (int, string) {
 	subID, err := strconv.Atoi(bodyMap["subscription_id"])
 	if err != nil {

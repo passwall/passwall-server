@@ -22,8 +22,8 @@ import (
 )
 
 var (
-	MinSecureKeyLength = 8
-	ShortSecureKeyErr  = errors.New("length of secure key does not meet with minimum requirements")
+	minSecureKeyLength = 8
+	errShortSecureKey  = errors.New("length of secure key does not meet with minimum requirements")
 )
 
 // FindIndex ...
@@ -37,12 +37,13 @@ func FindIndex(vs []string, t string) int {
 }
 
 func checkSecureKeyLen(length int) error {
-	if length < MinSecureKeyLength {
-		return ShortSecureKeyErr
+	if length < minSecureKeyLength {
+		return errShortSecureKey
 	}
 	return nil
 }
 
+//FallbackInsecureKey fallback method for sercure key
 func FallbackInsecureKey(length int) (string, error) {
 	const charset = "abcdefghijklmnopqrstuvwxyz" +
 		"ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
@@ -64,6 +65,7 @@ func FallbackInsecureKey(length int) (string, error) {
 	return string(b), nil
 }
 
+//GenerateSecureKey generates a secure key width a given length
 func GenerateSecureKey(length int) (string, error) {
 	key := make([]byte, length)
 

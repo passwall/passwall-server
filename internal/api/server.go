@@ -14,6 +14,7 @@ import (
 )
 
 const (
+	//ServerDeleteSuccess represents message when deleting server successfully
 	ServerDeleteSuccess = "Server deleted successfully!"
 )
 
