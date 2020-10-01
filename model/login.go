@@ -17,6 +17,7 @@ type Login struct {
 	Extra     string     `json:"extra" encrypt:"true"`
 }
 
+//LoginDTO DTO object for Login type
 type LoginDTO struct {
 	ID       uint   `json:"id"`
 	Title    string `json:"title"`

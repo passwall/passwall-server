@@ -26,6 +26,7 @@ type Subscription struct {
 	CancelURL      string     `json:"cancel_url"`
 }
 
+//SubscriptionCreated type
 type SubscriptionCreated struct {
 	AlertID             string `json:"alert_id"`
 	AlertName           string `json:"alert_name"`
@@ -49,7 +50,7 @@ type SubscriptionCreated struct {
 	PSignature          string `json:"p_signature"`
 }
 
-// ToSubscription ...
+// FromCreToSub converts SubscriptionCreated type to Subscription type
 func FromCreToSub(subscriptionCreated *SubscriptionCreated) *Subscription {
 	subID, _ := strconv.Atoi(subscriptionCreated.SubscriptionID)
 	planID, _ := strconv.Atoi(subscriptionCreated.SubscriptionPlanID)
@@ -68,6 +69,7 @@ func FromCreToSub(subscriptionCreated *SubscriptionCreated) *Subscription {
 	}
 }
 
+//SubscriptionDTO DTO object for Subscription type
 type SubscriptionDTO struct {
 	ID             uint      `gorm:"primary_key" json:"id"`
 	CancelledAt    time.Time `json:"cancelled_at"`

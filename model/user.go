@@ -25,6 +25,7 @@ type User struct {
 	EmailVerifiedAt  time.Time  `json:"email_verified_at"`
 }
 
+//UserDTO DTO object for User type
 type UserDTO struct {
 	ID               uint      `json:"id"`
 	UUID             uuid.UUID `json:"uuid"`
@@ -40,6 +41,7 @@ type UserDTO struct {
 	EmailVerifiedAt  time.Time `json:"email_verified_at"`
 }
 
+//UserDTOTable ...
 type UserDTOTable struct {
 	ID     uint      `json:"id"`
 	UUID   uuid.UUID `json:"uuid"`
