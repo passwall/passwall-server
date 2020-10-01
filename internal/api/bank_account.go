@@ -209,7 +209,7 @@ func DeleteBankAccount(s storage.Store) http.HandlerFunc {
 		response := model.Response{
 			Code:    http.StatusOK,
 			Status:  Success,
-			Message: BankAccountDeleteSuccess,
+			Message: bankAccountDeleteSuccess,
 		}
 		RespondWithJSON(w, http.StatusOK, response)
 	}

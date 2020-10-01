@@ -15,8 +15,12 @@ import (
 const (
 	// InvalidRequestPayload represents invalid request payload messaage
 	InvalidRequestPayload = "Invalid request payload"
+<<<<<<< refs/remotes/upstream/master
 	// CreditCardDeleted represents message when deleting credit cart successfully
 	CreditCardDeleted = "CreditCard deleted successfully!"
+=======
+	creditCardDeleted     = "CreditCard deleted successfully!"
+>>>>>>> Fix some linter errors
 	// Success represent success message
 	Success = "Success"
 )
@@ -214,7 +218,7 @@ func DeleteCreditCard(s storage.Store) http.HandlerFunc {
 		response := model.Response{
 			Code:    http.StatusOK,
 			Status:  Success,
-			Message: CreditCardDeleted,
+			Message: creditCardDeleted,
 		}
 		RespondWithJSON(w, http.StatusOK, response)
 	}

@@ -122,7 +122,7 @@ func Signup(s storage.Store) http.HandlerFunc {
 		response := model.Response{
 			Code:    http.StatusOK,
 			Status:  Success,
-			Message: SignupSuccess,
+			Message: signupSuccess,
 		}
 		RespondWithJSON(w, http.StatusOK, response)
 	}
@@ -164,8 +164,8 @@ func Confirm(s storage.Store) http.HandlerFunc {
 
 		response := model.Response{
 			Code:    http.StatusOK,
-			Status:  VerifySuccess,
-			Message: SignupSuccess,
+			Status:  verifySuccess,
+			Message: signupSuccess,
 		}
 
 		RespondWithJSON(w, http.StatusOK, response)
@@ -214,7 +214,7 @@ func Signin(s storage.Store) http.HandlerFunc {
 		//create token
 		token, err := app.CreateToken(user)
 		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, TokenCreateErr)
+			RespondWithError(w, http.StatusInternalServerError, tokenCreateErr)
 			return
 		}
 
@@ -271,7 +271,7 @@ func RefreshToken(s storage.Store) http.HandlerFunc {
 		if !tokenExist {
 			userid := claims["user_id"].(float64)
 			s.Tokens().Delete(int(userid))
-			RespondWithError(w, http.StatusUnauthorized, InvalidToken)
+			RespondWithError(w, http.StatusUnauthorized, invalidToken)
 			return
 		}
 
@@ -279,14 +279,14 @@ func RefreshToken(s storage.Store) http.HandlerFunc {
 		userid := claims["user_id"].(float64)
 		user, err := s.Users().FindByID(uint(userid))
 		if err != nil {
-			RespondWithError(w, http.StatusUnauthorized, InvalidUser)
+			RespondWithError(w, http.StatusUnauthorized, invalidUser)
 			return
 		}
 
 		//create token
 		newtoken, err := app.CreateToken(user)
 		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, TokenCreateErr)
+			RespondWithError(w, http.StatusInternalServerError, tokenCreateErr)
 			return
 		}
 
@@ -319,13 +319,13 @@ func CheckToken(s storage.Store) http.HandlerFunc {
 		}
 
 		if tokenStr == "" {
-			RespondWithError(w, http.StatusUnauthorized, NoToken)
+			RespondWithError(w, http.StatusUnauthorized, noToken)
 			return
 		}
 
 		token, err := app.TokenValid(tokenStr)
 		if err != nil {
-			RespondWithError(w, http.StatusUnauthorized, InvalidToken)
+			RespondWithError(w, http.StatusUnauthorized, invalidToken)
 			return
 		}
 
@@ -335,7 +335,7 @@ func CheckToken(s storage.Store) http.HandlerFunc {
 		// Check if user exist in database and credentials are true
 		user, err := s.Users().FindByID(uint(userID))
 		if err != nil {
-			RespondWithError(w, http.StatusUnauthorized, InvalidUser)
+			RespondWithError(w, http.StatusUnauthorized, invalidUser)
 			return
 		}
 

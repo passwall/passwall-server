@@ -9,7 +9,7 @@ import (
 	"github.com/passwall/passwall-server/model"
 )
 
-// CreateServer creates a server and saves it to the store
+//CreateSubscription creates a subscription and saves it to the store
 func CreateSubscription(s storage.Store, r *http.Request) (int, string) {
 
 	subID, err := strconv.Atoi(r.FormValue("subscription_id"))

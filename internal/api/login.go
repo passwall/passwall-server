@@ -216,7 +216,7 @@ func DeleteLogin(s storage.Store) http.HandlerFunc {
 		response := model.Response{
 			Code:    http.StatusOK,
 			Status:  Success,
-			Message: LoginDeleteSuccess,
+			Message: loginDeleteSuccess,
 		}
 		RespondWithJSON(w, http.StatusOK, response)
 	}
