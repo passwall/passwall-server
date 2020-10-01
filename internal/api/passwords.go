@@ -32,7 +32,7 @@ import (
 // 	}
 // }
 
-// Password generates new password
+// GeneratePassword generates new password
 func GeneratePassword(w http.ResponseWriter, r *http.Request) {
 	generatedPass, err := app.GenerateSecureKey(viper.GetInt("server.generatedPasswordLength"))
 	if err != nil {
