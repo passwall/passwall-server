@@ -16,20 +16,13 @@ import (
 )
 
 var (
-	//InvalidUser represents a message for a invalid user
-	InvalidUser = "Invalid user"
-	//ValidToken represents a message for an valid token
-	ValidToken = "Token is valid"
-	//InvalidToken represents a message for an invaallid token
-	InvalidToken = "Token is expired or not valid!"
-	//NoToken reprresents a messaage when no token found
-	NoToken = "Token could not found! "
-	//TokenCreateErr represents a message when a token could not created
-	TokenCreateErr = "Token could not be created"
-	//SignupSuccess represents a message when user created successfully
-	SignupSuccess = "User created successfully"
-	//VerifySuccess represents a message when email verified successfully
-	VerifySuccess = "Email verified successfully"
+	invalidUser    = "Invalid user"
+	validToken     = "Token is valid"
+	invalidToken   = "Token is expired or not valid!"
+	noToken        = "Token could not found! "
+	tokenCreateErr = "Token could not be created"
+	signupSuccess  = "User created successfully"
+	verifySuccess  = "Email verified successfully"
 )
 
 // Signup ...
