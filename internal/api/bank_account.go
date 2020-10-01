@@ -13,8 +13,7 @@ import (
 )
 
 const (
-	// BankAccountDeleteSuccess represents message when deleting bank account successfully
-	BankAccountDeleteSuccess = "BankAccount deleted successfully!"
+	bankAccountDeleteSuccess = "BankAccount deleted successfully!"
 )
 
 // FindAllBankAccounts finds all bank accounts
