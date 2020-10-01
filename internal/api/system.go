@@ -20,10 +20,13 @@ import (
 
 const (
 	//InvalidJSON represents a message for invalid json
-	InvalidJSON          = "Invalid json provided"
-	restoreBackupSuccess = "Restore from backup completed successfully!"
-	importSuccess        = "Import finished successfully!"
-	backupSuccess        = "Backup completed successfully!"
+	InvalidJSON = "Invalid json provided"
+	//RestoreBackupSuccess represents a message when restoring from backap successfully
+	RestoreBackupSuccess = "Restore from backup completed successfully!"
+	//ImportSuccess represents when inporting successgully
+	ImportSuccess = "Import finished successfully!"
+	//BackupSuccess represents when backup completed successfully
+	BackupSuccess = "Backup completed successfully!"
 )
 
 // CheckUpdate generates new password
@@ -235,7 +238,7 @@ func Restore(s storage.Store) http.HandlerFunc {
 			s.Logins().Save(login, schema)
 		}
 
-		response := model.Response{Code: http.StatusOK, Status: Success, Message: restoreBackupSuccess}
+		response := model.Response{Code: http.StatusOK, Status: Success, Message: RestoreBackupSuccess}
 		RespondWithJSON(w, http.StatusOK, response)
 	}
 }

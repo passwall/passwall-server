@@ -15,7 +15,8 @@ import (
 const (
 	// InvalidRequestPayload represents invalid request payload messaage
 	InvalidRequestPayload = "Invalid request payload"
-	creditCardDeleted     = "CreditCard deleted successfully!"
+	// CreditCardDeleted represents message when deleting credit cart successfully
+	CreditCardDeleted = "CreditCard deleted successfully!"
 	// Success represent success message
 	Success = "Success"
 )

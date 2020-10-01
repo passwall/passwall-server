@@ -9,7 +9,7 @@ import (
 var (
 	//Port representd a server port
 	Port = "3625"
-	//ServerAddress represents a server address
+	//ServerAddress represents a server addres
 	ServerAddress = "0.0.0.0" + ":" + Port
 )
 

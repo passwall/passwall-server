@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	noteDeleteSuccess = "Note deleted successfully!"
+	// NoteDeleteSuccess represent message when deleting note successfully
+	NoteDeleteSuccess = "Note deleted successfully!"
 )
 
 // FindAllNotes finds all notes

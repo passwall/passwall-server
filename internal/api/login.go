@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	loginDeleteSuccess = "Login deleted successfully!"
+	// LoginDeleteSuccess represents message when deleting login successfully
+	LoginDeleteSuccess = "Login deleted successfully!"
 )
 
 // FindAllLogins finds all logins
