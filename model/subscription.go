@@ -71,6 +71,7 @@ func RequestToSub(r *http.Request) *Subscription {
 	}
 }
 
+//SubscriptionDTO DTO object for Subscription type
 type SubscriptionDTO struct {
 	ID             uint      `gorm:"primary_key" json:"id"`
 	CancelledAt    time.Time `json:"cancelled_at"`

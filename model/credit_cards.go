@@ -18,6 +18,7 @@ type CreditCard struct {
 	ExpiryDate         string     `json:"expiry_date" encrypt:"true"`
 }
 
+//CreditCardDTO DTO object for CreditCard type
 type CreditCardDTO struct {
 	ID                 uint   `json:"id"`
 	CardName           string `json:"card_name"`
