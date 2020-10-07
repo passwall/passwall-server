@@ -151,6 +151,8 @@ type SubscriptionRepository interface {
 	FindAll(argsStr map[string]string, argsInt map[string]int) ([]model.Subscription, error)
 	// FindByID finds the entity regarding to its ID.
 	FindByID(id uint) (*model.Subscription, error)
+	// FindByEmail finds the entity regarding to its email.
+	FindByEmail(email string) (*model.Subscription, error)
 	// FindBySubscriptionID finds the entity regarding to its Subscription ID.
 	FindBySubscriptionID(id uint) (*model.Subscription, error)
 	// Save stores the entity to the repository

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/go-playground/validator/v10"
@@ -147,7 +146,6 @@ func Confirm(s storage.Store) http.HandlerFunc {
 
 		userDTO := model.ToUserDTO(usr)
 		userDTO.MasterPassword = "" // Fix for not to update password
-		userDTO.EmailVerifiedAt = time.Now()
 
 		_, err = app.UpdateUser(s, usr, userDTO, false)
 		if err != nil {
@@ -171,8 +169,6 @@ func Confirm(s storage.Store) http.HandlerFunc {
 // Signin ...
 func Signin(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		validate := validator.New()
-
 		var loginDTO model.AuthLoginDTO
 
 		// get loginDTO
@@ -184,6 +180,7 @@ func Signin(s storage.Store) http.HandlerFunc {
 		defer r.Body.Close()
 
 		// validate struct
+		validate := validator.New()
 		validateError := validate.Struct(loginDTO)
 		if validateError != nil {
 			errs := GetErrors(validateError.(validator.ValidationErrors))
@@ -204,6 +201,9 @@ func Signin(s storage.Store) http.HandlerFunc {
 			return
 		}
 
+		// Check if user has an active subscription
+		subscription, _ := s.Subscriptions().FindByEmail(user.Email)
+
 		//create token
 		token, err := app.CreateToken(user)
 		if err != nil {
@@ -223,6 +223,7 @@ func Signin(s storage.Store) http.HandlerFunc {
 			RefreshToken:    token.RefreshToken,
 			TransmissionKey: token.TransmissionKey,
 			UserDTO:         model.ToUserDTO(user),
+			SubscriptionDTO: model.ToSubscriptionDTO(subscription),
 		}
 
 		RespondWithJSON(w, 200, authLoginResponse)

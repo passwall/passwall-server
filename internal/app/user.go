@@ -20,8 +20,7 @@ func CreateUser(s storage.Store, userDTO *model.UserDTO) (*model.User, error) {
 	if err != nil {
 		return nil, err
 	}
-	// New user's plan is Free and role is Member (not Admin)
-	userDTO.Plan = "Free"
+	// New user's role is Member (not Admin)
 	userDTO.Role = "Member"
 
 	// Generate new UUID for user
@@ -48,15 +47,11 @@ func UpdateUser(s storage.Store, user *model.User, userDTO *model.UserDTO, isAut
 	user.Name = userDTO.Name
 	user.Email = userDTO.Email
 	user.MasterPassword = userDTO.MasterPassword
-	if !userDTO.EmailVerifiedAt.IsZero() {
-		user.EmailVerifiedAt = userDTO.EmailVerifiedAt
-	}
 	// This never changes
 	user.Schema = fmt.Sprintf("user%d", user.ID)
 
-	// Only Admin's can change plan and role
+	// Only Admin's can change role
 	if isAuthorized {
-		user.Plan = userDTO.Plan
 		user.Role = userDTO.Role
 	}
 

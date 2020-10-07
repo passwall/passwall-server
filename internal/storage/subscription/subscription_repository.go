@@ -50,6 +50,13 @@ func (p *Repository) FindByID(id uint) (*model.Subscription, error) {
 	return subscription, err
 }
 
+// FindByEmail ...
+func (p *Repository) FindByEmail(email string) (*model.Subscription, error) {
+	subscription := new(model.Subscription)
+	err := p.db.Where(`email = ?`, email).First(&subscription).Error
+	return subscription, err
+}
+
 // FindBySubscriptionID ...
 func (p *Repository) FindBySubscriptionID(id uint) (*model.Subscription, error) {
 	subscription := new(model.Subscription)
