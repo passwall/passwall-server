@@ -20,6 +20,7 @@ type Subscription struct {
 	SubscriptionID int        `json:"subscription_id"`
 	PlanID         int        `json:"plan_id"`
 	UserID         int        `json:"user_id"`
+	Email          string     `json:"email"`
 	Status         string     `json:"status"`
 	NextBillDate   time.Time  `json:"next_bill_date"`
 	UpdateURL      string     `json:"update_url"`
@@ -61,6 +62,7 @@ func FromCreToSub(subscriptionCreated *SubscriptionCreated) *Subscription {
 		SubscriptionID: subID,
 		PlanID:         planID,
 		UserID:         userID,
+		Email:          subscriptionCreated.Email,
 		Status:         subscriptionCreated.Status,
 		NextBillDate:   nextBillDate,
 		UpdateURL:      subscriptionCreated.UpdateURL,
@@ -74,6 +76,7 @@ type SubscriptionDTO struct {
 	SubscriptionID int       `json:"subscription_id"`
 	PlanID         int       `json:"plan_id"`
 	UserID         int       `json:"user_id"`
+	Email          string    `json:"email"`
 	Status         string    `json:"status"`
 	NextBillDate   time.Time `json:"next_bill_date"`
 	UpdateURL      string    `json:"update_url"`
@@ -88,6 +91,7 @@ func ToSubscription(subscriptionDTO *SubscriptionDTO) *Subscription {
 		SubscriptionID: subscriptionDTO.SubscriptionID,
 		PlanID:         subscriptionDTO.PlanID,
 		UserID:         subscriptionDTO.UserID,
+		Email:          subscriptionDTO.Email,
 		Status:         subscriptionDTO.Status,
 		NextBillDate:   subscriptionDTO.NextBillDate,
 		UpdateURL:      subscriptionDTO.UpdateURL,
@@ -103,6 +107,7 @@ func ToSubscriptionDTO(subscription *Subscription) *SubscriptionDTO {
 		SubscriptionID: subscription.SubscriptionID,
 		PlanID:         subscription.PlanID,
 		UserID:         subscription.UserID,
+		Email:          subscription.Email,
 		Status:         subscription.Status,
 		NextBillDate:   subscription.NextBillDate,
 		UpdateURL:      subscription.UpdateURL,
