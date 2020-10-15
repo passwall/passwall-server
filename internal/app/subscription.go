@@ -10,9 +10,9 @@ import (
 )
 
 // CreateServer creates a server and saves it to the store
-func CreateSubscription(s storage.Store, subHook *model.SubscriptionHook) (int, string) {
+func CreateSubscription(s storage.Store, r *http.Request) (int, string) {
 
-	subID, err := strconv.Atoi(subHook.SubscriptionID)
+	subID, err := strconv.Atoi(r.FormValue("subscription_id"))
 	if err != nil {
 		return http.StatusBadRequest, err.Error()
 	}
@@ -23,7 +23,7 @@ func CreateSubscription(s storage.Store, subHook *model.SubscriptionHook) (int, 
 		return http.StatusBadRequest, message
 	}
 
-	_, err = s.Subscriptions().Save(model.FromCreToSub(subHook))
+	_, err = s.Subscriptions().Save(model.RequestToSub(r))
 	if err != nil {
 		return http.StatusInternalServerError, err.Error()
 	}
@@ -31,18 +31,18 @@ func CreateSubscription(s storage.Store, subHook *model.SubscriptionHook) (int, 
 	return http.StatusOK, "Subscription created successfully."
 }
 
-func UpdateSubscription(s storage.Store, subHook *model.SubscriptionHook) (int, string) {
-	subID, err := strconv.Atoi(subHook.SubscriptionID)
+func UpdateSubscription(s storage.Store, r *http.Request) (int, string) {
+	subID, err := strconv.Atoi(r.FormValue("subscription_id"))
 	if err != nil {
 		return http.StatusBadRequest, err.Error()
 	}
 
-	planID, err := strconv.Atoi(subHook.SubscriptionPlanID)
+	planID, err := strconv.Atoi(r.FormValue("subscription_plan_id"))
 	if err != nil {
 		return http.StatusBadRequest, err.Error()
 	}
 
-	nextBillDate, err := time.Parse("2006-01-02", subHook.NextBillDate)
+	nextBillDate, err := time.Parse("2006-01-02", r.FormValue("next_bill_date"))
 	if err != nil {
 		return http.StatusBadRequest, err.Error()
 	}
@@ -54,7 +54,7 @@ func UpdateSubscription(s storage.Store, subHook *model.SubscriptionHook) (int, 
 
 	subscription.PlanID = planID
 	subscription.NextBillDate = nextBillDate
-	subscription.Status = subHook.Status
+	subscription.Status = r.FormValue("status")
 
 	_, err = s.Subscriptions().Save(subscription)
 	if err != nil {
@@ -64,8 +64,8 @@ func UpdateSubscription(s storage.Store, subHook *model.SubscriptionHook) (int, 
 	return http.StatusOK, "Subscription updated successfully."
 }
 
-func CancelSubscription(s storage.Store, subHook *model.SubscriptionHook) (int, string) {
-	subID, err := strconv.Atoi(subHook.SubscriptionID)
+func CancelSubscription(s storage.Store, r *http.Request) (int, string) {
+	subID, err := strconv.Atoi(r.FormValue("subscription_id"))
 	if err != nil {
 		return http.StatusBadRequest, err.Error()
 	}
@@ -81,7 +81,7 @@ func CancelSubscription(s storage.Store, subHook *model.SubscriptionHook) (int, 
 	}
 
 	subscription.NextBillDate = nextBillDate
-	subscription.Status = subHook.Status
+	subscription.Status = r.FormValue("status")
 	subscription.CancelledAt = time.Now()
 
 	_, err = s.Subscriptions().Save(subscription)
@@ -92,13 +92,13 @@ func CancelSubscription(s storage.Store, subHook *model.SubscriptionHook) (int, 
 	return http.StatusOK, "Subscription cancelled."
 }
 
-func PaymentSucceedSubscription(s storage.Store, subHook *model.SubscriptionHook) (int, string) {
-	subID, err := strconv.Atoi(subHook.SubscriptionID)
+func PaymentSucceedSubscription(s storage.Store, r *http.Request) (int, string) {
+	subID, err := strconv.Atoi(r.FormValue("subscription_id"))
 	if err != nil {
 		return http.StatusBadRequest, err.Error()
 	}
 
-	nextBillDate, err := time.Parse("2006-01-02", subHook.NextBillDate)
+	nextBillDate, err := time.Parse("2006-01-02", r.FormValue("next_bill_date"))
 	if err != nil {
 		return http.StatusBadRequest, err.Error()
 	}
@@ -118,8 +118,8 @@ func PaymentSucceedSubscription(s storage.Store, subHook *model.SubscriptionHook
 	return http.StatusOK, "Subscription payment succeeded."
 }
 
-func PaymentFailedSubscription(s storage.Store, subHook *model.SubscriptionHook) (int, string) {
-	subID, err := strconv.Atoi(subHook.SubscriptionID)
+func PaymentFailedSubscription(s storage.Store, r *http.Request) (int, string) {
+	subID, err := strconv.Atoi(r.FormValue("subscription_id"))
 	if err != nil {
 		return http.StatusBadRequest, err.Error()
 	}

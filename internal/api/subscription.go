@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -35,28 +34,25 @@ func PostSubscription(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		subHook := new(model.SubscriptionHook)
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&subHook); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+		if err := r.ParseForm(); err != nil {
+			RespondWithError(w, http.StatusBadRequest, "Could not parse form.")
 			return
 		}
-		defer r.Body.Close()
 
 		var code int
 		var msg string
 
-		switch subHook.AlertName {
+		switch r.FormValue("alert_name") {
 		case "subscription_created":
-			code, msg = app.CreateSubscription(s, subHook)
+			code, msg = app.CreateSubscription(s, r)
 		case "subscription_updated":
-			code, msg = app.UpdateSubscription(s, subHook)
+			code, msg = app.UpdateSubscription(s, r)
 		case "subscription_cancelled":
-			code, msg = app.CancelSubscription(s, subHook)
+			code, msg = app.CancelSubscription(s, r)
 		case "subscription_payment_succeeded":
-			code, msg = app.PaymentSucceedSubscription(s, subHook)
+			code, msg = app.PaymentSucceedSubscription(s, r)
 		case "subscription_payment_failed":
-			code, msg = app.PaymentFailedSubscription(s, subHook)
+			code, msg = app.PaymentFailedSubscription(s, r)
 		default:
 			RespondWithError(w, http.StatusBadRequest, "Invalid resquest")
 			return

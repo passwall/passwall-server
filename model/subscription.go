@@ -1,6 +1,7 @@
 package model
 
 import (
+	"net/http"
 	"strconv"
 	"time"
 )
@@ -51,22 +52,22 @@ type SubscriptionHook struct {
 }
 
 // ToSubscription ...
-func FromCreToSub(subscriptionCreated *SubscriptionHook) *Subscription {
-	subID, _ := strconv.Atoi(subscriptionCreated.SubscriptionID)
-	planID, _ := strconv.Atoi(subscriptionCreated.SubscriptionPlanID)
-	userID, _ := strconv.Atoi(subscriptionCreated.UserID)
+func RequestToSub(r *http.Request) *Subscription {
+	subID, _ := strconv.Atoi(r.FormValue("subscription_id"))
+	planID, _ := strconv.Atoi(r.FormValue("subscription_plan_id"))
+	userID, _ := strconv.Atoi(r.FormValue("user_id"))
 
-	nextBillDate, _ := time.Parse("2006-01-02", subscriptionCreated.NextBillDate)
+	nextBillDate, _ := time.Parse("2006-01-02", r.FormValue("next_bill_date"))
 
 	return &Subscription{
 		SubscriptionID: subID,
 		PlanID:         planID,
 		UserID:         userID,
-		Email:          subscriptionCreated.Email,
-		Status:         subscriptionCreated.Status,
+		Email:          r.FormValue("email"),
+		Status:         r.FormValue("status"),
 		NextBillDate:   nextBillDate,
-		UpdateURL:      subscriptionCreated.UpdateURL,
-		CancelURL:      subscriptionCreated.CancelURL,
+		UpdateURL:      r.FormValue("update_url"),
+		CancelURL:      r.FormValue("cancel_url"),
 	}
 }
 
