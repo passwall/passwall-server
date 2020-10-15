@@ -27,7 +27,7 @@ type Subscription struct {
 	CancelURL      string     `json:"cancel_url"`
 }
 
-type SubscriptionCreated struct {
+type SubscriptionHook struct {
 	AlertID             string `json:"alert_id"`
 	AlertName           string `json:"alert_name"`
 	CancelURL           string `json:"cancel_url"`
@@ -51,7 +51,7 @@ type SubscriptionCreated struct {
 }
 
 // ToSubscription ...
-func FromCreToSub(subscriptionCreated *SubscriptionCreated) *Subscription {
+func FromCreToSub(subscriptionCreated *SubscriptionHook) *Subscription {
 	subID, _ := strconv.Atoi(subscriptionCreated.SubscriptionID)
 	planID, _ := strconv.Atoi(subscriptionCreated.SubscriptionPlanID)
 	userID, _ := strconv.Atoi(subscriptionCreated.UserID)

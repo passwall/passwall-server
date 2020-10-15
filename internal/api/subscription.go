@@ -1,10 +1,8 @@
 package api
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"strconv"
 
@@ -37,39 +35,28 @@ func PostSubscription(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// Read request body as byte[]
-		bodyBytes, err := ioutil.ReadAll(r.Body)
-		if err != nil {
+		subHook := new(model.SubscriptionHook)
+		decoder := json.NewDecoder(r.Body)
+		if err := decoder.Decode(&subHook); err != nil {
 			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 			return
 		}
-		r.Body.Close()
-
-		// Convert body byte[] to map
-		bodyMap := make(map[string]string)
-		err = json.Unmarshal(bodyBytes, &bodyMap)
-		if err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
-			return
-		}
-
-		// Generate body again for alert type
-		r.Body = ioutil.NopCloser(bytes.NewBuffer(bodyBytes))
+		defer r.Body.Close()
 
 		var code int
 		var msg string
 
-		switch bodyMap["alert_name"] {
+		switch subHook.AlertName {
 		case "subscription_created":
-			code, msg = app.CreateSubscription(s, r)
+			code, msg = app.CreateSubscription(s, subHook)
 		case "subscription_updated":
-			code, msg = app.UpdateSubscription(s, bodyMap)
+			code, msg = app.UpdateSubscription(s, subHook)
 		case "subscription_cancelled":
-			code, msg = app.CancelSubscription(s, bodyMap)
+			code, msg = app.CancelSubscription(s, subHook)
 		case "subscription_payment_succeeded":
-			code, msg = app.PaymentSucceedSubscription(s, bodyMap)
+			code, msg = app.PaymentSucceedSubscription(s, subHook)
 		case "subscription_payment_failed":
-			code, msg = app.PaymentFailedSubscription(s, bodyMap)
+			code, msg = app.PaymentFailedSubscription(s, subHook)
 		default:
 			RespondWithError(w, http.StatusBadRequest, "Invalid resquest")
 			return

@@ -1,7 +1,6 @@
 package app
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
@@ -11,16 +10,9 @@ import (
 )
 
 // CreateServer creates a server and saves it to the store
-func CreateSubscription(s storage.Store, r *http.Request) (int, string) {
-	subscriptionCreated := new(model.SubscriptionCreated)
+func CreateSubscription(s storage.Store, subHook *model.SubscriptionHook) (int, string) {
 
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&subscriptionCreated); err != nil {
-		return http.StatusBadRequest, err.Error()
-	}
-	defer r.Body.Close()
-
-	subID, err := strconv.Atoi(subscriptionCreated.SubscriptionID)
+	subID, err := strconv.Atoi(subHook.SubscriptionID)
 	if err != nil {
 		return http.StatusBadRequest, err.Error()
 	}
@@ -31,7 +23,7 @@ func CreateSubscription(s storage.Store, r *http.Request) (int, string) {
 		return http.StatusBadRequest, message
 	}
 
-	_, err = s.Subscriptions().Save(model.FromCreToSub(subscriptionCreated))
+	_, err = s.Subscriptions().Save(model.FromCreToSub(subHook))
 	if err != nil {
 		return http.StatusInternalServerError, err.Error()
 	}
@@ -39,18 +31,18 @@ func CreateSubscription(s storage.Store, r *http.Request) (int, string) {
 	return http.StatusOK, "Subscription created successfully."
 }
 
-func UpdateSubscription(s storage.Store, bodyMap map[string]string) (int, string) {
-	subID, err := strconv.Atoi(bodyMap["subscription_id"])
+func UpdateSubscription(s storage.Store, subHook *model.SubscriptionHook) (int, string) {
+	subID, err := strconv.Atoi(subHook.SubscriptionID)
 	if err != nil {
 		return http.StatusBadRequest, err.Error()
 	}
 
-	planID, err := strconv.Atoi(bodyMap["subscription_plan_id"])
+	planID, err := strconv.Atoi(subHook.SubscriptionPlanID)
 	if err != nil {
 		return http.StatusBadRequest, err.Error()
 	}
 
-	nextBillDate, err := time.Parse("2006-01-02", bodyMap["next_bill_date"])
+	nextBillDate, err := time.Parse("2006-01-02", subHook.NextBillDate)
 	if err != nil {
 		return http.StatusBadRequest, err.Error()
 	}
@@ -62,7 +54,7 @@ func UpdateSubscription(s storage.Store, bodyMap map[string]string) (int, string
 
 	subscription.PlanID = planID
 	subscription.NextBillDate = nextBillDate
-	subscription.Status = bodyMap["status"]
+	subscription.Status = subHook.Status
 
 	_, err = s.Subscriptions().Save(subscription)
 	if err != nil {
@@ -72,8 +64,8 @@ func UpdateSubscription(s storage.Store, bodyMap map[string]string) (int, string
 	return http.StatusOK, "Subscription updated successfully."
 }
 
-func CancelSubscription(s storage.Store, bodyMap map[string]string) (int, string) {
-	subID, err := strconv.Atoi(bodyMap["subscription_id"])
+func CancelSubscription(s storage.Store, subHook *model.SubscriptionHook) (int, string) {
+	subID, err := strconv.Atoi(subHook.SubscriptionID)
 	if err != nil {
 		return http.StatusBadRequest, err.Error()
 	}
@@ -89,7 +81,7 @@ func CancelSubscription(s storage.Store, bodyMap map[string]string) (int, string
 	}
 
 	subscription.NextBillDate = nextBillDate
-	subscription.Status = bodyMap["status"]
+	subscription.Status = subHook.Status
 	subscription.CancelledAt = time.Now()
 
 	_, err = s.Subscriptions().Save(subscription)
@@ -100,13 +92,13 @@ func CancelSubscription(s storage.Store, bodyMap map[string]string) (int, string
 	return http.StatusOK, "Subscription cancelled."
 }
 
-func PaymentSucceedSubscription(s storage.Store, bodyMap map[string]string) (int, string) {
-	subID, err := strconv.Atoi(bodyMap["subscription_id"])
+func PaymentSucceedSubscription(s storage.Store, subHook *model.SubscriptionHook) (int, string) {
+	subID, err := strconv.Atoi(subHook.SubscriptionID)
 	if err != nil {
 		return http.StatusBadRequest, err.Error()
 	}
 
-	nextBillDate, err := time.Parse("2006-01-02", bodyMap["next_bill_date"])
+	nextBillDate, err := time.Parse("2006-01-02", subHook.NextBillDate)
 	if err != nil {
 		return http.StatusBadRequest, err.Error()
 	}
@@ -126,8 +118,8 @@ func PaymentSucceedSubscription(s storage.Store, bodyMap map[string]string) (int
 	return http.StatusOK, "Subscription payment succeeded."
 }
 
-func PaymentFailedSubscription(s storage.Store, bodyMap map[string]string) (int, string) {
-	subID, err := strconv.Atoi(bodyMap["subscription_id"])
+func PaymentFailedSubscription(s storage.Store, subHook *model.SubscriptionHook) (int, string) {
+	subID, err := strconv.Atoi(subHook.SubscriptionID)
 	if err != nil {
 		return http.StatusBadRequest, err.Error()
 	}
