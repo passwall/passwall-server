@@ -214,7 +214,7 @@ func DeleteCreditCard(s storage.Store) http.HandlerFunc {
 		response := model.Response{
 			Code:    http.StatusOK,
 			Status:  Success,
-			Message: creditCardDeleted,
+			Message: CreditCardDeleted,
 		}
 		RespondWithJSON(w, http.StatusOK, response)
 	}
