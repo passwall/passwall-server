@@ -31,9 +31,8 @@ func CreateSubscription(s storage.Store, r *http.Request) (int, string) {
 	return http.StatusOK, "Subscription created successfully."
 }
 
-//UpdateSubscription updates a subscription
-func UpdateSubscription(s storage.Store, bodyMap map[string]string) (int, string) {
-	subID, err := strconv.Atoi(bodyMap["subscription_id"])
+func UpdateSubscription(s storage.Store, r *http.Request) (int, string) {
+	subID, err := strconv.Atoi(r.FormValue("subscription_id"))
 	if err != nil {
 		return http.StatusBadRequest, err.Error()
 	}
@@ -65,9 +64,8 @@ func UpdateSubscription(s storage.Store, bodyMap map[string]string) (int, string
 	return http.StatusOK, "Subscription updated successfully."
 }
 
-//CancelSubscription cancels a subscription
-func CancelSubscription(s storage.Store, bodyMap map[string]string) (int, string) {
-	subID, err := strconv.Atoi(bodyMap["subscription_id"])
+func CancelSubscription(s storage.Store, r *http.Request) (int, string) {
+	subID, err := strconv.Atoi(r.FormValue("subscription_id"))
 	if err != nil {
 		return http.StatusBadRequest, err.Error()
 	}
@@ -94,9 +92,8 @@ func CancelSubscription(s storage.Store, bodyMap map[string]string) (int, string
 	return http.StatusOK, "Subscription cancelled."
 }
 
-//PaymentSucceedSubscription payment succeed for subscription
-func PaymentSucceedSubscription(s storage.Store, bodyMap map[string]string) (int, string) {
-	subID, err := strconv.Atoi(bodyMap["subscription_id"])
+func PaymentSucceedSubscription(s storage.Store, r *http.Request) (int, string) {
+	subID, err := strconv.Atoi(r.FormValue("subscription_id"))
 	if err != nil {
 		return http.StatusBadRequest, err.Error()
 	}
@@ -121,9 +118,8 @@ func PaymentSucceedSubscription(s storage.Store, bodyMap map[string]string) (int
 	return http.StatusOK, "Subscription payment succeeded."
 }
 
-//PaymentFailedSubscription payment failed for subscription
-func PaymentFailedSubscription(s storage.Store, bodyMap map[string]string) (int, string) {
-	subID, err := strconv.Atoi(bodyMap["subscription_id"])
+func PaymentFailedSubscription(s storage.Store, r *http.Request) (int, string) {
+	subID, err := strconv.Atoi(r.FormValue("subscription_id"))
 	if err != nil {
 		return http.StatusBadRequest, err.Error()
 	}
