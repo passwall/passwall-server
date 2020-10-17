@@ -13,12 +13,15 @@ import (
 )
 
 const (
+	// InvalidRequestPayload represents invalid request payload messaage
 	InvalidRequestPayload = "Invalid request payload"
-	CreditCardDeleted     = "CreditCard deleted successfully!"
-	Success               = "Success"
+	// CreditCardDeleted represents message when deleting credit cart successfully
+	CreditCardDeleted = "CreditCard deleted successfully!"
+	// Success represent success message
+	Success = "Success"
 )
 
-// FindAll ...
+// FindAllCreditCards finds all credid carts
 func FindAllCreditCards(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
@@ -49,7 +52,7 @@ func FindAllCreditCards(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// FindByID ...
+// FindCreditCardByID finds a credit cart by id
 func FindCreditCardByID(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
@@ -89,7 +92,7 @@ func FindCreditCardByID(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// Create ...
+// CreateCreditCard creates a credit cart
 func CreateCreditCard(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
@@ -130,7 +133,7 @@ func CreateCreditCard(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// Update ...
+// UpdateCreditCard updates a credit cart
 func UpdateCreditCard(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
@@ -185,7 +188,7 @@ func UpdateCreditCard(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// Delete ...
+// DeleteCreditCard deletes a credit cart
 func DeleteCreditCard(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)

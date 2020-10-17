@@ -8,6 +8,7 @@ type Backup struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+//RestoreDTO file name for restore
 type RestoreDTO struct {
 	Name string `json:"name"`
 }

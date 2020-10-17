@@ -14,6 +14,7 @@ import (
 )
 
 const (
+	//SubscriptionDeleteSuccess represents message when deletind subscription successfully
 	SubscriptionDeleteSuccess = "Subscription deleted successfully!"
 )
 

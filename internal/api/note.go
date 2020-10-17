@@ -13,10 +13,10 @@ import (
 )
 
 const (
-	NoteDeleteSuccess = "Note deleted successfully!"
+	noteDeleteSuccess = "Note deleted successfully!"
 )
 
-// FindAll ...
+// FindAllNotes finds all notes
 func FindAllNotes(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
@@ -47,7 +47,7 @@ func FindAllNotes(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// FindByID ...
+// FindNoteByID finds a note by id
 func FindNoteByID(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
@@ -87,7 +87,7 @@ func FindNoteByID(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// Create ...
+// CreateNote creates a note
 func CreateNote(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
@@ -128,7 +128,7 @@ func CreateNote(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// Update ...
+// UpdateNote updates a note
 func UpdateNote(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
@@ -183,7 +183,7 @@ func UpdateNote(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// DeleteNote ...
+// DeleteNote deletes a note
 func DeleteNote(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
@@ -209,7 +209,7 @@ func DeleteNote(s storage.Store) http.HandlerFunc {
 		response := model.Response{
 			Code:    http.StatusOK,
 			Status:  Success,
-			Message: NoteDeleteSuccess,
+			Message: noteDeleteSuccess,
 		}
 		RespondWithJSON(w, http.StatusOK, response)
 	}

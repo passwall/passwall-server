@@ -19,13 +19,17 @@ import (
 )
 
 const (
-	InvalidJSON          = "Invalid json provided"
+	//InvalidJSON represents a message for invalid json
+	InvalidJSON = "Invalid json provided"
+	//RestoreBackupSuccess represents a message when restoring from backap successfully
 	RestoreBackupSuccess = "Restore from backup completed successfully!"
-	ImportSuccess        = "Import finished successfully!"
-	BackupSuccess        = "Backup completed successfully!"
+	//ImportSuccess represents when inporting successgully
+	ImportSuccess = "Import finished successfully!"
+	//BackupSuccess represents when backup completed successfully
+	BackupSuccess = "Backup completed successfully!"
 )
 
-// GeneratePassword generates new password
+// CheckUpdate generates new password
 func CheckUpdate(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	product := vars["product"]
@@ -37,14 +41,14 @@ func CheckUpdate(w http.ResponseWriter, r *http.Request) {
 
 	type Update struct {
 		LatestVersion string `json:"latest_version"`
-		DownloadUrl   string `json:"download_url"`
-		ProductUrl    string `json:"product_url"`
+		DownloadURL   string `json:"download_url"`
+		ProductURL    string `json:"product_url"`
 	}
 
 	update := Update{
 		LatestVersion: "0.1.4",
-		DownloadUrl:   "https://passwall.io/download/passwall-macos/",
-		ProductUrl:    "https://signup.passwall.io",
+		DownloadURL:   "https://passwall.io/download/passwall-macos/",
+		ProductURL:    "https://signup.passwall.io",
 	}
 
 	RespondWithJSON(w, http.StatusOK, update)
@@ -126,7 +130,7 @@ func Language(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// Create ...
+// Import ...
 func Import(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var payloadList []model.Payload
@@ -234,7 +238,7 @@ func Restore(s storage.Store) http.HandlerFunc {
 			s.Logins().Save(login, schema)
 		}
 
-		response := model.Response{http.StatusOK, Success, RestoreBackupSuccess}
+		response := model.Response{Code: http.StatusOK, Status: Success, Message: RestoreBackupSuccess}
 		RespondWithJSON(w, http.StatusOK, response)
 	}
 }

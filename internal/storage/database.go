@@ -31,6 +31,7 @@ type Database struct {
 	subscriptions SubscriptionRepository
 }
 
+//DBConn databese connection
 func DBConn(cfg *config.DatabaseConfiguration) (*gorm.DB, error) {
 	var db *gorm.DB
 	var err error
