@@ -57,6 +57,11 @@ func RequestToSub(r *http.Request) *Subscription {
 	planID, _ := strconv.Atoi(r.FormValue("subscription_plan_id"))
 	userID, _ := strconv.Atoi(r.FormValue("user_id"))
 
+	status := r.FormValue("status")
+	if r.FormValue("status") == "trialing" {
+		status = "active"
+	}
+
 	nextBillDate, _ := time.Parse("2006-01-02", r.FormValue("next_bill_date"))
 
 	return &Subscription{
@@ -64,7 +69,7 @@ func RequestToSub(r *http.Request) *Subscription {
 		PlanID:         planID,
 		UserID:         userID,
 		Email:          r.FormValue("email"),
-		Status:         r.FormValue("status"),
+		Status:         status,
 		NextBillDate:   nextBillDate,
 		UpdateURL:      r.FormValue("update_url"),
 		CancelURL:      r.FormValue("cancel_url"),
