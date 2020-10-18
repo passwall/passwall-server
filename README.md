@@ -81,12 +81,6 @@ go run ./cmd/passwall-server
 ```
 docker-compose up --build
 ```
-or in project folder
-```
-docker pull passwall/passwall-server
-cp ./store/config-sample.yml ./store/config.yml
-docker run --name passwall-server --rm -v $(pwd)/store:/app/store -p 3625:3625 passwall/passwall-server
-```
 
 ## Hello Contributors
 

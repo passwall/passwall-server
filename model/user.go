@@ -25,14 +25,15 @@ type User struct {
 
 //UserDTO DTO object for User type
 type UserDTO struct {
-	ID             uint      `json:"id"`
-	UUID           uuid.UUID `json:"uuid"`
-	Name           string    `json:"name" validate:"max=100"`
-	Email          string    `json:"email" validate:"required,email"`
-	MasterPassword string    `json:"master_password" validate:"required,max=100,min=6"`
-	Secret         string    `json:"secret"`
-	Schema         string    `json:"schema"`
-	Role           string    `json:"role"`
+	ID              uint      `json:"id"`
+	UUID            uuid.UUID `json:"uuid"`
+	Name            string    `json:"name" validate:"max=100"`
+	Email           string    `json:"email" validate:"required,email"`
+	MasterPassword  string    `json:"master_password" validate:"required,max=100,min=6"`
+	Secret          string    `json:"secret"`
+	Schema          string    `json:"schema"`
+	Role            string    `json:"role"`
+	EmailVerifiedAt time.Time `json:"email_verified_at"`
 }
 
 //UserDTOTable ...
@@ -48,14 +49,15 @@ type UserDTOTable struct {
 // ToUser ...
 func ToUser(userDTO *UserDTO) *User {
 	return &User{
-		ID:             userDTO.ID,
-		UUID:           userDTO.UUID,
-		Name:           userDTO.Name,
-		Email:          userDTO.Email,
-		MasterPassword: userDTO.MasterPassword,
-		Secret:         userDTO.Secret,
-		Schema:         userDTO.Schema,
-		Role:           userDTO.Role,
+		ID:              userDTO.ID,
+		UUID:            userDTO.UUID,
+		Name:            userDTO.Name,
+		Email:           userDTO.Email,
+		MasterPassword:  userDTO.MasterPassword,
+		Secret:          userDTO.Secret,
+		Schema:          userDTO.Schema,
+		Role:            userDTO.Role,
+		EmailVerifiedAt: userDTO.EmailVerifiedAt,
 	}
 }
 

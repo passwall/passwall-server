@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/go-playground/validator/v10"
@@ -146,6 +147,7 @@ func Confirm(s storage.Store) http.HandlerFunc {
 
 		userDTO := model.ToUserDTO(usr)
 		userDTO.MasterPassword = "" // Fix for not to update password
+		userDTO.EmailVerifiedAt = time.Now()
 
 		_, err = app.UpdateUser(s, usr, userDTO, false)
 		if err != nil {
