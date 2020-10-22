@@ -70,21 +70,12 @@ func CancelSubscription(s storage.Store, r *http.Request) (int, string) {
 		return http.StatusBadRequest, err.Error()
 	}
 
-	nextBillDate, err := time.Parse("2006-01-02", "0001-01-01")
-	if err != nil {
-		return http.StatusBadRequest, err.Error()
-	}
-
 	subscription, err := s.Subscriptions().FindBySubscriptionID(uint(subID))
 	if err != nil {
 		return http.StatusNotFound, err.Error()
 	}
 
-	subscription.NextBillDate = nextBillDate
-	subscription.Status = r.FormValue("status")
-	subscription.CancelledAt = time.Now()
-
-	_, err = s.Subscriptions().Save(subscription)
+	err = s.Subscriptions().Delete(subscription.ID)
 	if err != nil {
 		return http.StatusInternalServerError, err.Error()
 	}

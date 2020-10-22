@@ -15,7 +15,7 @@ services:
   
   passwall-server:
     container_name: passwall-server
-    image: passwall-server
+    image: passwall/passwall-server:latest
     restart: always
     environment:
       - PW_DB_NAME=passwall
