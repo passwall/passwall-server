@@ -9,7 +9,7 @@ import (
 
 // LimitHandler ...
 func LimitHandler() negroni.HandlerFunc {
-	lmt := tollbooth.NewLimiter(1, nil)
+	lmt := tollbooth.NewLimiter(5, nil)
 
 	return negroni.HandlerFunc(func(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		httpError := tollbooth.LimitByRequest(lmt, w, r)
