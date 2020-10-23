@@ -35,11 +35,7 @@ type Database struct {
 func DBConn(cfg *config.DatabaseConfiguration) (*gorm.DB, error) {
 	var db *gorm.DB
 	var err error
-	fmt.Println(cfg.Host)
-	fmt.Println(cfg.Port)
-	fmt.Println(cfg.Username)
-	fmt.Println(cfg.Name)
-	fmt.Println(cfg.Password)
+
 	db, err = gorm.Open("postgres", "host="+cfg.Host+" port="+cfg.Port+" user="+cfg.Username+" dbname="+cfg.Name+"  sslmode=disable password="+cfg.Password)
 	if err != nil {
 		return nil, fmt.Errorf("could not open postgresql connection: %w", err)
