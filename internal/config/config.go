@@ -146,8 +146,9 @@ func bindEnvs() {
 	viper.BindEnv("email.port", "PW_EMAIL_PORT")
 	viper.BindEnv("email.username", "PW_EMAIL_USERNAME")
 	viper.BindEnv("email.password", "PW_EMAIL_PASSWORD")
-	viper.BindEnv("email.from", "PW_EMAIL_FROM")
-	viper.BindEnv("email.admin", "PW_EMAIL_ADMIN")
+	viper.BindEnv("email.fromEmail", "PW_EMAIL_FROM_EMAIL")
+	viper.BindEnv("email.fromName", "PW_EMAIL_FROM_NAME")
+	viper.BindEnv("email.apiKey", "PW_EMAIL_API_KEY")
 
 	viper.BindEnv("backup.folder", "PW_BACKUP_FOLDER")
 	viper.BindEnv("backup.rotation", "PW_BACKUP_ROTATION")
@@ -180,8 +181,9 @@ func setDefaults() {
 	viper.SetDefault("email.port", "25")
 	viper.SetDefault("email.username", "hello@passwall.io")
 	viper.SetDefault("email.password", "password")
-	viper.SetDefault("email.from", "hello@passwall.io")
-	viper.SetDefault("email.admin", "hello@passwall.io")
+	viper.SetDefault("email.fromName", "Passwall")
+	viper.SetDefault("email.fromEmail", "hello@passwall.io")
+	viper.SetDefault("email.apiKey", "apiKey")
 
 	// Backup defaults
 	viper.SetDefault("backup.folder", storeDirectory)

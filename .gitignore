@@ -5,7 +5,7 @@
 *.dll
 *.so
 *.dylib
-config.yml
+
 # Test binary, built with `go test -c`
 *.test
 
@@ -31,10 +31,6 @@ config.yml
 ##DS STORE##
 .DS_Store
 .DS_Store? 
-
-## SQLITE DATABASE ##
-/store/passwall.db
-/store/gpass.db
 
 ## BACKUP FILE ##
 /store/passwall-*.bak

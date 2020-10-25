@@ -16,6 +16,8 @@ import (
 )
 
 var (
+	userLoginErr   = "User email or master password is wrong."
+	userVerifyErr  = "Please verify your email first."
 	invalidUser    = "Invalid user"
 	validToken     = "Token is valid"
 	invalidToken   = "Token is expired or not valid!"
@@ -98,19 +100,25 @@ func Signup(s storage.Store) http.HandlerFunc {
 
 		// 8. Send email to admin adbout new user subscription
 		subject := "PassWall New User Subscription"
-
 		body := "PassWall has new a user. User details:\n\n"
 		body += "Name: " + userDTO.Name + "\n"
 		body += "Email: " + userDTO.Email + "\n"
-
-		go app.SendMail([]string{viper.GetString("email.admin")}, subject, body)
+		go app.SendMail(
+			userDTO.Name,
+			userDTO.Email,
+			subject,
+			body)
 
 		// 9. Send confirmation email to new user
+		confirmationSubject := "Passwall Email Confirmation"
 		confirmationBody := "Last step for use Passwall\n\n"
 		confirmationBody += "Confirmation link: " + viper.GetString("server.domain")
 		confirmationBody += "/auth/confirm/" + userDTO.Email + "/" + confirmationCode
-
-		go app.SendMail([]string{userDTO.Email}, "Passwall Email Confirmation", confirmationBody)
+		go app.SendMail(
+			userDTO.Name,
+			userDTO.Email,
+			confirmationSubject,
+			confirmationBody)
 
 		// Return success message
 		response := model.Response{
@@ -193,13 +201,13 @@ func Signin(s storage.Store) http.HandlerFunc {
 		// Check if user exist in database and credentials are true
 		user, err := s.Users().FindByCredentials(loginDTO.Email, loginDTO.MasterPassword)
 		if err != nil {
-			RespondWithError(w, http.StatusUnauthorized, err.Error())
+			RespondWithError(w, http.StatusUnauthorized, userLoginErr)
 			return
 		}
 
 		// Check if users email is verified
 		if user.EmailVerifiedAt.IsZero() {
-			RespondWithError(w, http.StatusUnauthorized, "Email is not verified!")
+			RespondWithError(w, http.StatusUnauthorized, userVerifyErr)
 			return
 		}
 

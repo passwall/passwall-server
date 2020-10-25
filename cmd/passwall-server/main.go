@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	_ "github.com/heroku/x/hmetrics/onload"
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/config"
 	"github.com/passwall/passwall-server/internal/router"
