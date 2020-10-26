@@ -10,7 +10,7 @@ type BankAccount struct {
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
 	DeletedAt     *time.Time `json:"deleted_at"`
-	BankName      string     `json:"bank_name"`
+	BankName      string     `json:"title"`
 	BankCode      string     `json:"bank_code"`
 	AccountName   string     `json:"account_name" encrypt:"true"`
 	AccountNumber string     `json:"account_number" encrypt:"true"`
@@ -22,7 +22,7 @@ type BankAccount struct {
 //BankAccountDTO DTO object for BankAccount type
 type BankAccountDTO struct {
 	ID            uint   `json:"id"`
-	BankName      string `json:"bank_name"`
+	BankName      string `json:"title"`
 	BankCode      string `json:"bank_code"`
 	AccountName   string `json:"account_name"`
 	AccountNumber string `json:"account_number"`

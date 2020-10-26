@@ -10,7 +10,7 @@ type CreditCard struct {
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
 	DeletedAt          *time.Time `json:"deleted_at"`
-	CardName           string     `json:"card_name"`
+	CardName           string     `json:"title"`
 	CardholderName     string     `json:"cardholder_name" encrypt:"true"`
 	Type               string     `json:"type" encrypt:"true"`
 	Number             string     `json:"number" encrypt:"true"`
@@ -21,7 +21,7 @@ type CreditCard struct {
 //CreditCardDTO DTO object for CreditCard type
 type CreditCardDTO struct {
 	ID                 uint   `json:"id"`
-	CardName           string `json:"card_name"`
+	CardName           string `json:"title"`
 	CardholderName     string `json:"cardholder_name"`
 	Type               string `json:"type"`
 	Number             string `json:"number"`
