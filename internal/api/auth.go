@@ -206,10 +206,10 @@ func Signin(s storage.Store) http.HandlerFunc {
 		}
 
 		// Check if users email is verified
-		if user.EmailVerifiedAt.IsZero() {
-			RespondWithError(w, http.StatusForbidden, userVerifyErr)
-			return
-		}
+		// if user.EmailVerifiedAt.IsZero() {
+		// 	RespondWithError(w, http.StatusForbidden, userVerifyErr)
+		// 	return
+		// }
 
 		// Check if user has an active subscription
 		subscription, _ := s.Subscriptions().FindByEmail(user.Email)
