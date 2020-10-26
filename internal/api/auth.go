@@ -207,7 +207,7 @@ func Signin(s storage.Store) http.HandlerFunc {
 
 		// Check if users email is verified
 		if user.EmailVerifiedAt.IsZero() {
-			RespondWithError(w, http.StatusUnauthorized, userVerifyErr)
+			RespondWithError(w, http.StatusForbidden, userVerifyErr)
 			return
 		}
 
