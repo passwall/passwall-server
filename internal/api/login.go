@@ -32,16 +32,6 @@ func FindAllLogins(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// Decrypt server side encrypted fields in loginList
-		for i := range loginList {
-			uLogin, err := app.DecryptModel(loginList[i])
-			if err != nil {
-				RespondWithError(w, http.StatusInternalServerError, err.Error())
-				return
-			}
-			loginList[i] = uLogin.(model.Login)
-		}
-
 		// Encrypt payload
 		var payload model.Payload
 		key := r.Context().Value("transmissionKey").(string)
