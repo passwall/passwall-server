@@ -29,10 +29,19 @@ func FindAllServers(s storage.Store) http.HandlerFunc {
 
 		schema := r.Context().Value("schema").(string)
 		serverList, err = s.Servers().FindAll(argsStr, argsInt, schema)
-
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
+		}
+
+		// Decrypt server side encrypted fields
+		for i := range serverList {
+			decServer, err := app.DecryptModel(&serverList[i])
+			if err != nil {
+				RespondWithError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			serverList[i] = *decServer.(*model.Server)
 		}
 
 		// Encrypt payload

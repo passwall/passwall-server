@@ -32,10 +32,19 @@ func FindAllCreditCards(s storage.Store) http.HandlerFunc {
 
 		schema := r.Context().Value("schema").(string)
 		creditCards, err = s.CreditCards().FindAll(argsStr, argsInt, schema)
-
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
+		}
+
+		// Decrypt server side encrypted fields
+		for i := range creditCards {
+			decCreditCard, err := app.DecryptModel(&creditCards[i])
+			if err != nil {
+				RespondWithError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			creditCards[i] = *decCreditCard.(*model.CreditCard)
 		}
 
 		// Encrypt payload
