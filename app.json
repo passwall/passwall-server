@@ -1,8 +1,0 @@
-{
-    "name": "Passwall API",
-    "description": "Open Source Password Manager API",
-    "repository": "https://github.com/passwall/passwall-server",
-    "logo": "https://avatars1.githubusercontent.com/u/63540685",
-    "keywords": ["go", "golang", "api","password manager","password","manager"]
-  }
-  
