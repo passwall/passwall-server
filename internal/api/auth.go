@@ -31,18 +31,7 @@ var (
 func Signup(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		// 0. API Key Check
-		keys, ok := r.URL.Query()["api_key"]
-
-		if !ok || len(keys[0]) < 1 {
-			RespondWithError(w, http.StatusBadRequest, "API Key is missing")
-			return
-		}
-
-		if keys[0] != viper.GetString("server.apiKey") {
-			RespondWithError(w, http.StatusUnauthorized, "API Key is wrong")
-			return
-		}
+		// 0. TODO: Add recaptcha check here
 
 		// 1. Decode request body to userDTO object
 		userDTO := new(model.UserDTO)
