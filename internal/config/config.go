@@ -134,6 +134,7 @@ func bindEnvs() {
 	viper.BindEnv("server.refreshTokenExpireDuration", "PW_SERVER_REFRESH_TOKEN_EXPIRE_DURATION")
 
 	viper.BindEnv("server.apiKey", "PW_SERVER_API_KEY")
+	viper.BindEnv("server.recaptcha", "PW_SERVER_RECAPTCHA")
 
 	viper.BindEnv("database.name", "PW_DB_NAME")
 	viper.BindEnv("database.username", "PW_DB_USERNAME")
@@ -167,6 +168,7 @@ func setDefaults() {
 	viper.SetDefault("server.accessTokenExpireDuration", "30m")
 	viper.SetDefault("server.refreshTokenExpireDuration", "15d")
 	viper.SetDefault("server.apiKey", generateKey())
+	viper.SetDefault("server.recaptcha", "GoogleRecaptchaSecret")
 
 	// Database defaults
 	viper.SetDefault("database.name", "passwall")
