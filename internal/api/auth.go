@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -30,33 +31,35 @@ var (
 // Signup ...
 func Signup(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		// 0. TODO: Add recaptcha check here
-
-		// 1. Decode request body to userDTO object
-		userDTO := new(model.UserDTO)
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&userDTO); err != nil {
+		// 0. Decode request body to userDTO object
+		userSignup := new(model.UserSignup)
+		decoderr := json.NewDecoder(r.Body)
+		if err := decoderr.Decode(&userSignup); err != nil {
 			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 			return
 		}
 		defer r.Body.Close()
 
-		// 2. Run validator according to model.UserDTO validator tags
+		// 1. Run validator according to model.UserDTO validator tags
 		validate := validator.New()
-		validateError := validate.Struct(userDTO)
+		validateError := validate.Struct(userSignup)
 		if validateError != nil {
 			errs := GetErrors(validateError.(validator.ValidationErrors))
 			RespondWithErrors(w, http.StatusBadRequest, InvalidRequestPayload, errs)
 			return
 		}
 
+		// 2. Check and verify the recaptcha response token.
+		if err := CheckRecaptcha(userSignup.Recaptcha); err != nil {
+			RespondWithError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+
 		// 3. Check if user exist in database
+		userDTO := model.ConvertUserDTO(userSignup)
 		_, err := s.Users().FindByEmail(userDTO.Email)
 		if err == nil {
-			errs := []string{"This email is already used!"}
-			message := "User couldn't created!"
-			RespondWithErrors(w, http.StatusBadRequest, message, errs)
+			RespondWithError(w, http.StatusBadRequest, "User couldn't created!")
 			return
 		}
 
@@ -117,6 +120,59 @@ func Signup(s storage.Store) http.HandlerFunc {
 		}
 		RespondWithJSON(w, http.StatusOK, response)
 	}
+}
+
+func CheckRecaptcha(gCaptchaValue string) error {
+
+	secret := viper.GetString("server.recaptcha")
+
+	type SiteVerifyResponse struct {
+		Success     bool      `json:"success"`
+		Score       float64   `json:"score"`
+		Action      string    `json:"action"`
+		ChallengeTS time.Time `json:"challenge_ts"`
+		Hostname    string    `json:"hostname"`
+		ErrorCodes  []string  `json:"error-codes"`
+	}
+
+	const siteVerifyURL = "https://www.google.com/recaptcha/api/siteverify"
+
+	// Create new request
+	req, err := http.NewRequest(http.MethodPost, siteVerifyURL, nil)
+	if err != nil {
+		return err
+	}
+
+	// Add necessary request
+	q := req.URL.Query()
+	q.Add("secret", secret)
+	q.Add("response", gCaptchaValue)
+	req.URL.RawQuery = q.Encode()
+
+	// Make request
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Decode response.
+	var body SiteVerifyResponse
+	if err = json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return err
+	}
+
+	// Check recaptcha verification success.
+	if !body.Success {
+		return errors.New("Unsuccessful recaptcha verify request")
+	}
+
+	// Check response score.
+	if body.Score < 0.5 {
+		return errors.New("Lower received score than expected")
+	}
+
+	return nil
 }
 
 // Confirm ...

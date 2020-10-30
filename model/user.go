@@ -36,6 +36,13 @@ type UserDTO struct {
 	EmailVerifiedAt time.Time `json:"email_verified_at"`
 }
 
+type UserSignup struct {
+	Name           string `json:"name" validate:"max=100"`
+	Email          string `json:"email" validate:"required,email"`
+	MasterPassword string `json:"master_password" validate:"required,max=100,min=6"`
+	Recaptcha      string `json:"g_captcha_value" validate:"required"`
+}
+
 //UserDTOTable ...
 type UserDTOTable struct {
 	ID     uint      `json:"id"`
@@ -44,6 +51,14 @@ type UserDTOTable struct {
 	Email  string    `json:"email"`
 	Schema string    `json:"schema"`
 	Role   string    `json:"role"`
+}
+
+func ConvertUserDTO(userSignup *UserSignup) *UserDTO {
+	return &UserDTO{
+		Name:           userSignup.Name,
+		Email:          userSignup.Email,
+		MasterPassword: userSignup.MasterPassword,
+	}
 }
 
 // ToUser ...
