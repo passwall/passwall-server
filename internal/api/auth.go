@@ -96,8 +96,8 @@ func Signup(s storage.Store) http.HandlerFunc {
 		body += "Name: " + userDTO.Name + "\n"
 		body += "Email: " + userDTO.Email + "\n"
 		go app.SendMail(
-			userDTO.Name,
-			userDTO.Email,
+			viper.GetString("email.fromName"),
+			viper.GetString("email.fromEmail"),
 			subject,
 			body)
 
