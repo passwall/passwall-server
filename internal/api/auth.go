@@ -95,7 +95,7 @@ func Signup(s storage.Store) http.HandlerFunc {
 		body := "PassWall has new a user. User details:\n\n"
 		body += "Name: " + userDTO.Name + "\n"
 		body += "Email: " + userDTO.Email + "\n"
-		go app.SendMail(
+		app.SendMail(
 			viper.GetString("email.fromName"),
 			viper.GetString("email.fromEmail"),
 			subject,
@@ -106,7 +106,7 @@ func Signup(s storage.Store) http.HandlerFunc {
 		confirmationBody := "Last step for use Passwall\n\n"
 		confirmationBody += "Confirmation link: " + viper.GetString("server.domain")
 		confirmationBody += "/auth/confirm/" + userDTO.Email + "/" + confirmationCode
-		go app.SendMail(
+		app.SendMail(
 			userDTO.Name,
 			userDTO.Email,
 			confirmationSubject,
