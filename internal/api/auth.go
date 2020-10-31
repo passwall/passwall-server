@@ -96,10 +96,10 @@ func Signup(s storage.Store) http.HandlerFunc {
 		body += "Name: " + userDTO.Name + "\n"
 		body += "Email: " + userDTO.Email + "\n"
 		go app.SendMail(
-        	viper.GetString("email.fromName"),
-        	viper.GetString("email.fromEmail"),
-        	subject,
-        body)
+			viper.GetString("email.fromName"),
+			viper.GetString("email.fromEmail"),
+			subject,
+			body)
 
 		// 9. Send confirmation email to new user
 		confirmationSubject := "Passwall Email Confirmation"
