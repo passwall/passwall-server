@@ -258,7 +258,6 @@ func Signin(s storage.Store) http.HandlerFunc {
 
 		// Check if user has an active subscription
 		subscription, _ := s.Subscriptions().FindByEmail(user.Email)
-		subscription.Status = "active"
 
 		//create token
 		token, err := app.CreateToken(user)
