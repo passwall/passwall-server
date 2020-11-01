@@ -124,15 +124,11 @@ func Signup(s storage.Store) http.HandlerFunc {
 
 func CheckRecaptcha(gCaptchaValue string) error {
 
-	secret := viper.GetString("server.recaptcha")
-
 	type SiteVerifyResponse struct {
-		Success     bool      `json:"success"`
-		Score       float64   `json:"score"`
-		Action      string    `json:"action"`
-		ChallengeTS time.Time `json:"challenge_ts"`
-		Hostname    string    `json:"hostname"`
-		ErrorCodes  []string  `json:"error-codes"`
+		Success     bool     `json:"success"`
+		ChallengeTS string   `json:"challenge_ts"`
+		Hostname    string   `json:"hostname"`
+		ErrorCodes  []string `json:"error-codes"`
 	}
 
 	const siteVerifyURL = "https://www.google.com/recaptcha/api/siteverify"
@@ -145,7 +141,7 @@ func CheckRecaptcha(gCaptchaValue string) error {
 
 	// Add necessary request
 	q := req.URL.Query()
-	q.Add("secret", secret)
+	q.Add("secret", viper.GetString("server.recaptcha"))
 	q.Add("response", gCaptchaValue)
 	req.URL.RawQuery = q.Encode()
 
@@ -165,11 +161,6 @@ func CheckRecaptcha(gCaptchaValue string) error {
 	// Check recaptcha verification success.
 	if !body.Success {
 		return errors.New("Unsuccessful recaptcha verify request")
-	}
-
-	// Check response score.
-	if body.Score < 0.5 {
-		return errors.New("Lower received score than expected")
 	}
 
 	return nil
