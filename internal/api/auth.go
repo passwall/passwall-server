@@ -265,11 +265,11 @@ func Signin(s storage.Store) http.HandlerFunc {
 		s.Tokens().Save(int(user.ID), token.RtUUID, token.RefreshToken, token.RtExpiresTime, "")
 
 		authLoginResponse := model.AuthLoginResponse{
-			AccessToken:     token.AccessToken,
-			RefreshToken:    token.RefreshToken,
-			TransmissionKey: token.TransmissionKey,
-			UserDTO:         model.ToUserDTO(user),
-			SubscriptionDTO: model.ToSubscriptionDTO(subscription),
+			AccessToken:         token.AccessToken,
+			RefreshToken:        token.RefreshToken,
+			TransmissionKey:     token.TransmissionKey,
+			UserDTO:             model.ToUserDTO(user),
+			SubscriptionAuthDTO: model.ToSubscriptionAuthDTO(subscription),
 		}
 
 		RespondWithJSON(w, 200, authLoginResponse)

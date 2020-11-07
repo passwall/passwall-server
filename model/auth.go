@@ -18,7 +18,7 @@ type AuthLoginResponse struct {
 	RefreshToken    string `json:"refresh_token"`
 	TransmissionKey string `json:"transmission_key"`
 	*UserDTO
-	*SubscriptionDTO
+	*SubscriptionAuthDTO
 }
 
 //TokenDetailsDTO ...
