@@ -1,24 +1,27 @@
 package main
 
 import (
-	"log"
 	"net/http"
-	"os"
 	"time"
 
-	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/config"
 	"github.com/passwall/passwall-server/internal/router"
 	"github.com/passwall/passwall-server/internal/storage"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func main() {
-	logger := log.New(os.Stdout, "[passwall-server] ", 0)
-
 	cfg, err := config.SetupConfigDefaults()
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	logFile, err := config.SetupLogger(cfg)
+	if err != nil {
+		log.Fatalf("Log folder %s doesn't exist", cfg.Server.LogPath)
+	}
+	defer logFile.Close()
 
 	db, err := storage.DBConn(&cfg.Database)
 	if err != nil {
@@ -26,13 +29,6 @@ func main() {
 	}
 
 	s := storage.New(db)
-
-	// Migrate database tables
-	// TODO: Migrate should be in storege.New functions of categories
-	app.MigrateSystemTables(s)
-
-	// Start cron jobs like backup
-	// app.StartCronJob(s)
 
 	srv := &http.Server{
 		MaxHeaderBytes: 10, // 10 MB
@@ -43,8 +39,8 @@ func main() {
 		Handler:        router.New(s),
 	}
 
-	logger.Printf("listening on %s", cfg.Server.Port)
+	log.Infof("listening on %s", cfg.Server.Port)
 	if err := srv.ListenAndServe(); err != nil {
-		logger.Fatal(err)
+		log.Fatal(err)
 	}
 }

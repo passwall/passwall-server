@@ -1,7 +1,7 @@
 package app
 
 import (
-	"log"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/passwall/passwall-server/internal/storage"
 )
@@ -10,13 +10,13 @@ import (
 // will only add missing fields won't delete/change current data in the store.
 func MigrateSystemTables(s storage.Store) {
 	if err := s.Tokens().Migrate(); err != nil {
-		log.Println(err)
+		log.Error(err)
 	}
 	if err := s.Users().Migrate(); err != nil {
-		log.Println(err)
+		log.Error(err)
 	}
 	if err := s.Subscriptions().Migrate(); err != nil {
-		log.Println(err)
+		log.Error(err)
 	}
 }
 
@@ -24,21 +24,21 @@ func MigrateSystemTables(s storage.Store) {
 // will only add missing fields won't delete/change current data in the store.
 func MigrateUserTables(s storage.Store, schema string) {
 	if err := s.Logins().Migrate(schema); err != nil {
-		log.Println(err)
+		log.Error(err)
 	}
 	if err := s.CreditCards().Migrate(schema); err != nil {
-		log.Println(err)
+		log.Error(err)
 	}
 	if err := s.BankAccounts().Migrate(schema); err != nil {
-		log.Println(err)
+		log.Error(err)
 	}
 	if err := s.Notes().Migrate(schema); err != nil {
-		log.Println(err)
+		log.Error(err)
 	}
 	if err := s.Emails().Migrate(schema); err != nil {
-		log.Println(err)
+		log.Error(err)
 	}
 	if err := s.Servers().Migrate(schema); err != nil {
-		log.Println(err)
+		log.Error(err)
 	}
 }

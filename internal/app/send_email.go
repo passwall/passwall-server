@@ -1,7 +1,7 @@
 package app
 
 import (
-	"log"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
@@ -17,6 +17,6 @@ func SendMail(name, email string, subject, bodyHTML string) {
 	client := sendgrid.NewSendClient(viper.GetString("email.apiKey"))
 	_, err := client.Send(message)
 	if err != nil {
-		log.Println(err)
+		log.Error(err)
 	}
 }
