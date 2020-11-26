@@ -2,10 +2,11 @@ package app
 
 import (
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"testing"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/spf13/viper"
 )

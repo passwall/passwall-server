@@ -33,6 +33,8 @@ type ServerConfiguration struct {
 	Port                       string `default:"3625"`
 	Domain                     string `default:"https://vault.passwall.io"`
 	Dir                        string `default:"/app/config"`
+	Environment                string `default:"development"` // development,test,production
+	LogPath                    string `default:"/var/log/passwall/"`
 	Passphrase                 string `default:"passphrase-for-encrypting-passwords-do-not-forget"`
 	Secret                     string `default:"secret-key-for-JWT-TOKEN"`
 	Timeout                    int    `default:"24"`
@@ -125,6 +127,8 @@ func initializeConfig() {
 func bindEnvs() {
 	viper.BindEnv("server.domain", "DOMAIN")
 	viper.BindEnv("server.port", "PORT")
+	viper.BindEnv("server.environment", "PW_ENVIRONMENT")
+	viper.BindEnv("server.logPath", "PW_LOG_PATH")
 	viper.BindEnv("server.passphrase", "PW_SERVER_PASSPHRASE")
 	viper.BindEnv("server.secret", "PW_SERVER_SECRET")
 	viper.BindEnv("server.timeout", "PW_SERVER_TIMEOUT")
@@ -161,6 +165,8 @@ func setDefaults() {
 	// Server defaults
 	viper.SetDefault("server.port", "3625")
 	viper.SetDefault("server.domain", "https://vault.passwall.io")
+	viper.SetDefault("server.environment", "development") // development, test, production
+	viper.SetDefault("server.logPath", "/var/log/passwall/")
 	viper.SetDefault("server.passphrase", generateKey())
 	viper.SetDefault("server.secret", generateKey())
 	viper.SetDefault("server.timeout", 24)

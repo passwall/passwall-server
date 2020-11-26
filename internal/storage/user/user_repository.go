@@ -1,7 +1,7 @@
 package user
 
 import (
-	"log"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/jinzhu/gorm"
 	"github.com/passwall/passwall-server/model"
@@ -92,7 +92,7 @@ func (p *Repository) Delete(id uint, schema string) error {
 
 	err := p.db.Exec("DROP SCHEMA " + schema + " CASCADE").Error
 	if err != nil {
-		log.Println(err)
+		log.Error(err)
 	}
 
 	err = p.db.Delete(&model.User{ID: id}).Error
@@ -110,7 +110,7 @@ func (p *Repository) CreateSchema(schema string) error {
 	if schema != "" && schema != "public" {
 		err := p.db.Exec("CREATE SCHEMA IF NOT EXISTS " + schema).Error
 		if err != nil {
-			log.Println(err)
+			log.Error(err)
 		}
 	}
 	return err

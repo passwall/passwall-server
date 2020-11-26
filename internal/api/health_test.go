@@ -1,10 +1,11 @@
 package api
 
 import (
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/passwall/passwall-server/internal/config"
 	"github.com/passwall/passwall-server/internal/storage"
