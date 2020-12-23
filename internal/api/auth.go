@@ -50,10 +50,13 @@ func Signup(s storage.Store) http.HandlerFunc {
 		}
 
 		// 2. Check and verify the recaptcha response token.
-		if err := CheckRecaptcha(userSignup.Recaptcha); err != nil {
-			RespondWithError(w, http.StatusUnauthorized, err.Error())
-			return
-		}
+		// This is needed for web form security.
+		/*
+			if err := CheckRecaptcha(userSignup.Recaptcha); err != nil {
+				RespondWithError(w, http.StatusUnauthorized, err.Error())
+				return
+			}
+		*/
 
 		// 3. Check if user exist in database
 		userDTO := model.ConvertUserDTO(userSignup)
