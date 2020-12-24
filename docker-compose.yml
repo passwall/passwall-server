@@ -1,58 +1,34 @@
 version: '3.7'
 
 services:
-
-  # Uncomment mysql service if you want to use mysql as database
-  # mysql:
-  #   image: mysql:5.7
-  #   restart: on-failure
-  #   environment:
-  #     - MYSQL_DATABASE=passwall
-  #     - MYSQL_USER=user
-  #     - MYSQL_PASSWORD=password
-  #     - MYSQL_ROOT_PASSWORD=password
-  #   ports:
-  #     - 3306:3306
-  #   # Uncomment volumes section if you want to store persist data
-  #   # volumes:
-  #   #   - passwall-mysql-db:/var/lib/mysql
-
-  # Uncomment postgres service if you want to use postgres as database
-  # postgres:
-  #   image: postgres:alpine
-  #   restart: on-failure
-  #   environment:
-  #     - POSTGRES_DB=passwall
-  #     - POSTGRES_USER=user
-  #     - POSTGRES_PASSWORD=password
-  #   ports:
-  #     - 5432:5432
-  #   # Uncomment volumes section if you want to store persist data
-  #   # volumes:
-  #   #   - passwall-postgres-db:/var/lib/postgresql/data
+  postgres:
+    image: postgres:alpine
+    restart: on-failure
+    environment:
+      - POSTGRES_DB=passwall
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    ports:
+      - 5432:5432
+    volumes:
+      - $HOME/docker/volumes/passwall-postgres:/var/lib/postgresql/data
   
-  
-    # USERNAME= ${USERNAME}
-    # PASSWORD= ${PASSWORD}
-    # PASSPHRASE= ${PASSPHRASE}
-    # SECRET= ${SECRET}
-    # TIMEOUT= ${TIMEOUT}
-    # DRIVER= ${DRIVER}
-    # DBNAME= ${DBNAME}
-
   passwall-server:
     container_name: passwall-server
     image: passwall/passwall-server:latest
     restart: always
     environment:
-      - PW_DIR=/app/store
+      - PW_DB_NAME=passwall
+      - PW_DB_USERNAME=postgres
+      - PW_DB_PASSWORD=password
+      - PW_DB_HOST=postgres
+      - PW_DB_PORT=5432
+      - PW_DB_LOG_MODE=false
     build:
       context: .
-    # Uncomment a database service which one of you're using
-    # depends_on:
-      # - mysql
-      # - postgres
+    depends_on:
+      - postgres
     ports:
       - 3625:3625
     volumes:
-      - ./store:/app/store
+      - $HOME/docker/volumes/passwall-server:/app/store      

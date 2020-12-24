@@ -90,6 +90,13 @@ type SubscriptionDTO struct {
 	CancelURL      string    `json:"cancel_url"`
 }
 
+type SubscriptionAuthDTO struct {
+	Status       string    `json:"status"`
+	NextBillDate time.Time `json:"next_bill_date"`
+	UpdateURL    string    `json:"update_url"`
+	CancelURL    string    `json:"cancel_url"`
+}
+
 // ToSubscription ...
 func ToSubscription(subscriptionDTO *SubscriptionDTO) *Subscription {
 	return &Subscription{
@@ -119,6 +126,16 @@ func ToSubscriptionDTO(subscription *Subscription) *SubscriptionDTO {
 		NextBillDate:   subscription.NextBillDate,
 		UpdateURL:      subscription.UpdateURL,
 		CancelURL:      subscription.CancelURL,
+	}
+}
+
+// ToSubscriptionAuthDTO ...
+func ToSubscriptionAuthDTO(subscription *Subscription) *SubscriptionAuthDTO {
+	return &SubscriptionAuthDTO{
+		Status:       subscription.Status,
+		NextBillDate: subscription.NextBillDate,
+		UpdateURL:    subscription.UpdateURL,
+		CancelURL:    subscription.CancelURL,
 	}
 }
 

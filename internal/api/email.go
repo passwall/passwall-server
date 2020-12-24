@@ -28,6 +28,16 @@ func FindAllEmails(s storage.Store) http.HandlerFunc {
 			return
 		}
 
+		// Decrypt server side encrypted fields
+		for i := range emails {
+			decEmail, err := app.DecryptModel(&emails[i])
+			if err != nil {
+				RespondWithError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			emails[i] = *decEmail.(*model.Email)
+		}
+
 		// Encrypt payload
 		var payload model.Payload
 		key := r.Context().Value("transmissionKey").(string)

@@ -27,10 +27,19 @@ func FindAllNotes(s storage.Store) http.HandlerFunc {
 
 		schema := r.Context().Value("schema").(string)
 		noteList, err = s.Notes().FindAll(argsStr, argsInt, schema)
-
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
+		}
+
+		// Decrypt server side encrypted fields
+		for i := range noteList {
+			decNote, err := app.DecryptModel(&noteList[i])
+			if err != nil {
+				RespondWithError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			noteList[i] = *decNote.(*model.Note)
 		}
 
 		// Encrypt payload

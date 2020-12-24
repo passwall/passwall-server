@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"os"
 	"path/filepath"
-	"runtime"
 
 	"github.com/spf13/viper"
 )
@@ -17,8 +16,8 @@ var (
 	configType     = "yaml"
 	appName        = "passwall-server"
 
-	configurationDirectory = filepath.Join(osConfigDirectory(runtime.GOOS), appName)
-	configFileAbsPath      = filepath.Join(configurationDirectory, configFileName)
+	storeDirectory    = "./store/"
+	configFileAbsPath = filepath.Join(storeDirectory, configFileName)
 )
 
 // Configuration ...
@@ -104,7 +103,6 @@ func readConfiguration() error {
 	if err != nil {             // Handle errors reading the config file
 		// if file does not exist, simply create one
 		if _, err := os.Stat(configFileAbsPath + configFileExt); os.IsNotExist(err) {
-			os.MkdirAll(configurationDirectory, 0755)
 			os.Create(configFileAbsPath + configFileExt)
 		} else {
 			return err
@@ -119,7 +117,7 @@ func readConfiguration() error {
 
 // initialize the configuration manager
 func initializeConfig() {
-	viper.AddConfigPath(configurationDirectory)
+	viper.AddConfigPath(storeDirectory)
 	viper.SetConfigName(configFileName)
 	viper.SetConfigType(configType)
 }
@@ -127,7 +125,6 @@ func initializeConfig() {
 func bindEnvs() {
 	viper.BindEnv("server.domain", "DOMAIN")
 	viper.BindEnv("server.port", "PORT")
-	viper.BindEnv("server.dir", "PW_DIR")
 	viper.BindEnv("server.passphrase", "PW_SERVER_PASSPHRASE")
 	viper.BindEnv("server.secret", "PW_SERVER_SECRET")
 	viper.BindEnv("server.timeout", "PW_SERVER_TIMEOUT")
@@ -137,6 +134,7 @@ func bindEnvs() {
 	viper.BindEnv("server.refreshTokenExpireDuration", "PW_SERVER_REFRESH_TOKEN_EXPIRE_DURATION")
 
 	viper.BindEnv("server.apiKey", "PW_SERVER_API_KEY")
+	viper.BindEnv("server.recaptcha", "PW_SERVER_RECAPTCHA")
 
 	viper.BindEnv("database.name", "PW_DB_NAME")
 	viper.BindEnv("database.username", "PW_DB_USERNAME")
@@ -149,8 +147,9 @@ func bindEnvs() {
 	viper.BindEnv("email.port", "PW_EMAIL_PORT")
 	viper.BindEnv("email.username", "PW_EMAIL_USERNAME")
 	viper.BindEnv("email.password", "PW_EMAIL_PASSWORD")
-	viper.BindEnv("email.from", "PW_EMAIL_FROM")
-	viper.BindEnv("email.admin", "PW_EMAIL_ADMIN")
+	viper.BindEnv("email.fromEmail", "PW_EMAIL_FROM_EMAIL")
+	viper.BindEnv("email.fromName", "PW_EMAIL_FROM_NAME")
+	viper.BindEnv("email.apiKey", "PW_EMAIL_API_KEY")
 
 	viper.BindEnv("backup.folder", "PW_BACKUP_FOLDER")
 	viper.BindEnv("backup.rotation", "PW_BACKUP_ROTATION")
@@ -162,7 +161,6 @@ func setDefaults() {
 	// Server defaults
 	viper.SetDefault("server.port", "3625")
 	viper.SetDefault("server.domain", "https://vault.passwall.io")
-	viper.SetDefault("server.dir", osConfigDirectory(runtime.GOOS))
 	viper.SetDefault("server.passphrase", generateKey())
 	viper.SetDefault("server.secret", generateKey())
 	viper.SetDefault("server.timeout", 24)
@@ -170,11 +168,12 @@ func setDefaults() {
 	viper.SetDefault("server.accessTokenExpireDuration", "30m")
 	viper.SetDefault("server.refreshTokenExpireDuration", "15d")
 	viper.SetDefault("server.apiKey", generateKey())
+	viper.SetDefault("server.recaptcha", "GoogleRecaptchaSecret")
 
 	// Database defaults
 	viper.SetDefault("database.name", "passwall")
 	viper.SetDefault("database.username", "postgres")
-	viper.SetDefault("database.password", "postgres")
+	viper.SetDefault("database.password", "password")
 	viper.SetDefault("database.host", "localhost")
 	viper.SetDefault("database.port", "5432")
 	viper.SetDefault("database.logmode", false)
@@ -184,32 +183,14 @@ func setDefaults() {
 	viper.SetDefault("email.port", "25")
 	viper.SetDefault("email.username", "hello@passwall.io")
 	viper.SetDefault("email.password", "password")
-	viper.SetDefault("email.from", "hello@passwall.io")
-	viper.SetDefault("email.admin", "hello@passwall.io")
+	viper.SetDefault("email.fromName", "Passwall")
+	viper.SetDefault("email.fromEmail", "hello@passwall.io")
+	viper.SetDefault("email.apiKey", "apiKey")
 
 	// Backup defaults
-	viper.SetDefault("backup.folder", osConfigDirectory(runtime.GOOS))
+	viper.SetDefault("backup.folder", storeDirectory)
 	viper.SetDefault("backup.rotation", 7)
 	viper.SetDefault("backup.period", "24h")
-}
-
-// returns OS dependent config directory
-func osConfigDirectory(osName string) string {
-	if os.Getenv("PW_DIR") != "" {
-		return os.Getenv("PW_DIR")
-	}
-
-	switch osName {
-	case "windows":
-		return os.Getenv("APPDATA")
-	case "darwin":
-		return os.Getenv("HOME") + "/Library/Application Support"
-	case "linux":
-		return os.Getenv("HOME") + "/.config"
-	default:
-		dir, _ := os.Getwd()
-		return dir
-	}
 }
 
 func generateKey() string {

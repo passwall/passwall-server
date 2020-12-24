@@ -2,8 +2,10 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/go-playground/validator/v10"
@@ -15,6 +17,8 @@ import (
 )
 
 var (
+	userLoginErr   = "User email or master password is wrong."
+	userVerifyErr  = "Please verify your email first."
 	invalidUser    = "Invalid user"
 	validToken     = "Token is valid"
 	invalidToken   = "Token is expired or not valid!"
@@ -27,44 +31,38 @@ var (
 // Signup ...
 func Signup(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		// 0. API Key Check
-		keys, ok := r.URL.Query()["api_key"]
-
-		if !ok || len(keys[0]) < 1 {
-			RespondWithError(w, http.StatusBadRequest, "API Key is missing")
-			return
-		}
-
-		if keys[0] != viper.GetString("server.apiKey") {
-			RespondWithError(w, http.StatusUnauthorized, "API Key is wrong")
-			return
-		}
-
-		// 1. Decode request body to userDTO object
-		userDTO := new(model.UserDTO)
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&userDTO); err != nil {
+		// 0. Decode request body to userDTO object
+		userSignup := new(model.UserSignup)
+		decoderr := json.NewDecoder(r.Body)
+		if err := decoderr.Decode(&userSignup); err != nil {
 			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 			return
 		}
 		defer r.Body.Close()
 
-		// 2. Run validator according to model.UserDTO validator tags
+		// 1. Run validator according to model.UserDTO validator tags
 		validate := validator.New()
-		validateError := validate.Struct(userDTO)
+		validateError := validate.Struct(userSignup)
 		if validateError != nil {
 			errs := GetErrors(validateError.(validator.ValidationErrors))
 			RespondWithErrors(w, http.StatusBadRequest, InvalidRequestPayload, errs)
 			return
 		}
 
+		// 2. Check and verify the recaptcha response token.
+		// This is needed for web form security.
+		/*
+			if err := CheckRecaptcha(userSignup.Recaptcha); err != nil {
+				RespondWithError(w, http.StatusUnauthorized, err.Error())
+				return
+			}
+		*/
+
 		// 3. Check if user exist in database
+		userDTO := model.ConvertUserDTO(userSignup)
 		_, err := s.Users().FindByEmail(userDTO.Email)
 		if err == nil {
-			errs := []string{"This email is already used!"}
-			message := "User couldn't created!"
-			RespondWithErrors(w, http.StatusBadRequest, message, errs)
+			RespondWithError(w, http.StatusBadRequest, "User couldn't created!")
 			return
 		}
 
@@ -97,19 +95,25 @@ func Signup(s storage.Store) http.HandlerFunc {
 
 		// 8. Send email to admin adbout new user subscription
 		subject := "PassWall New User Subscription"
-
 		body := "PassWall has new a user. User details:\n\n"
 		body += "Name: " + userDTO.Name + "\n"
 		body += "Email: " + userDTO.Email + "\n"
-
-		go app.SendMail([]string{viper.GetString("email.admin")}, subject, body)
+		app.SendMail(
+			viper.GetString("email.fromName"),
+			viper.GetString("email.fromEmail"),
+			subject,
+			body)
 
 		// 9. Send confirmation email to new user
+		confirmationSubject := "Passwall Email Confirmation"
 		confirmationBody := "Last step for use Passwall\n\n"
 		confirmationBody += "Confirmation link: " + viper.GetString("server.domain")
 		confirmationBody += "/auth/confirm/" + userDTO.Email + "/" + confirmationCode
-
-		go app.SendMail([]string{userDTO.Email}, "Passwall Email Confirmation", confirmationBody)
+		app.SendMail(
+			userDTO.Name,
+			userDTO.Email,
+			confirmationSubject,
+			confirmationBody)
 
 		// Return success message
 		response := model.Response{
@@ -119,6 +123,50 @@ func Signup(s storage.Store) http.HandlerFunc {
 		}
 		RespondWithJSON(w, http.StatusOK, response)
 	}
+}
+
+func CheckRecaptcha(gCaptchaValue string) error {
+
+	type SiteVerifyResponse struct {
+		Success     bool     `json:"success"`
+		ChallengeTS string   `json:"challenge_ts"`
+		Hostname    string   `json:"hostname"`
+		ErrorCodes  []string `json:"error-codes"`
+	}
+
+	const siteVerifyURL = "https://www.google.com/recaptcha/api/siteverify"
+
+	// Create new request
+	req, err := http.NewRequest(http.MethodPost, siteVerifyURL, nil)
+	if err != nil {
+		return err
+	}
+
+	// Add necessary request
+	q := req.URL.Query()
+	q.Add("secret", viper.GetString("server.recaptcha"))
+	q.Add("response", gCaptchaValue)
+	req.URL.RawQuery = q.Encode()
+
+	// Make request
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Decode response.
+	var body SiteVerifyResponse
+	if err = json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return err
+	}
+
+	// Check recaptcha verification success.
+	if !body.Success {
+		return errors.New("Unsuccessful recaptcha verify request")
+	}
+
+	return nil
 }
 
 // Confirm ...
@@ -146,6 +194,7 @@ func Confirm(s storage.Store) http.HandlerFunc {
 
 		userDTO := model.ToUserDTO(usr)
 		userDTO.MasterPassword = "" // Fix for not to update password
+		userDTO.EmailVerifiedAt = time.Now()
 
 		_, err = app.UpdateUser(s, usr, userDTO, false)
 		if err != nil {
@@ -191,15 +240,15 @@ func Signin(s storage.Store) http.HandlerFunc {
 		// Check if user exist in database and credentials are true
 		user, err := s.Users().FindByCredentials(loginDTO.Email, loginDTO.MasterPassword)
 		if err != nil {
-			RespondWithError(w, http.StatusUnauthorized, err.Error())
+			RespondWithError(w, http.StatusUnauthorized, userLoginErr)
 			return
 		}
 
 		// Check if users email is verified
-		if user.EmailVerifiedAt.IsZero() {
-			RespondWithError(w, http.StatusUnauthorized, "Email is not verified!")
-			return
-		}
+		// if user.EmailVerifiedAt.IsZero() {
+		// 	RespondWithError(w, http.StatusForbidden, userVerifyErr)
+		// 	return
+		// }
 
 		// Check if user has an active subscription
 		subscription, _ := s.Subscriptions().FindByEmail(user.Email)
@@ -219,11 +268,11 @@ func Signin(s storage.Store) http.HandlerFunc {
 		s.Tokens().Save(int(user.ID), token.RtUUID, token.RefreshToken, token.RtExpiresTime, "")
 
 		authLoginResponse := model.AuthLoginResponse{
-			AccessToken:     token.AccessToken,
-			RefreshToken:    token.RefreshToken,
-			TransmissionKey: token.TransmissionKey,
-			UserDTO:         model.ToUserDTO(user),
-			SubscriptionDTO: model.ToSubscriptionDTO(subscription),
+			AccessToken:         token.AccessToken,
+			RefreshToken:        token.RefreshToken,
+			TransmissionKey:     token.TransmissionKey,
+			UserDTO:             model.ToUserDTO(user),
+			SubscriptionAuthDTO: model.ToSubscriptionAuthDTO(subscription),
 		}
 
 		RespondWithJSON(w, 200, authLoginResponse)
