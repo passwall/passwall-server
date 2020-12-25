@@ -14,8 +14,10 @@ func GetMD5Hash(text []byte) string {
 }
 
 // RandomMD5Hash returns random md5 hash for unique conifrim links
-func RandomMD5Hash() string {
+func RandomMD5Hash() (string, error) {
 	b := make([]byte, 16)
-	rand.Read(b)
-	return GetMD5Hash(b)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return GetMD5Hash(b), nil
 }

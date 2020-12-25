@@ -133,10 +133,13 @@ func Decrypt(dataStr string, passphrase string) []byte {
 }
 
 // EncryptFile ...
-func EncryptFile(filename string, data []byte, passphrase string) {
+func EncryptFile(filename string, data []byte, passphrase string) error {
 	f, _ := os.Create(filename)
 	defer f.Close()
-	f.Write(Encrypt(string(data[:]), passphrase))
+	if _, err := f.Write(Encrypt(string(data[:]), passphrase)); err != nil {
+		return err
+	}
+	return nil
 }
 
 // DecryptFile ...

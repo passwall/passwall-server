@@ -71,7 +71,11 @@ func Signup(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		confirmationCode := app.RandomMD5Hash()
+		confirmationCode, err := app.RandomMD5Hash()
+		if err != nil {
+			return
+		}
+
 		createdUser.ConfirmationCode = confirmationCode
 
 		// 5. Update user once to generate schema
