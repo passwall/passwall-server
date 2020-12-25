@@ -11,12 +11,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-const (
-	timeFormat = "2006-01-02T15-04-05"
-)
-
 var (
-	errBackup           = errors.New("error occurred while backing up data")
 	errNoBackupFilesErr = errors.New("no backup file  provided")
 )
 

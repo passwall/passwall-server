@@ -41,8 +41,9 @@ func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Write(response)
 }
 
+//TODO if this function is not used, it should be deleted
 // RespondWithHTML write html
-func RespondWithHTML(w http.ResponseWriter, code int, payload interface{}) {
+func RespondWithHTML(w http.ResponseWriter, code int, payload interface{}) error {
 	w.WriteHeader(200)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
@@ -58,7 +59,13 @@ func RespondWithHTML(w http.ResponseWriter, code int, payload interface{}) {
 	//               Phone: "000099999"
 	//            }
 
-	t.Execute(w, payload.(model.Response))
+	err = t.Execute(w, payload.(model.Response))
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // GetErrors ...

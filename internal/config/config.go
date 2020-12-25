@@ -14,7 +14,6 @@ var (
 	configFileName = "config"
 	configFileExt  = ".yml"
 	configType     = "yaml"
-	appName        = "passwall-server"
 
 	storeDirectory    = "./store/"
 	configFileAbsPath = filepath.Join(storeDirectory, configFileName)
@@ -76,7 +75,9 @@ func SetupConfigDefaults() (*Configuration, error) {
 	initializeConfig()
 
 	// Bind environment variables
-	bindEnvs()
+	if err := bindEnvs(); err != nil {
+		return nil, err
+	}
 
 	// Set default values
 	setDefaults()
@@ -103,7 +104,9 @@ func readConfiguration() error {
 	if err != nil {             // Handle errors reading the config file
 		// if file does not exist, simply create one
 		if _, err := os.Stat(configFileAbsPath + configFileExt); os.IsNotExist(err) {
-			os.Create(configFileAbsPath + configFileExt)
+			if _, err := os.Create(configFileAbsPath + configFileExt); err != nil {
+				return err
+			}
 		} else {
 			return err
 		}
@@ -122,38 +125,102 @@ func initializeConfig() {
 	viper.SetConfigType(configType)
 }
 
-func bindEnvs() {
-	viper.BindEnv("server.domain", "DOMAIN")
-	viper.BindEnv("server.port", "PORT")
-	viper.BindEnv("server.passphrase", "PW_SERVER_PASSPHRASE")
-	viper.BindEnv("server.secret", "PW_SERVER_SECRET")
-	viper.BindEnv("server.timeout", "PW_SERVER_TIMEOUT")
+func bindEnvs() error {
+	if err := viper.BindEnv("server.domain", "DOMAIN"); err != nil {
+		return err
+	}
 
-	viper.BindEnv("server.generatedPasswordLength", "PW_SERVER_GENERATED_PASSWORD_LENGTH")
-	viper.BindEnv("server.accessTokenExpireDuration", "PW_SERVER_ACCESS_TOKEN_EXPIRE_DURATION")
-	viper.BindEnv("server.refreshTokenExpireDuration", "PW_SERVER_REFRESH_TOKEN_EXPIRE_DURATION")
+	if err := viper.BindEnv("server.port", "PORT"); err != nil {
+		return err
+	}
 
-	viper.BindEnv("server.apiKey", "PW_SERVER_API_KEY")
-	viper.BindEnv("server.recaptcha", "PW_SERVER_RECAPTCHA")
+	if err := viper.BindEnv("server.passphrase", "PW_SERVER_PASSPHRASE"); err != nil {
+		return err
+	}
 
-	viper.BindEnv("database.name", "PW_DB_NAME")
-	viper.BindEnv("database.username", "PW_DB_USERNAME")
-	viper.BindEnv("database.password", "PW_DB_PASSWORD")
-	viper.BindEnv("database.host", "PW_DB_HOST")
-	viper.BindEnv("database.port", "PW_DB_PORT")
-	viper.BindEnv("database.logmode", "PW_DB_LOG_MODE")
+	if err := viper.BindEnv("server.secret", "PW_SERVER_SECRET"); err != nil {
+		return err
+	}
 
-	viper.BindEnv("email.host", "PW_EMAIL_HOST")
-	viper.BindEnv("email.port", "PW_EMAIL_PORT")
-	viper.BindEnv("email.username", "PW_EMAIL_USERNAME")
-	viper.BindEnv("email.password", "PW_EMAIL_PASSWORD")
-	viper.BindEnv("email.fromEmail", "PW_EMAIL_FROM_EMAIL")
-	viper.BindEnv("email.fromName", "PW_EMAIL_FROM_NAME")
-	viper.BindEnv("email.apiKey", "PW_EMAIL_API_KEY")
+	if err := viper.BindEnv("server.timeout", "PW_SERVER_TIMEOUT"); err != nil {
+		return err
+	}
 
-	viper.BindEnv("backup.folder", "PW_BACKUP_FOLDER")
-	viper.BindEnv("backup.rotation", "PW_BACKUP_ROTATION")
-	viper.BindEnv("backup.period", "PW_BACKUP_PERIOD")
+	if err := viper.BindEnv("server.generatedPasswordLength", "PW_SERVER_GENERATED_PASSWORD_LENGTH"); err != nil {
+		return err
+	}
+
+	if err := viper.BindEnv("server.accessTokenExpireDuration", "PW_SERVER_ACCESS_TOKEN_EXPIRE_DURATION"); err != nil {
+		return err
+	}
+
+	if err := viper.BindEnv("server.refreshTokenExpireDuration", "PW_SERVER_REFRESH_TOKEN_EXPIRE_DURATION"); err != nil {
+		return err
+	}
+
+	if err := viper.BindEnv("server.apiKey", "PW_SERVER_API_KEY"); err != nil {
+		return err
+	}
+
+	if err := viper.BindEnv("server.recaptcha", "PW_SERVER_RECAPTCHA"); err != nil {
+		return err
+	}
+
+	if err := viper.BindEnv("database.name", "PW_DB_NAME"); err != nil {
+		return err
+	}
+
+	if err := viper.BindEnv("database.username", "PW_DB_USERNAME"); err != nil {
+		return err
+	}
+
+	if err := viper.BindEnv("database.password", "PW_DB_PASSWORD"); err != nil {
+		return err
+	}
+
+	if err := viper.BindEnv("database.host", "PW_DB_HOST"); err != nil {
+		return err
+	}
+	if err := viper.BindEnv("database.port", "PW_DB_PORT"); err != nil {
+		return err
+	}
+	if err := viper.BindEnv("database.logmode", "PW_DB_LOG_MODE"); err != nil {
+		return err
+	}
+
+	if err := viper.BindEnv("email.host", "PW_EMAIL_HOST"); err != nil {
+		return err
+	}
+	if err := viper.BindEnv("email.port", "PW_EMAIL_PORT"); err != nil {
+		return err
+	}
+	if err := viper.BindEnv("email.username", "PW_EMAIL_USERNAME"); err != nil {
+		return err
+	}
+	if err := viper.BindEnv("email.password", "PW_EMAIL_PASSWORD"); err != nil {
+		return err
+	}
+	if err := viper.BindEnv("email.fromEmail", "PW_EMAIL_FROM_EMAIL"); err != nil {
+		return err
+	}
+	if err := viper.BindEnv("email.fromName", "PW_EMAIL_FROM_NAME"); err != nil {
+		return err
+	}
+	if err := viper.BindEnv("email.apiKey", "PW_EMAIL_API_KEY"); err != nil {
+		return err
+	}
+
+	if err := viper.BindEnv("backup.folder", "PW_BACKUP_FOLDER"); err != nil {
+		return err
+	}
+	if err := viper.BindEnv("backup.rotation", "PW_BACKUP_ROTATION"); err != nil {
+		return err
+	}
+	if err := viper.BindEnv("backup.period", "PW_BACKUP_PERIOD"); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func setDefaults() {

@@ -225,7 +225,10 @@ func Restore(s storage.Store) http.HandlerFunc {
 		loginsByte := app.DecryptFile(backupPath, viper.GetString("server.passphrase"))
 
 		var loginDTOs []model.LoginDTO
-		json.Unmarshal(loginsByte, &loginDTOs)
+		if err := json.Unmarshal(loginsByte, &loginDTOs); err != nil {
+			return
+		}
+
 		schema := r.Context().Value("schema").(string)
 		for i := range loginDTOs {
 
@@ -275,10 +278,13 @@ func Restore(s storage.Store) http.HandlerFunc {
 	RespondWithJSON(w, http.StatusOK, response)
 } */
 
+//TODO if this function is not used, it should be deleted
 func upload(r *http.Request) (*os.File, error) {
 
 	// Max 10 MB
-	r.ParseMultipartForm(10 << 20)
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		return nil, err
+	}
 
 	file, header, err := r.FormFile("file")
 	if err != nil {
@@ -302,7 +308,9 @@ func upload(r *http.Request) (*os.File, error) {
 		return nil, err
 	}
 
-	tempFile.Write(fileBytes)
+	if _, err := tempFile.Write(fileBytes); err != nil {
+		return nil, err
+	}
 
 	return tempFile, err
 }

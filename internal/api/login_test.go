@@ -1,15 +1,8 @@
 package api
 
 import (
-	"context"
 	"database/sql/driver"
-	"net/http"
 	"time"
-
-	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/gorilla/mux"
-	"github.com/jinzhu/gorm"
-	"github.com/passwall/passwall-server/internal/storage"
 )
 
 /* func TestFindAllLogins(t *testing.T) {
@@ -121,15 +114,15 @@ import (
 	}
 } */
 
-func dbSetup() (*gorm.DB, sqlmock.Sqlmock) {
+/* func dbSetup() (*gorm.DB, sqlmock.Sqlmock) {
 	db, mock, _ := sqlmock.New()
 	DB, _ := gorm.Open("postgres", db)
 	// DB.LogMode(true)
 
 	return DB, mock
-}
+} */
 
-func routersSetup(db *gorm.DB) *mux.Router {
+/* func routersSetup(db *gorm.DB) *mux.Router {
 
 	// Create storage with mock db
 	store := storage.New(db)
@@ -145,9 +138,9 @@ func routersSetup(db *gorm.DB) *mux.Router {
 	apiRouter.Handle("/logins/{id:[0-9]+}", contextMiddleware(DeleteLogin(store))).Methods(http.MethodDelete)
 
 	return apiRouter
-}
+} */
 
-func contextMiddleware(h http.Handler) http.Handler {
+/* func contextMiddleware(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		ctxWithID := context.WithValue(ctx, "id", 1)
@@ -157,7 +150,7 @@ func contextMiddleware(h http.Handler) http.Handler {
 		h.ServeHTTP(w, r.WithContext(ctxWithSchema))
 	})
 }
-
+*/
 // func TestDeleteLogin(t *testing.T) {
 // 	w := httptest.NewRecorder()
 
