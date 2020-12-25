@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"text/template"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/passwall/passwall-server/model"
 )
 
 //ErrorResponseDTO represents error resposne
@@ -39,33 +37,6 @@ func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	w.Write(response)
-}
-
-//TODO if this function is not used, it should be deleted
-// RespondWithHTML write html
-func RespondWithHTML(w http.ResponseWriter, code int, payload interface{}) error {
-	w.WriteHeader(200)
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
-	t, err := template.ParseFiles("./store/template/email_confirmation_success.html")
-	if err != nil {
-		fmt.Fprintf(w, "Unable to load template")
-	}
-
-	// user := User{
-	//               Id: 1,
-	//               Name: "John Doe",
-	//               Email: "johndoe@gmail.com",
-	//               Phone: "000099999"
-	//            }
-
-	err = t.Execute(w, payload.(model.Response))
-
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // GetErrors ...
