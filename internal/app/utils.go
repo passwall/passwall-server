@@ -7,10 +7,12 @@ import (
 )
 
 // GetMD5Hash ...
-func GetMD5Hash(text []byte) string {
+func GetMD5Hash(text []byte) (string, error) {
 	hasher := md5.New()
-	hasher.Write(text)
-	return hex.EncodeToString(hasher.Sum(nil))
+	if _, err := hasher.Write(text); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
 // RandomMD5Hash returns random md5 hash for unique conifrim links
@@ -19,5 +21,11 @@ func RandomMD5Hash() (string, error) {
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
-	return GetMD5Hash(b), nil
+
+	r, err := GetMD5Hash(b)
+	if err != nil {
+		return "", err
+	}
+
+	return r, nil
 }
