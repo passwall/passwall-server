@@ -520,8 +520,5 @@ honnef.co/go/tools v0.0.0-20190106161140-3f1c8253044a/go.mod h1:rf3lG4BRIbNafJWh
 honnef.co/go/tools v0.0.0-20190418001031-e561f6794a2a/go.mod h1:rf3lG4BRIbNafJWhAfAdb/ePZxsR/4RtNHQocxwk9r4=
 honnef.co/go/tools v0.0.0-20190523083050-ea95bdfd59fc/go.mod h1:rf3lG4BRIbNafJWhAfAdb/ePZxsR/4RtNHQocxwk9r4=
 honnef.co/go/tools v0.0.1-2019.2.3/go.mod h1:a3bituU0lyd329TUQxRnasdCoJDkEUEAqEt0JzvZhAg=
-katip.icsdefense.net/icssight/common.git v1.1.9/go.mod h1:BWO2Y+TFR+cxF8xJQQ1QBTWqWRzpPtA2hkoZuwwT/Sk=
-katip.icsdefense.net/icssight/graph-service.git v1.9.0 h1:lT/DDVx0NZ6wO2HS4VTdhi7UFAIqCnIJVbL5VHSVMZE=
-katip.icsdefense.net/icssight/graph-service.git v1.9.0/go.mod h1:S/8+g5JR1lRfL7/WUk1s4StYfoAaiPRHIBkAmg8US9Q=
 rsc.io/binaryregexp v0.2.0/go.mod h1:qTv7/COck+e2FymRvadv62gMdZztPaShugOCi3I+8D8=
 rsc.io/goversion v1.0.0/go.mod h1:Eih9y/uIBS3ulggl7KNJ09xGSLcuNaLgmvvqa07sgfo=
