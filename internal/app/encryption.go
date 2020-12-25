@@ -88,16 +88,22 @@ func NewBcrypt(key []byte) string {
 }
 
 // CreateHash ...
-func CreateHash(key string) string {
+func CreateHash(key string) (string, error) {
 	hasher := md5.New()
-	hasher.Write([]byte(key))
-	return hex.EncodeToString(hasher.Sum(nil))
+	if _, err := hasher.Write([]byte(key)); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
 // Encrypt ..
 func Encrypt(dataStr string, passphrase string) []byte {
 	dataByte := []byte(dataStr)
-	block, _ := aes.NewCipher([]byte(CreateHash(passphrase)))
+	hash, err := CreateHash(passphrase)
+	if err != nil {
+		panic(err.Error())
+	}
+	block, _ := aes.NewCipher([]byte(hash))
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		panic(err.Error())
@@ -113,7 +119,11 @@ func Encrypt(dataStr string, passphrase string) []byte {
 // Decrypt ...
 func Decrypt(dataStr string, passphrase string) []byte {
 	dataByte := []byte(dataStr)
-	key := []byte(CreateHash(passphrase))
+	hash, err := CreateHash(passphrase)
+	if err != nil {
+		panic(err.Error())
+	}
+	key := []byte(hash)
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		panic(err.Error())
