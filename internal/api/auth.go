@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -123,50 +122,6 @@ func Signup(s storage.Store) http.HandlerFunc {
 		}
 		RespondWithJSON(w, http.StatusOK, response)
 	}
-}
-
-func CheckRecaptcha(gCaptchaValue string) error {
-
-	type SiteVerifyResponse struct {
-		Success     bool     `json:"success"`
-		ChallengeTS string   `json:"challenge_ts"`
-		Hostname    string   `json:"hostname"`
-		ErrorCodes  []string `json:"error-codes"`
-	}
-
-	const siteVerifyURL = "https://www.google.com/recaptcha/api/siteverify"
-
-	// Create new request
-	req, err := http.NewRequest(http.MethodPost, siteVerifyURL, nil)
-	if err != nil {
-		return err
-	}
-
-	// Add necessary request
-	q := req.URL.Query()
-	q.Add("secret", viper.GetString("server.recaptcha"))
-	q.Add("response", gCaptchaValue)
-	req.URL.RawQuery = q.Encode()
-
-	// Make request
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	// Decode response.
-	var body SiteVerifyResponse
-	if err = json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return err
-	}
-
-	// Check recaptcha verification success.
-	if !body.Success {
-		return errors.New("Unsuccessful recaptcha verify request")
-	}
-
-	return nil
 }
 
 // Confirm ...
