@@ -222,7 +222,11 @@ func Restore(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		loginsByte := app.DecryptFile(backupPath, viper.GetString("server.passphrase"))
+		loginsByte, err := app.DecryptFile(backupPath, viper.GetString("server.passphrase"))
+
+		if err != nil {
+			return
+		}
 
 		var loginDTOs []model.LoginDTO
 		if err := json.Unmarshal(loginsByte, &loginDTOs); err != nil {
@@ -232,10 +236,14 @@ func Restore(s storage.Store) http.HandlerFunc {
 		schema := r.Context().Value("schema").(string)
 		for i := range loginDTOs {
 
+			es, err := app.Encrypt(loginDTOs[i].Password, viper.GetString("server.passphrase"))
+			if err != nil {
+				return
+			}
 			login := &model.Login{
 				URL:      loginDTOs[i].URL,
 				Username: loginDTOs[i].Username,
-				Password: base64.StdEncoding.EncodeToString(app.Encrypt(loginDTOs[i].Password, viper.GetString("server.passphrase"))),
+				Password: base64.StdEncoding.EncodeToString(es),
 			}
 
 			s.Logins().Save(login, schema)

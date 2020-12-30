@@ -8,7 +8,11 @@ import (
 // CreateLogin creates a login and saves it to the store
 func CreateLogin(s storage.Store, dto *model.LoginDTO, schema string) (*model.Login, error) {
 	rawLogin := model.ToLogin(dto)
-	encLogin := EncryptModel(rawLogin)
+	encLogin, err := EncryptModel(rawLogin)
+
+	if err != nil {
+		return nil, err
+	}
 
 	createdLogin, err := s.Logins().Save(encLogin.(*model.Login), schema)
 	if err != nil {
@@ -22,9 +26,13 @@ func CreateLogin(s storage.Store, dto *model.LoginDTO, schema string) (*model.Lo
 func CreateLogins(s storage.Store, dtos []model.LoginDTO, schema string) error {
 	for i := range dtos {
 		rawLogin := model.ToLogin(&dtos[i])
-		encLogin := EncryptModel(rawLogin)
+		encLogin, err := EncryptModel(rawLogin)
 
-		_, err := s.Logins().Save(encLogin.(*model.Login), schema)
+		if err != nil {
+			return err
+		}
+
+		_, err = s.Logins().Save(encLogin.(*model.Login), schema)
 		if err != nil {
 			return err
 		}
@@ -36,7 +44,12 @@ func CreateLogins(s storage.Store, dtos []model.LoginDTO, schema string) error {
 // UpdateLogin updates the login with the dto and applies the changes in the store
 func UpdateLogin(s storage.Store, login *model.Login, dto *model.LoginDTO, schema string) (*model.Login, error) {
 	rawModel := model.ToLogin(dto)
-	encModel := EncryptModel(rawModel).(*model.Login)
+	e, err := EncryptModel(rawModel)
+	if err != nil {
+		return nil, err
+	}
+
+	encModel := e.(model.Login)
 
 	login.Title = encModel.Title
 	login.URL = encModel.URL

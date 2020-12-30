@@ -72,7 +72,11 @@ func TestEncryptModel(t *testing.T) {
 		Password:  "123456",
 	}
 
-	encLogin := EncryptModel(login)
+	encLogin, err := EncryptModel(login)
+
+	if err != nil {
+		t.Error(err)
+	}
 
 	decLogin, err := DecryptModel(encLogin)
 

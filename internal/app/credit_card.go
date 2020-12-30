@@ -8,7 +8,10 @@ import (
 // CreateCreditCard creates a new credit card and saves it to the store
 func CreateCreditCard(s storage.Store, dto *model.CreditCardDTO, schema string) (*model.CreditCard, error) {
 	rawModel := model.ToCreditCard(dto)
-	encModel := EncryptModel(rawModel)
+	encModel, err := EncryptModel(rawModel)
+	if err != nil {
+		return nil, err
+	}
 
 	createdCreditCard, err := s.CreditCards().Save(encModel.(*model.CreditCard), schema)
 	if err != nil {
@@ -21,7 +24,11 @@ func CreateCreditCard(s storage.Store, dto *model.CreditCardDTO, schema string) 
 // UpdateCreditCard updates the credit card with the dto and applies the changes in the store
 func UpdateCreditCard(s storage.Store, creditCard *model.CreditCard, dto *model.CreditCardDTO, schema string) (*model.CreditCard, error) {
 	rawModel := model.ToCreditCard(dto)
-	encModel := EncryptModel(rawModel).(*model.CreditCard)
+	e, err := EncryptModel(rawModel)
+	if err != nil {
+		return nil, err
+	}
+	encModel := e.(*model.CreditCard)
 
 	creditCard.CardName = encModel.CardName
 	creditCard.CardholderName = encModel.CardholderName
