@@ -42,17 +42,8 @@ func FindAllLogins(s storage.Store) http.HandlerFunc {
 			loginList[i] = *uLogin.(*model.Login)
 		}
 
-		// Encrypt payload
-		var payload model.Payload
-		key := r.Context().Value("transmissionKey").(string)
-		encrypted, err := app.EncryptJSON(key, loginList)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		payload.Data = string(encrypted)
-
-		RespondWithJSON(w, http.StatusOK, payload)
+		transmissionKey := r.Context().Value("transmissionKey").(string)
+		RespondWithEncJSON(w, http.StatusOK, transmissionKey, loginList)
 	}
 }
 
@@ -86,17 +77,8 @@ func FindLoginsByID(s storage.Store) http.HandlerFunc {
 		// Create DTO
 		loginDTO := model.ToLoginDTO(uLogin.(*model.Login))
 
-		// Encrypt payload
-		var payload model.Payload
-		key := r.Context().Value("transmissionKey").(string)
-		encrypted, err := app.EncryptJSON(key, loginDTO)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		payload.Data = string(encrypted)
-
-		RespondWithJSON(w, http.StatusOK, payload)
+		transmissionKey := r.Context().Value("transmissionKey").(string)
+		RespondWithEncJSON(w, http.StatusOK, transmissionKey, loginDTO)
 	}
 }
 
@@ -113,8 +95,8 @@ func CreateLogin(s storage.Store) http.HandlerFunc {
 
 		// Decrypt payload
 		var loginDTO model.LoginDTO
-		key := r.Context().Value("transmissionKey").(string)
-		err = app.DecryptJSON(key, []byte(payload.Data), &loginDTO)
+		transmissionKey := r.Context().Value("transmissionKey").(string)
+		err = app.DecryptJSON(transmissionKey, []byte(payload.Data), &loginDTO)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -131,15 +113,7 @@ func CreateLogin(s storage.Store) http.HandlerFunc {
 		// Create DTO
 		createdLoginDTO := model.ToLoginDTO(createdLogin)
 
-		// Encrypt payload
-		encrypted, err := app.EncryptJSON(key, createdLoginDTO)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		payload.Data = string(encrypted)
-
-		RespondWithJSON(w, http.StatusOK, payload)
+		RespondWithEncJSON(w, http.StatusOK, transmissionKey, createdLoginDTO)
 	}
 }
 
@@ -164,8 +138,8 @@ func UpdateLogin(s storage.Store) http.HandlerFunc {
 
 		// Decrypt payload
 		var loginDTO model.LoginDTO
-		key := r.Context().Value("transmissionKey").(string)
-		err = app.DecryptJSON(key, []byte(payload.Data), &loginDTO)
+		transmissionKey := r.Context().Value("transmissionKey").(string)
+		err = app.DecryptJSON(transmissionKey, []byte(payload.Data), &loginDTO)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -187,15 +161,7 @@ func UpdateLogin(s storage.Store) http.HandlerFunc {
 		// Create DTO
 		updatedLoginDTO := model.ToLoginDTO(updatedLogin)
 
-		// Encrypt payload
-		encrypted, err := app.EncryptJSON(key, updatedLoginDTO)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		payload.Data = string(encrypted)
-
-		RespondWithJSON(w, http.StatusOK, payload)
+		RespondWithEncJSON(w, http.StatusOK, transmissionKey, updatedLoginDTO)
 	}
 }
 

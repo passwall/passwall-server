@@ -66,8 +66,6 @@ func Auth(s storage.Store) negroni.HandlerFunc {
 		ctxSchema := fmt.Sprintf("user%v", claims["user_id"])
 		ctxTransmissionKey := tokenRow.TransmissionKey
 
-		// TODO: ok check and return
-
 		ctx := r.Context()
 		ctxWithID := context.WithValue(ctx, "id", ctxUserID)
 		ctxWithAuthorized := context.WithValue(ctxWithID, "authorized", ctxAuthorized)

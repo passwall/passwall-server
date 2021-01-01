@@ -8,7 +8,9 @@ import (
 	"text/template"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/model"
+	"github.com/spf13/viper"
 )
 
 //ErrorResponseDTO represents error resposne
@@ -38,6 +40,31 @@ func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	response, _ := json.Marshal(payload)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
+	w.Write(response)
+}
+
+// RespondWithEncJSON write json
+func RespondWithEncJSON(w http.ResponseWriter, code int, transmissionKey string, payload interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+
+	// Get env from config
+	env := viper.GetString("server.env")
+
+	if env == "dev" {
+		response, _ := json.Marshal(payload)
+		w.Write(response)
+		return
+	}
+
+	encrypted, err := app.EncryptJSON(transmissionKey, payload)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	var encPayload model.Payload
+	encPayload.Data = string(encrypted)
+	response, _ := json.Marshal(encPayload)
 	w.Write(response)
 }
 
