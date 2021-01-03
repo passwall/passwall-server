@@ -2,10 +2,8 @@ package api
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
@@ -89,28 +87,16 @@ func FindLoginsByID(s storage.Store) http.HandlerFunc {
 func CreateLogin(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		var loginDTO model.LoginDTO
 		env := viper.GetString("server.env")
 		transmissionKey := r.Context().Value("transmissionKey").(string)
 
-		if env == "prod" {
-			var payload model.Payload
-			decoder := json.NewDecoder(r.Body)
-			if err := decoder.Decode(&payload); err != nil {
-				RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
-				return
-			}
-			defer r.Body.Close()
-
-			// Decrypt payload
-			dec, err := app.DecryptPayload(transmissionKey, []byte(payload.Data))
-			if err != nil {
-				RespondWithError(w, http.StatusInternalServerError, err.Error())
-			}
-
-			r.Body = ioutil.NopCloser(strings.NewReader(string(dec)))
+		if err := ToBody(r, env, transmissionKey); err != nil {
+			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
+			return
 		}
+		defer r.Body.Close()
 
+		var loginDTO model.LoginDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&loginDTO); err != nil {
 			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
