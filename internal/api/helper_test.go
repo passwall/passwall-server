@@ -13,10 +13,10 @@ func TestToBody(t *testing.T) {
 
 	jsonstr := `{
 		"id": 1,
-		"title": "Google",
-		"url": "https://google.com",
-		"username": "yakuter",
-		"password": "dell3625",
+		"title": "Passwall",
+		"url": "https://passwall.io",
+		"username": "passwall",
+		"password": "123456",
 		"extra": "123456"
 	}`
 
