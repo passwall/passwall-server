@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"net/http"
+	"net/http/httptest"
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -11,6 +12,33 @@ import (
 	"github.com/jinzhu/gorm"
 	"github.com/passwall/passwall-server/internal/storage"
 )
+
+func (suite *TestSuiteEnv) TestFindAllLogins() {
+
+	// db := suite.db
+	gorm := suite.gorm
+
+	req, err := http.NewRequest("GET", "/api/logins", nil)
+	if err != nil {
+		suite.Error(err)
+	}
+
+	w := httptest.NewRecorder()
+	// handler := FindAllLogins(db)
+
+	r := routersSetup(gorm)
+
+	r.ServeHTTP(w, req)
+	// more test cases could be added
+	// expected := `{"api":{"status_code":200,"error":null},"database":{"status_code":200,"error":null}}`
+
+	suite.T().Log(w.Body.String())
+
+	// if rr.Body.String() != expected {
+	// 	t.Errorf("handler returned unexpected body: got %v want %v",
+	// 		rr.Body.String(), expected)
+	// }
+}
 
 /* func TestFindAllLogins(t *testing.T) {
 	w := httptest.NewRecorder()
@@ -152,9 +180,10 @@ func contextMiddleware(h http.Handler) http.Handler {
 		ctx := r.Context()
 		ctxWithID := context.WithValue(ctx, "id", 1)
 		ctxWithAuthorized := context.WithValue(ctxWithID, "authorized", true)
-		ctxWithSchema := context.WithValue(ctxWithAuthorized, "schema", "user-test")
+		ctxWithSchema := context.WithValue(ctxWithAuthorized, "schema", "user1")
+		ctxWithTransmissionKey := context.WithValue(ctxWithSchema, "transmissionKey", "deneme")
 
-		h.ServeHTTP(w, r.WithContext(ctxWithSchema))
+		h.ServeHTTP(w, r.WithContext(ctxWithTransmissionKey))
 	})
 }
 
