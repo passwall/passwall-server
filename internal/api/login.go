@@ -23,9 +23,13 @@ func FindAllLogins(s storage.Store) http.HandlerFunc {
 		var err error
 		var loginList []model.Login
 
+		// Setup variables
+		transmissionKey := r.Context().Value("transmissionKey").(string)
+
 		fields := []string{"id", "created_at", "updated_at", "title"}
 		argsStr, argsInt := SetArgs(r, fields)
 
+		// Get all logins from db
 		schema := r.Context().Value("schema").(string)
 		loginList, err = s.Logins().FindAll(argsStr, argsInt, schema)
 		if err != nil {
@@ -43,7 +47,6 @@ func FindAllLogins(s storage.Store) http.HandlerFunc {
 			loginList[i] = *uLogin.(*model.Login)
 		}
 
-		transmissionKey := r.Context().Value("transmissionKey").(string)
 		RespondWithEncJSON(w, http.StatusOK, transmissionKey, loginList)
 	}
 }
@@ -51,6 +54,9 @@ func FindAllLogins(s storage.Store) http.HandlerFunc {
 // FindLoginsByID finds a login by id
 func FindLoginsByID(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+
+		// Setup variables
+		transmissionKey := r.Context().Value("transmissionKey").(string)
 
 		// Check if id is integer
 		vars := mux.Vars(r)
@@ -78,7 +84,6 @@ func FindLoginsByID(s storage.Store) http.HandlerFunc {
 		// Create DTO
 		loginDTO := model.ToLoginDTO(uLogin.(*model.Login))
 
-		transmissionKey := r.Context().Value("transmissionKey").(string)
 		RespondWithEncJSON(w, http.StatusOK, transmissionKey, loginDTO)
 	}
 }
@@ -87,15 +92,20 @@ func FindLoginsByID(s storage.Store) http.HandlerFunc {
 func CreateLogin(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
+		// Setup variables
 		env := viper.GetString("server.env")
 		transmissionKey := r.Context().Value("transmissionKey").(string)
 
+		// Update request body according to env.
+		// If env is dev, then do nothing
+		// If env is prod, then decrypt payload with transmission key
 		if err := ToBody(r, env, transmissionKey); err != nil {
 			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
 
+		// Unmarshal request body to loginDTO
 		var loginDTO model.LoginDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&loginDTO); err != nil {
@@ -112,8 +122,15 @@ func CreateLogin(s storage.Store) http.HandlerFunc {
 			return
 		}
 
+		// Decrypt server side encrypted fields
+		decLogin, err := app.DecryptModel(createdLogin)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
 		// Create DTO
-		createdLoginDTO := model.ToLoginDTO(createdLogin)
+		createdLoginDTO := model.ToLoginDTO(decLogin.(*model.Login))
 
 		RespondWithEncJSON(w, http.StatusOK, transmissionKey, createdLoginDTO)
 	}
@@ -129,24 +146,26 @@ func UpdateLogin(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// Unmarshal request body to payload
-		var payload model.Payload
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&payload); err != nil {
+		// Setup variables
+		env := viper.GetString("server.env")
+		transmissionKey := r.Context().Value("transmissionKey").(string)
+
+		if err := ToBody(r, env, transmissionKey); err != nil {
 			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
 
-		// Decrypt payload
+		// Unmarshal request body to loginDTO
 		var loginDTO model.LoginDTO
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-		err = app.DecryptJSON(transmissionKey, []byte(payload.Data), &loginDTO)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
+		decoder := json.NewDecoder(r.Body)
+		if err := decoder.Decode(&loginDTO); err != nil {
+			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 			return
 		}
+		defer r.Body.Close()
 
+		// Find login defined by id
 		schema := r.Context().Value("schema").(string)
 		login, err := s.Logins().FindByID(uint(id), schema)
 		if err != nil {
@@ -154,14 +173,22 @@ func UpdateLogin(s storage.Store) http.HandlerFunc {
 			return
 		}
 
+		// Update login
 		updatedLogin, err := app.UpdateLogin(s, login, &loginDTO, schema)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
+		// Decrypt server side encrypted fields
+		decLogin, err := app.DecryptModel(updatedLogin)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
 		// Create DTO
-		updatedLoginDTO := model.ToLoginDTO(updatedLogin)
+		updatedLoginDTO := model.ToLoginDTO(decLogin.(*model.Login))
 
 		RespondWithEncJSON(w, http.StatusOK, transmissionKey, updatedLoginDTO)
 	}
@@ -177,6 +204,7 @@ func DeleteLogin(s storage.Store) http.HandlerFunc {
 			return
 		}
 
+		// Find login defined by id
 		schema := r.Context().Value("schema").(string)
 		login, err := s.Logins().FindByID(uint(id), schema)
 		if err != nil {
@@ -184,12 +212,14 @@ func DeleteLogin(s storage.Store) http.HandlerFunc {
 			return
 		}
 
+		// Delete login defined by id
 		err = s.Logins().Delete(login.ID, schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
+		// Generate response
 		response := model.Response{
 			Code:    http.StatusOK,
 			Status:  Success,
