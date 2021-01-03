@@ -43,7 +43,7 @@ func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Write(response)
 }
 
-// RespondWithEncJSON write json
+// RespondWithEncJSON encrypts returning json data
 func RespondWithEncJSON(w http.ResponseWriter, code int, transmissionKey string, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
