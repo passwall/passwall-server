@@ -2,8 +2,9 @@ package app
 
 import (
 	"fmt"
-	"github.com/spf13/viper"
 	"strconv"
+
+	"github.com/spf13/viper"
 
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
@@ -38,21 +39,6 @@ func CreateUser(s storage.Store, userDTO *model.UserDTO) (*model.User, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// Generate schema name and update user
-	updatedUser, err := GenerateSchema(s, createdUser)
-	if err != nil{
-		return nil, ErrGenerateSchema
-	}
-
-	// Create user schema and tables
-	err = s.Users().CreateSchema(updatedUser.Schema)
-	if err != nil {
-		return nil,ErrCreateSchema
-	}
-	// Create user tables in user schema
-	MigrateUserTables(s, updatedUser.Schema)
-
 	return createdUser, nil
 }
 
