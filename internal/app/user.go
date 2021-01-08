@@ -2,30 +2,21 @@ package app
 
 import (
 	"fmt"
-	"github.com/spf13/viper"
-	"strconv"
 
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
 	uuid "github.com/satori/go.uuid"
 )
-var (
-	//ErrExpiredToken represents message for generating schema
-	ErrGenerateSchema = fmt.Errorf("an error occured while genarating schema")
-	//ErrUnauthorized represents message for creating schema
-	ErrCreateSchema = fmt.Errorf("an error occured while creating the schema and tables")
-)
 
 // CreateUser creates a user and saves it to the store
 func CreateUser(s storage.Store, userDTO *model.UserDTO) (*model.User, error) {
 	var err error
-
-	// Hashing the master password with Bcrypt
+	// Hasing the master password with Bcrypt
 	userDTO.MasterPassword = NewBcrypt([]byte(userDTO.MasterPassword))
 
 	// Generate secret to use as salt
-	passwordLength, _ := strconv.Atoi(viper.GetString("server.generatedPasswordLength"))
-	userDTO.Secret, err = GenerateSecureKey(passwordLength)
+	// todo: do not use place in int variables, pass them as const
+	userDTO.Secret, err = GenerateSecureKey(16)
 	if err != nil {
 		return nil, err
 	}
@@ -35,25 +26,10 @@ func CreateUser(s storage.Store, userDTO *model.UserDTO) (*model.User, error) {
 	// Generate new UUID for user
 	userDTO.UUID = uuid.NewV4()
 
-	// Save the user
 	createdUser, err := s.Users().Save(model.ToUser(userDTO))
 	if err != nil {
 		return nil, err
 	}
-
-	// Generate schema name and update user
-	updatedUser, err := GenerateSchema(s, createdUser)
-	if err != nil{
-		return nil, ErrGenerateSchema
-	}
-
-	// Create user schema and tables
-	err = s.Users().CreateSchema(updatedUser.Schema)
-	if err != nil {
-		return nil,ErrCreateSchema
-	}
-	// Create user tables in user schema
-	MigrateUserTables(s, updatedUser.Schema)
 
 	return createdUser, nil
 }
