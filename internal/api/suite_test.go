@@ -1,7 +1,9 @@
 package api
 
 import (
+	"fmt"
 	"log"
+	"math/rand"
 	"testing"
 
 	"github.com/jinzhu/gorm"
@@ -54,7 +56,7 @@ func (suite *TestSuiteEnv) SetupSuite() {
 	userDTO := &model.UserDTO{
 		Name:           "Test User",
 		Email:          "test@passwall.io",
-		MasterPassword: "123456",
+		MasterPassword: fmt.Sprintf("%016d", rand.Int63n(1e16)),
 	}
 
 	// 7. Create dummy user
