@@ -61,10 +61,7 @@ func CreateUser(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		userDTO := new(model.UserDTO)
-
-		// TODO: There are 6 action here. These should be moved to service layer
-		// user's service layer functions located in /app/user.go file is
-
+		
 		// 1. Decode request body to userDTO object
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&userDTO); err != nil {
@@ -98,24 +95,7 @@ func CreateUser(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// 5. Generate schema name and update user
-		updatedUser, err := app.GenerateSchema(s, createdUser)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-
-		// 6. Create user schema and tables
-		err = s.Users().CreateSchema(updatedUser.Schema)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-
-		// 7. Create user tables in user schema
-		app.MigrateUserTables(s, updatedUser.Schema)
-
-		RespondWithJSON(w, http.StatusOK, model.ToUserDTO(updatedUser))
+		RespondWithJSON(w, http.StatusOK, model.ToUserDTO(createdUser))
 	}
 }
 
