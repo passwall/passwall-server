@@ -75,22 +75,28 @@ func Signup(s storage.Store) http.HandlerFunc {
 		confirmationCode := app.RandomMD5Hash()
 		createdUser.ConfirmationCode = confirmationCode
 
-		// 5. Update user once to generate schema
-		updatedUser, err := app.GenerateSchema(s, createdUser)
+		// // 5. Update user once to generate schema
+		// updatedUser, err := app.GenerateSchema(s, createdUser)
+		// if err != nil {
+		// 	RespondWithError(w, http.StatusInternalServerError, err.Error())
+		// 	return
+		// }
+
+		// // 6. Create user schema and tables
+		// err = s.Users().CreateSchema(updatedUser.Schema)
+		// if err != nil {
+		// 	RespondWithError(w, http.StatusInternalServerError, err.Error())
+		// 	return
+		// }
+
+		// // 7. Create user tables in user schema
+		// app.MigrateUserTables(s, updatedUser.Schema)
+
+		_, err = s.Users().Save(createdUser)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-
-		// 6. Create user schema and tables
-		err = s.Users().CreateSchema(updatedUser.Schema)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-
-		// 7. Create user tables in user schema
-		app.MigrateUserTables(s, updatedUser.Schema)
 
 		// 8. Send email to admin adbout new user subscription
 		subject := "PassWall New User Subscription"
