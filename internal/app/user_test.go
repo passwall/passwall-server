@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/passwall/passwall-server/internal/config"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
 	uuid "github.com/satori/go.uuid"
@@ -181,4 +182,23 @@ func TestUpdateUser(t *testing.T) {
 			}
 		})
 	}
+}
+
+func initDB() (*storage.Database, error) {
+	mockDBConfig := &config.DatabaseConfiguration{
+		Name:     "passwall",
+		Username: "postgres",
+		Password: "postgres",
+		Host:     "localhost",
+		Port:     "5432",
+		LogMode:  false,
+	}
+
+	mockDB, err := storage.DBConn(mockDBConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	db := storage.New(mockDB)
+	return db, nil
 }
