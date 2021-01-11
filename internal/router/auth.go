@@ -2,9 +2,7 @@ package router
 
 import (
 	"context"
-	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/dgrijalva/jwt-go"
@@ -33,7 +31,6 @@ func Auth(s storage.Store) negroni.HandlerFunc {
 				uuid, _ := claims["uuid"].(string)
 				s.Tokens().DeleteByUUID(uuid)
 			}
-			// it's not good idea to give error information to the requester.
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -41,41 +38,43 @@ func Auth(s storage.Store) negroni.HandlerFunc {
 		claims, _ := token.Claims.(jwt.MapClaims)
 		uuid, _ := claims["uuid"].(string)
 
-		//check from db
+		// Check token from tokens db table
 		tokenRow, tokenExist := s.Tokens().Any(uuid)
 
-		if !tokenExist {
-			userid, _ := strconv.Atoi(fmt.Sprintf("%.f", claims["user_id"]))
-			s.Tokens().Delete(userid)
+		// Get User UUID from claims
+		ctxUserUUID, ok := claims["user_uuid"].(string)
+		if !ok {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 
+		// Get user details from db by User UUID
+		user, err := s.Users().FindByUUID(ctxUserUUID)
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		// Token invalidation for old token usage
+		if !tokenExist {
+			s.Tokens().Delete(int(user.ID))
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		// Admin or Member
 		ctxAuthorized, ok := claims["authorized"].(bool)
 		if !ok {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 
-		ctxUserUUID := claims["user_uuid"].(string)
-		if !ok {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-
-		// Get user details from db by uuid
-		user, err := s.Users().FindByUUID(ctxUserUUID)
-		if err != nil {
-			fmt.Println("Couldn't find user")
-		}
-		fmt.Printf("%+v", user)
-
-		ctxSchema := fmt.Sprintf("user%v", claims["user_id"])
+		ctxSchema := user.Schema
 		ctxTransmissionKey := tokenRow.TransmissionKey
 
 		ctx := r.Context()
-		ctxWithID := context.WithValue(ctx, "id", ctxUserUUID)
-		ctxWithAuthorized := context.WithValue(ctxWithID, "authorized", ctxAuthorized)
+		ctxWithUUID := context.WithValue(ctx, "uuid", ctxUserUUID)
+		ctxWithAuthorized := context.WithValue(ctxWithUUID, "authorized", ctxAuthorized)
 		ctxWithSchema := context.WithValue(ctxWithAuthorized, "schema", ctxSchema)
 		ctxWithTransmissionKey := context.WithValue(ctxWithSchema, "transmissionKey", ctxTransmissionKey)
 
