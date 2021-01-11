@@ -33,7 +33,7 @@ func (suite *TestSuiteEnv) SetupSuite() {
 		Password: "postgres",
 		Host:     "localhost",
 		Port:     "5432",
-		LogMode:  false,
+		LogMode:  true,
 	}
 
 	// 3. Create db connection

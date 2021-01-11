@@ -57,17 +57,24 @@ func Auth(s storage.Store) negroni.HandlerFunc {
 			return
 		}
 
-		ctxUserID := claims["user_id"].(float64)
+		ctxUserUUID := claims["user_uuid"].(string)
 		if !ok {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 
+		// Get user details from db by uuid
+		user, err := s.Users().FindByUUID(ctxUserUUID)
+		if err != nil {
+			fmt.Println("Couldn't find user")
+		}
+		fmt.Printf("%+v", user)
+
 		ctxSchema := fmt.Sprintf("user%v", claims["user_id"])
 		ctxTransmissionKey := tokenRow.TransmissionKey
 
 		ctx := r.Context()
-		ctxWithID := context.WithValue(ctx, "id", ctxUserID)
+		ctxWithID := context.WithValue(ctx, "id", ctxUserUUID)
 		ctxWithAuthorized := context.WithValue(ctxWithID, "authorized", ctxAuthorized)
 		ctxWithSchema := context.WithValue(ctxWithAuthorized, "schema", ctxSchema)
 		ctxWithTransmissionKey := context.WithValue(ctxWithSchema, "transmissionKey", ctxTransmissionKey)
