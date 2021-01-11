@@ -2,8 +2,9 @@ package app
 
 import (
 	"fmt"
-	"github.com/spf13/viper"
 	"strconv"
+
+	"github.com/spf13/viper"
 
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
@@ -20,6 +21,13 @@ var (
 // CreateUser creates a user and saves it to the store
 func CreateUser(s storage.Store, userDTO *model.UserDTO) (*model.User, error) {
 	var err error
+
+	//Run validator according to model.UserDTO validator tags
+	err = PayloadValidator(userDTO)
+	if err != nil {
+		return nil, err
+	}
+
 	// Hashing the master password with Bcrypt
 	userDTO.MasterPassword = NewBcrypt([]byte(userDTO.MasterPassword))
 
@@ -41,14 +49,14 @@ func CreateUser(s storage.Store, userDTO *model.UserDTO) (*model.User, error) {
 
 	// Generate schema name and update user
 	updatedUser, err := GenerateSchema(s, createdUser)
-	if err != nil{
+	if err != nil {
 		return nil, ErrGenerateSchema
 	}
 
 	// Create user schema and tables
 	err = s.Users().CreateSchema(updatedUser.Schema)
 	if err != nil {
-		return nil,ErrCreateSchema
+		return nil, ErrCreateSchema
 	}
 	// Create user tables in user schema
 	MigrateUserTables(s, updatedUser.Schema)
