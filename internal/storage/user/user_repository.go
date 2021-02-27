@@ -57,6 +57,13 @@ func (p *Repository) FindByID(id uint) (*model.User, error) {
 	return user, err
 }
 
+// FindByUUID ...
+func (p *Repository) FindByUUID(uuid string) (*model.User, error) {
+	user := new(model.User)
+	err := p.db.Where(`uuid = ?`, uuid).First(&user).Error
+	return user, err
+}
+
 // FindByEmail ...
 func (p *Repository) FindByEmail(email string) (*model.User, error) {
 	user := new(model.User)

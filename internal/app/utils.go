@@ -4,6 +4,8 @@ import (
 	"crypto/md5"
 	"crypto/rand"
 	"encoding/hex"
+
+	"github.com/go-playground/validator/v10"
 )
 
 // GetMD5Hash ...
@@ -28,4 +30,16 @@ func RandomMD5Hash() (string, error) {
 	}
 
 	return r, nil
+}
+
+// PayloadValidator ...
+func PayloadValidator(model interface{}) error {
+	validate := validator.New()
+	validateError := validate.Struct(model)
+	if validateError != nil {
+		//	errs := GetErrors(validateError.(validator.ValidationErrors))
+		//	RespondWithErrors(w, http.StatusBadRequest, InvalidRequestPayload, errs)
+		return validateError
+	}
+	return nil
 }

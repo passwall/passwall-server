@@ -29,6 +29,7 @@ type Configuration struct {
 
 // ServerConfiguration is the required parameters to set up a server
 type ServerConfiguration struct {
+	Env                        string `default:"dev"` // dev, prod
 	Port                       string `default:"3625"`
 	Domain                     string `default:"https://vault.passwall.io"`
 	Dir                        string `default:"/app/config"`
@@ -226,6 +227,7 @@ func bindEnvs() error {
 func setDefaults() {
 
 	// Server defaults
+	viper.SetDefault("server.env", "prod")
 	viper.SetDefault("server.port", "3625")
 	viper.SetDefault("server.domain", "https://vault.passwall.io")
 	viper.SetDefault("server.passphrase", generateKey())

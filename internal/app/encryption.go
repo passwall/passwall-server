@@ -217,6 +217,21 @@ func DecryptModel(rawModel interface{}) (interface{}, error) {
 	return rawModel, err
 }
 
+// DecryptPayload ...
+func DecryptPayload(key string, encrypted []byte) ([]byte, error) {
+
+	// 1. Get a openssl object
+	o := openssl.New()
+
+	// 2. Decrypt string
+	dec, err := o.DecryptBytes(key, encrypted, openssl.BytesToKeyMD5)
+	if err != nil {
+		return dec, err
+	}
+
+	return dec, nil
+}
+
 // DecryptJSON ...
 func DecryptJSON(key string, encrypted []byte, v interface{}) error {
 
