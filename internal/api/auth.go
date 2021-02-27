@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -41,10 +40,9 @@ func Signup(s storage.Store) http.HandlerFunc {
 		defer r.Body.Close()
 
 		// 1. Run validator according to model.UserDTO validator tags
-		validate := validator.New()
-		validateError := validate.Struct(userSignup)
-		if validateError != nil {
-			errs := GetErrors(validateError.(validator.ValidationErrors))
+		err := app.PayloadValidator(userSignup)
+		if err != nil {
+			errs := GetErrors(err.(validator.ValidationErrors))
 			RespondWithErrors(w, http.StatusBadRequest, InvalidRequestPayload, errs)
 			return
 		}
@@ -60,7 +58,7 @@ func Signup(s storage.Store) http.HandlerFunc {
 
 		// 3. Check if user exist in database
 		userDTO := model.ConvertUserDTO(userSignup)
-		_, err := s.Users().FindByEmail(userDTO.Email)
+		_, err = s.Users().FindByEmail(userDTO.Email)
 		if err == nil {
 			RespondWithError(w, http.StatusBadRequest, "User couldn't created!")
 			return
@@ -125,50 +123,6 @@ func Signup(s storage.Store) http.HandlerFunc {
 	}
 }
 
-func CheckRecaptcha(gCaptchaValue string) error {
-
-	type SiteVerifyResponse struct {
-		Success     bool     `json:"success"`
-		ChallengeTS string   `json:"challenge_ts"`
-		Hostname    string   `json:"hostname"`
-		ErrorCodes  []string `json:"error-codes"`
-	}
-
-	const siteVerifyURL = "https://www.google.com/recaptcha/api/siteverify"
-
-	// Create new request
-	req, err := http.NewRequest(http.MethodPost, siteVerifyURL, nil)
-	if err != nil {
-		return err
-	}
-
-	// Add necessary request
-	q := req.URL.Query()
-	q.Add("secret", viper.GetString("server.recaptcha"))
-	q.Add("response", gCaptchaValue)
-	req.URL.RawQuery = q.Encode()
-
-	// Make request
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	// Decode response.
-	var body SiteVerifyResponse
-	if err = json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return err
-	}
-
-	// Check recaptcha verification success.
-	if !body.Success {
-		return errors.New("Unsuccessful recaptcha verify request")
-	}
-
-	return nil
-}
-
 // Confirm ...
 func Confirm(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -228,11 +182,10 @@ func Signin(s storage.Store) http.HandlerFunc {
 		}
 		defer r.Body.Close()
 
-		// validate struct
-		validate := validator.New()
-		validateError := validate.Struct(loginDTO)
-		if validateError != nil {
-			errs := GetErrors(validateError.(validator.ValidationErrors))
+		// Run validator according to model.AuthLoginDTO validator tags
+		err := app.PayloadValidator(loginDTO)
+		if err != nil {
+			errs := GetErrors(err.(validator.ValidationErrors))
 			RespondWithErrors(w, http.StatusBadRequest, InvalidRequestPayload, errs)
 			return
 		}

@@ -111,6 +111,8 @@ type UserRepository interface {
 	FindAll(argsStr map[string]string, argsInt map[string]int) ([]model.User, error)
 	// FindByID finds the entity regarding to its ID.
 	FindByID(id uint) (*model.User, error)
+	// FindByUUID finds the entity regarding to its UUID.
+	FindByUUID(uuid string) (*model.User, error)
 	// FindByEmail finds the entity regarding to its Email.
 	FindByEmail(email string) (*model.User, error)
 	// FindByCredentials finds the entity regarding to its Email and Master Password.

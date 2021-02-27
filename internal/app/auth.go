@@ -42,7 +42,8 @@ func CreateToken(user *model.User) (*model.TokenDetailsDTO, error) {
 	if user.Role == "Admin" {
 		atClaims["authorized"] = true
 	}
-	atClaims["user_id"] = user.ID
+
+	atClaims["user_uuid"] = user.UUID.String()
 	atClaims["exp"] = td.AtExpiresTime.Unix()
 	atClaims["uuid"] = td.AtUUID.String()
 	at := jwt.NewWithClaims(jwt.SigningMethodHS256, atClaims)
@@ -53,7 +54,7 @@ func CreateToken(user *model.User) (*model.TokenDetailsDTO, error) {
 
 	//create refresh token
 	rtClaims := jwt.MapClaims{}
-	rtClaims["user_id"] = user.ID
+	rtClaims["user_uuid"] = user.UUID.String()
 	rtClaims["exp"] = td.RtExpiresTime.Unix()
 	rtClaims["uuid"] = td.RtUUID.String()
 

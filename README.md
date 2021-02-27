@@ -46,7 +46,8 @@ var encryptedPassword = CryptoJS.SHA256(pm.environment.get('password')).toString
 pm.environment.set('password',encryptedPassword);
 
 console.log(encryptedPassword);
-```
+```  
+Click on [this link](https://www.youtube.com/watch?v=bFgstpIA3iE&list=PL645jNNONo8TBOBDFRq7SolX_aWCT2Ia9) to visit our Youtube playlist.  
 
 
 ## Database support
