@@ -58,6 +58,7 @@ func CreateUser(s storage.Store, userDTO *model.UserDTO) (*model.User, error) {
 	if err != nil {
 		return nil, ErrCreateSchema
 	}
+
 	// Create user tables in user schema
 	MigrateUserTables(s, updatedUser.Schema)
 

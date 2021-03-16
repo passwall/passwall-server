@@ -2,6 +2,8 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -9,6 +11,7 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
+	"github.com/matcornic/hermes"
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
@@ -48,13 +51,10 @@ func Signup(s storage.Store) http.HandlerFunc {
 		}
 
 		// 2. Check and verify the recaptcha response token.
-		// This is needed for web form security.
-		/*
-			if err := CheckRecaptcha(userSignup.Recaptcha); err != nil {
-				RespondWithError(w, http.StatusUnauthorized, err.Error())
-				return
-			}
-		*/
+		if err := CheckRecaptcha(userSignup.Recaptcha); err != nil {
+			RespondWithError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
 
 		// 3. Check if user exist in database
 		userDTO := model.ConvertUserDTO(userSignup)
@@ -74,44 +74,11 @@ func Signup(s storage.Store) http.HandlerFunc {
 		confirmationCode := app.RandomMD5Hash()
 		createdUser.ConfirmationCode = confirmationCode
 
-		// 5. Update user once to generate schema
-		updatedUser, err := app.GenerateSchema(s, createdUser)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-
-		// 6. Create user schema and tables
-		err = s.Users().CreateSchema(updatedUser.Schema)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-
-		// 7. Create user tables in user schema
-		app.MigrateUserTables(s, updatedUser.Schema)
-
-		// 8. Send email to admin adbout new user subscription
-		subject := "PassWall New User Subscription"
-		body := "PassWall has new a user. User details:\n\n"
-		body += "Name: " + userDTO.Name + "\n"
-		body += "Email: " + userDTO.Email + "\n"
-		app.SendMail(
-			viper.GetString("email.fromName"),
-			viper.GetString("email.fromEmail"),
-			subject,
-			body)
+		// 8. Send email to admin about new user subscription
+		notifyAdminEmail(userDTO)
 
 		// 9. Send confirmation email to new user
-		confirmationSubject := "Passwall Email Confirmation"
-		confirmationBody := "Last step for use Passwall\n\n"
-		confirmationBody += "Confirmation link: " + viper.GetString("server.domain")
-		confirmationBody += "/auth/confirm/" + userDTO.Email + "/" + confirmationCode
-		app.SendMail(
-			userDTO.Name,
-			userDTO.Email,
-			confirmationSubject,
-			confirmationBody)
+		sendConfirmationEmail(userDTO, confirmationCode)
 
 		// Return success message
 		response := model.Response{
@@ -121,6 +88,60 @@ func Signup(s storage.Store) http.HandlerFunc {
 		}
 		RespondWithJSON(w, http.StatusOK, response)
 	}
+}
+
+// CheckRecaptcha ...
+func CheckRecaptcha(gCaptchaValue string) error {
+
+	secret := viper.GetString("server.recaptcha")
+
+	type SiteVerifyResponse struct {
+		Success     bool      `json:"success"`
+		Score       float64   `json:"score"`
+		Action      string    `json:"action"`
+		ChallengeTS time.Time `json:"challenge_ts"`
+		Hostname    string    `json:"hostname"`
+		ErrorCodes  []string  `json:"error-codes"`
+	}
+
+	const siteVerifyURL = "https://www.google.com/recaptcha/api/siteverify"
+
+	// Create new request
+	req, err := http.NewRequest(http.MethodPost, siteVerifyURL, nil)
+	if err != nil {
+		return err
+	}
+
+	// Add necessary request
+	q := req.URL.Query()
+	q.Add("secret", secret)
+	q.Add("response", gCaptchaValue)
+	req.URL.RawQuery = q.Encode()
+
+	// Make request
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Decode response.
+	var body SiteVerifyResponse
+	if err = json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return err
+	}
+
+	// Check recaptcha verification success.
+	if !body.Success {
+		return errors.New("Unsuccessful recaptcha verify request")
+	}
+
+	// Check response score.
+	if body.Score < 0.5 {
+		return errors.New("Lower received score than expected")
+	}
+
+	return nil
 }
 
 // Confirm ...
@@ -338,4 +359,61 @@ func CheckToken(s storage.Store) http.HandlerFunc {
 
 		RespondWithJSON(w, http.StatusOK, response)
 	}
+}
+
+func sendConfirmationEmail(user *model.UserDTO, confirmationCode string) {
+	h := hermes.Hermes{
+		Product: hermes.Product{
+			Name:      "Passwall",
+			Link:      "https://passwall.io",
+			Logo:      "https://signup.passwall.io//images/passwall-logo.png",
+			Copyright: "Copyright © 2021 Passwall. All rights reserved.",
+		},
+	}
+
+	email := hermes.Email{
+		Body: hermes.Body{
+			Name: user.Name,
+			Intros: []string{
+				"Welcome to Passwall! We're very excited to have you on board.",
+			},
+			Actions: []hermes.Action{
+				{
+					Instructions: "To get started with Passwall, please click here:",
+					Button: hermes.Button{
+						Color: "#22BC66",
+						Text:  "Confirm your account",
+						Link:  viper.GetString("server.domain") + "/auth/confirm/" + user.Email + "/" + confirmationCode,
+					},
+				},
+			},
+			Outros: []string{
+				"Need help, or have questions? Just reply to this email, we'd love to help.",
+			},
+		},
+	}
+
+	// Generate an HTML email with the provided contents (for modern clients)
+	emailBody, err := h.GenerateHTML(email)
+	if err != nil {
+		log.Println(err)
+	}
+
+	app.SendMail(
+		user.Name,
+		user.Email,
+		"Passwall Email Confirmation",
+		emailBody)
+}
+
+func notifyAdminEmail(user *model.UserDTO) {
+	subject := "PassWall New User Subscription"
+	body := "PassWall has new a user. User details:\n\n"
+	body += "Name: " + user.Name + "\n"
+	body += "Email: " + user.Email + "\n"
+	app.SendMail(
+		viper.GetString("email.fromName"),
+		viper.GetString("email.fromEmail"),
+		subject,
+		body)
 }
