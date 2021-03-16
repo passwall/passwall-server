@@ -47,6 +47,9 @@ func CreateUser(s storage.Store, userDTO *model.UserDTO) (*model.User, error) {
 		return nil, err
 	}
 
+	confirmationCode := RandomMD5Hash()
+	createdUser.ConfirmationCode = confirmationCode
+
 	// Generate schema name and update user
 	updatedUser, err := GenerateSchema(s, createdUser)
 	if err != nil {

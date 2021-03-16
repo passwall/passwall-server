@@ -50,10 +50,12 @@ func Signup(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// 2. Check and verify the recaptcha response token.
-		if err := CheckRecaptcha(userSignup.Recaptcha); err != nil {
-			RespondWithError(w, http.StatusUnauthorized, err.Error())
-			return
+		// 2. Check and verify the recaptcha response token only in production.
+		if viper.GetString("server.env") == "prod" {
+			if err := CheckRecaptcha(userSignup.Recaptcha); err != nil {
+				RespondWithError(w, http.StatusUnauthorized, err.Error())
+				return
+			}
 		}
 
 		// 3. Check if user exist in database
@@ -71,14 +73,11 @@ func Signup(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		confirmationCode := app.RandomMD5Hash()
-		createdUser.ConfirmationCode = confirmationCode
-
 		// 8. Send email to admin about new user subscription
 		notifyAdminEmail(userDTO)
 
 		// 9. Send confirmation email to new user
-		sendConfirmationEmail(userDTO, confirmationCode)
+		sendConfirmationEmail(userDTO, createdUser.ConfirmationCode)
 
 		// Return success message
 		response := model.Response{
@@ -179,13 +178,15 @@ func Confirm(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		response := model.Response{
-			Code:    http.StatusOK,
-			Status:  verifySuccess,
-			Message: signupSuccess,
-		}
+		// response := model.Response{
+		// 	Code:    http.StatusOK,
+		// 	Status:  verifySuccess,
+		// 	Message: signupSuccess,
+		// }
 
-		RespondWithJSON(w, http.StatusOK, response)
+		http.Redirect(w, r, "https://passwall.io", http.StatusSeeOther)
+
+		// RespondWithJSON(w, http.StatusOK, response)
 		// RespondWithHTML(w, http.StatusOK, response)
 	}
 }
@@ -219,10 +220,10 @@ func Signin(s storage.Store) http.HandlerFunc {
 		}
 
 		// Check if users email is verified
-		// if user.EmailVerifiedAt.IsZero() {
-		// 	RespondWithError(w, http.StatusForbidden, userVerifyErr)
-		// 	return
-		// }
+		if user.EmailVerifiedAt.IsZero() {
+			RespondWithError(w, http.StatusForbidden, userVerifyErr)
+			return
+		}
 
 		// Check if user has an active subscription
 		subscription, _ := s.Subscriptions().FindByEmail(user.Email)
