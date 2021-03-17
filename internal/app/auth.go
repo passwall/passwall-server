@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -14,9 +15,9 @@ import (
 
 var (
 	//ErrExpiredToken represents message for expired token
-	ErrExpiredToken = fmt.Errorf("Token expired or invalid")
+	ErrExpiredToken = errors.New("token expired or invalid")
 	//ErrUnauthorized represents message for unauthorized
-	ErrUnauthorized = fmt.Errorf("Unauthorized")
+	ErrUnauthorized = errors.New("unauthorized")
 )
 
 //CreateToken ...
