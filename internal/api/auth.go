@@ -178,16 +178,7 @@ func Confirm(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// response := model.Response{
-		// 	Code:    http.StatusOK,
-		// 	Status:  verifySuccess,
-		// 	Message: signupSuccess,
-		// }
-
-		http.Redirect(w, r, "https://passwall.io", http.StatusSeeOther)
-
-		// RespondWithJSON(w, http.StatusOK, response)
-		// RespondWithHTML(w, http.StatusOK, response)
+		http.Redirect(w, r, "https://signup.passwall.io/confirmed", http.StatusSeeOther)
 	}
 }
 
