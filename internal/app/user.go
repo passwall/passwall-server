@@ -17,8 +17,6 @@ var (
 	ErrGenerateSchema = errors.New("an error occured while genarating schema")
 	// ErrCreateSchema represents message for creating schema
 	ErrCreateSchema = errors.New("an error occured while creating the schema and tables")
-	// ErrCreateSubscription represents message for creating subscription
-	ErrCreateSubscription = errors.New("an error occured while creating the subscription for the user")
 )
 
 // CreateUser creates a user and saves it to the store
@@ -63,13 +61,6 @@ func CreateUser(s storage.Store, userDTO *model.UserDTO) (*model.User, error) {
 	err = s.Users().CreateSchema(updatedUser.Schema)
 	if err != nil {
 		return nil, ErrCreateSchema
-	}
-
-	// Create new free subscription
-	newSubscription := &model.Subscription{Type: "free", Email: userDTO.Email, Status: "active"}
-	_, err = s.Subscriptions().Save(newSubscription)
-	if err != nil {
-		return nil, ErrCreateSubscription
 	}
 
 	// Create user tables in user schema

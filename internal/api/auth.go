@@ -22,18 +22,17 @@ var (
 	userLoginErr   = "User email or master password is wrong."
 	userVerifyErr  = "Please verify your email first."
 	invalidUser    = "Invalid user"
-	validToken     = "Token is valid"
 	invalidToken   = "Token is expired or not valid!"
 	noToken        = "Token could not found! "
 	tokenCreateErr = "Token could not be created"
 	signupSuccess  = "User created successfully"
-	verifySuccess  = "Email verified successfully"
 )
 
 // Signup ...
 func Signup(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// 0. Decode request body to userDTO object
+
+		// 1. Decode request body to userDTO object
 		userSignup := new(model.UserSignup)
 		decoderr := json.NewDecoder(r.Body)
 		if err := decoderr.Decode(&userSignup); err != nil {
@@ -42,7 +41,7 @@ func Signup(s storage.Store) http.HandlerFunc {
 		}
 		defer r.Body.Close()
 
-		// 1. Run validator according to model.UserDTO validator tags
+		// 2. Run validator according to model.UserDTO validator tags
 		err := app.PayloadValidator(userSignup)
 		if err != nil {
 			errs := GetErrors(err.(validator.ValidationErrors))
@@ -50,7 +49,7 @@ func Signup(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// 2. Check and verify the recaptcha response token only in production.
+		// 3. Check and verify the recaptcha response token only in production.
 		if viper.GetString("server.env") == "prod" {
 			if err := CheckRecaptcha(userSignup.Recaptcha); err != nil {
 				RespondWithError(w, http.StatusUnauthorized, err.Error())
@@ -58,7 +57,7 @@ func Signup(s storage.Store) http.HandlerFunc {
 			}
 		}
 
-		// 3. Check if user exist in database
+		// 4. Check if user exist in database
 		userDTO := model.ConvertUserDTO(userSignup)
 		_, err = s.Users().FindByEmail(userDTO.Email)
 		if err == nil {
@@ -66,17 +65,17 @@ func Signup(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// 4. Create new user
+		// 5. Create new user
 		createdUser, err := app.CreateUser(s, userDTO)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		// 8. Send email to admin about new user subscription
+		// 6. Send email to admin about new user subscription
 		notifyAdminEmail(userDTO)
 
-		// 9. Send confirmation email to new user
+		// 7. Send confirmation email to new user
 		sendConfirmationEmail(userDTO, createdUser.ConfirmationCode)
 
 		// Return success message
@@ -172,9 +171,7 @@ func Confirm(s storage.Store) http.HandlerFunc {
 
 		_, err = app.UpdateUser(s, usr, userDTO, false)
 		if err != nil {
-			errs := []string{"User can't updated!", "Raw error: " + err.Error()}
-			message := "Email couldn't confirm!"
-			RespondWithErrors(w, http.StatusBadRequest, message, errs)
+			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 

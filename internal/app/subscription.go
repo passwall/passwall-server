@@ -9,7 +9,7 @@ import (
 	"github.com/passwall/passwall-server/model"
 )
 
-//CreateSubscription creates a subscription and saves it to the store
+// CreateSubscription creates a subscription and saves it to the store
 func CreateSubscription(s storage.Store, r *http.Request) (int, string) {
 	_, err := s.Subscriptions().FindByEmail(r.FormValue("email"))
 	if err == nil {

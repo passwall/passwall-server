@@ -41,6 +41,7 @@ type UserSignup struct {
 	Name           string `json:"name" validate:"max=100"`
 	Email          string `json:"email" validate:"required,email"`
 	MasterPassword string `json:"master_password" validate:"required,max=100,min=6"`
+	Type           string `json:"type" validate:"required,oneof=free pro"`
 	Recaptcha      string `json:"g_captcha_value"` // temporarily disabled
 }
 
