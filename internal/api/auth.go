@@ -31,7 +31,7 @@ var (
 	codeSuccess    = "Code created successfully"
 )
 
-// Create email verification code
+// CreateCode creates email verification code
 func CreateCode(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// 1. Decode json to email
@@ -79,7 +79,7 @@ func CreateCode(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// Verify Email
+// VerifyCode Verifies Email
 func VerifyCode() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userCode := mux.Vars(r)["code"]
