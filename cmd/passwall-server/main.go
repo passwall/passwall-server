@@ -27,12 +27,7 @@ func main() {
 
 	s := storage.New(db)
 
-	// Migrate database tables
-	// TODO: Migrate should be in storege.New functions of categories
 	app.MigrateSystemTables(s)
-
-	// Start cron jobs like backup
-	// app.StartCronJob(s)
 
 	srv := &http.Server{
 		MaxHeaderBytes: 10, // 10 MB

@@ -1,12 +1,14 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/passwall/passwall-server/model"
+	"github.com/patrickmn/go-cache"
 
 	uuid "github.com/satori/go.uuid"
 	"github.com/spf13/viper"
@@ -14,10 +16,15 @@ import (
 
 var (
 	//ErrExpiredToken represents message for expired token
-	ErrExpiredToken = fmt.Errorf("Token expired or invalid")
+	ErrExpiredToken = errors.New("token expired or invalid")
 	//ErrUnauthorized represents message for unauthorized
-	ErrUnauthorized = fmt.Errorf("Unauthorized")
+	ErrUnauthorized = errors.New("unauthorized")
 )
+
+// CreateCache
+func CreateCache(defaultExpiration, cleanupInterval time.Duration) *cache.Cache {
+	return cache.New(defaultExpiration, cleanupInterval)
+}
 
 //CreateToken ...
 func CreateToken(user *model.User) (*model.TokenDetailsDTO, error) {

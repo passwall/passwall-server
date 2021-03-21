@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -12,10 +13,10 @@ import (
 )
 
 var (
-	//ErrGenerateSchema represents message for generating schema
-	ErrGenerateSchema = fmt.Errorf("an error occured while genarating schema")
-	//ErrCreateSchema represents message for creating schema
-	ErrCreateSchema = fmt.Errorf("an error occured while creating the schema and tables")
+	// ErrGenerateSchema represents message for generating schema
+	ErrGenerateSchema = errors.New("an error occured while genarating schema")
+	// ErrCreateSchema represents message for creating schema
+	ErrCreateSchema = errors.New("an error occured while creating the schema and tables")
 )
 
 // CreateUser creates a user and saves it to the store
@@ -47,6 +48,9 @@ func CreateUser(s storage.Store, userDTO *model.UserDTO) (*model.User, error) {
 		return nil, err
 	}
 
+	confirmationCode := RandomMD5Hash()
+	createdUser.ConfirmationCode = confirmationCode
+
 	// Generate schema name and update user
 	updatedUser, err := GenerateSchema(s, createdUser)
 	if err != nil {
@@ -58,6 +62,7 @@ func CreateUser(s storage.Store, userDTO *model.UserDTO) (*model.User, error) {
 	if err != nil {
 		return nil, ErrCreateSchema
 	}
+
 	// Create user tables in user schema
 	MigrateUserTables(s, updatedUser.Schema)
 
