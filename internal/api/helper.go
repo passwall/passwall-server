@@ -2,11 +2,13 @@ package api
 
 import (
 	"encoding/json"
-	"github.com/passwall/passwall-server/model"
+	"io/ioutil"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/passwall/passwall-server/model"
 
 	"github.com/passwall/passwall-server/internal/app"
 )
@@ -99,4 +101,31 @@ func ToPayload(r *http.Request) (model.Payload, error) {
 		return model.Payload{}, err
 	}
 	return payload, nil
+}
+
+// ToBody decrypts payload data and updates r.Body
+func ToBody(r *http.Request, env, transmissionKey string) error {
+
+	// Check environment
+	if env == "dev" {
+		return nil
+	}
+
+	// Unmarshall r.Body to model.Payload
+	var payload model.Payload
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&payload); err != nil {
+		return err
+	}
+
+	// Decrypt payload
+	dec, err := app.DecryptPayload(transmissionKey, []byte(payload.Data))
+	if err != nil {
+		return err
+	}
+
+	// Update r.Body
+	r.Body = ioutil.NopCloser(strings.NewReader(string(dec)))
+
+	return nil
 }

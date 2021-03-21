@@ -2,8 +2,11 @@ package api
 
 import (
 	"encoding/json"
-	"errors"
+	"fmt"
+	"log"
+	"math/rand"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,6 +16,7 @@ import (
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
+	"github.com/patrickmn/go-cache"
 	"github.com/spf13/viper"
 )
 
@@ -20,18 +24,101 @@ var (
 	userLoginErr   = "User email or master password is wrong."
 	userVerifyErr  = "Please verify your email first."
 	invalidUser    = "Invalid user"
-	validToken     = "Token is valid"
 	invalidToken   = "Token is expired or not valid!"
 	noToken        = "Token could not found! "
 	tokenCreateErr = "Token could not be created"
 	signupSuccess  = "User created successfully"
 	verifySuccess  = "Email verified successfully"
+	codeSuccess    = "Code created successfully"
 )
+
+// Create email verification code
+func CreateCode(s storage.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// 1. Decode json to email
+		var signup model.AuthEmail
+		if err := json.NewDecoder(r.Body).Decode(&signup); err != nil {
+			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
+			return
+		}
+
+		// 2. Check if user exist in database
+		_, err := s.Users().FindByEmail(signup.Email)
+		if err == nil {
+			log.Printf("email %s already exist in database\n", signup.Email)
+			RespondWithError(w, http.StatusBadRequest, "User couldn't created!")
+			return
+		}
+
+		// 2. Generate a random code
+		rand.Seed(time.Now().Unix())
+		min := 100000
+		max := 999999
+		code := strconv.Itoa(rand.Intn(max-min+1) + min)
+
+		log.Printf("verification code %s generated for email %s\n", code, signup.Email)
+
+		// 3. Save code in cache
+		c.Set(signup.Email, code, cache.DefaultExpiration)
+
+		// 4. Send verification email to user
+		subject := "Passwall Email Verification"
+		body := "Passwall verification code: " + code
+		if err = app.SendMail("Passwall Verification Code", signup.Email, subject, body); err != nil {
+			log.Printf("can't send email to %s error: %v\n", signup.Email, err)
+			RespondWithError(w, http.StatusBadRequest, "Couldn't send email")
+			return
+		}
+
+		// Return success message
+		response := model.Response{
+			Code:    http.StatusOK,
+			Status:  Success,
+			Message: codeSuccess,
+		}
+		RespondWithJSON(w, http.StatusOK, response)
+	}
+}
+
+// Verify Email
+func VerifyCode() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userCode := mux.Vars(r)["code"]
+		email := r.FormValue("email")
+
+		code, ok := c.Get(email)
+		if !ok {
+			RespondWithError(w, http.StatusBadRequest, "Code couldn't found!")
+			return
+		}
+
+		confirmationCode, ok := code.(string)
+		if !ok {
+			RespondWithError(w, http.StatusInternalServerError, "Server error!")
+			return
+		}
+
+		if userCode != confirmationCode {
+			RespondWithError(w, http.StatusBadRequest, "Code doesn't match!")
+			return
+		}
+
+		c.Set(email, "verified", cache.DefaultExpiration)
+
+		response := model.Response{
+			Code:    http.StatusOK,
+			Status:  Success,
+			Message: verifySuccess,
+		}
+
+		RespondWithJSON(w, http.StatusOK, response)
+	}
+}
 
 // Signup ...
 func Signup(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// 0. Decode request body to userDTO object
+		// 1. Decode request body to userDTO object
 		userSignup := new(model.UserSignup)
 		decoderr := json.NewDecoder(r.Body)
 		if err := decoderr.Decode(&userSignup); err != nil {
@@ -40,77 +127,38 @@ func Signup(s storage.Store) http.HandlerFunc {
 		}
 		defer r.Body.Close()
 
-		// 1. Run validator according to model.UserDTO validator tags
-		validate := validator.New()
-		validateError := validate.Struct(userSignup)
-		if validateError != nil {
-			errs := GetErrors(validateError.(validator.ValidationErrors))
+		// 2. Check if email is verified
+		if err := isMailVerified(userSignup.Email); err != nil {
+			log.Println(err)
+			RespondWithError(w, http.StatusUnauthorized, "Email is not verified")
+			return
+		}
+
+		// 2. Run validator according to model.UserDTO validator tags
+		err := app.PayloadValidator(userSignup)
+		if err != nil {
+			errs := GetErrors(err.(validator.ValidationErrors))
 			RespondWithErrors(w, http.StatusBadRequest, InvalidRequestPayload, errs)
 			return
 		}
 
-		// 2. Check and verify the recaptcha response token.
-		if err := CheckRecaptcha(userSignup.Recaptcha); err != nil {
-			RespondWithError(w, http.StatusUnauthorized, err.Error())
-			return
-		}
-
-		// 3. Check if user exist in database
+		// 4. Check if user exist in database
 		userDTO := model.ConvertUserDTO(userSignup)
-		_, err := s.Users().FindByEmail(userDTO.Email)
+		_, err = s.Users().FindByEmail(userDTO.Email)
 		if err == nil {
 			RespondWithError(w, http.StatusBadRequest, "User couldn't created!")
 			return
 		}
 
-		// 4. Create new user
+		// 5. Create new user
 		createdUser, err := app.CreateUser(s, userDTO)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		confirmationCode := app.RandomMD5Hash()
-		createdUser.ConfirmationCode = confirmationCode
-
-		// 5. Update user once to generate schema
-		updatedUser, err := app.GenerateSchema(s, createdUser)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-
-		// 6. Create user schema and tables
-		err = s.Users().CreateSchema(updatedUser.Schema)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-
-		// 7. Create user tables in user schema
-		app.MigrateUserTables(s, updatedUser.Schema)
-
-		// 8. Send email to admin adbout new user subscription
-		subject := "PassWall New User Subscription"
-		body := "PassWall has new a user. User details:\n\n"
-		body += "Name: " + userDTO.Name + "\n"
-		body += "Email: " + userDTO.Email + "\n"
-		go app.SendMail(
-			viper.GetString("email.fromName"),
-			viper.GetString("email.fromEmail"),
-			subject,
-			body)
-
-		// 9. Send confirmation email to new user
-		confirmationSubject := "Passwall Email Confirmation"
-		confirmationBody := "Last step for use Passwall\n\n"
-		confirmationBody += "Confirmation link: " + viper.GetString("server.domain")
-		confirmationBody += "/auth/confirm/" + userDTO.Email + "/" + confirmationCode
-		go app.SendMail(
-			userDTO.Name,
-			userDTO.Email,
-			confirmationSubject,
-			confirmationBody)
+		// 6. Send email to admin about new user subscription
+		notifyAdminEmail(createdUser)
 
 		// Return success message
 		response := model.Response{
@@ -122,109 +170,11 @@ func Signup(s storage.Store) http.HandlerFunc {
 	}
 }
 
-func CheckRecaptcha(gCaptchaValue string) error {
-
-	secret := viper.GetString("server.recaptcha")
-
-	type SiteVerifyResponse struct {
-		Success     bool      `json:"success"`
-		Score       float64   `json:"score"`
-		Action      string    `json:"action"`
-		ChallengeTS time.Time `json:"challenge_ts"`
-		Hostname    string    `json:"hostname"`
-		ErrorCodes  []string  `json:"error-codes"`
-	}
-
-	const siteVerifyURL = "https://www.google.com/recaptcha/api/siteverify"
-
-	// Create new request
-	req, err := http.NewRequest(http.MethodPost, siteVerifyURL, nil)
-	if err != nil {
-		return err
-	}
-
-	// Add necessary request
-	q := req.URL.Query()
-	q.Add("secret", secret)
-	q.Add("response", gCaptchaValue)
-	req.URL.RawQuery = q.Encode()
-
-	// Make request
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	// Decode response.
-	var body SiteVerifyResponse
-	if err = json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return err
-	}
-
-	// Check recaptcha verification success.
-	if !body.Success {
-		return errors.New("Unsuccessful recaptcha verify request")
-	}
-
-	// Check response score.
-	if body.Score < 0.5 {
-		return errors.New("Lower received score than expected")
-	}
-
-	return nil
-}
-
-// Confirm ...
-func Confirm(s storage.Store) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		email := mux.Vars(r)["email"]
-		code := mux.Vars(r)["code"]
-		usr, err := s.Users().FindByEmail(email)
-		if err != nil {
-			errs := []string{"Email not found!", "Raw error: " + err.Error()}
-			message := "Email couldn't confirm!"
-			RespondWithErrors(w, http.StatusBadRequest, message, errs)
-			return
-		} else if !usr.EmailVerifiedAt.IsZero() {
-			errs := []string{"Email is already verified!"}
-			message := "Email couldn't confirm!"
-			RespondWithErrors(w, http.StatusBadRequest, message, errs)
-			return
-		} else if code != usr.ConfirmationCode {
-			errs := []string{"Confirmation code is wrong!"}
-			message := "Email couldn't confirm!"
-			RespondWithErrors(w, http.StatusBadRequest, message, errs)
-			return
-		}
-
-		userDTO := model.ToUserDTO(usr)
-		userDTO.MasterPassword = "" // Fix for not to update password
-		userDTO.EmailVerifiedAt = time.Now()
-
-		_, err = app.UpdateUser(s, usr, userDTO, false)
-		if err != nil {
-			errs := []string{"User can't updated!", "Raw error: " + err.Error()}
-			message := "Email couldn't confirm!"
-			RespondWithErrors(w, http.StatusBadRequest, message, errs)
-			return
-		}
-
-		response := model.Response{
-			Code:    http.StatusOK,
-			Status:  verifySuccess,
-			Message: signupSuccess,
-		}
-
-		RespondWithJSON(w, http.StatusOK, response)
-		// RespondWithHTML(w, http.StatusOK, response)
-	}
-}
-
 // Signin ...
 func Signin(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var loginDTO model.AuthLoginDTO
+		subscriptionType := "pro"
 
 		// get loginDTO
 		decoder := json.NewDecoder(r.Body)
@@ -234,11 +184,10 @@ func Signin(s storage.Store) http.HandlerFunc {
 		}
 		defer r.Body.Close()
 
-		// validate struct
-		validate := validator.New()
-		validateError := validate.Struct(loginDTO)
-		if validateError != nil {
-			errs := GetErrors(validateError.(validator.ValidationErrors))
+		// Run validator according to model.AuthLoginDTO validator tags
+		err := app.PayloadValidator(loginDTO)
+		if err != nil {
+			errs := GetErrors(err.(validator.ValidationErrors))
 			RespondWithErrors(w, http.StatusBadRequest, InvalidRequestPayload, errs)
 			return
 		}
@@ -250,15 +199,11 @@ func Signin(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// Check if users email is verified
-		// if user.EmailVerifiedAt.IsZero() {
-		// 	RespondWithError(w, http.StatusForbidden, userVerifyErr)
-		// 	return
-		// }
-
 		// Check if user has an active subscription
-		subscription, _ := s.Subscriptions().FindByEmail(user.Email)
-		subscription.Status = "active"
+		subscription, err := s.Subscriptions().FindByEmail(user.Email)
+		if err != nil {
+			subscriptionType = "free"
+		}
 
 		//create token
 		token, err := app.CreateToken(user)
@@ -275,11 +220,12 @@ func Signin(s storage.Store) http.HandlerFunc {
 		s.Tokens().Save(int(user.ID), token.RtUUID, token.RefreshToken, token.RtExpiresTime, "")
 
 		authLoginResponse := model.AuthLoginResponse{
-			AccessToken:     token.AccessToken,
-			RefreshToken:    token.RefreshToken,
-			TransmissionKey: token.TransmissionKey,
-			UserDTO:         model.ToUserDTO(user),
-			SubscriptionDTO: model.ToSubscriptionDTO(subscription),
+			AccessToken:         token.AccessToken,
+			RefreshToken:        token.RefreshToken,
+			TransmissionKey:     token.TransmissionKey,
+			Type:                subscriptionType,
+			UserDTO:             model.ToUserDTO(user),
+			SubscriptionAuthDTO: model.ToSubscriptionAuthDTO(subscription),
 		}
 
 		RespondWithJSON(w, 200, authLoginResponse)
@@ -392,4 +338,37 @@ func CheckToken(s storage.Store) http.HandlerFunc {
 
 		RespondWithJSON(w, http.StatusOK, response)
 	}
+}
+
+func notifyAdminEmail(user *model.User) {
+	subject := "PassWall New User Subscription"
+	body := "PassWall has new a user. User details:\n\n"
+	body += "Name: " + user.Name + "\n"
+	body += "Email: " + user.Email + "\n"
+	app.SendMail(
+		viper.GetString("email.fromName"),
+		viper.GetString("email.fromEmail"),
+		subject,
+		body)
+}
+
+func isMailVerified(email string) error {
+	cachedEmail, found := c.Get(email)
+	if !found {
+		err := fmt.Errorf("can't find email %q in cache", email)
+		return err
+	}
+
+	verified, ok := cachedEmail.(string)
+	if !ok {
+		err := fmt.Errorf("can't convert cached email data %v to string", verified)
+		return err
+	}
+
+	if verified != "verified" {
+		err := fmt.Errorf("cached email value %s doesn't match for email %s", verified, email)
+		return err
+	}
+
+	return nil
 }

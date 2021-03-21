@@ -9,15 +9,9 @@ import (
 	"github.com/passwall/passwall-server/model"
 )
 
-//CreateSubscription creates a subscription and saves it to the store
+// CreateSubscription creates a subscription and saves it to the store
 func CreateSubscription(s storage.Store, r *http.Request) (int, string) {
-
-	subID, err := strconv.Atoi(r.FormValue("subscription_id"))
-	if err != nil {
-		return http.StatusBadRequest, err.Error()
-	}
-
-	_, err = s.Subscriptions().FindBySubscriptionID(uint(subID))
+	_, err := s.Subscriptions().FindByEmail(r.FormValue("email"))
 	if err == nil {
 		message := "Subscription already exist!"
 		return http.StatusBadRequest, message
@@ -32,7 +26,12 @@ func CreateSubscription(s storage.Store, r *http.Request) (int, string) {
 }
 
 func UpdateSubscription(s storage.Store, r *http.Request) (int, string) {
-	subID, err := strconv.Atoi(r.FormValue("subscription_id"))
+	subscription, err := s.Subscriptions().FindByEmail(r.FormValue("email"))
+	if err != nil {
+		return http.StatusNotFound, err.Error()
+	}
+
+	subscriptionID, err := strconv.Atoi(r.FormValue("subscription_id"))
 	if err != nil {
 		return http.StatusBadRequest, err.Error()
 	}
@@ -42,17 +41,20 @@ func UpdateSubscription(s storage.Store, r *http.Request) (int, string) {
 		return http.StatusBadRequest, err.Error()
 	}
 
+	userID, err := strconv.Atoi(r.FormValue("user_id"))
+	if err != nil {
+		return http.StatusBadRequest, err.Error()
+	}
+
 	nextBillDate, err := time.Parse("2006-01-02", r.FormValue("next_bill_date"))
 	if err != nil {
 		return http.StatusBadRequest, err.Error()
 	}
 
-	subscription, err := s.Subscriptions().FindBySubscriptionID(uint(subID))
-	if err != nil {
-		return http.StatusNotFound, err.Error()
-	}
-
+	subscription.Type = "pro"
+	subscription.SubscriptionID = subscriptionID
 	subscription.PlanID = planID
+	subscription.UserID = userID
 	subscription.NextBillDate = nextBillDate
 	subscription.Status = r.FormValue("status")
 
@@ -65,12 +67,7 @@ func UpdateSubscription(s storage.Store, r *http.Request) (int, string) {
 }
 
 func CancelSubscription(s storage.Store, r *http.Request) (int, string) {
-	subID, err := strconv.Atoi(r.FormValue("subscription_id"))
-	if err != nil {
-		return http.StatusBadRequest, err.Error()
-	}
-
-	subscription, err := s.Subscriptions().FindBySubscriptionID(uint(subID))
+	subscription, err := s.Subscriptions().FindByEmail(r.FormValue("email"))
 	if err != nil {
 		return http.StatusNotFound, err.Error()
 	}
@@ -84,19 +81,14 @@ func CancelSubscription(s storage.Store, r *http.Request) (int, string) {
 }
 
 func PaymentSucceedSubscription(s storage.Store, r *http.Request) (int, string) {
-	subID, err := strconv.Atoi(r.FormValue("subscription_id"))
+	subscription, err := s.Subscriptions().FindByEmail(r.FormValue("email"))
 	if err != nil {
-		return http.StatusBadRequest, err.Error()
+		return http.StatusNotFound, err.Error()
 	}
 
 	nextBillDate, err := time.Parse("2006-01-02", r.FormValue("next_bill_date"))
 	if err != nil {
 		return http.StatusBadRequest, err.Error()
-	}
-
-	subscription, err := s.Subscriptions().FindBySubscriptionID(uint(subID))
-	if err != nil {
-		return http.StatusNotFound, err.Error()
 	}
 
 	subscription.NextBillDate = nextBillDate
@@ -110,9 +102,9 @@ func PaymentSucceedSubscription(s storage.Store, r *http.Request) (int, string) 
 }
 
 func PaymentFailedSubscription(s storage.Store, r *http.Request) (int, string) {
-	subID, err := strconv.Atoi(r.FormValue("subscription_id"))
+	subscription, err := s.Subscriptions().FindByEmail(r.FormValue("email"))
 	if err != nil {
-		return http.StatusBadRequest, err.Error()
+		return http.StatusNotFound, err.Error()
 	}
 
 	nextBillDate, err := time.Parse("2006-01-02", "0001-01-01")
@@ -120,13 +112,8 @@ func PaymentFailedSubscription(s storage.Store, r *http.Request) (int, string) {
 		return http.StatusBadRequest, err.Error()
 	}
 
-	subscription, err := s.Subscriptions().FindBySubscriptionID(uint(subID))
-	if err != nil {
-		return http.StatusNotFound, err.Error()
-	}
-
 	subscription.NextBillDate = nextBillDate
-	subscription.Status = "past_due"
+	subscription.Status = r.FormValue("status")
 
 	_, err = s.Subscriptions().Save(subscription)
 	if err != nil {

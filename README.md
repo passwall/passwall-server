@@ -21,7 +21,34 @@ I promise all the coffee you have ordered will be spent on this project
 </p>
 
 ## API Documentation
-API documentation available at [Postman Public Directory](https://documenter.getpostman.com/view/3658426/SzYbyHXj)   
+API documentation available at [Postman Public Directory](https://documenter.getpostman.com/view/3658426/SzYbyHXj)
+
+PassWall has both server and client side encryption. So when creating user to work with Postman you should use already SHA256 encrypted password in JSON or use a Postman Pre-request Script to encrypt json in form. 
+
+**Postman Pre-request Script Usage**  
+While creating a user via Postman, you should send a post request to **/auth/signup** endpoint. In the request use the JSON schema below as **raw body**. Do not change **{{password}}**, it is an environment variable in Postman.
+```json
+{
+    "name": "Erhan Yakut",
+    "email": "erhan@passwall.io",
+    "master_password": "{{password}}"
+}
+```
+
+Then in Pre-request Script, copy and paste the javascript code below. You should change the password in the code.
+```javascript
+var newPassword = '123456' // Change this
+
+pm.environment.set('password', newPassword);
+
+var encryptedPassword = CryptoJS.SHA256(pm.environment.get('password')).toString();
+
+pm.environment.set('password',encryptedPassword);
+
+console.log(encryptedPassword);
+```  
+Click on [this link](https://www.youtube.com/watch?v=bFgstpIA3iE&list=PL645jNNONo8TBOBDFRq7SolX_aWCT2Ia9) to visit our Youtube playlist.  
+
 
 ## Database support
 PassWall works with **PostgreSQL** databases. 

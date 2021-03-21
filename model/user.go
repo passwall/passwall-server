@@ -6,7 +6,7 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
-// User model should be something like this
+// User model
 type User struct {
 	ID               uint       `gorm:"primary_key" json:"id"`
 	UUID             uuid.UUID  `gorm:"type:uuid; type:varchar(100);"`
@@ -23,27 +23,28 @@ type User struct {
 	EmailVerifiedAt  time.Time  `json:"email_verified_at"`
 }
 
-//UserDTO DTO object for User type
+// UserDTO DTO object for User type
 type UserDTO struct {
 	ID              uint      `json:"id"`
 	UUID            uuid.UUID `json:"uuid"`
 	Name            string    `json:"name" validate:"max=100"`
 	Email           string    `json:"email" validate:"required,email"`
-	MasterPassword  string    `json:"master_password" validate:"required,max=100,min=6"`
+	MasterPassword  string    `json:"master_password,omitempty" validate:"required,max=100,min=6"`
 	Secret          string    `json:"secret"`
 	Schema          string    `json:"schema"`
 	Role            string    `json:"role"`
 	EmailVerifiedAt time.Time `json:"email_verified_at"`
 }
 
+// UserSignup object for Auth Signup endpoint
 type UserSignup struct {
 	Name           string `json:"name" validate:"max=100"`
 	Email          string `json:"email" validate:"required,email"`
 	MasterPassword string `json:"master_password" validate:"required,max=100,min=6"`
-	Recaptcha      string `json:"g_captcha_value" validate:"required"`
+	Recaptcha      string `json:"g_captcha_value"` // temporarily disabled
 }
 
-//UserDTOTable ...
+// UserDTOTable ...
 type UserDTOTable struct {
 	ID     uint      `json:"id"`
 	UUID   uuid.UUID `json:"uuid"`
@@ -53,6 +54,7 @@ type UserDTOTable struct {
 	Role   string    `json:"role"`
 }
 
+// ConvertUserDTO converts UserSignup to UserDTO
 func ConvertUserDTO(userSignup *UserSignup) *UserDTO {
 	return &UserDTO{
 		Name:           userSignup.Name,

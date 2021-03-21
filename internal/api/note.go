@@ -8,6 +8,7 @@ import (
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
+	"github.com/spf13/viper"
 
 	"github.com/gorilla/mux"
 )
@@ -20,11 +21,15 @@ const (
 func FindAllNotes(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
-		noteList := []model.Note{}
+		var noteList []model.Note
+
+		// Setup variables
+		transmissionKey := r.Context().Value("transmissionKey").(string)
 
 		fields := []string{"id", "created_at", "updated_at", "note"}
 		argsStr, argsInt := SetArgs(r, fields)
 
+		// Get all notes from db
 		schema := r.Context().Value("schema").(string)
 		noteList, err = s.Notes().FindAll(argsStr, argsInt, schema)
 		if err != nil {
@@ -34,31 +39,26 @@ func FindAllNotes(s storage.Store) http.HandlerFunc {
 
 		// Decrypt server side encrypted fields
 		for i := range noteList {
-			decNote, err := app.DecryptModel(&noteList[i])
+			uNote, err := app.DecryptModel(&noteList[i])
 			if err != nil {
 				RespondWithError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
-			noteList[i] = *decNote.(*model.Note)
+			noteList[i] = *uNote.(*model.Note)
 		}
 
-		// Encrypt payload
-		var payload model.Payload
-		key := r.Context().Value("transmissionKey").(string)
-		encrypted, err := app.EncryptJSON(key, noteList)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		payload.Data = string(encrypted)
-
-		RespondWithJSON(w, http.StatusOK, payload)
+		RespondWithEncJSON(w, http.StatusOK, transmissionKey, noteList)
 	}
 }
 
 // FindNoteByID finds a note by id
 func FindNoteByID(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+
+		// Setup variables
+		transmissionKey := r.Context().Value("transmissionKey").(string)
+
+		// Check if id is integer
 		vars := mux.Vars(r)
 		id, err := strconv.Atoi(vars["id"])
 		if err != nil {
@@ -66,6 +66,7 @@ func FindNoteByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
+		// Find note by id from db
 		schema := r.Context().Value("schema").(string)
 		note, err := s.Notes().FindByID(uint(id), schema)
 		if err != nil {
@@ -74,25 +75,16 @@ func FindNoteByID(s storage.Store) http.HandlerFunc {
 		}
 
 		// Decrypt server side encrypted fields
-		decNote, err := app.DecryptModel(note)
+		uNote, err := app.DecryptModel(note)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		noteDTO := model.ToNoteDTO(decNote.(*model.Note))
+		// Create DTO
+		noteDTO := model.ToNoteDTO(uNote.(*model.Note))
 
-		// Encrypt payload
-		var payload model.Payload
-		key := r.Context().Value("transmissionKey").(string)
-		encrypted, err := app.EncryptJSON(key, noteDTO)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		payload.Data = string(encrypted)
-
-		RespondWithJSON(w, http.StatusOK, payload)
+		RespondWithEncJSON(w, http.StatusOK, transmissionKey, noteDTO)
 	}
 }
 
@@ -100,22 +92,29 @@ func FindNoteByID(s storage.Store) http.HandlerFunc {
 func CreateNote(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		payload, err := ToPayload(r)
-		if err != nil {
+		// Setup variables
+		env := viper.GetString("server.env")
+		transmissionKey := r.Context().Value("transmissionKey").(string)
+
+		// Update request body according to env.
+		// If env is dev, then do nothing
+		// If env is prod, then decrypt payload with transmission key
+		if err := ToBody(r, env, transmissionKey); err != nil {
 			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
 
-		// Decrypt payload
+		// Unmarshal request body to noteDTO
 		var noteDTO model.NoteDTO
-		key := r.Context().Value("transmissionKey").(string)
-		err = app.DecryptJSON(key, []byte(payload.Data), &noteDTO)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
+		decoder := json.NewDecoder(r.Body)
+		if err := decoder.Decode(&noteDTO); err != nil {
+			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 			return
 		}
+		defer r.Body.Close()
 
+		// Add new note to db
 		schema := r.Context().Value("schema").(string)
 		createdNote, err := app.CreateNote(s, &noteDTO, schema)
 		if err != nil {
@@ -123,17 +122,17 @@ func CreateNote(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		createdNoteDTO := model.ToNoteDTO(createdNote)
-
-		// Encrypt payload
-		encrypted, err := app.EncryptJSON(key, createdNoteDTO)
+		// Decrypt server side encrypted fields
+		decNote, err := app.DecryptModel(createdNote)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		payload.Data = string(encrypted)
 
-		RespondWithJSON(w, http.StatusOK, payload)
+		// Create DTO
+		createdNoteDTO := model.ToNoteDTO(decNote.(*model.Note))
+
+		RespondWithEncJSON(w, http.StatusOK, transmissionKey, createdNoteDTO)
 	}
 }
 
@@ -147,24 +146,26 @@ func UpdateNote(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// Unmarshal request body to payload
-		var payload model.Payload
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&payload); err != nil {
+		// Setup variables
+		env := viper.GetString("server.env")
+		transmissionKey := r.Context().Value("transmissionKey").(string)
+
+		if err := ToBody(r, env, transmissionKey); err != nil {
 			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
 		defer r.Body.Close()
 
-		// Decrypt payload
+		// Unmarshal request body to noteDTO
 		var noteDTO model.NoteDTO
-		key := r.Context().Value("transmissionKey").(string)
-		err = app.DecryptJSON(key, []byte(payload.Data), &noteDTO)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
+		decoder := json.NewDecoder(r.Body)
+		if err := decoder.Decode(&noteDTO); err != nil {
+			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 			return
 		}
+		defer r.Body.Close()
 
+		// Find note defined by id
 		schema := r.Context().Value("schema").(string)
 		note, err := s.Notes().FindByID(uint(id), schema)
 		if err != nil {
@@ -172,23 +173,24 @@ func UpdateNote(s storage.Store) http.HandlerFunc {
 			return
 		}
 
+		// Update note
 		updatedNote, err := app.UpdateNote(s, note, &noteDTO, schema)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		updatedNoteDTO := model.ToNoteDTO(updatedNote)
-
-		// Encrypt payload
-		encrypted, err := app.EncryptJSON(key, updatedNoteDTO)
+		// Decrypt server side encrypted fields
+		decNote, err := app.DecryptModel(updatedNote)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		payload.Data = string(encrypted)
 
-		RespondWithJSON(w, http.StatusOK, payload)
+		// Create DTO
+		updatedNoteDTO := model.ToNoteDTO(decNote.(*model.Note))
+
+		RespondWithEncJSON(w, http.StatusOK, transmissionKey, updatedNoteDTO)
 	}
 }
 

@@ -18,6 +18,7 @@ type Subscription struct {
 	UpdatedAt      time.Time  `json:"updated_at"`
 	DeletedAt      *time.Time `json:"deleted_at"`
 	CancelledAt    time.Time  `json:"cancelled_at"`
+	Type           string     `json:"type"` // pro or free
 	SubscriptionID int        `json:"subscription_id"`
 	PlanID         int        `json:"plan_id"`
 	UserID         int        `json:"user_id"`
@@ -58,13 +59,10 @@ func RequestToSub(r *http.Request) *Subscription {
 	userID, _ := strconv.Atoi(r.FormValue("user_id"))
 
 	status := r.FormValue("status")
-	if r.FormValue("status") == "trialing" {
-		status = "active"
-	}
-
 	nextBillDate, _ := time.Parse("2006-01-02", r.FormValue("next_bill_date"))
 
 	return &Subscription{
+		Type:           "pro",
 		SubscriptionID: subID,
 		PlanID:         planID,
 		UserID:         userID,
@@ -88,6 +86,14 @@ type SubscriptionDTO struct {
 	NextBillDate   time.Time `json:"next_bill_date"`
 	UpdateURL      string    `json:"update_url"`
 	CancelURL      string    `json:"cancel_url"`
+}
+
+type SubscriptionAuthDTO struct {
+	Type         string    `json:"type"`
+	Status       string    `json:"status"`
+	NextBillDate time.Time `json:"next_bill_date"`
+	UpdateURL    string    `json:"update_url"`
+	CancelURL    string    `json:"cancel_url"`
 }
 
 // ToSubscription ...
@@ -119,6 +125,17 @@ func ToSubscriptionDTO(subscription *Subscription) *SubscriptionDTO {
 		NextBillDate:   subscription.NextBillDate,
 		UpdateURL:      subscription.UpdateURL,
 		CancelURL:      subscription.CancelURL,
+	}
+}
+
+// ToSubscriptionAuthDTO ...
+func ToSubscriptionAuthDTO(subscription *Subscription) *SubscriptionAuthDTO {
+	return &SubscriptionAuthDTO{
+		Type:         subscription.Type,
+		Status:       subscription.Status,
+		NextBillDate: subscription.NextBillDate,
+		UpdateURL:    subscription.UpdateURL,
+		CancelURL:    subscription.CancelURL,
 	}
 }
 

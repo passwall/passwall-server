@@ -1,7 +1,6 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -21,7 +20,6 @@ const (
 // PostSubscription ...
 func PostSubscription(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
 		// 0. API Key Check
 		keys, ok := r.URL.Query()["api_key"]
 
@@ -55,7 +53,7 @@ func PostSubscription(s storage.Store) http.HandlerFunc {
 		case "subscription_payment_failed":
 			code, msg = app.PaymentFailedSubscription(s, r)
 		default:
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest")
+			RespondWithError(w, http.StatusBadRequest, "unknown alert_name")
 			return
 		}
 
@@ -158,7 +156,6 @@ func CreateSubscription(s storage.Store) http.HandlerFunc {
 		key := r.Context().Value("transmissionKey").(string)
 		err = app.DecryptJSON(key, []byte(payload.Data), &subscriptionDTO)
 		if err != nil {
-			fmt.Println("burada")
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}

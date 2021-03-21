@@ -1,15 +1,13 @@
 package app
 
 import (
-	"log"
-
 	"github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
 	"github.com/spf13/viper"
 )
 
 // SendMail is an helper to send mail all over the project
-func SendMail(name, email string, subject, bodyHTML string) {
+func SendMail(name, email string, subject, bodyHTML string) error {
 	from := mail.NewEmail(viper.GetString("email.fromName"), viper.GetString("email.fromEmail"))
 	to := mail.NewEmail(name, email)
 	bodyText := ""
@@ -17,6 +15,7 @@ func SendMail(name, email string, subject, bodyHTML string) {
 	client := sendgrid.NewSendClient(viper.GetString("email.apiKey"))
 	_, err := client.Send(message)
 	if err != nil {
-		log.Println(err)
+		return err
 	}
+	return nil
 }

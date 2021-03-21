@@ -6,6 +6,11 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
+// AuthEmail ...
+type AuthEmail struct {
+	Email string `json:"email"`
+}
+
 //AuthLoginDTO ...
 type AuthLoginDTO struct {
 	Email          string `validate:"required" json:"email"`
@@ -17,8 +22,9 @@ type AuthLoginResponse struct {
 	AccessToken     string `json:"access_token"`
 	RefreshToken    string `json:"refresh_token"`
 	TransmissionKey string `json:"transmission_key"`
+	Type            string `json:"type"`
 	*UserDTO
-	*SubscriptionDTO
+	*SubscriptionAuthDTO
 }
 
 //TokenDetailsDTO ...
