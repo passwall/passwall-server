@@ -12,7 +12,6 @@ import (
 )
 
 //Auth verify authentication
-
 func Auth(s storage.Store) negroni.HandlerFunc {
 
 	return negroni.HandlerFunc(func(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {

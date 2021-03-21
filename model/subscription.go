@@ -29,6 +29,7 @@ type Subscription struct {
 	CancelURL      string     `json:"cancel_url"`
 }
 
+// SubscriptionHook ...
 type SubscriptionHook struct {
 	AlertID             string `json:"alert_id"`
 	AlertName           string `json:"alert_name"`
@@ -52,7 +53,7 @@ type SubscriptionHook struct {
 	PSignature          string `json:"p_signature"`
 }
 
-// ToSubscription ...
+// RequestToSub converts Request to Subscription
 func RequestToSub(r *http.Request) *Subscription {
 	subID, _ := strconv.Atoi(r.FormValue("subscription_id"))
 	planID, _ := strconv.Atoi(r.FormValue("subscription_plan_id"))
@@ -88,6 +89,7 @@ type SubscriptionDTO struct {
 	CancelURL      string    `json:"cancel_url"`
 }
 
+// SubscriptionAuthDTO ...
 type SubscriptionAuthDTO struct {
 	Type         string    `json:"type"`
 	Status       string    `json:"status"`

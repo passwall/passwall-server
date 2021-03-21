@@ -21,7 +21,7 @@ var (
 	ErrUnauthorized = errors.New("unauthorized")
 )
 
-// CreateCache
+// CreateCache creates a new cache woth default expiraton time
 func CreateCache(defaultExpiration, cleanupInterval time.Duration) *cache.Cache {
 	return cache.New(defaultExpiration, cleanupInterval)
 }

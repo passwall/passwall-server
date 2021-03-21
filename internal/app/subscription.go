@@ -25,6 +25,7 @@ func CreateSubscription(s storage.Store, r *http.Request) (int, string) {
 	return http.StatusOK, "Subscription created successfully."
 }
 
+// UpdateSubscription updates the subscription for the user
 func UpdateSubscription(s storage.Store, r *http.Request) (int, string) {
 	subscription, err := s.Subscriptions().FindByEmail(r.FormValue("email"))
 	if err != nil {
@@ -66,6 +67,7 @@ func UpdateSubscription(s storage.Store, r *http.Request) (int, string) {
 	return http.StatusOK, "Subscription updated successfully."
 }
 
+//CancelSubscription cancels the subscripotion for the user
 func CancelSubscription(s storage.Store, r *http.Request) (int, string) {
 	subscription, err := s.Subscriptions().FindByEmail(r.FormValue("email"))
 	if err != nil {
@@ -80,6 +82,7 @@ func CancelSubscription(s storage.Store, r *http.Request) (int, string) {
 	return http.StatusOK, "Subscription cancelled."
 }
 
+//PaymentSucceedSubscription checks payment succeed for the subscripton
 func PaymentSucceedSubscription(s storage.Store, r *http.Request) (int, string) {
 	subscription, err := s.Subscriptions().FindByEmail(r.FormValue("email"))
 	if err != nil {
@@ -101,6 +104,7 @@ func PaymentSucceedSubscription(s storage.Store, r *http.Request) (int, string) 
 	return http.StatusOK, "Subscription payment succeeded."
 }
 
+//PaymentFailedSubscription  checks payment failed for the subscripton
 func PaymentFailedSubscription(s storage.Store, r *http.Request) (int, string) {
 	subscription, err := s.Subscriptions().FindByEmail(r.FormValue("email"))
 	if err != nil {
