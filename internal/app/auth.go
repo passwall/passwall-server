@@ -8,6 +8,7 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/passwall/passwall-server/model"
+	"github.com/patrickmn/go-cache"
 
 	uuid "github.com/satori/go.uuid"
 	"github.com/spf13/viper"
@@ -19,6 +20,11 @@ var (
 	//ErrUnauthorized represents message for unauthorized
 	ErrUnauthorized = errors.New("unauthorized")
 )
+
+// CreateCache
+func CreateCache(defaultExpiration, cleanupInterval time.Duration) *cache.Cache {
+	return cache.New(defaultExpiration, cleanupInterval)
+}
 
 //CreateToken ...
 func CreateToken(user *model.User) (*model.TokenDetailsDTO, error) {

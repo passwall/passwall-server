@@ -6,7 +6,7 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
-// User model should be something like this
+// User model
 type User struct {
 	ID               uint       `gorm:"primary_key" json:"id"`
 	UUID             uuid.UUID  `gorm:"type:uuid; type:varchar(100);"`
@@ -29,7 +29,7 @@ type UserDTO struct {
 	UUID            uuid.UUID `json:"uuid"`
 	Name            string    `json:"name" validate:"max=100"`
 	Email           string    `json:"email" validate:"required,email"`
-	MasterPassword  string    `json:"master_password" validate:"required,max=100,min=6"`
+	MasterPassword  string    `json:"master_password,omitempty" validate:"required,max=100,min=6"`
 	Secret          string    `json:"secret"`
 	Schema          string    `json:"schema"`
 	Role            string    `json:"role"`
@@ -41,7 +41,6 @@ type UserSignup struct {
 	Name           string `json:"name" validate:"max=100"`
 	Email          string `json:"email" validate:"required,email"`
 	MasterPassword string `json:"master_password" validate:"required,max=100,min=6"`
-	Type           string `json:"type" validate:"required,oneof=free pro"`
 	Recaptcha      string `json:"g_captcha_value"` // temporarily disabled
 }
 
