@@ -122,7 +122,7 @@ func Signup(s storage.Store) http.HandlerFunc {
 		userSignup := new(model.UserSignup)
 		decoderr := json.NewDecoder(r.Body)
 		if err := decoderr.Decode(&userSignup); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, "Invalid request payload")
 			return
 		}
 		defer r.Body.Close()
