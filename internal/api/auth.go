@@ -80,6 +80,54 @@ func CreateCode(s storage.Store) http.HandlerFunc {
 	}
 }
 
+// Create user deletion code
+func CreateDeleteCode(s storage.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// 1. Decode json to email
+		var signup model.AuthEmail
+		if err := json.NewDecoder(r.Body).Decode(&signup); err != nil {
+			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
+			return
+		}
+
+		// 2. Check if user exist in database
+		_, err := s.Users().FindByEmail(signup.Email)
+		if err != nil {
+			log.Printf("email %s does not exist in database\n", signup.Email)
+			RespondWithError(w, http.StatusBadRequest, "User couldn't be found!")
+			return
+		}
+
+		// 2. Generate a random code
+		rand.Seed(time.Now().Unix())
+		min := 100000
+		max := 999999
+		code := strconv.Itoa(rand.Intn(max-min+1) + min)
+
+		log.Printf("deletion code %s generated for email %s\n", code, signup.Email)
+
+		// 3. Save code in cache
+		c.Set(signup.Email, code, cache.DefaultExpiration)
+
+		// 4. Send verification email to user
+		subject := "Passwall User Deletion Verification"
+		body := "Passwall user deletion code: " + code
+		if err = app.SendMail("Passwall user deletion Code", signup.Email, subject, body); err != nil {
+			log.Printf("can't send email to %s error: %v\n", signup.Email, err)
+			RespondWithError(w, http.StatusBadRequest, "Couldn't send email")
+			return
+		}
+
+		// Return success message
+		response := model.Response{
+			Code:    http.StatusOK,
+			Status:  Success,
+			Message: codeSuccess,
+		}
+		RespondWithJSON(w, http.StatusOK, response)
+	}
+}
+
 // Verify Email
 func VerifyCode() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -229,6 +277,43 @@ func Signin(s storage.Store) http.HandlerFunc {
 		}
 
 		RespondWithJSON(w, 200, authLoginResponse)
+	}
+}
+
+func RecoverDelete(s storage.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Get route variables
+		vars := mux.Vars(r)
+		// Get email variable
+		email := vars["email"]
+
+		// Check if email is verified
+		if err := isMailVerified(email); err != nil {
+			log.Println(err)
+			RespondWithError(w, http.StatusUnauthorized, "Email is not verified")
+			return
+		}
+
+		// Check if user exist in database
+		user, err := s.Users().FindByEmail(email)
+		if err != nil {
+			RespondWithError(w, http.StatusNotFound, err.Error())
+			return
+		}
+
+		// Delete user
+		err = s.Users().Delete(user.ID, user.Schema)
+		if err != nil {
+			RespondWithError(w, http.StatusNotFound, err.Error())
+			return
+		}
+
+		response := model.Response{
+			Code:    http.StatusOK,
+			Status:  "Success",
+			Message: "User deleted successfully!",
+		}
+		RespondWithJSON(w, http.StatusOK, response)
 	}
 }
 
