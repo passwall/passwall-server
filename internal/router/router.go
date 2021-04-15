@@ -107,6 +107,8 @@ func (r *Router) initRoutes() {
 	authRouter.HandleFunc("/signin", api.Signin(r.store)).Methods(http.MethodPost)
 	authRouter.HandleFunc("/refresh", api.RefreshToken(r.store)).Methods(http.MethodPost)
 	authRouter.HandleFunc("/check", api.CheckToken(r.store)).Methods(http.MethodPost)
+	authRouter.HandleFunc("/delete-code", api.CreateDeleteCode(r.store)).Methods(http.MethodPost)
+	authRouter.HandleFunc("/recover-delete/{email}", api.RecoverDelete(r.store)).Methods(http.MethodDelete)
 
 	// Check Updated
 	webRouter := mux.NewRouter().PathPrefix("/web").Subrouter()
