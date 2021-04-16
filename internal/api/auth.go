@@ -336,8 +336,8 @@ func RefreshToken(s storage.Store) http.HandlerFunc {
 		if err != nil {
 			if token != nil {
 				claims := token.Claims.(jwt.MapClaims)
-				userid := claims["user_id"].(float64)
-				s.Tokens().Delete(int(userid))
+				userUUID := claims["user_uuid"].(string)
+				s.Tokens().DeleteByUUID(userUUID)
 			}
 			RespondWithError(w, http.StatusUnauthorized, err.Error())
 			return
@@ -349,15 +349,15 @@ func RefreshToken(s storage.Store) http.HandlerFunc {
 		//Check from tokens db table
 		_, tokenExist := s.Tokens().Any(uuid)
 		if !tokenExist {
-			userid := claims["user_id"].(float64)
-			s.Tokens().Delete(int(userid))
+			userUUID := claims["user_uuid"].(string)
+			s.Tokens().DeleteByUUID(userUUID)
 			RespondWithError(w, http.StatusUnauthorized, invalidToken)
 			return
 		}
 
 		// Get user info
-		userid := claims["user_id"].(float64)
-		user, err := s.Users().FindByID(uint(userid))
+		userUUID := claims["user_uuid"].(string)
+		user, err := s.Users().FindByUUID(userUUID)
 		if err != nil {
 			RespondWithError(w, http.StatusUnauthorized, invalidUser)
 			return
@@ -371,11 +371,11 @@ func RefreshToken(s storage.Store) http.HandlerFunc {
 		}
 
 		//delete tokens from db
-		s.Tokens().Delete(int(userid))
+		s.Tokens().DeleteByUUID(userUUID)
 
 		//create tokens on db
-		s.Tokens().Save(int(userid), newtoken.AtUUID, newtoken.AccessToken, newtoken.AtExpiresTime, newtoken.TransmissionKey)
-		s.Tokens().Save(int(userid), newtoken.RtUUID, newtoken.RefreshToken, newtoken.RtExpiresTime, "")
+		s.Tokens().Save(int(user.ID), newtoken.AtUUID, newtoken.AccessToken, newtoken.AtExpiresTime, newtoken.TransmissionKey)
+		s.Tokens().Save(int(user.ID), newtoken.RtUUID, newtoken.RefreshToken, newtoken.RtExpiresTime, "")
 
 		authLoginResponse := model.AuthLoginResponse{
 			AccessToken:     newtoken.AccessToken,
@@ -410,10 +410,10 @@ func CheckToken(s storage.Store) http.HandlerFunc {
 		}
 
 		claims := token.Claims.(jwt.MapClaims)
-		userID := claims["user_id"].(float64)
+		userUUID := claims["user_uuid"].(string)
 
 		// Check if user exist in database and credentials are true
-		user, err := s.Users().FindByID(uint(userID))
+		user, err := s.Users().FindByUUID(userUUID)
 		if err != nil {
 			RespondWithError(w, http.StatusUnauthorized, invalidUser)
 			return

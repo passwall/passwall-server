@@ -115,6 +115,8 @@ func resolveTokenExpireDuration(config string) time.Duration {
 	timeFormat := config[len(config)-1:]
 
 	switch timeFormat {
+	case "s":
+		return time.Duration(time.Second.Nanoseconds() * duration)
 	case "m":
 		return time.Duration(time.Minute.Nanoseconds() * duration)
 	case "h":
