@@ -80,6 +80,54 @@ func CreateCode(s storage.Store) http.HandlerFunc {
 	}
 }
 
+// Create user deletion code
+func CreateDeleteCode(s storage.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// 1. Decode json to email
+		var signup model.AuthEmail
+		if err := json.NewDecoder(r.Body).Decode(&signup); err != nil {
+			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
+			return
+		}
+
+		// 2. Check if user exist in database
+		_, err := s.Users().FindByEmail(signup.Email)
+		if err != nil {
+			log.Printf("email %s does not exist in database\n", signup.Email)
+			RespondWithError(w, http.StatusBadRequest, "User couldn't be found!")
+			return
+		}
+
+		// 2. Generate a random code
+		rand.Seed(time.Now().Unix())
+		min := 100000
+		max := 999999
+		code := strconv.Itoa(rand.Intn(max-min+1) + min)
+
+		log.Printf("deletion code %s generated for email %s\n", code, signup.Email)
+
+		// 3. Save code in cache
+		c.Set(signup.Email, code, cache.DefaultExpiration)
+
+		// 4. Send verification email to user
+		subject := "Passwall User Deletion Verification"
+		body := "Passwall user deletion code: " + code
+		if err = app.SendMail("Passwall user deletion Code", signup.Email, subject, body); err != nil {
+			log.Printf("can't send email to %s error: %v\n", signup.Email, err)
+			RespondWithError(w, http.StatusBadRequest, "Couldn't send email")
+			return
+		}
+
+		// Return success message
+		response := model.Response{
+			Code:    http.StatusOK,
+			Status:  Success,
+			Message: codeSuccess,
+		}
+		RespondWithJSON(w, http.StatusOK, response)
+	}
+}
+
 // Verify Email
 func VerifyCode() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -122,7 +170,7 @@ func Signup(s storage.Store) http.HandlerFunc {
 		userSignup := new(model.UserSignup)
 		decoderr := json.NewDecoder(r.Body)
 		if err := decoderr.Decode(&userSignup); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, "Invalid request payload")
 			return
 		}
 		defer r.Body.Close()
@@ -232,6 +280,43 @@ func Signin(s storage.Store) http.HandlerFunc {
 	}
 }
 
+func RecoverDelete(s storage.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Get route variables
+		vars := mux.Vars(r)
+		// Get email variable
+		email := vars["email"]
+
+		// Check if email is verified
+		if err := isMailVerified(email); err != nil {
+			log.Println(err)
+			RespondWithError(w, http.StatusUnauthorized, "Email is not verified")
+			return
+		}
+
+		// Check if user exist in database
+		user, err := s.Users().FindByEmail(email)
+		if err != nil {
+			RespondWithError(w, http.StatusNotFound, err.Error())
+			return
+		}
+
+		// Delete user
+		err = s.Users().Delete(user.ID, user.Schema)
+		if err != nil {
+			RespondWithError(w, http.StatusNotFound, err.Error())
+			return
+		}
+
+		response := model.Response{
+			Code:    http.StatusOK,
+			Status:  "Success",
+			Message: "User deleted successfully!",
+		}
+		RespondWithJSON(w, http.StatusOK, response)
+	}
+}
+
 // RefreshToken ...
 func RefreshToken(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -251,8 +336,8 @@ func RefreshToken(s storage.Store) http.HandlerFunc {
 		if err != nil {
 			if token != nil {
 				claims := token.Claims.(jwt.MapClaims)
-				userid := claims["user_id"].(float64)
-				s.Tokens().Delete(int(userid))
+				userUUID := claims["user_uuid"].(string)
+				s.Tokens().DeleteByUUID(userUUID)
 			}
 			RespondWithError(w, http.StatusUnauthorized, err.Error())
 			return
@@ -264,15 +349,15 @@ func RefreshToken(s storage.Store) http.HandlerFunc {
 		//Check from tokens db table
 		_, tokenExist := s.Tokens().Any(uuid)
 		if !tokenExist {
-			userid := claims["user_id"].(float64)
-			s.Tokens().Delete(int(userid))
+			userUUID := claims["user_uuid"].(string)
+			s.Tokens().DeleteByUUID(userUUID)
 			RespondWithError(w, http.StatusUnauthorized, invalidToken)
 			return
 		}
 
 		// Get user info
-		userid := claims["user_id"].(float64)
-		user, err := s.Users().FindByID(uint(userid))
+		userUUID := claims["user_uuid"].(string)
+		user, err := s.Users().FindByUUID(userUUID)
 		if err != nil {
 			RespondWithError(w, http.StatusUnauthorized, invalidUser)
 			return
@@ -286,11 +371,11 @@ func RefreshToken(s storage.Store) http.HandlerFunc {
 		}
 
 		//delete tokens from db
-		s.Tokens().Delete(int(userid))
+		s.Tokens().DeleteByUUID(userUUID)
 
 		//create tokens on db
-		s.Tokens().Save(int(userid), newtoken.AtUUID, newtoken.AccessToken, newtoken.AtExpiresTime, newtoken.TransmissionKey)
-		s.Tokens().Save(int(userid), newtoken.RtUUID, newtoken.RefreshToken, newtoken.RtExpiresTime, "")
+		s.Tokens().Save(int(user.ID), newtoken.AtUUID, newtoken.AccessToken, newtoken.AtExpiresTime, newtoken.TransmissionKey)
+		s.Tokens().Save(int(user.ID), newtoken.RtUUID, newtoken.RefreshToken, newtoken.RtExpiresTime, "")
 
 		authLoginResponse := model.AuthLoginResponse{
 			AccessToken:     newtoken.AccessToken,
@@ -325,10 +410,10 @@ func CheckToken(s storage.Store) http.HandlerFunc {
 		}
 
 		claims := token.Claims.(jwt.MapClaims)
-		userID := claims["user_id"].(float64)
+		userUUID := claims["user_uuid"].(string)
 
 		// Check if user exist in database and credentials are true
-		user, err := s.Users().FindByID(uint(userID))
+		user, err := s.Users().FindByUUID(userUUID)
 		if err != nil {
 			RespondWithError(w, http.StatusUnauthorized, invalidUser)
 			return
