@@ -22,31 +22,21 @@ func dbSetup() (*gorm.DB, sqlmock.Sqlmock) {
 }
 
 func TestAll(t *testing.T) {
-
 	// Create mock db
 	mockDB, mock := dbSetup()
 
-	// Initialize repository
-	loginRepository := NewRepository(mockDB)
-
-	const sqlSelectAll = `SELECT * FROM "user-test"."logins"  WHERE "user-test"."logins"."deleted_at" IS NULL`
-	mock.ExpectQuery(regexp.QuoteMeta(sqlSelectAll)).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user-test"."logins"  WHERE "user-test"."logins"."deleted_at" IS NULL`)).
 		WillReturnRows(sqlmock.NewRows(nil))
 
-	expected := []model.Login{}
-	loginList, err := loginRepository.All("user-test")
+	loginList, err := NewRepository(mockDB).All("user-test")
 	assert.Nil(t, err)
 
-	assert.Nil(t, deep.Equal(expected, loginList))
+	assert.Nil(t, deep.Equal([]model.Login{}, loginList))
 }
 
 func TestFindByID(t *testing.T) {
-
 	// Create mock db
 	mockDB, mock := dbSetup()
-
-	// Initialize repository
-	loginRepository := NewRepository(mockDB)
 
 	login := &model.Login{
 		ID:        1,
@@ -59,17 +49,14 @@ func TestFindByID(t *testing.T) {
 		Password:  "dummypassword",
 	}
 
-	rows := sqlmock.
-		NewRows([]string{"id", "created_at", "updated_at", "deleted_at", "title", "url", "username", "password"}).
-		AddRow(login.ID, login.CreatedAt, login.UpdatedAt, login.DeletedAt, login.Title, login.URL, login.Username, login.Password)
-
-	const sqlSelectOne = `SELECT * FROM "user-test"."logins" WHERE "user-test"."logins"."deleted_at" IS NULL AND ((id = $1))`
-
-	mock.ExpectQuery(regexp.QuoteMeta(sqlSelectOne)).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user-test"."logins" WHERE "user-test"."logins"."deleted_at" IS NULL AND ((id = $1))`)).
 		WithArgs(login.ID).
-		WillReturnRows(rows)
+		WillReturnRows(
+			sqlmock.
+				NewRows([]string{"id", "created_at", "updated_at", "deleted_at", "title", "url", "username", "password"}).
+				AddRow(login.ID, login.CreatedAt, login.UpdatedAt, login.DeletedAt, login.Title, login.URL, login.Username, login.Password))
 
-	resultLogin, err := loginRepository.FindByID(login.ID, "user-test")
+	resultLogin, err := NewRepository(mockDB).FindByID(login.ID, "user-test")
 	assert.Nil(t, err)
 
 	assert.Nil(t, deep.Equal(login, resultLogin))

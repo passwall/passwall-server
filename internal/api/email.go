@@ -16,17 +16,10 @@ import (
 // FindAllEmails ...
 func FindAllEmails(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var err error
-		emailList := []model.Email{}
-
-		// Setup variables
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
-		fields := []string{"id", "created_at", "updated_at", "email"}
-		argsStr, argsInt := SetArgs(r, fields)
+		argsStr, argsInt := SetArgs(r, []string{"id", "created_at", "updated_at", "email"})
 
 		schema := r.Context().Value("schema").(string)
-		emailList, err = s.Emails().FindAll(argsStr, argsInt, schema)
+		emailList, err := s.Emails().FindAll(argsStr, argsInt, schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
@@ -42,17 +35,13 @@ func FindAllEmails(s storage.Store) http.HandlerFunc {
 			emailList[i] = *decEmail.(*model.Email)
 		}
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, emailList)
+		RespondWithEncJSON(w, http.StatusOK, r.Context().Value("transmissionKey").(string), emailList)
 	}
 }
 
 // FindEmailByID ...
 func FindEmailByID(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		// Setup variables
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
 		// Check if id is integer
 		vars := mux.Vars(r)
 		id, err := strconv.Atoi(vars["id"])
@@ -61,8 +50,7 @@ func FindEmailByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		schema := r.Context().Value("schema").(string)
-		email, err := s.Emails().FindByID(uint(id), schema)
+		email, err := s.Emails().FindByID(uint(id), r.Context().Value("schema").(string))
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
@@ -75,24 +63,24 @@ func FindEmailByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		emailDTO := model.ToEmailDTO(decEmail.(*model.Email))
-
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, emailDTO)
+		RespondWithEncJSON(
+			w,
+			http.StatusOK,
+			r.Context().Value("transmissionKey").(string),
+			model.ToEmailDTO(decEmail.(*model.Email)))
 	}
 }
 
 // CreateEmail ...
 func CreateEmail(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
 		// Setup variables
-		env := viper.GetString("server.env")
 		transmissionKey := r.Context().Value("transmissionKey").(string)
 
 		// Update request body according to env.
 		// If env is dev, then do nothing
 		// If env is prod, then decrypt payload with transmission key
-		if err := ToBody(r, env, transmissionKey); err != nil {
+		if err := ToBody(r, viper.GetString("server.env"), transmissionKey); err != nil {
 			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
@@ -100,16 +88,14 @@ func CreateEmail(s storage.Store) http.HandlerFunc {
 
 		// Unmarshal request body to loginDTO
 		var emailDTO model.EmailDTO
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&emailDTO); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&emailDTO); err != nil {
 			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 			return
 		}
 		defer r.Body.Close()
 
 		// Add new login to db
-		schema := r.Context().Value("schema").(string)
-		createdEmail, err := app.CreateEmail(s, &emailDTO, schema)
+		createdEmail, err := app.CreateEmail(s, &emailDTO, r.Context().Value("schema").(string))
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -122,28 +108,23 @@ func CreateEmail(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// Create DTO
-		createdEmailDTO := model.ToEmailDTO(decEmail.(*model.Email))
-
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, createdEmailDTO)
+		RespondWithEncJSON(w, http.StatusOK, transmissionKey, model.ToEmailDTO(decEmail.(*model.Email)))
 	}
 }
 
 // UpdateEmail ...
 func UpdateEmail(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		id, err := strconv.Atoi(vars["id"])
+		id, err := strconv.Atoi(mux.Vars(r)["id"])
 		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		// Setup variables
-		env := viper.GetString("server.env")
 		transmissionKey := r.Context().Value("transmissionKey").(string)
 
-		if err := ToBody(r, env, transmissionKey); err != nil {
+		if err := ToBody(r, viper.GetString("server.env"), transmissionKey); err != nil {
 			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
@@ -151,8 +132,7 @@ func UpdateEmail(s storage.Store) http.HandlerFunc {
 
 		// Unmarshal request body to emailDTO
 		var emailDTO model.EmailDTO
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&emailDTO); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&emailDTO); err != nil {
 			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 			return
 		}
@@ -180,11 +160,7 @@ func UpdateEmail(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// Create DTO
-		updatedEmailDTO := model.ToEmailDTO(decEmail.(*model.Email))
-
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, updatedEmailDTO)
-
+		RespondWithEncJSON(w, http.StatusOK, transmissionKey, model.ToEmailDTO(decEmail.(*model.Email)))
 	}
 }
 
@@ -211,11 +187,11 @@ func DeleteEmail(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		response := model.Response{
-			Code:    http.StatusOK,
-			Status:  "Success",
-			Message: "Email deleted successfully!",
-		}
-		RespondWithJSON(w, http.StatusOK, response)
+		RespondWithJSON(w, http.StatusOK,
+			model.Response{
+				Code:    http.StatusOK,
+				Status:  Success,
+				Message: "Email deleted successfully!",
+			})
 	}
 }

@@ -21,18 +21,10 @@ const (
 // FindAllServers ...
 func FindAllServers(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var err error
-		var serverList []model.Server
-
-		// Setup variables
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
-		fields := []string{"id", "created_at", "updated_at", "title", "ip", "url"}
-		argsStr, argsInt := SetArgs(r, fields)
+		argsStr, argsInt := SetArgs(r, []string{"id", "created_at", "updated_at", "title", "ip", "url"})
 
 		// Get all servers from db
-		schema := r.Context().Value("schema").(string)
-		serverList, err = s.Servers().FindAll(argsStr, argsInt, schema)
+		serverList, err := s.Servers().FindAll(argsStr, argsInt, r.Context().Value("schema").(string))
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
@@ -48,28 +40,22 @@ func FindAllServers(s storage.Store) http.HandlerFunc {
 			serverList[i] = *decServer.(*model.Server)
 		}
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, serverList)
+		RespondWithEncJSON(w, http.StatusOK, r.Context().Value("transmissionKey").(string), serverList)
 	}
 }
 
 // FindServerByID ...
 func FindServerByID(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		// Setup variables
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
 		// Check if id is integer
-		vars := mux.Vars(r)
-		id, err := strconv.Atoi(vars["id"])
+		id, err := strconv.Atoi(mux.Vars(r)["id"])
 		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		// Find server by id from db
-		schema := r.Context().Value("schema").(string)
-		server, err := s.Servers().FindByID(uint(id), schema)
+		server, err := s.Servers().FindByID(uint(id), r.Context().Value("schema").(string))
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
@@ -82,9 +68,11 @@ func FindServerByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		serverDTO := model.ToServerDTO(decServer.(*model.Server))
-
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, serverDTO)
+		RespondWithEncJSON(
+			w,
+			http.StatusOK,
+			r.Context().Value("transmissionKey").(string),
+			model.ToServerDTO(decServer.(*model.Server)))
 	}
 }
 
@@ -93,13 +81,12 @@ func CreateServer(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		// Setup variables
-		env := viper.GetString("server.env")
 		transmissionKey := r.Context().Value("transmissionKey").(string)
 
 		// Update request body according to env.
 		// If env is dev, then do nothing
 		// If env is prod, then decrypt payload with transmission key
-		if err := ToBody(r, env, transmissionKey); err != nil {
+		if err := ToBody(r, viper.GetString("server.env"), transmissionKey); err != nil {
 			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
@@ -107,16 +94,14 @@ func CreateServer(s storage.Store) http.HandlerFunc {
 
 		// Unmarshal request body to serverDTO
 		var serverDTO model.ServerDTO
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&serverDTO); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&serverDTO); err != nil {
 			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 			return
 		}
 		defer r.Body.Close()
 
 		// Add new server to db
-		schema := r.Context().Value("schema").(string)
-		createdServer, err := app.CreateServer(s, &serverDTO, schema)
+		createdServer, err := app.CreateServer(s, &serverDTO, r.Context().Value("schema").(string))
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -128,28 +113,23 @@ func CreateServer(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// Create DTO
-		createdServerDTO := model.ToServerDTO(decServer.(*model.Server))
-
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, createdServerDTO)
+		RespondWithEncJSON(w, http.StatusOK, transmissionKey, model.ToServerDTO(decServer.(*model.Server)))
 	}
 }
 
 // UpdateServer ...
 func UpdateServer(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		id, err := strconv.Atoi(vars["id"])
+		id, err := strconv.Atoi(mux.Vars(r)["id"])
 		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		// Setup variables
-		env := viper.GetString("server.env")
 		transmissionKey := r.Context().Value("transmissionKey").(string)
 
-		if err := ToBody(r, env, transmissionKey); err != nil {
+		if err := ToBody(r, viper.GetString("server.env"), transmissionKey); err != nil {
 			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
@@ -157,8 +137,7 @@ func UpdateServer(s storage.Store) http.HandlerFunc {
 
 		// Unmarshal request body to serverDTO
 		var serverDTO model.ServerDTO
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&serverDTO); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&serverDTO); err != nil {
 			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 			return
 		}
@@ -186,18 +165,14 @@ func UpdateServer(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// Create DTO
-		updatedServerDTO := model.ToServerDTO(decServer.(*model.Server))
-
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, updatedServerDTO)
+		RespondWithEncJSON(w, http.StatusOK, transmissionKey, model.ToServerDTO(decServer.(*model.Server)))
 	}
 }
 
 // DeleteServer ...
 func DeleteServer(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		id, err := strconv.Atoi(vars["id"])
+		id, err := strconv.Atoi(mux.Vars(r)["id"])
 		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
@@ -216,11 +191,11 @@ func DeleteServer(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		response := model.Response{
-			Code:    http.StatusOK,
-			Status:  Success,
-			Message: ServerDeleteSuccess,
-		}
-		RespondWithJSON(w, http.StatusOK, response)
+		RespondWithJSON(w, http.StatusOK,
+			model.Response{
+				Code:    http.StatusOK,
+				Status:  Success,
+				Message: ServerDeleteSuccess,
+			})
 	}
 }

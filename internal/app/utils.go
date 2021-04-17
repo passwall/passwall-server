@@ -24,9 +24,7 @@ func RandomMD5Hash() string {
 
 // PayloadValidator ...
 func PayloadValidator(model interface{}) error {
-	validate := validator.New()
-	validateError := validate.Struct(model)
-	if validateError != nil {
+	if validateError := validator.New().Struct(model); validateError != nil {
 		//	errs := GetErrors(validateError.(validator.ValidationErrors))
 		//	RespondWithErrors(w, http.StatusBadRequest, InvalidRequestPayload, errs)
 		return validateError

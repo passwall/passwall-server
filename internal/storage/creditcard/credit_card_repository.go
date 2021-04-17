@@ -18,17 +18,12 @@ func NewRepository(db *gorm.DB) *Repository {
 // All ...
 func (p *Repository) All(schema string) ([]model.CreditCard, error) {
 	creditCards := []model.CreditCard{}
-	err := p.db.Table(schema + ".credit_cards").Find(&creditCards).Error
-	return creditCards, err
+	return creditCards, p.db.Table(schema + ".credit_cards").Find(&creditCards).Error
 }
 
 // FindAll ...
 func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.CreditCard, error) {
-	creditCards := []model.CreditCard{}
-
-	query := p.db
-	query = query.Table(schema + ".credit_cards")
-	query = query.Limit(argsInt["limit"])
+	query := p.db.Table(schema + ".credit_cards").Limit(argsInt["limit"])
 	if argsInt["limit"] > 0 {
 		// offset can't be declared without a valid limit
 		query = query.Offset(argsInt["offset"])
@@ -39,33 +34,29 @@ func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int, 
 	if argsStr["search"] != "" {
 		query = query.Where("card_name LIKE ?", "%"+argsStr["search"]+"%")
 
-		fields := []string{"cardholder_name", "type", "number", "verification_number", "expiry_date"}
-		for i := range fields {
-			query = query.Or(fields[i]+" LIKE ?", "%"+argsStr["search"]+"%")
+		for _, field := range []string{"cardholder_name", "type", "number", "verification_number", "expiry_date"} {
+			query = query.Or(field+" LIKE ?", "%"+argsStr["search"]+"%")
 		}
 	}
 
-	err := query.Find(&creditCards).Error
-	return creditCards, err
+	creditCards := []model.CreditCard{}
+	return creditCards, query.Find(&creditCards).Error
 }
 
 // FindByID ...
 func (p *Repository) FindByID(id uint, schema string) (*model.CreditCard, error) {
 	creditCard := new(model.CreditCard)
-	err := p.db.Table(schema+".credit_cards").Where(`id = ?`, id).First(&creditCard).Error
-	return creditCard, err
+	return creditCard, p.db.Table(schema+".credit_cards").Where(`id = ?`, id).First(&creditCard).Error
 }
 
 // Save ...
 func (p *Repository) Save(creditCard *model.CreditCard, schema string) (*model.CreditCard, error) {
-	err := p.db.Table(schema + ".credit_cards").Save(&creditCard).Error
-	return creditCard, err
+	return creditCard, p.db.Table(schema + ".credit_cards").Save(&creditCard).Error
 }
 
 // Delete ...
 func (p *Repository) Delete(id uint, schema string) error {
-	err := p.db.Table(schema + ".credit_cards").Delete(&model.CreditCard{ID: id}).Error
-	return err
+	return p.db.Table(schema + ".credit_cards").Delete(&model.CreditCard{ID: id}).Error
 }
 
 // Migrate ...

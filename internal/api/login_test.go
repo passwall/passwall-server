@@ -14,9 +14,7 @@ import (
 )
 
 func (suite *TestSuiteEnv) TestFindAllLogins() {
-
 	// db := suite.db
-	gorm := suite.gorm
 
 	req, err := http.NewRequest("GET", "/api/logins", nil)
 	if err != nil {
@@ -26,9 +24,7 @@ func (suite *TestSuiteEnv) TestFindAllLogins() {
 	w := httptest.NewRecorder()
 	// handler := FindAllLogins(db)
 
-	r := routersSetup(gorm)
-
-	r.ServeHTTP(w, req)
+	routersSetup(suite.gorm).ServeHTTP(w, req)
 	// more test cases could be added
 	// expected := `{"api":{"status_code":200,"error":null},"database":{"status_code":200,"error":null}}`
 
@@ -158,7 +154,6 @@ func dbSetup() (*gorm.DB, sqlmock.Sqlmock) {
 }
 
 func routersSetup(db *gorm.DB) *mux.Router {
-
 	// Create storage with mock db
 	store := storage.New(db)
 

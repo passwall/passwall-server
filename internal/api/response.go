@@ -48,10 +48,7 @@ func RespondWithEncJSON(w http.ResponseWriter, code int, transmissionKey string,
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 
-	// Get env from config
-	env := viper.GetString("server.env")
-
-	if env == "dev" {
+	if viper.GetString("server.env") == "dev" {
 		response, _ := json.Marshal(payload)
 		w.Write(response)
 		return
@@ -62,9 +59,11 @@ func RespondWithEncJSON(w http.ResponseWriter, code int, transmissionKey string,
 		RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	var encPayload model.Payload
-	encPayload.Data = string(encrypted)
-	response, _ := json.Marshal(encPayload)
+
+	response, _ := json.Marshal(
+		model.Payload{
+			Data: string(encrypted),
+		})
 	w.Write(response)
 }
 

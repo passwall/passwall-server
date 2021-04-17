@@ -21,10 +21,8 @@ var (
 
 // CreateUser creates a user and saves it to the store
 func CreateUser(s storage.Store, userDTO *model.UserDTO) (*model.User, error) {
-	var err error
-
 	//Run validator according to model.UserDTO validator tags
-	err = PayloadValidator(userDTO)
+	err := PayloadValidator(userDTO)
 	if err != nil {
 		return nil, err
 	}
@@ -48,8 +46,7 @@ func CreateUser(s storage.Store, userDTO *model.UserDTO) (*model.User, error) {
 		return nil, err
 	}
 
-	confirmationCode := RandomMD5Hash()
-	createdUser.ConfirmationCode = confirmationCode
+	createdUser.ConfirmationCode = RandomMD5Hash()
 
 	// Generate schema name and update user
 	updatedUser, err := GenerateSchema(s, createdUser)
@@ -71,7 +68,6 @@ func CreateUser(s storage.Store, userDTO *model.UserDTO) (*model.User, error) {
 
 // UpdateUser updates the user with the dto and applies the changes in the store
 func UpdateUser(s storage.Store, user *model.User, userDTO *model.UserDTO, isAuthorized bool) (*model.User, error) {
-
 	// TODO: Refactor the contents of updated user with a logical way
 	if userDTO.MasterPassword != "" && NewBcrypt([]byte(userDTO.MasterPassword)) != user.MasterPassword {
 		userDTO.MasterPassword = NewBcrypt([]byte(userDTO.MasterPassword))

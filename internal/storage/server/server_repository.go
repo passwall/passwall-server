@@ -18,17 +18,12 @@ func NewRepository(db *gorm.DB) *Repository {
 // All ...
 func (p *Repository) All(schema string) ([]model.Server, error) {
 	servers := []model.Server{}
-	err := p.db.Table(schema + ".servers").Find(&servers).Error
-	return servers, err
+	return servers, p.db.Table(schema + ".servers").Find(&servers).Error
 }
 
 // FindAll ...
 func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.Server, error) {
-	servers := []model.Server{}
-
-	query := p.db
-	query = query.Table(schema + ".servers")
-	query = query.Limit(argsInt["limit"])
+	query := p.db.Table(schema + ".servers").Limit(argsInt["limit"])
 	if argsInt["limit"] > 0 {
 		// offset can't be declared without a valid limit
 		query = query.Offset(argsInt["offset"])
@@ -40,15 +35,14 @@ func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int, 
 		query = query.Where("title LIKE ? OR ip LIKE ?", "%"+argsStr["search"]+"%", "%"+argsStr["search"]+"%")
 	}
 
-	err := query.Find(&servers).Error
-	return servers, err
+	servers := []model.Server{}
+	return servers, query.Find(&servers).Error
 }
 
 // FindByID ...
 func (p *Repository) FindByID(id uint, schema string) (*model.Server, error) {
 	server := new(model.Server)
-	err := p.db.Table(schema+".servers").Where(`id = ?`, id).First(&server).Error
-	return server, err
+	return server, p.db.Table(schema+".servers").Where(`id = ?`, id).First(&server).Error
 }
 
 // Save ...

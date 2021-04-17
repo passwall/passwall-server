@@ -21,16 +21,14 @@ func NewRepository(db *gorm.DB) *Repository {
 // All ...
 func (p *Repository) All() ([]model.User, error) {
 	users := []model.User{}
-	err := p.db.Find(&users).Error
-	return users, err
+	return users, p.db.Find(&users).Error
 }
 
 // FindAll ...
 func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int) ([]model.User, error) {
 	users := []model.User{}
 
-	query := p.db
-	query = query.Limit(argsInt["limit"])
+	query := p.db.Limit(argsInt["limit"])
 	if argsInt["limit"] > 0 {
 		// offset can't be declared without a valid limit
 		query = query.Offset(argsInt["offset"])
@@ -46,42 +44,37 @@ func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int) 
 			"%"+argsStr["search"]+"%")
 	}
 
-	err := query.Find(&users).Error
-	return users, err
+	return users, query.Find(&users).Error
 }
 
 // FindByID ...
 func (p *Repository) FindByID(id uint) (*model.User, error) {
 	user := new(model.User)
-	err := p.db.Where(`id = ?`, id).First(&user).Error
-	return user, err
+	return user, p.db.Where(`id = ?`, id).First(&user).Error
 }
 
 // FindByUUID ...
 func (p *Repository) FindByUUID(uuid string) (*model.User, error) {
 	user := new(model.User)
-	err := p.db.Where(`uuid = ?`, uuid).First(&user).Error
-	return user, err
+	return user, p.db.Where(`uuid = ?`, uuid).First(&user).Error
 }
 
 // FindByEmail ...
 func (p *Repository) FindByEmail(email string) (*model.User, error) {
 	user := new(model.User)
-	err := p.db.Where(`email = ?`, email).First(&user).Error
-	return user, err
+	return user, p.db.Where(`email = ?`, email).First(&user).Error
 }
 
 // FindByCredentials ...
 func (p *Repository) FindByCredentials(email, masterPassword string) (*model.User, error) {
 	user := new(model.User)
-	err := p.db.Where(`email = ?`, email).First(&user).Error
-	if err != nil {
+
+	if err := p.db.Where(`email = ?`, email).First(&user).Error; err != nil {
 		return user, err
 	}
 
 	// Comparing the password with the bcrypt hash
-	err = bcrypt.CompareHashAndPassword([]byte(user.MasterPassword), []byte(masterPassword))
-	if err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(user.MasterPassword), []byte(masterPassword)); err != nil {
 		return user, err
 	}
 
@@ -90,20 +83,16 @@ func (p *Repository) FindByCredentials(email, masterPassword string) (*model.Use
 
 // Save ...
 func (p *Repository) Save(user *model.User) (*model.User, error) {
-	err := p.db.Save(&user).Error
-	return user, err
+	return user, p.db.Save(&user).Error
 }
 
 // Delete ...
 func (p *Repository) Delete(id uint, schema string) error {
-
-	err := p.db.Exec("DROP SCHEMA " + schema + " CASCADE").Error
-	if err != nil {
+	if err := p.db.Exec("DROP SCHEMA " + schema + " CASCADE").Error; err != nil {
 		log.Println(err)
 	}
 
-	err = p.db.Delete(&model.User{ID: id}).Error
-	return err
+	return p.db.Delete(&model.User{ID: id}).Error
 }
 
 // Migrate ...
@@ -115,7 +104,7 @@ func (p *Repository) Migrate() error {
 func (p *Repository) CreateSchema(schema string) error {
 	var err error
 	if schema != "" && schema != "public" {
-		err := p.db.Exec("CREATE SCHEMA IF NOT EXISTS " + schema).Error
+		err = p.db.Exec("CREATE SCHEMA IF NOT EXISTS " + schema).Error
 		if err != nil {
 			log.Println(err)
 		}

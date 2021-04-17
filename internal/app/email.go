@@ -7,10 +7,7 @@ import (
 
 // CreateEmail creates a new bank account and saves it to the store
 func CreateEmail(s storage.Store, dto *model.EmailDTO, schema string) (*model.Email, error) {
-	rawModel := model.ToEmail(dto)
-	encModel := EncryptModel(rawModel)
-
-	createdEmail, err := s.Emails().Save(encModel.(*model.Email), schema)
+	createdEmail, err := s.Emails().Save(EncryptModel(model.ToEmail(dto)).(*model.Email), schema)
 	if err != nil {
 		return nil, err
 	}
@@ -20,8 +17,7 @@ func CreateEmail(s storage.Store, dto *model.EmailDTO, schema string) (*model.Em
 
 // UpdateEmail updates the account with the dto and applies the changes in the store
 func UpdateEmail(s storage.Store, email *model.Email, dto *model.EmailDTO, schema string) (*model.Email, error) {
-	rawModel := model.ToEmail(dto)
-	encModel := EncryptModel(rawModel).(*model.Email)
+	encModel := EncryptModel(model.ToEmail(dto)).(*model.Email)
 
 	email.Title = encModel.Title
 	email.Email = encModel.Email

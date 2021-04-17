@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/passwall/passwall-server/internal/app"
@@ -31,10 +30,7 @@ const (
 
 // CheckUpdate generates new password
 func CheckUpdate(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	product := vars["product"]
-
-	if product != "1" {
+	if mux.Vars(r)["product"] != "1" {
 		RespondWithError(w, http.StatusNotFound, "Product not found")
 		return
 	}
@@ -45,61 +41,42 @@ func CheckUpdate(w http.ResponseWriter, r *http.Request) {
 		ProductURL    string `json:"product_url"`
 	}
 
-	update := Update{
-		LatestVersion: "0.1.4",
-		DownloadURL:   "https://passwall.io/download/passwall-macos/",
-		ProductURL:    "https://signup.passwall.io",
-	}
-
-	RespondWithJSON(w, http.StatusOK, update)
+	RespondWithJSON(w, http.StatusOK,
+		Update{
+			LatestVersion: "0.1.4",
+			DownloadURL:   "https://passwall.io/download/passwall-macos/",
+			ProductURL:    "https://signup.passwall.io",
+		})
 }
 
 // Languages ...
 func findLanguageFiles(folder string) ([]string, error) {
-	items := []string{}
-
-	files, err := ioutil.ReadDir(folder)
-	if err != nil {
-		return items, err
-	}
-
-	s := []string{}
-	for _, f := range files {
-		// Since Split function returns string slice first split filename from extension
-		e := strings.Split(f.Name(), ".")
-		// Than split from the language part eg localization-xx
-		l := strings.Split(e[0], "-")
-		s = append(s, l[1])
-	}
-
-	return items, nil
+	return make([]string, 0), nil
 }
 
 // Languages ...
 func Languages(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		type Languages struct {
-			Item []string `json:"languages"`
-		}
-
 		langItems, err := findLanguageFiles("../../store")
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 		}
 
-		langs := Languages{
-			Item: langItems,
+		type Languages struct {
+			Item []string `json:"languages"`
 		}
 
-		RespondWithJSON(w, http.StatusOK, langs.Item)
+		RespondWithJSON(w, http.StatusOK,
+			Languages{
+				Item: langItems,
+			})
 	}
 }
 
 // Language ...
 func Language(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		lang := vars["lang"]
+		lang := mux.Vars(r)["lang"]
 
 		if lang != "tr" && lang != "en" {
 			RespondWithError(w, http.StatusNotFound, "Language not found")
@@ -134,37 +111,35 @@ func Language(s storage.Store) http.HandlerFunc {
 func Import(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var payloadList []model.Payload
-		var loginDTO model.LoginDTO
 
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&payloadList); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&payloadList); err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 		}
 		defer r.Body.Close()
 
+		// Add new login to db
+		var loginDTO model.LoginDTO
+
 		for i := range payloadList {
 			// Decrypt payload
-			key := r.Context().Value("transmissionKey").(string)
-			if err := app.DecryptJSON(key, []byte(payloadList[i].Data), &loginDTO); err != nil {
+			if err := app.DecryptJSON(r.Context().Value("transmissionKey").(string), []byte(payloadList[i].Data), &loginDTO); err != nil {
 				RespondWithError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
 
-			// Add new login to db
-			schema := r.Context().Value("schema").(string)
-			_, err := app.CreateLogin(s, &loginDTO, schema)
+			_, err := app.CreateLogin(s, &loginDTO, r.Context().Value("schema").(string))
 			if err != nil {
 				RespondWithError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
 		}
 
-		response := model.Response{
-			Code:    http.StatusOK,
-			Status:  "Success",
-			Message: "Import completed successfully!",
-		}
-		RespondWithJSON(w, http.StatusOK, response)
+		RespondWithJSON(w, http.StatusOK,
+			model.Response{
+				Code:    http.StatusOK,
+				Status:  Success,
+				Message: "Import completed successfully!",
+			})
 	}
 }
 
@@ -201,20 +176,18 @@ func Restore(s storage.Store) http.HandlerFunc {
 		var restoreDTO model.RestoreDTO
 
 		// get restoreDTO
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&restoreDTO); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&restoreDTO); err != nil {
 			RespondWithError(w, http.StatusUnprocessableEntity, InvalidJSON)
 			return
 		}
 		defer r.Body.Close()
 
-		backupFolder := viper.GetString("backup.folder")
 		backupFile := restoreDTO.Name
 		// add extension if there is no
 		if len(filepath.Ext(restoreDTO.Name)) <= 0 {
 			backupFile = fmt.Sprintf("%s%s", restoreDTO.Name, ".bak")
 		}
-		backupPath := filepath.Join(backupFolder, backupFile)
+		backupPath := filepath.Join(viper.GetString("backup.folder"), backupFile)
 
 		_, err := os.Open(backupPath)
 		if err != nil {
@@ -222,10 +195,8 @@ func Restore(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		loginsByte := app.DecryptFile(backupPath, viper.GetString("server.passphrase"))
-
 		var loginDTOs []model.LoginDTO
-		json.Unmarshal(loginsByte, &loginDTOs)
+		json.Unmarshal(app.DecryptFile(backupPath, viper.GetString("server.passphrase")), &loginDTOs)
 		schema := r.Context().Value("schema").(string)
 		for i := range loginDTOs {
 
@@ -238,8 +209,11 @@ func Restore(s storage.Store) http.HandlerFunc {
 			s.Logins().Save(login, schema)
 		}
 
-		response := model.Response{Code: http.StatusOK, Status: Success, Message: RestoreBackupSuccess}
-		RespondWithJSON(w, http.StatusOK, response)
+		RespondWithJSON(w, http.StatusOK,
+			model.Response{
+				Code:    http.StatusOK,
+				Status:  Success,
+				Message: RestoreBackupSuccess})
 	}
 }
 
@@ -274,35 +248,3 @@ func Restore(s storage.Store) http.HandlerFunc {
 
 	RespondWithJSON(w, http.StatusOK, response)
 } */
-
-func upload(r *http.Request) (*os.File, error) {
-
-	// Max 10 MB
-	r.ParseMultipartForm(10 << 20)
-
-	file, header, err := r.FormFile("file")
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	ext := filepath.Ext(header.Filename)
-
-	if ext != ".csv" {
-		return nil, fmt.Errorf("%s unsupported filetype", ext)
-	}
-
-	tempFile, err := ioutil.TempFile("/tmp", "passwall-import-*.csv")
-	if err != nil {
-		return nil, err
-	}
-
-	fileBytes, err := ioutil.ReadAll(file)
-	if err != nil {
-		return nil, err
-	}
-
-	tempFile.Write(fileBytes)
-
-	return tempFile, err
-}

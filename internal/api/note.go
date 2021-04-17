@@ -20,18 +20,10 @@ const (
 // FindAllNotes finds all notes
 func FindAllNotes(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var err error
-		var noteList []model.Note
-
-		// Setup variables
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
-		fields := []string{"id", "created_at", "updated_at", "note"}
-		argsStr, argsInt := SetArgs(r, fields)
+		argsStr, argsInt := SetArgs(r, []string{"id", "created_at", "updated_at", "note"})
 
 		// Get all notes from db
-		schema := r.Context().Value("schema").(string)
-		noteList, err = s.Notes().FindAll(argsStr, argsInt, schema)
+		noteList, err := s.Notes().FindAll(argsStr, argsInt, r.Context().Value("schema").(string))
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
@@ -47,28 +39,22 @@ func FindAllNotes(s storage.Store) http.HandlerFunc {
 			noteList[i] = *uNote.(*model.Note)
 		}
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, noteList)
+		RespondWithEncJSON(w, http.StatusOK, r.Context().Value("transmissionKey").(string), noteList)
 	}
 }
 
 // FindNoteByID finds a note by id
 func FindNoteByID(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		// Setup variables
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
 		// Check if id is integer
-		vars := mux.Vars(r)
-		id, err := strconv.Atoi(vars["id"])
+		id, err := strconv.Atoi(mux.Vars(r)["id"])
 		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		// Find note by id from db
-		schema := r.Context().Value("schema").(string)
-		note, err := s.Notes().FindByID(uint(id), schema)
+		note, err := s.Notes().FindByID(uint(id), r.Context().Value("schema").(string))
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
@@ -81,25 +67,20 @@ func FindNoteByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// Create DTO
-		noteDTO := model.ToNoteDTO(uNote.(*model.Note))
-
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, noteDTO)
+		RespondWithEncJSON(w, http.StatusOK, r.Context().Value("transmissionKey").(string), model.ToNoteDTO(uNote.(*model.Note)))
 	}
 }
 
 // CreateNote creates a note
 func CreateNote(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
 		// Setup variables
-		env := viper.GetString("server.env")
 		transmissionKey := r.Context().Value("transmissionKey").(string)
 
 		// Update request body according to env.
 		// If env is dev, then do nothing
 		// If env is prod, then decrypt payload with transmission key
-		if err := ToBody(r, env, transmissionKey); err != nil {
+		if err := ToBody(r, viper.GetString("server.env"), transmissionKey); err != nil {
 			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
@@ -107,16 +88,14 @@ func CreateNote(s storage.Store) http.HandlerFunc {
 
 		// Unmarshal request body to noteDTO
 		var noteDTO model.NoteDTO
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&noteDTO); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&noteDTO); err != nil {
 			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 			return
 		}
 		defer r.Body.Close()
 
 		// Add new note to db
-		schema := r.Context().Value("schema").(string)
-		createdNote, err := app.CreateNote(s, &noteDTO, schema)
+		createdNote, err := app.CreateNote(s, &noteDTO, r.Context().Value("schema").(string))
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -129,28 +108,23 @@ func CreateNote(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// Create DTO
-		createdNoteDTO := model.ToNoteDTO(decNote.(*model.Note))
-
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, createdNoteDTO)
+		RespondWithEncJSON(w, http.StatusOK, transmissionKey, model.ToNoteDTO(decNote.(*model.Note)))
 	}
 }
 
 // UpdateNote updates a note
 func UpdateNote(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		id, err := strconv.Atoi(vars["id"])
+		id, err := strconv.Atoi(mux.Vars(r)["id"])
 		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		// Setup variables
-		env := viper.GetString("server.env")
 		transmissionKey := r.Context().Value("transmissionKey").(string)
 
-		if err := ToBody(r, env, transmissionKey); err != nil {
+		if err := ToBody(r, viper.GetString("server.env"), transmissionKey); err != nil {
 			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
@@ -158,8 +132,7 @@ func UpdateNote(s storage.Store) http.HandlerFunc {
 
 		// Unmarshal request body to noteDTO
 		var noteDTO model.NoteDTO
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&noteDTO); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&noteDTO); err != nil {
 			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 			return
 		}
@@ -187,18 +160,14 @@ func UpdateNote(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// Create DTO
-		updatedNoteDTO := model.ToNoteDTO(decNote.(*model.Note))
-
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, updatedNoteDTO)
+		RespondWithEncJSON(w, http.StatusOK, transmissionKey, model.ToNoteDTO(decNote.(*model.Note)))
 	}
 }
 
 // DeleteNote deletes a note
 func DeleteNote(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		id, err := strconv.Atoi(vars["id"])
+		id, err := strconv.Atoi(mux.Vars(r)["id"])
 		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
@@ -217,11 +186,11 @@ func DeleteNote(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		response := model.Response{
-			Code:    http.StatusOK,
-			Status:  Success,
-			Message: noteDeleteSuccess,
-		}
-		RespondWithJSON(w, http.StatusOK, response)
+		RespondWithJSON(w, http.StatusOK,
+			model.Response{
+				Code:    http.StatusOK,
+				Status:  Success,
+				Message: noteDeleteSuccess,
+			})
 	}
 }

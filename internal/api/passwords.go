@@ -38,11 +38,11 @@ func GeneratePassword(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		RespondWithError(w, http.StatusSeeOther, err.Error())
 	}
-	password := generatedPass
-	response := model.Response{
-		Code:    http.StatusOK,
-		Status:  Success,
-		Message: password,
-	}
-	RespondWithJSON(w, http.StatusOK, response)
+
+	RespondWithJSON(w, http.StatusOK,
+		model.Response{
+			Code:    http.StatusOK,
+			Status:  Success,
+			Message: generatedPass,
+		})
 }

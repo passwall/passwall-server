@@ -7,10 +7,7 @@ import (
 
 // CreateServer creates a server and saves it to the store
 func CreateServer(s storage.Store, dto *model.ServerDTO, schema string) (*model.Server, error) {
-	rawModel := model.ToServer(dto)
-	encModel := EncryptModel(rawModel)
-
-	createdServer, err := s.Servers().Save(encModel.(*model.Server), schema)
+	createdServer, err := s.Servers().Save(EncryptModel(model.ToServer(dto)).(*model.Server), schema)
 	if err != nil {
 		return nil, err
 	}
@@ -20,8 +17,7 @@ func CreateServer(s storage.Store, dto *model.ServerDTO, schema string) (*model.
 
 // UpdateServer updates the server with the dto and applies the changes in the store
 func UpdateServer(s storage.Store, server *model.Server, dto *model.ServerDTO, schema string) (*model.Server, error) {
-	rawModel := model.ToServer(dto)
-	encModel := EncryptModel(rawModel).(*model.Server)
+	encModel := EncryptModel(model.ToServer(dto)).(*model.Server)
 
 	server.Title = encModel.Title
 	server.IP = encModel.IP

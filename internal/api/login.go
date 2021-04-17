@@ -20,18 +20,10 @@ const (
 // FindAllLogins finds all logins
 func FindAllLogins(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var err error
-		var loginList []model.Login
-
-		// Setup variables
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
-		fields := []string{"id", "created_at", "updated_at", "title"}
-		argsStr, argsInt := SetArgs(r, fields)
+		argsStr, argsInt := SetArgs(r, []string{"id", "created_at", "updated_at", "title"})
 
 		// Get all logins from db
-		schema := r.Context().Value("schema").(string)
-		loginList, err = s.Logins().FindAll(argsStr, argsInt, schema)
+		loginList, err := s.Logins().FindAll(argsStr, argsInt, r.Context().Value("schema").(string))
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
@@ -47,28 +39,22 @@ func FindAllLogins(s storage.Store) http.HandlerFunc {
 			loginList[i] = *uLogin.(*model.Login)
 		}
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, loginList)
+		RespondWithEncJSON(w, http.StatusOK, r.Context().Value("transmissionKey").(string), loginList)
 	}
 }
 
 // FindLoginsByID finds a login by id
 func FindLoginsByID(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		// Setup variables
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
 		// Check if id is integer
-		vars := mux.Vars(r)
-		id, err := strconv.Atoi(vars["id"])
+		id, err := strconv.Atoi(mux.Vars(r)["id"])
 		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		// Find login by id from db
-		schema := r.Context().Value("schema").(string)
-		login, err := s.Logins().FindByID(uint(id), schema)
+		login, err := s.Logins().FindByID(uint(id), r.Context().Value("schema").(string))
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
@@ -81,10 +67,11 @@ func FindLoginsByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// Create DTO
-		loginDTO := model.ToLoginDTO(uLogin.(*model.Login))
-
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, loginDTO)
+		RespondWithEncJSON(
+			w,
+			http.StatusOK,
+			r.Context().Value("transmissionKey").(string),
+			model.ToLoginDTO(uLogin.(*model.Login)))
 	}
 }
 
@@ -93,13 +80,12 @@ func CreateLogin(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		// Setup variables
-		env := viper.GetString("server.env")
 		transmissionKey := r.Context().Value("transmissionKey").(string)
 
 		// Update request body according to env.
 		// If env is dev, then do nothing
 		// If env is prod, then decrypt payload with transmission key
-		if err := ToBody(r, env, transmissionKey); err != nil {
+		if err := ToBody(r, viper.GetString("server.env"), transmissionKey); err != nil {
 			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
@@ -107,16 +93,14 @@ func CreateLogin(s storage.Store) http.HandlerFunc {
 
 		// Unmarshal request body to loginDTO
 		var loginDTO model.LoginDTO
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&loginDTO); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&loginDTO); err != nil {
 			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 			return
 		}
 		defer r.Body.Close()
 
 		// Add new login to db
-		schema := r.Context().Value("schema").(string)
-		createdLogin, err := app.CreateLogin(s, &loginDTO, schema)
+		createdLogin, err := app.CreateLogin(s, &loginDTO, r.Context().Value("schema").(string))
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -129,28 +113,23 @@ func CreateLogin(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// Create DTO
-		createdLoginDTO := model.ToLoginDTO(decLogin.(*model.Login))
-
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, createdLoginDTO)
+		RespondWithEncJSON(w, http.StatusOK, transmissionKey, model.ToLoginDTO(decLogin.(*model.Login)))
 	}
 }
 
 // UpdateLogin updates a login
 func UpdateLogin(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		id, err := strconv.Atoi(vars["id"])
+		id, err := strconv.Atoi(mux.Vars(r)["id"])
 		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		// Setup variables
-		env := viper.GetString("server.env")
 		transmissionKey := r.Context().Value("transmissionKey").(string)
 
-		if err := ToBody(r, env, transmissionKey); err != nil {
+		if err := ToBody(r, viper.GetString("server.env"), transmissionKey); err != nil {
 			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
 			return
 		}
@@ -158,8 +137,7 @@ func UpdateLogin(s storage.Store) http.HandlerFunc {
 
 		// Unmarshal request body to loginDTO
 		var loginDTO model.LoginDTO
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&loginDTO); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&loginDTO); err != nil {
 			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 			return
 		}
@@ -187,18 +165,14 @@ func UpdateLogin(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// Create DTO
-		updatedLoginDTO := model.ToLoginDTO(decLogin.(*model.Login))
-
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, updatedLoginDTO)
+		RespondWithEncJSON(w, http.StatusOK, transmissionKey, model.ToLoginDTO(decLogin.(*model.Login)))
 	}
 }
 
 // DeleteLogin deletes a login
 func DeleteLogin(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		id, err := strconv.Atoi(vars["id"])
+		id, err := strconv.Atoi(mux.Vars(r)["id"])
 		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
@@ -219,25 +193,23 @@ func DeleteLogin(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// Generate response
-		response := model.Response{
-			Code:    http.StatusOK,
-			Status:  Success,
-			Message: loginDeleteSuccess,
-		}
-		RespondWithJSON(w, http.StatusOK, response)
+		RespondWithJSON(w, http.StatusOK,
+			model.Response{
+				Code:    http.StatusOK,
+				Status:  Success,
+				Message: loginDeleteSuccess,
+			})
 	}
 }
 
 // TestLogin login endpoint for test purposes
 func TestLogin(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		response := model.Response{
-			Code:    http.StatusOK,
-			Status:  Success,
-			Message: "Test success!",
-		}
-		RespondWithJSON(w, http.StatusOK, response)
+		RespondWithJSON(w, http.StatusOK,
+			model.Response{
+				Code:    http.StatusOK,
+				Status:  Success,
+				Message: "Test success!",
+			})
 	}
 }

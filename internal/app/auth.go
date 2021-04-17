@@ -28,8 +28,6 @@ func CreateCache(defaultExpiration, cleanupInterval time.Duration) *cache.Cache 
 
 //CreateToken ...
 func CreateToken(user *model.User) (*model.TokenDetailsDTO, error) {
-
-	var err error
 	accessSecret := viper.GetString("server.secret")
 	td := &model.TokenDetailsDTO{}
 
@@ -54,6 +52,9 @@ func CreateToken(user *model.User) (*model.TokenDetailsDTO, error) {
 	atClaims["exp"] = td.AtExpiresTime.Unix()
 	atClaims["uuid"] = td.AtUUID.String()
 	at := jwt.NewWithClaims(jwt.SigningMethodHS256, atClaims)
+
+	var err error
+
 	td.AccessToken, err = at.SignedString([]byte(accessSecret))
 	if err != nil {
 		return nil, err
@@ -65,8 +66,8 @@ func CreateToken(user *model.User) (*model.TokenDetailsDTO, error) {
 	rtClaims["exp"] = td.RtExpiresTime.Unix()
 	rtClaims["uuid"] = td.RtUUID.String()
 
-	rt := jwt.NewWithClaims(jwt.SigningMethodHS256, rtClaims)
-	td.RefreshToken, err = rt.SignedString([]byte(accessSecret))
+	td.RefreshToken, err =
+		jwt.NewWithClaims(jwt.SigningMethodHS256, rtClaims).SignedString([]byte(accessSecret))
 	if err != nil {
 		return nil, err
 	}

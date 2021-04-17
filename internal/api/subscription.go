@@ -62,25 +62,21 @@ func PostSubscription(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		response := model.Response{
-			Code:    http.StatusOK,
-			Status:  Success,
-			Message: msg,
-		}
-		RespondWithJSON(w, http.StatusOK, response)
+		RespondWithJSON(w, http.StatusOK,
+			model.Response{
+				Code:    http.StatusOK,
+				Status:  Success,
+				Message: msg,
+			})
 	}
 }
 
 // FindAllSubscriptions ...
 func FindAllSubscriptions(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var err error
-		var subscriptionList []model.Subscription
+		argsStr, argsInt := SetArgs(r, []string{"id", "created_at", "updated_at", "title", "ip", "url"})
 
-		fields := []string{"id", "created_at", "updated_at", "title", "ip", "url"}
-		argsStr, argsInt := SetArgs(r, fields)
-
-		subscriptionList, err = s.Subscriptions().FindAll(argsStr, argsInt)
+		subscriptionList, err := s.Subscriptions().FindAll(argsStr, argsInt)
 
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
@@ -88,24 +84,24 @@ func FindAllSubscriptions(s storage.Store) http.HandlerFunc {
 		}
 
 		// Encrypt payload
-		var payload model.Payload
-		key := r.Context().Value("transmissionKey").(string)
-		encrypted, err := app.EncryptJSON(key, subscriptionList)
+
+		encrypted, err := app.EncryptJSON(r.Context().Value("transmissionKey").(string), subscriptionList)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		payload.Data = string(encrypted)
 
-		RespondWithJSON(w, http.StatusOK, payload)
+		RespondWithJSON(w, http.StatusOK,
+			model.Payload{
+				Data: string(encrypted),
+			})
 	}
 }
 
 // FindSubscriptionByID ...
 func FindSubscriptionByID(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		id, err := strconv.Atoi(vars["id"])
+		id, err := strconv.Atoi(mux.Vars(r)["id"])
 		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
@@ -124,26 +120,24 @@ func FindSubscriptionByID(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		subscriptionDTO := model.ToSubscriptionDTO(decSubscription.(*model.Subscription))
-
 		// Encrypt payload
-		var payload model.Payload
 		key := r.Context().Value("transmissionKey").(string)
-		encrypted, err := app.EncryptJSON(key, subscriptionDTO)
+		encrypted, err := app.EncryptJSON(key, model.ToSubscriptionDTO(decSubscription.(*model.Subscription)))
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		payload.Data = string(encrypted)
 
-		RespondWithJSON(w, http.StatusOK, payload)
+		RespondWithJSON(w, http.StatusOK,
+			model.Payload{
+				Data: string(encrypted),
+			})
 	}
 }
 
 // CreateSubscription ...
 func CreateSubscription(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
 		payload, err := ToPayload(r)
 		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
@@ -166,10 +160,8 @@ func CreateSubscription(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		createdSubscriptionDTO := model.ToSubscriptionDTO(createdSubscription)
-
 		// Encrypt payload
-		encrypted, err := app.EncryptJSON(key, createdSubscriptionDTO)
+		encrypted, err := app.EncryptJSON(key, model.ToSubscriptionDTO(createdSubscription))
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -238,8 +230,7 @@ func CreateSubscription(s storage.Store) http.HandlerFunc {
 // DeleteSubscription ...
 func DeleteSubscription(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		id, err := strconv.Atoi(vars["id"])
+		id, err := strconv.Atoi(mux.Vars(r)["id"])
 		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
@@ -257,11 +248,11 @@ func DeleteSubscription(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		response := model.Response{
-			Code:    http.StatusOK,
-			Status:  Success,
-			Message: SubscriptionDeleteSuccess,
-		}
-		RespondWithJSON(w, http.StatusOK, response)
+		RespondWithJSON(w, http.StatusOK,
+			model.Response{
+				Code:    http.StatusOK,
+				Status:  Success,
+				Message: SubscriptionDeleteSuccess,
+			})
 	}
 }

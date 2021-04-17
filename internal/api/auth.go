@@ -20,7 +20,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-var (
+const (
 	userLoginErr   = "User email or master password is wrong."
 	userVerifyErr  = "Please verify your email first."
 	invalidUser    = "Invalid user"
@@ -43,8 +43,7 @@ func CreateCode(s storage.Store) http.HandlerFunc {
 		}
 
 		// 2. Check if user exist in database
-		_, err := s.Users().FindByEmail(signup.Email)
-		if err == nil {
+		if _, err := s.Users().FindByEmail(signup.Email); err == nil {
 			log.Printf("email %s already exist in database\n", signup.Email)
 			RespondWithError(w, http.StatusBadRequest, "User couldn't created!")
 			return
@@ -64,19 +63,19 @@ func CreateCode(s storage.Store) http.HandlerFunc {
 		// 4. Send verification email to user
 		subject := "Passwall Email Verification"
 		body := "Passwall verification code: " + code
-		if err = app.SendMail("Passwall Verification Code", signup.Email, subject, body); err != nil {
+		if err := app.SendMail("Passwall Verification Code", signup.Email, subject, body); err != nil {
 			log.Printf("can't send email to %s error: %v\n", signup.Email, err)
 			RespondWithError(w, http.StatusBadRequest, "Couldn't send email")
 			return
 		}
 
 		// Return success message
-		response := model.Response{
-			Code:    http.StatusOK,
-			Status:  Success,
-			Message: codeSuccess,
-		}
-		RespondWithJSON(w, http.StatusOK, response)
+		RespondWithJSON(w, http.StatusOK,
+			model.Response{
+				Code:    http.StatusOK,
+				Status:  Success,
+				Message: codeSuccess,
+			})
 	}
 }
 
@@ -91,8 +90,7 @@ func CreateDeleteCode(s storage.Store) http.HandlerFunc {
 		}
 
 		// 2. Check if user exist in database
-		_, err := s.Users().FindByEmail(signup.Email)
-		if err != nil {
+		if _, err := s.Users().FindByEmail(signup.Email); err != nil {
 			log.Printf("email %s does not exist in database\n", signup.Email)
 			RespondWithError(w, http.StatusBadRequest, "User couldn't be found!")
 			return
@@ -112,26 +110,25 @@ func CreateDeleteCode(s storage.Store) http.HandlerFunc {
 		// 4. Send verification email to user
 		subject := "Passwall User Deletion Verification"
 		body := "Passwall user deletion code: " + code
-		if err = app.SendMail("Passwall user deletion Code", signup.Email, subject, body); err != nil {
+		if err := app.SendMail("Passwall user deletion Code", signup.Email, subject, body); err != nil {
 			log.Printf("can't send email to %s error: %v\n", signup.Email, err)
 			RespondWithError(w, http.StatusBadRequest, "Couldn't send email")
 			return
 		}
 
 		// Return success message
-		response := model.Response{
-			Code:    http.StatusOK,
-			Status:  Success,
-			Message: codeSuccess,
-		}
-		RespondWithJSON(w, http.StatusOK, response)
+		RespondWithJSON(w, http.StatusOK,
+			model.Response{
+				Code:    http.StatusOK,
+				Status:  Success,
+				Message: codeSuccess,
+			})
 	}
 }
 
 // Verify Email
 func VerifyCode() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userCode := mux.Vars(r)["code"]
 		email := r.FormValue("email")
 
 		code, ok := c.Get(email)
@@ -146,20 +143,19 @@ func VerifyCode() http.HandlerFunc {
 			return
 		}
 
-		if userCode != confirmationCode {
+		if mux.Vars(r)["code"] != confirmationCode {
 			RespondWithError(w, http.StatusBadRequest, "Code doesn't match!")
 			return
 		}
 
 		c.Set(email, "verified", cache.DefaultExpiration)
 
-		response := model.Response{
-			Code:    http.StatusOK,
-			Status:  Success,
-			Message: verifySuccess,
-		}
-
-		RespondWithJSON(w, http.StatusOK, response)
+		RespondWithJSON(w, http.StatusOK,
+			model.Response{
+				Code:    http.StatusOK,
+				Status:  Success,
+				Message: verifySuccess,
+			})
 	}
 }
 
@@ -168,8 +164,7 @@ func Signup(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// 1. Decode request body to userDTO object
 		userSignup := new(model.UserSignup)
-		decoderr := json.NewDecoder(r.Body)
-		if err := decoderr.Decode(&userSignup); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&userSignup); err != nil {
 			RespondWithError(w, http.StatusBadRequest, "Invalid request payload")
 			return
 		}
@@ -183,8 +178,7 @@ func Signup(s storage.Store) http.HandlerFunc {
 		}
 
 		// 2. Run validator according to model.UserDTO validator tags
-		err := app.PayloadValidator(userSignup)
-		if err != nil {
+		if err := app.PayloadValidator(userSignup); err != nil {
 			errs := GetErrors(err.(validator.ValidationErrors))
 			RespondWithErrors(w, http.StatusBadRequest, InvalidRequestPayload, errs)
 			return
@@ -192,8 +186,7 @@ func Signup(s storage.Store) http.HandlerFunc {
 
 		// 4. Check if user exist in database
 		userDTO := model.ConvertUserDTO(userSignup)
-		_, err = s.Users().FindByEmail(userDTO.Email)
-		if err == nil {
+		if _, err := s.Users().FindByEmail(userDTO.Email); err == nil {
 			RespondWithError(w, http.StatusBadRequest, "User couldn't created!")
 			return
 		}
@@ -209,12 +202,12 @@ func Signup(s storage.Store) http.HandlerFunc {
 		notifyAdminEmail(createdUser)
 
 		// Return success message
-		response := model.Response{
-			Code:    http.StatusOK,
-			Status:  Success,
-			Message: signupSuccess,
-		}
-		RespondWithJSON(w, http.StatusOK, response)
+		RespondWithJSON(w, http.StatusOK,
+			model.Response{
+				Code:    http.StatusOK,
+				Status:  Success,
+				Message: signupSuccess,
+			})
 	}
 }
 
@@ -225,16 +218,14 @@ func Signin(s storage.Store) http.HandlerFunc {
 		subscriptionType := "pro"
 
 		// get loginDTO
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&loginDTO); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&loginDTO); err != nil {
 			RespondWithError(w, http.StatusUnprocessableEntity, InvalidJSON)
 			return
 		}
 		defer r.Body.Close()
 
 		// Run validator according to model.AuthLoginDTO validator tags
-		err := app.PayloadValidator(loginDTO)
-		if err != nil {
+		if err := app.PayloadValidator(loginDTO); err != nil {
 			errs := GetErrors(err.(validator.ValidationErrors))
 			RespondWithErrors(w, http.StatusBadRequest, InvalidRequestPayload, errs)
 			return
@@ -267,25 +258,22 @@ func Signin(s storage.Store) http.HandlerFunc {
 		s.Tokens().Save(int(user.ID), token.AtUUID, token.AccessToken, token.AtExpiresTime, token.TransmissionKey)
 		s.Tokens().Save(int(user.ID), token.RtUUID, token.RefreshToken, token.RtExpiresTime, "")
 
-		authLoginResponse := model.AuthLoginResponse{
-			AccessToken:         token.AccessToken,
-			RefreshToken:        token.RefreshToken,
-			TransmissionKey:     token.TransmissionKey,
-			Type:                subscriptionType,
-			UserDTO:             model.ToUserDTO(user),
-			SubscriptionAuthDTO: model.ToSubscriptionAuthDTO(subscription),
-		}
-
-		RespondWithJSON(w, 200, authLoginResponse)
+		RespondWithJSON(w, 200,
+			model.AuthLoginResponse{
+				AccessToken:         token.AccessToken,
+				RefreshToken:        token.RefreshToken,
+				TransmissionKey:     token.TransmissionKey,
+				Type:                subscriptionType,
+				UserDTO:             model.ToUserDTO(user),
+				SubscriptionAuthDTO: model.ToSubscriptionAuthDTO(subscription),
+			})
 	}
 }
 
 func RecoverDelete(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Get route variables
-		vars := mux.Vars(r)
-		// Get email variable
-		email := vars["email"]
+		// Get email variable from route variable
+		email := mux.Vars(r)["email"]
 
 		// Check if email is verified
 		if err := isMailVerified(email); err != nil {
@@ -302,18 +290,17 @@ func RecoverDelete(s storage.Store) http.HandlerFunc {
 		}
 
 		// Delete user
-		err = s.Users().Delete(user.ID, user.Schema)
-		if err != nil {
+		if s.Users().Delete(user.ID, user.Schema) != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		response := model.Response{
-			Code:    http.StatusOK,
-			Status:  "Success",
-			Message: "User deleted successfully!",
-		}
-		RespondWithJSON(w, http.StatusOK, response)
+		RespondWithJSON(w, http.StatusOK,
+			model.Response{
+				Code:    http.StatusOK,
+				Status:  Success,
+				Message: "User deleted successfully!",
+			})
 	}
 }
 
@@ -323,8 +310,7 @@ func RefreshToken(s storage.Store) http.HandlerFunc {
 		// Get token from authorization header
 		mapToken := map[string]string{}
 
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&mapToken); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&mapToken); err != nil {
 			errs := []string{"REFRESH_TOKEN_ERROR"}
 			RespondWithErrors(w, http.StatusUnprocessableEntity, InvalidJSON, errs)
 			return
@@ -332,25 +318,19 @@ func RefreshToken(s storage.Store) http.HandlerFunc {
 		defer r.Body.Close()
 
 		token, err := app.TokenValid(mapToken["refresh_token"])
-
 		if err != nil {
 			if token != nil {
-				claims := token.Claims.(jwt.MapClaims)
-				userUUID := claims["user_uuid"].(string)
-				s.Tokens().DeleteByUUID(userUUID)
+				s.Tokens().DeleteByUUID(token.Claims.(jwt.MapClaims)["user_uuid"].(string))
 			}
 			RespondWithError(w, http.StatusUnauthorized, err.Error())
 			return
 		}
 
 		claims := token.Claims.(jwt.MapClaims)
-		uuid := claims["uuid"].(string)
 
 		//Check from tokens db table
-		_, tokenExist := s.Tokens().Any(uuid)
-		if !tokenExist {
-			userUUID := claims["user_uuid"].(string)
-			s.Tokens().DeleteByUUID(userUUID)
+		if _, tokenExist := s.Tokens().Any(claims["uuid"].(string)); !tokenExist {
+			s.Tokens().DeleteByUUID(claims["user_uuid"].(string))
 			RespondWithError(w, http.StatusUnauthorized, invalidToken)
 			return
 		}
@@ -377,14 +357,13 @@ func RefreshToken(s storage.Store) http.HandlerFunc {
 		s.Tokens().Save(int(user.ID), newtoken.AtUUID, newtoken.AccessToken, newtoken.AtExpiresTime, newtoken.TransmissionKey)
 		s.Tokens().Save(int(user.ID), newtoken.RtUUID, newtoken.RefreshToken, newtoken.RtExpiresTime, "")
 
-		authLoginResponse := model.AuthLoginResponse{
-			AccessToken:     newtoken.AccessToken,
-			RefreshToken:    newtoken.RefreshToken,
-			TransmissionKey: newtoken.TransmissionKey,
-			UserDTO:         model.ToUserDTO(user),
-		}
-
-		RespondWithJSON(w, 200, authLoginResponse)
+		RespondWithJSON(w, 200,
+			model.AuthLoginResponse{
+				AccessToken:     newtoken.AccessToken,
+				RefreshToken:    newtoken.RefreshToken,
+				TransmissionKey: newtoken.TransmissionKey,
+				UserDTO:         model.ToUserDTO(user),
+			})
 	}
 }
 
@@ -392,8 +371,7 @@ func RefreshToken(s storage.Store) http.HandlerFunc {
 func CheckToken(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var tokenStr string
-		bearerToken := r.Header.Get("Authorization")
-		strArr := strings.Split(bearerToken, " ")
+		strArr := strings.Split(r.Header.Get("Authorization"), " ")
 		if len(strArr) == 2 {
 			tokenStr = strArr[1]
 		}
@@ -409,8 +387,7 @@ func CheckToken(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		claims := token.Claims.(jwt.MapClaims)
-		userUUID := claims["user_uuid"].(string)
+		userUUID := token.Claims.(jwt.MapClaims)["user_uuid"].(string)
 
 		// Check if user exist in database and credentials are true
 		user, err := s.Users().FindByUUID(userUUID)
@@ -419,21 +396,18 @@ func CheckToken(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		response := model.ToUserDTOTable(*user)
-
-		RespondWithJSON(w, http.StatusOK, response)
+		RespondWithJSON(w, http.StatusOK, model.ToUserDTOTable(*user))
 	}
 }
 
 func notifyAdminEmail(user *model.User) {
-	subject := "PassWall New User Subscription"
 	body := "PassWall has new a user. User details:\n\n"
 	body += "Name: " + user.Name + "\n"
 	body += "Email: " + user.Email + "\n"
 	app.SendMail(
 		viper.GetString("email.fromName"),
 		viper.GetString("email.fromEmail"),
-		subject,
+		"PassWall New User Subscription", // Subject
 		body)
 }
 

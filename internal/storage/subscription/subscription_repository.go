@@ -18,16 +18,12 @@ func NewRepository(db *gorm.DB) *Repository {
 // All ...
 func (p *Repository) All() ([]model.Subscription, error) {
 	subscriptions := []model.Subscription{}
-	err := p.db.Find(&subscriptions).Error
-	return subscriptions, err
+	return subscriptions, p.db.Find(&subscriptions).Error
 }
 
 // FindAll ...
 func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int) ([]model.Subscription, error) {
-	subscriptions := []model.Subscription{}
-
-	query := p.db
-	query = query.Limit(argsInt["limit"])
+	query := p.db.Limit(argsInt["limit"])
 	if argsInt["limit"] > 0 {
 		// offset can't be declared without a valid limit
 		query = query.Offset(argsInt["offset"])
@@ -39,41 +35,36 @@ func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int) 
 		query = query.Where("title LIKE ? OR ip LIKE ?", "%"+argsStr["search"]+"%", "%"+argsStr["search"]+"%")
 	}
 
-	err := query.Find(&subscriptions).Error
-	return subscriptions, err
+	subscriptions := []model.Subscription{}
+	return subscriptions, query.Find(&subscriptions).Error
 }
 
 // FindByID ...
 func (p *Repository) FindByID(id uint) (*model.Subscription, error) {
 	subscription := new(model.Subscription)
-	err := p.db.Where(`id = ?`, id).First(&subscription).Error
-	return subscription, err
+	return subscription, p.db.Where(`id = ?`, id).First(&subscription).Error
 }
 
 // FindByEmail ...
 func (p *Repository) FindByEmail(email string) (*model.Subscription, error) {
 	subscription := new(model.Subscription)
-	err := p.db.Where(`email = ?`, email).First(&subscription).Error
-	return subscription, err
+	return subscription, p.db.Where(`email = ?`, email).First(&subscription).Error
 }
 
 // FindBySubscriptionID ...
 func (p *Repository) FindBySubscriptionID(id uint) (*model.Subscription, error) {
 	subscription := new(model.Subscription)
-	err := p.db.Where(`subscription_id = ?`, id).First(&subscription).Error
-	return subscription, err
+	return subscription, p.db.Where(`subscription_id = ?`, id).First(&subscription).Error
 }
 
 // Save ...
 func (p *Repository) Save(subscription *model.Subscription) (*model.Subscription, error) {
-	err := p.db.Save(&subscription).Error
-	return subscription, err
+	return subscription, p.db.Save(&subscription).Error
 }
 
 // Delete ...
 func (p *Repository) Delete(id uint) error {
-	err := p.db.Delete(&model.Subscription{ID: id}).Error
-	return err
+	return p.db.Delete(&model.Subscription{ID: id}).Error
 }
 
 // Migrate ...

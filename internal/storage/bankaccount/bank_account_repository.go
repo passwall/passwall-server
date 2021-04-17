@@ -18,17 +18,12 @@ func NewRepository(db *gorm.DB) *Repository {
 // All ...
 func (p *Repository) All(schema string) ([]model.BankAccount, error) {
 	bankAccounts := []model.BankAccount{}
-	err := p.db.Table(schema + ".bank_accounts").Find(&bankAccounts).Error
-	return bankAccounts, err
+	return bankAccounts, p.db.Table(schema + ".bank_accounts").Find(&bankAccounts).Error
 }
 
 // FindAll ...
 func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.BankAccount, error) {
-	bankAccounts := []model.BankAccount{}
-
-	query := p.db
-	query = query.Table(schema + ".bank_accounts")
-	query = query.Limit(argsInt["limit"])
+	query := p.db.Table(schema + ".bank_accounts").Limit(argsInt["limit"])
 	if argsInt["limit"] > 0 {
 		// offset can't be declared without a valid limit
 		query = query.Offset(argsInt["offset"])
@@ -39,33 +34,29 @@ func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int, 
 	if argsStr["search"] != "" {
 		query = query.Where("bank_name LIKE ?", "%"+argsStr["search"]+"%")
 
-		fields := []string{"bank_code", "account_name", "account_number", "iban", "currency"}
-		for i := range fields {
-			query = query.Or(fields[i]+" LIKE ?", "%"+argsStr["search"]+"%")
+		for _, field := range []string{"bank_code", "account_name", "account_number", "iban", "currency"} {
+			query = query.Or(field+" LIKE ?", "%"+argsStr["search"]+"%")
 		}
 	}
 
-	err := query.Find(&bankAccounts).Error
-	return bankAccounts, err
+	bankAccounts := []model.BankAccount{}
+	return bankAccounts, query.Find(&bankAccounts).Error
 }
 
 // FindByID ...
 func (p *Repository) FindByID(id uint, schema string) (*model.BankAccount, error) {
 	bankAccount := new(model.BankAccount)
-	err := p.db.Table(schema+".bank_accounts").Where(`id = ?`, id).First(&bankAccount).Error
-	return bankAccount, err
+	return bankAccount, p.db.Table(schema+".bank_accounts").Where(`id = ?`, id).First(&bankAccount).Error
 }
 
 // Save ...
 func (p *Repository) Save(bankAccount *model.BankAccount, schema string) (*model.BankAccount, error) {
-	err := p.db.Table(schema + ".bank_accounts").Save(&bankAccount).Error
-	return bankAccount, err
+	return bankAccount, p.db.Table(schema + ".bank_accounts").Save(&bankAccount).Error
 }
 
 // Delete ...
 func (p *Repository) Delete(id uint, schema string) error {
-	err := p.db.Table(schema + ".bank_accounts").Delete(&model.BankAccount{ID: id}).Error
-	return err
+	return p.db.Table(schema + ".bank_accounts").Delete(&model.BankAccount{ID: id}).Error
 }
 
 // Migrate ...

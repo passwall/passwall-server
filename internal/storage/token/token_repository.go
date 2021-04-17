@@ -20,7 +20,6 @@ func NewRepository(db *gorm.DB) *Repository {
 
 //Any represents any match
 func (p *Repository) Any(uuid string) (model.Token, bool) {
-
 	token := model.Token{}
 
 	if !p.db.Where("uuid = ?", uuid).First(&token).RecordNotFound() {
@@ -32,16 +31,14 @@ func (p *Repository) Any(uuid string) (model.Token, bool) {
 
 //Save saves model to database
 func (p *Repository) Save(userid int, uid uuid.UUID, tkn string, expriydate time.Time, transmissionKey string) {
-
-	token := &model.Token{
-		UserID:          userid,
-		UUID:            uid,
-		Token:           tkn,
-		ExpiryTime:      expriydate,
-		TransmissionKey: transmissionKey,
-	}
-	p.db.Create(token)
-
+	p.db.Create(
+		&model.Token{
+			UserID:          userid,
+			UUID:            uid,
+			Token:           tkn,
+			ExpiryTime:      expriydate,
+			TransmissionKey: transmissionKey,
+		})
 }
 
 //Delete deletes from database

@@ -14,7 +14,7 @@ var (
 	configFileName = "config"
 	configFileExt  = ".yml"
 	configType     = "yaml"
-	appName        = "passwall-server"
+	//appName        = "passwall-server"
 
 	storeDirectory    = "./store/"
 	configFileAbsPath = filepath.Join(storeDirectory, configFileName)
@@ -72,7 +72,6 @@ type BackupConfiguration struct {
 
 // SetupConfigDefaults ...
 func SetupConfigDefaults() (*Configuration, error) {
-
 	// initialize viper configuration
 	initializeConfig()
 
@@ -159,7 +158,6 @@ func bindEnvs() {
 }
 
 func setDefaults() {
-
 	// Server defaults
 	viper.SetDefault("server.env", "prod")
 	viper.SetDefault("server.port", "3625")
@@ -198,10 +196,8 @@ func setDefaults() {
 
 func generateKey() string {
 	key := make([]byte, 32)
-	_, err := rand.Read(key)
-	if err != nil {
+	if _, err := rand.Read(key); err != nil {
 		return "add-your-key-to-here"
 	}
-	keyEnc := base64.StdEncoding.EncodeToString(key)
-	return keyEnc
+	return base64.StdEncoding.EncodeToString(key)
 }

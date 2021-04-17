@@ -7,10 +7,7 @@ import (
 
 // CreateNote creates a new note and saves it to the store
 func CreateNote(s storage.Store, dto *model.NoteDTO, schema string) (*model.Note, error) {
-	rawModel := model.ToNote(dto)
-	encModel := EncryptModel(rawModel)
-
-	createdNote, err := s.Notes().Save(encModel.(*model.Note), schema)
+	createdNote, err := s.Notes().Save(EncryptModel(model.ToNote(dto)).(*model.Note), schema)
 	if err != nil {
 		return nil, err
 	}
@@ -20,8 +17,7 @@ func CreateNote(s storage.Store, dto *model.NoteDTO, schema string) (*model.Note
 
 // UpdateNote updates the note with the dto and applies the changes in the store
 func UpdateNote(s storage.Store, note *model.Note, dto *model.NoteDTO, schema string) (*model.Note, error) {
-	rawModel := model.ToNote(dto)
-	encModel := EncryptModel(rawModel).(*model.Note)
+	encModel := EncryptModel(model.ToNote(dto)).(*model.Note)
 
 	note.Title = encModel.Title
 	note.Note = encModel.Note

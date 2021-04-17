@@ -16,31 +16,24 @@ import (
 // FindAllUsers ...
 func FindAllUsers(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var err error
-		users := []model.User{}
+		argsStr, argsInt := SetArgs(r, []string{"id", "created_at", "updated_at", "url", "username"})
 
-		fields := []string{"id", "created_at", "updated_at", "url", "username"}
-		argsStr, argsInt := SetArgs(r, fields)
-
-		users, err = s.Users().FindAll(argsStr, argsInt)
+		users, err := s.Users().FindAll(argsStr, argsInt)
 
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		usersDTOs := model.ToUserDTOs(users)
-
 		// users = app.DecryptUserPasswords(users)
-		RespondWithJSON(w, http.StatusOK, usersDTOs)
+		RespondWithJSON(w, http.StatusOK, model.ToUserDTOs(users))
 	}
 }
 
 // FindUserByID ...
 func FindUserByID(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		id, err := strconv.Atoi(vars["id"])
+		id, err := strconv.Atoi(mux.Vars(r)["id"])
 		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
@@ -59,29 +52,24 @@ func FindUserByID(s storage.Store) http.HandlerFunc {
 // CreateUser ...
 func CreateUser(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
 		userDTO := new(model.UserDTO)
-		
+
 		// 1. Decode request body to userDTO object
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&userDTO); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&userDTO); err != nil {
 			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 			return
 		}
 		defer r.Body.Close()
 
 		// 2. Run validator according to model.UserDTO validator tags
-		validate := validator.New()
-		validateError := validate.Struct(userDTO)
-		if validateError != nil {
+		if validateError := validator.New().Struct(userDTO); validateError != nil {
 			errs := GetErrors(validateError.(validator.ValidationErrors))
 			RespondWithErrors(w, http.StatusBadRequest, InvalidRequestPayload, errs)
 			return
 		}
 
 		// 3. Check if user exist in database
-		_, err := s.Users().FindByEmail(userDTO.Email)
-		if err == nil {
+		if _, err := s.Users().FindByEmail(userDTO.Email); err == nil {
 			errs := []string{"This email is already used!"}
 			message := "User couldn't created!"
 			RespondWithErrors(w, http.StatusBadRequest, message, errs)
@@ -102,10 +90,8 @@ func CreateUser(s storage.Store) http.HandlerFunc {
 // UpdateUser ...
 func UpdateUser(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
 		// Get id and check if it is an integer
-		vars := mux.Vars(r)
-		id, err := strconv.Atoi(vars["id"])
+		id, err := strconv.Atoi(mux.Vars(r)["id"])
 		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
@@ -113,8 +99,7 @@ func UpdateUser(s storage.Store) http.HandlerFunc {
 
 		// Decode request body to userDTO object
 		var userDTO model.UserDTO
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&userDTO); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&userDTO); err != nil {
 			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
 			return
 		}
@@ -129,8 +114,7 @@ func UpdateUser(s storage.Store) http.HandlerFunc {
 
 		// Check if user exist in database with new email address
 		if userDTO.Email != user.Email {
-			_, err := s.Users().FindByEmail(userDTO.Email)
-			if err == nil {
+			if _, err := s.Users().FindByEmail(userDTO.Email); err == nil {
 				errs := []string{"This email is already used!"}
 				message := "User email address couldn't updated!"
 				RespondWithErrors(w, http.StatusBadRequest, message, errs)
@@ -138,11 +122,8 @@ func UpdateUser(s storage.Store) http.HandlerFunc {
 			}
 		}
 
-		isAuthorized := r.Context().Value("authorized").(bool)
-
 		// Update user
-
-		updatedUser, err := app.UpdateUser(s, user, &userDTO, isAuthorized)
+		updatedUser, err := app.UpdateUser(s, user, &userDTO, r.Context().Value("authorized").(bool))
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -174,11 +155,11 @@ func DeleteUser(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		response := model.Response{
-			Code:    http.StatusOK,
-			Status:  "Success",
-			Message: "User deleted successfully!",
-		}
-		RespondWithJSON(w, http.StatusOK, response)
+		RespondWithJSON(w, http.StatusOK,
+			model.Response{
+				Code:    http.StatusOK,
+				Status:  Success,
+				Message: "User deleted successfully!",
+			})
 	}
 }

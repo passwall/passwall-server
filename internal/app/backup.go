@@ -55,7 +55,6 @@ var (
 // Rotate backup files
 func rotateBackup(backupFiles []os.FileInfo) error {
 	backupRotation := viper.GetInt("backup.rotation")
-	backupFolder := viper.GetString("backup.folder")
 
 	if backupFiles == nil {
 		return errNoBackupFilesErr
@@ -67,7 +66,7 @@ func rotateBackup(backupFiles []os.FileInfo) error {
 		})
 
 		for _, file := range backupFiles[backupRotation:] {
-			_ = os.Remove(filepath.Join(backupFolder, file.Name()))
+			_ = os.Remove(filepath.Join(viper.GetString("backup.folder"), file.Name()))
 		}
 	}
 	return nil
@@ -75,9 +74,7 @@ func rotateBackup(backupFiles []os.FileInfo) error {
 
 //GetBackupFiles retrieves backup files
 func GetBackupFiles() ([]os.FileInfo, error) {
-	backupFolder := viper.GetString("backup.folder")
-
-	files, err := ioutil.ReadDir(backupFolder)
+	files, err := ioutil.ReadDir(viper.GetString("backup.folder"))
 	if err != nil {
 		return nil, err
 	}

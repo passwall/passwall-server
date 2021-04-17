@@ -7,10 +7,7 @@ import (
 
 // CreateBankAccount creates a new bank account and saves it to the store
 func CreateBankAccount(s storage.Store, dto *model.BankAccountDTO, schema string) (*model.BankAccount, error) {
-	rawModel := model.ToBankAccount(dto)
-	encModel := EncryptModel(rawModel)
-
-	createdBankAccount, err := s.BankAccounts().Save(encModel.(*model.BankAccount), schema)
+	createdBankAccount, err := s.BankAccounts().Save(EncryptModel(model.ToBankAccount(dto)).(*model.BankAccount), schema)
 	if err != nil {
 		return nil, err
 	}
@@ -20,8 +17,7 @@ func CreateBankAccount(s storage.Store, dto *model.BankAccountDTO, schema string
 
 // UpdateBankAccount updates the account with the dto and applies the changes in the store
 func UpdateBankAccount(s storage.Store, bankAccount *model.BankAccount, dto *model.BankAccountDTO, schema string) (*model.BankAccount, error) {
-	rawModel := model.ToBankAccount(dto)
-	encModel := EncryptModel(rawModel).(*model.BankAccount)
+	encModel := EncryptModel(model.ToBankAccount(dto)).(*model.BankAccount)
 
 	bankAccount.BankName = encModel.BankName
 	bankAccount.BankCode = encModel.BankCode

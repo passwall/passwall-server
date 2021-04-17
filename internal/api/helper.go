@@ -15,25 +15,13 @@ import (
 
 // SetArgs ...
 func SetArgs(r *http.Request, fields []string) (map[string]string, map[string]int) {
-
-	// String type query params
-	search := r.FormValue("Search")
-	sort := r.FormValue("Sort")
-	order := r.FormValue("Order")
-	argsStr := map[string]string{
-		"search": search,
-		"order":  setOrder(fields, sort, order),
-	}
-
-	// Integer type query params
-	offset := r.FormValue("Offset")
-	limit := r.FormValue("Limit")
-	argsInt := map[string]int{
-		"offset": setOffset(offset),
-		"limit":  setLimit(limit),
-	}
-
-	return argsStr, argsInt
+	return map[string]string{
+			"search": r.FormValue("Search"),
+			"order":  setOrder(fields, r.FormValue("Sort"), r.FormValue("Order")),
+		}, map[string]int{
+			"offset": setOffset(r.FormValue("Offset")),
+			"limit":  setLimit(r.FormValue("Limit")),
+		}
 }
 
 // Offset returns the starting number of result for pagination
@@ -68,9 +56,7 @@ func setLimit(limit string) int {
 
 // SortOrder returns the string for sorting and ordering data
 func setOrder(fields []string, sort, order string) string {
-	orderValues := []string{"desc", "asc"}
-
-	if include(fields, ToSnakeCase(sort)) && include(orderValues, ToSnakeCase(order)) {
+	if include(fields, ToSnakeCase(sort)) && include([]string{"desc", "asc"}, ToSnakeCase(order)) {
 		return ToSnakeCase(sort) + " " + ToSnakeCase(order)
 	}
 
@@ -84,20 +70,17 @@ func include(vs []string, t string) bool {
 
 // ToSnakeCase changes string to database table
 func ToSnakeCase(str string) string {
-	var matchFirstCap = regexp.MustCompile("(.)([A-Z][a-z]+)")
-	var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
-
-	snake := matchFirstCap.ReplaceAllString(str, "${1}_${2}")
-	snake = matchAllCap.ReplaceAllString(snake, "${1}_${2}")
-
-	return strings.ToLower(snake)
+	return strings.ToLower(
+		regexp.MustCompile("([a-z0-9])([A-Z])").
+			ReplaceAllString(
+				regexp.MustCompile("(.)([A-Z][a-z]+)").
+					ReplaceAllString(str, "${1}_${2}"), "${1}_${2}"))
 }
 
 // ToPayload unmarshal request body to payload
 func ToPayload(r *http.Request) (model.Payload, error) {
 	var payload model.Payload
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&payload); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		return model.Payload{}, err
 	}
 	return payload, nil
@@ -105,7 +88,6 @@ func ToPayload(r *http.Request) (model.Payload, error) {
 
 // ToBody decrypts payload data and updates r.Body
 func ToBody(r *http.Request, env, transmissionKey string) error {
-
 	// Check environment
 	if env == "dev" {
 		return nil
@@ -113,8 +95,7 @@ func ToBody(r *http.Request, env, transmissionKey string) error {
 
 	// Unmarshall r.Body to model.Payload
 	var payload model.Payload
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&payload); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		return err
 	}
 
