@@ -42,6 +42,7 @@ func (r *Router) initRoutes() {
 	apiRouter.HandleFunc("/logins/{id:[0-9]+}", api.FindLoginsByID(r.store)).Methods(http.MethodGet)
 	apiRouter.HandleFunc("/logins/{id:[0-9]+}", api.UpdateLogin(r.store)).Methods(http.MethodPut)
 	apiRouter.HandleFunc("/logins/{id:[0-9]+}", api.DeleteLogin(r.store)).Methods(http.MethodDelete)
+	apiRouter.HandleFunc("/logins/bulk-update", api.BulkUpdateLogins(r.store)).Methods(http.MethodPut)
 
 	// Bank Account endpoints
 	apiRouter.HandleFunc("/bank-accounts", api.FindAllBankAccounts(r.store)).Methods(http.MethodGet)
@@ -49,6 +50,7 @@ func (r *Router) initRoutes() {
 	apiRouter.HandleFunc("/bank-accounts/{id:[0-9]+}", api.FindBankAccountByID(r.store)).Methods(http.MethodGet)
 	apiRouter.HandleFunc("/bank-accounts/{id:[0-9]+}", api.UpdateBankAccount(r.store)).Methods(http.MethodPut)
 	apiRouter.HandleFunc("/bank-accounts/{id:[0-9]+}", api.DeleteBankAccount(r.store)).Methods(http.MethodDelete)
+	apiRouter.HandleFunc("/bank-accounts/bulk-update", api.BulkUpdateBankAccounts(r.store)).Methods(http.MethodPut)
 
 	// Credit Card endpoints
 	apiRouter.HandleFunc("/credit-cards", api.FindAllCreditCards(r.store)).Methods(http.MethodGet)
@@ -56,6 +58,7 @@ func (r *Router) initRoutes() {
 	apiRouter.HandleFunc("/credit-cards/{id:[0-9]+}", api.FindCreditCardByID(r.store)).Methods(http.MethodGet)
 	apiRouter.HandleFunc("/credit-cards/{id:[0-9]+}", api.UpdateCreditCard(r.store)).Methods(http.MethodPut)
 	apiRouter.HandleFunc("/credit-cards/{id:[0-9]+}", api.DeleteCreditCard(r.store)).Methods(http.MethodDelete)
+	apiRouter.HandleFunc("/credit-cards/bulk-update", api.BulkUpdateCreditCards(r.store)).Methods(http.MethodPut)
 
 	// Note endpoints
 	apiRouter.HandleFunc("/notes", api.FindAllNotes(r.store)).Methods(http.MethodGet)
@@ -63,6 +66,7 @@ func (r *Router) initRoutes() {
 	apiRouter.HandleFunc("/notes/{id:[0-9]+}", api.FindNoteByID(r.store)).Methods(http.MethodGet)
 	apiRouter.HandleFunc("/notes/{id:[0-9]+}", api.UpdateNote(r.store)).Methods(http.MethodPut)
 	apiRouter.HandleFunc("/notes/{id:[0-9]+}", api.DeleteNote(r.store)).Methods(http.MethodDelete)
+	apiRouter.HandleFunc("/notes/bulk-update", api.BulkUpdateNotes(r.store)).Methods(http.MethodPut)
 
 	// Email endpoints
 	apiRouter.HandleFunc("/emails", api.FindAllEmails(r.store)).Methods(http.MethodGet)
@@ -70,6 +74,15 @@ func (r *Router) initRoutes() {
 	apiRouter.HandleFunc("/emails/{id:[0-9]+}", api.FindEmailByID(r.store)).Methods(http.MethodGet)
 	apiRouter.HandleFunc("/emails/{id:[0-9]+}", api.UpdateEmail(r.store)).Methods(http.MethodPut)
 	apiRouter.HandleFunc("/emails/{id:[0-9]+}", api.DeleteEmail(r.store)).Methods(http.MethodDelete)
+	apiRouter.HandleFunc("/emails/bulk-update", api.BulkUpdateEmails(r.store)).Methods(http.MethodPut)
+
+	// Server endpoints
+	apiRouter.HandleFunc("/servers", api.FindAllServers(r.store)).Methods(http.MethodGet)
+	apiRouter.HandleFunc("/servers", api.CreateServer(r.store)).Methods(http.MethodPost)
+	apiRouter.HandleFunc("/servers/{id:[0-9]+}", api.FindServerByID(r.store)).Methods(http.MethodGet)
+	apiRouter.HandleFunc("/servers/{id:[0-9]+}", api.UpdateServer(r.store)).Methods(http.MethodPut)
+	apiRouter.HandleFunc("/servers/{id:[0-9]+}", api.DeleteServer(r.store)).Methods(http.MethodDelete)
+	apiRouter.HandleFunc("/servers/bulk-update", api.BulkUpdateServers(r.store)).Methods(http.MethodPut)
 
 	// User endpoints
 	apiRouter.HandleFunc("/users", api.FindAllUsers(r.store)).Methods(http.MethodGet)
@@ -78,12 +91,8 @@ func (r *Router) initRoutes() {
 	apiRouter.HandleFunc("/users/{id:[0-9]+}", api.UpdateUser(r.store)).Methods(http.MethodPut)
 	apiRouter.HandleFunc("/users/{id:[0-9]+}", api.DeleteUser(r.store)).Methods(http.MethodDelete)
 
-	// Server endpoints
-	apiRouter.HandleFunc("/servers", api.FindAllServers(r.store)).Methods(http.MethodGet)
-	apiRouter.HandleFunc("/servers", api.CreateServer(r.store)).Methods(http.MethodPost)
-	apiRouter.HandleFunc("/servers/{id:[0-9]+}", api.FindServerByID(r.store)).Methods(http.MethodGet)
-	apiRouter.HandleFunc("/servers/{id:[0-9]+}", api.UpdateServer(r.store)).Methods(http.MethodPut)
-	apiRouter.HandleFunc("/servers/{id:[0-9]+}", api.DeleteServer(r.store)).Methods(http.MethodDelete)
+	apiRouter.HandleFunc("/users/check-credentials", api.CheckCredentials(r.store)).Methods(http.MethodPost)
+	apiRouter.HandleFunc("/users/change-master-password", api.ChangeMasterPassword(r.store)).Methods(http.MethodPost)
 
 	apiRouter.HandleFunc("/system/generate-password", api.GeneratePassword).Methods(http.MethodPost)
 	apiRouter.HandleFunc("/system/import", api.Import(r.store)).Methods(http.MethodPost)

@@ -200,6 +200,52 @@ func UpdateCreditCard(s storage.Store) http.HandlerFunc {
 	}
 }
 
+// BulkUpdateCreditCards updates creditCards in payload
+func BulkUpdateCreditCards(s storage.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var creditCardList []model.CreditCardDTO
+
+		// Setup variables
+		env := viper.GetString("server.env")
+		transmissionKey := r.Context().Value("transmissionKey").(string)
+		if err := ToBody(r, env, transmissionKey); err != nil {
+			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
+			return
+		}
+		defer r.Body.Close()
+
+		decoder := json.NewDecoder(r.Body)
+		if err := decoder.Decode(&creditCardList); err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+		}
+		defer r.Body.Close()
+
+		for _, creditCardDTO := range creditCardList {
+			// Find creditCard defined by id
+			schema := r.Context().Value("schema").(string)
+			creditCard, err := s.CreditCards().FindByID(creditCardDTO.ID, schema)
+			if err != nil {
+				RespondWithError(w, http.StatusNotFound, err.Error())
+				return
+			}
+
+			// Update creditCard
+			_, err = app.UpdateCreditCard(s, creditCard, &creditCardDTO, schema)
+			if err != nil {
+				RespondWithError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
+
+		response := model.Response{
+			Code:    http.StatusOK,
+			Status:  "Success",
+			Message: "Bulk update completed successfully!",
+		}
+		RespondWithJSON(w, http.StatusOK, response)
+	}
+}
+
 // DeleteCreditCard deletes a credit cart
 func DeleteCreditCard(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

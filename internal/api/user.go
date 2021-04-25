@@ -9,6 +9,7 @@ import (
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
+	"github.com/spf13/viper"
 
 	"github.com/gorilla/mux"
 )
@@ -61,7 +62,7 @@ func CreateUser(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		userDTO := new(model.UserDTO)
-		
+
 		// 1. Decode request body to userDTO object
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&userDTO); err != nil {
@@ -178,6 +179,115 @@ func DeleteUser(s storage.Store) http.HandlerFunc {
 			Code:    http.StatusOK,
 			Status:  "Success",
 			Message: "User deleted successfully!",
+		}
+		RespondWithJSON(w, http.StatusOK, response)
+	}
+}
+
+// UpdateUser ...
+func ChangeMasterPassword(s storage.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		// Setup variables
+		env := viper.GetString("server.env")
+		transmissionKey := r.Context().Value("transmissionKey").(string)
+		tokenUserUUID := r.Context().Value("uuid").(string)
+
+		if err := ToBody(r, env, transmissionKey); err != nil {
+			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
+			return
+		}
+		defer r.Body.Close()
+
+		var changeMasterPasswordDTO model.ChangeMasterPasswordDTO
+		if err := json.NewDecoder(r.Body).Decode(&changeMasterPasswordDTO); err != nil {
+			RespondWithError(w, http.StatusUnprocessableEntity, InvalidJSON)
+			return
+		}
+		defer r.Body.Close()
+
+		if err := app.PayloadValidator(changeMasterPasswordDTO); err != nil {
+			RespondWithError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		email := changeMasterPasswordDTO.Email
+		oldPass := changeMasterPasswordDTO.OldMasterPassword
+		newPass := changeMasterPasswordDTO.NewMasterPassword
+
+		if oldPass == newPass {
+			RespondWithError(w, http.StatusBadRequest, "Passwords shouldn't be same")
+			return
+		}
+
+		user, err := s.Users().FindByCredentials(email, oldPass)
+		if err != nil {
+			RespondWithError(w, http.StatusUnauthorized, userLoginErr)
+			return
+		}
+
+		if tokenUserUUID != user.UUID.String() {
+			RespondWithError(w, http.StatusUnauthorized, userLoginErr)
+			return
+		}
+
+		_, err = app.ChangeMasterPassword(s, user, newPass)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		response := model.Response{
+			Code:    http.StatusOK,
+			Status:  "Success",
+			Message: "Master password changed successfully",
+		}
+		RespondWithJSON(w, http.StatusOK, response)
+	}
+}
+
+// CheckCredentials ...
+func CheckCredentials(s storage.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		// Setup variables
+		env := viper.GetString("server.env")
+		transmissionKey := r.Context().Value("transmissionKey").(string)
+		tokenUserUUID := r.Context().Value("uuid").(string)
+
+		if err := ToBody(r, env, transmissionKey); err != nil {
+			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
+			return
+		}
+		defer r.Body.Close()
+
+		var loginDTO model.AuthLoginDTO
+		if err := json.NewDecoder(r.Body).Decode(&loginDTO); err != nil {
+			RespondWithError(w, http.StatusUnprocessableEntity, InvalidJSON)
+			return
+		}
+		defer r.Body.Close()
+
+		if err := app.PayloadValidator(loginDTO); err != nil {
+			RespondWithError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		user, err := s.Users().FindByCredentials(loginDTO.Email, loginDTO.MasterPassword)
+		if err != nil {
+			RespondWithError(w, http.StatusUnauthorized, userLoginErr)
+			return
+		}
+
+		if tokenUserUUID != user.UUID.String() {
+			RespondWithError(w, http.StatusUnauthorized, userLoginErr)
+			return
+		}
+
+		response := model.Response{
+			Code:    http.StatusOK,
+			Status:  "Success",
+			Message: user.Secret,
 		}
 		RespondWithJSON(w, http.StatusOK, response)
 	}
