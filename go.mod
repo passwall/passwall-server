@@ -19,7 +19,6 @@ require (
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.6.1
 	github.com/urfave/negroni v1.0.0
-	github.com/yakuter/nice v0.0.0-20210419134248-768d285a4413 // indirect
 	golang.org/x/crypto v0.0.0-20210314154223-e6e6c4f2bb5b
 	golang.org/x/sys v0.0.0-20210315160823-c6e025ad8005 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
