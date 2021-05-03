@@ -6,6 +6,12 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
+type ChangeMasterPasswordDTO struct {
+	Email             string `validate:"required" json:"email"`
+	OldMasterPassword string `validate:"required" json:"old_master_password"`
+	NewMasterPassword string `validate:"required" json:"new_master_password"`
+}
+
 // User model
 type User struct {
 	ID               uint       `gorm:"primary_key" json:"id"`

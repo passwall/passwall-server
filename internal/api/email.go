@@ -98,7 +98,7 @@ func CreateEmail(s storage.Store) http.HandlerFunc {
 		}
 		defer r.Body.Close()
 
-		// Unmarshal request body to loginDTO
+		// Unmarshal request body to emailDTO
 		var emailDTO model.EmailDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&emailDTO); err != nil {
@@ -107,7 +107,7 @@ func CreateEmail(s storage.Store) http.HandlerFunc {
 		}
 		defer r.Body.Close()
 
-		// Add new login to db
+		// Add new email to db
 		schema := r.Context().Value("schema").(string)
 		createdEmail, err := app.CreateEmail(s, &emailDTO, schema)
 		if err != nil {
@@ -158,7 +158,7 @@ func UpdateEmail(s storage.Store) http.HandlerFunc {
 		}
 		defer r.Body.Close()
 
-		// Find login defined by id
+		// Find email defined by id
 		schema := r.Context().Value("schema").(string)
 		email, err := s.Emails().FindByID(uint(id), schema)
 		if err != nil {
@@ -185,6 +185,52 @@ func UpdateEmail(s storage.Store) http.HandlerFunc {
 
 		RespondWithEncJSON(w, http.StatusOK, transmissionKey, updatedEmailDTO)
 
+	}
+}
+
+// BulkUpdateEmails updates emails in payload
+func BulkUpdateEmails(s storage.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var emailList []model.EmailDTO
+
+		// Setup variables
+		env := viper.GetString("server.env")
+		transmissionKey := r.Context().Value("transmissionKey").(string)
+		if err := ToBody(r, env, transmissionKey); err != nil {
+			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
+			return
+		}
+		defer r.Body.Close()
+
+		decoder := json.NewDecoder(r.Body)
+		if err := decoder.Decode(&emailList); err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+		}
+		defer r.Body.Close()
+
+		for _, emailDTO := range emailList {
+			// Find email defined by id
+			schema := r.Context().Value("schema").(string)
+			email, err := s.Emails().FindByID(emailDTO.ID, schema)
+			if err != nil {
+				RespondWithError(w, http.StatusNotFound, err.Error())
+				return
+			}
+
+			// Update email
+			_, err = app.UpdateEmail(s, email, &emailDTO, schema)
+			if err != nil {
+				RespondWithError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
+
+		response := model.Response{
+			Code:    http.StatusOK,
+			Status:  "Success",
+			Message: "Bulk update completed successfully!",
+		}
+		RespondWithJSON(w, http.StatusOK, response)
 	}
 }
 

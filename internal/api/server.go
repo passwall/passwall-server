@@ -193,6 +193,52 @@ func UpdateServer(s storage.Store) http.HandlerFunc {
 	}
 }
 
+// BulkUpdateServers updates servers in payload
+func BulkUpdateServers(s storage.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var serverList []model.ServerDTO
+
+		// Setup variables
+		env := viper.GetString("server.env")
+		transmissionKey := r.Context().Value("transmissionKey").(string)
+		if err := ToBody(r, env, transmissionKey); err != nil {
+			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
+			return
+		}
+		defer r.Body.Close()
+
+		decoder := json.NewDecoder(r.Body)
+		if err := decoder.Decode(&serverList); err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+		}
+		defer r.Body.Close()
+
+		for _, serverDTO := range serverList {
+			// Find server defined by id
+			schema := r.Context().Value("schema").(string)
+			server, err := s.Servers().FindByID(serverDTO.ID, schema)
+			if err != nil {
+				RespondWithError(w, http.StatusNotFound, err.Error())
+				return
+			}
+
+			// Update server
+			_, err = app.UpdateServer(s, server, &serverDTO, schema)
+			if err != nil {
+				RespondWithError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
+
+		response := model.Response{
+			Code:    http.StatusOK,
+			Status:  "Success",
+			Message: "Bulk update completed successfully!",
+		}
+		RespondWithJSON(w, http.StatusOK, response)
+	}
+}
+
 // DeleteServer ...
 func DeleteServer(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
