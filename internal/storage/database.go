@@ -36,7 +36,7 @@ func DBConn(cfg *config.DatabaseConfiguration) (*gorm.DB, error) {
 	var db *gorm.DB
 	var err error
 
-	db, err = gorm.Open("postgres", "host="+cfg.Host+" port="+cfg.Port+" user="+cfg.Username+" dbname="+cfg.Name+"  sslmode=disable password="+cfg.Password)
+	db, err = gorm.Open("postgres", "host="+cfg.Host+" port="+cfg.Port+" user="+cfg.Username+" dbname="+cfg.Name+"  sslmode="+cfg.SSLMode+" password="+cfg.Password)
 	if err != nil {
 		return nil, fmt.Errorf("could not open postgresql connection: %w", err)
 	}
