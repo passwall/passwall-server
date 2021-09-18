@@ -51,6 +51,7 @@ type DatabaseConfiguration struct {
 	Host     string `default:"localhost"`
 	Port     string `default:"5432"`
 	LogMode  bool   `default:"false"`
+	SSLMode  string `default:"disable"`
 }
 
 // EmailConfiguration is the required parameters to send emails
@@ -144,6 +145,7 @@ func bindEnvs() {
 	viper.BindEnv("database.host", "PW_DB_HOST")
 	viper.BindEnv("database.port", "PW_DB_PORT")
 	viper.BindEnv("database.logmode", "PW_DB_LOG_MODE")
+	viper.BindEnv("database.sslmode", "PW_DB_SSL_MODE")
 
 	viper.BindEnv("email.host", "PW_EMAIL_HOST")
 	viper.BindEnv("email.port", "PW_EMAIL_PORT")
