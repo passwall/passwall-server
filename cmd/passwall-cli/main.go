@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"crypto/sha256"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 
@@ -14,17 +13,18 @@ import (
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
 	"github.com/passwall/passwall-server/pkg/constants"
+	"github.com/passwall/passwall-server/pkg/logger"
 )
 
 func main() {
-	cfg, err := config.SetupConfigDefaults(constants.ConfigPath, constants.ConfigName)
+	cfg, err := config.Init(constants.ConfigPath, constants.ConfigName)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatalf("config.Init: %v", err)
 	}
 
 	db, err := storage.DBConn(&cfg.Database)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatalf("storage.DBConn: %v", err)
 	}
 
 	s := storage.New(db)
@@ -45,7 +45,7 @@ func main() {
 	password = clearInput(password)
 
 	if name == "" || email == "" || password == "" {
-		log.Fatal("All fields are required.")
+		logger.Fatalf("All fields are required.")
 	}
 
 	passwordHash := fmt.Sprintf("%x", newSHA256([]byte(password))[:])
@@ -58,7 +58,7 @@ func main() {
 
 	createdUser, err := app.CreateUser(s, newUser)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatalf("app.CreateUser: %v", err)
 	}
 
 	subscription := &model.Subscription{
@@ -70,7 +70,7 @@ func main() {
 
 	_, err = s.Subscriptions().Save(subscription)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatalf("s.Subscriptions().Save: %v", err)
 	}
 
 	color.Green("User created successfully.")

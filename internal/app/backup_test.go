@@ -2,11 +2,11 @@ package app
 
 import (
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/passwall/passwall-server/pkg/logger"
 	"github.com/spf13/viper"
 )
 
@@ -27,7 +27,7 @@ func generateFakeData(v int) error {
 	for i := 0; i < v; i++ {
 		_, err = ioutil.TempFile("/tmp", "passwall.*.bak")
 		if err != nil {
-			log.Fatal(err)
+			logger.Fatalf("Unable to create temp files %v", err)
 		}
 	}
 	return err

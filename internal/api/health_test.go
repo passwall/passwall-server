@@ -1,13 +1,13 @@
 package api
 
 import (
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/passwall/passwall-server/internal/config"
 	"github.com/passwall/passwall-server/internal/storage"
+	"github.com/passwall/passwall-server/pkg/logger"
 )
 
 func TestHealthCheck(t *testing.T) {
@@ -25,7 +25,7 @@ func TestHealthCheck(t *testing.T) {
 
 	mockDB, err := storage.DBConn(mockDBConfig)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatalf("failed to connect to database: %v", err)
 	}
 
 	db := storage.New(mockDB)

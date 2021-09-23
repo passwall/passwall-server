@@ -1,10 +1,9 @@
 package user
 
 import (
-	"log"
-
 	"github.com/jinzhu/gorm"
 	"github.com/passwall/passwall-server/model"
+	"github.com/passwall/passwall-server/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -99,7 +98,7 @@ func (p *Repository) Delete(id uint, schema string) error {
 
 	err := p.db.Exec("DROP SCHEMA " + schema + " CASCADE").Error
 	if err != nil {
-		log.Println(err)
+		logger.Errorf("Error deleting schema %s error %v", schema, err)
 	}
 
 	err = p.db.Delete(&model.User{ID: id}).Error
@@ -117,7 +116,7 @@ func (p *Repository) CreateSchema(schema string) error {
 	if schema != "" && schema != "public" {
 		err := p.db.Exec("CREATE SCHEMA IF NOT EXISTS " + schema).Error
 		if err != nil {
-			log.Println(err)
+			logger.Errorf("Error creating schema %s error %v", schema, err)
 		}
 	}
 	return err

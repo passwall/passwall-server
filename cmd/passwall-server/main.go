@@ -1,9 +1,7 @@
 package main
 
 import (
-	"log"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/passwall/passwall-server/internal/app"
@@ -11,19 +9,18 @@ import (
 	"github.com/passwall/passwall-server/internal/router"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/pkg/constants"
+	"github.com/passwall/passwall-server/pkg/logger"
 )
 
 func main() {
-	logger := log.New(os.Stdout, "[passwall-server] ", 0)
-
-	cfg, err := config.SetupConfigDefaults(constants.ConfigPath, constants.ConfigName)
+	cfg, err := config.Init(constants.ConfigPath, constants.ConfigName)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatalf("config.Init: %s", err)
 	}
 
 	db, err := storage.DBConn(&cfg.Database)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatalf("storage.DBConn: %s", err)
 	}
 
 	s := storage.New(db)
@@ -39,8 +36,8 @@ func main() {
 		Handler:        router.New(s),
 	}
 
-	logger.Printf("listening on %s", cfg.Server.Port)
+	logger.Infof("listening on %s", cfg.Server.Port)
 	if err := srv.ListenAndServe(); err != nil {
-		logger.Fatal(err)
+		logger.Fatalf("failed to start server: %v", err)
 	}
 }

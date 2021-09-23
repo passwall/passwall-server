@@ -69,8 +69,8 @@ type BackupConfiguration struct {
 	Period   string `default:"24h"`
 }
 
-// SetupConfigDefaults ...
-func SetupConfigDefaults(configPath, configName string) (*Configuration, error) {
+// Init initializes the configuration manager
+func Init(configPath, configName string) (*Configuration, error) {
 
 	configFilePath := filepath.Join(configPath, configName) + configFileExt
 

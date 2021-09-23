@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -16,6 +15,7 @@ import (
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
+	"github.com/passwall/passwall-server/pkg/logger"
 	"github.com/patrickmn/go-cache"
 	"github.com/spf13/viper"
 )
@@ -45,7 +45,7 @@ func CreateCode(s storage.Store) http.HandlerFunc {
 		// 2. Check if user exist in database
 		_, err := s.Users().FindByEmail(signup.Email)
 		if err == nil {
-			log.Printf("email %s already exist in database\n", signup.Email)
+			logger.Errorf("email %s already exist in database\n", signup.Email)
 			RespondWithError(w, http.StatusBadRequest, "User couldn't created!")
 			return
 		}
@@ -56,7 +56,7 @@ func CreateCode(s storage.Store) http.HandlerFunc {
 		max := 999999
 		code := strconv.Itoa(rand.Intn(max-min+1) + min)
 
-		log.Printf("verification code %s generated for email %s\n", code, signup.Email)
+		logger.Infof("verification code %s generated for email %s\n", code, signup.Email)
 
 		// 3. Save code in cache
 		c.Set(signup.Email, code, cache.DefaultExpiration)
@@ -65,7 +65,7 @@ func CreateCode(s storage.Store) http.HandlerFunc {
 		subject := "Passwall Email Verification"
 		body := "Passwall verification code: " + code
 		if err = app.SendMail("Passwall Verification Code", signup.Email, subject, body); err != nil {
-			log.Printf("can't send email to %s error: %v\n", signup.Email, err)
+			logger.Errorf("can't send email to %s error: %v\n", signup.Email, err)
 			RespondWithError(w, http.StatusBadRequest, "Couldn't send email")
 			return
 		}
@@ -93,7 +93,7 @@ func CreateDeleteCode(s storage.Store) http.HandlerFunc {
 		// 2. Check if user exist in database
 		_, err := s.Users().FindByEmail(signup.Email)
 		if err != nil {
-			log.Printf("email %s does not exist in database\n", signup.Email)
+			logger.Errorf("email %s does not exist in database error %v\n", signup.Email, err)
 			RespondWithError(w, http.StatusBadRequest, "User couldn't be found!")
 			return
 		}
@@ -104,7 +104,7 @@ func CreateDeleteCode(s storage.Store) http.HandlerFunc {
 		max := 999999
 		code := strconv.Itoa(rand.Intn(max-min+1) + min)
 
-		log.Printf("deletion code %s generated for email %s\n", code, signup.Email)
+		logger.Infof("deletion code %s generated for email %s\n", code, signup.Email)
 
 		// 3. Save code in cache
 		c.Set(signup.Email, code, cache.DefaultExpiration)
@@ -113,7 +113,7 @@ func CreateDeleteCode(s storage.Store) http.HandlerFunc {
 		subject := "Passwall User Deletion Verification"
 		body := "Passwall user deletion code: " + code
 		if err = app.SendMail("Passwall user deletion Code", signup.Email, subject, body); err != nil {
-			log.Printf("can't send email to %s error: %v\n", signup.Email, err)
+			logger.Errorf("can't send email to %s error: %v\n", signup.Email, err)
 			RespondWithError(w, http.StatusBadRequest, "Couldn't send email")
 			return
 		}
@@ -177,7 +177,7 @@ func Signup(s storage.Store) http.HandlerFunc {
 
 		// 2. Check if email is verified
 		if err := isMailVerified(userSignup.Email); err != nil {
-			log.Println(err)
+			logger.Errorf("email %s is not verified error %v\n", userSignup.Email, err)
 			RespondWithError(w, http.StatusUnauthorized, "Email is not verified")
 			return
 		}
@@ -289,7 +289,7 @@ func RecoverDelete(s storage.Store) http.HandlerFunc {
 
 		// Check if email is verified
 		if err := isMailVerified(email); err != nil {
-			log.Println(err)
+			logger.Errorf("email %s is not verified error %v\n", email, err)
 			RespondWithError(w, http.StatusUnauthorized, "Email is not verified")
 			return
 		}

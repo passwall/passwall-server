@@ -1,7 +1,6 @@
 package api
 
 import (
-	"log"
 	"testing"
 
 	"github.com/jinzhu/gorm"
@@ -9,6 +8,7 @@ import (
 	"github.com/passwall/passwall-server/internal/config"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
+	"github.com/passwall/passwall-server/pkg/logger"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/suite"
 )
@@ -39,7 +39,7 @@ func (suite *TestSuiteEnv) SetupSuite() {
 	// 3. Create db connection
 	mockDB, err := storage.DBConn(mockDBConfig)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatalf("Failed to connect to database: %v", err)
 	}
 
 	// 4. Create new storage
