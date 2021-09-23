@@ -7,6 +7,7 @@ require (
 	github.com/Luzifer/go-openssl/v4 v4.1.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/didip/tollbooth v4.0.2+incompatible
+	github.com/fatih/color v1.13.0
 	github.com/go-playground/validator/v10 v10.2.0
 	github.com/go-test/deep v1.0.6
 	github.com/gorilla/mux v1.7.4
@@ -20,7 +21,6 @@ require (
 	github.com/stretchr/testify v1.6.1
 	github.com/urfave/negroni v1.0.0
 	golang.org/x/crypto v0.0.0-20210314154223-e6e6c4f2bb5b
-	golang.org/x/sys v0.0.0-20210315160823-c6e025ad8005 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gopkg.in/yaml.v2 v2.3.0
 )

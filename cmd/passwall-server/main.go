@@ -10,12 +10,13 @@ import (
 	"github.com/passwall/passwall-server/internal/config"
 	"github.com/passwall/passwall-server/internal/router"
 	"github.com/passwall/passwall-server/internal/storage"
+	"github.com/passwall/passwall-server/pkg/constants"
 )
 
 func main() {
 	logger := log.New(os.Stdout, "[passwall-server] ", 0)
 
-	cfg, err := config.SetupConfigDefaults()
+	cfg, err := config.SetupConfigDefaults(constants.ConfigPath, constants.ConfigName)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -10,14 +10,12 @@ import (
 )
 
 var (
-	configuration  *Configuration
-	configFileName = "config"
-	configFileExt  = ".yml"
-	configType     = "yaml"
-	appName        = "passwall-server"
+	configuration *Configuration
+	configFileExt = ".yml"
+	configType    = "yaml"
+	appName       = "passwall-server"
 
-	storeDirectory    = "./store/"
-	configFileAbsPath = filepath.Join(storeDirectory, configFileName)
+	storeDirectory = "./store"
 )
 
 // Configuration ...
@@ -72,10 +70,12 @@ type BackupConfiguration struct {
 }
 
 // SetupConfigDefaults ...
-func SetupConfigDefaults() (*Configuration, error) {
+func SetupConfigDefaults(configPath, configName string) (*Configuration, error) {
+
+	configFilePath := filepath.Join(configPath, configName) + configFileExt
 
 	// initialize viper configuration
-	initializeConfig()
+	initializeConfig(configPath, configName)
 
 	// Bind environment variables
 	bindEnvs()
@@ -84,7 +84,7 @@ func SetupConfigDefaults() (*Configuration, error) {
 	setDefaults()
 
 	// Read or create configuration file
-	if err := readConfiguration(); err != nil {
+	if err := readConfiguration(configFilePath); err != nil {
 		return nil, err
 	}
 
@@ -100,12 +100,12 @@ func SetupConfigDefaults() (*Configuration, error) {
 }
 
 // read configuration from file
-func readConfiguration() error {
+func readConfiguration(configFilePath string) error {
 	err := viper.ReadInConfig() // Find and read the config file
 	if err != nil {             // Handle errors reading the config file
 		// if file does not exist, simply create one
-		if _, err := os.Stat(configFileAbsPath + configFileExt); os.IsNotExist(err) {
-			os.Create(configFileAbsPath + configFileExt)
+		if _, err := os.Stat(configFilePath); os.IsNotExist(err) {
+			os.Create(configFilePath)
 		} else {
 			return err
 		}
@@ -118,9 +118,9 @@ func readConfiguration() error {
 }
 
 // initialize the configuration manager
-func initializeConfig() {
-	viper.AddConfigPath(storeDirectory)
-	viper.SetConfigName(configFileName)
+func initializeConfig(configPath, configName string) {
+	viper.AddConfigPath(configPath)
+	viper.SetConfigName(configName)
 	viper.SetConfigType(configType)
 }
 
@@ -145,6 +145,8 @@ func bindEnvs() {
 	viper.BindEnv("database.host", "PW_DB_HOST")
 	viper.BindEnv("database.port", "PW_DB_PORT")
 	viper.BindEnv("database.logmode", "PW_DB_LOG_MODE")
+
+	// "require", "verify-full", "verify-ca", "disable" supported for postgres
 	viper.BindEnv("database.sslmode", "PW_DB_SSL_MODE")
 
 	viper.BindEnv("email.host", "PW_EMAIL_HOST")
@@ -182,6 +184,9 @@ func setDefaults() {
 	viper.SetDefault("database.host", "localhost")
 	viper.SetDefault("database.port", "5432")
 	viper.SetDefault("database.logmode", false)
+
+	// "require", "verify-full", "verify-ca", "disable" supported for postgres
+	viper.SetDefault("database.sslmode", "disable")
 
 	// Email defaults
 	viper.SetDefault("email.host", "smtp.passwall.io")
