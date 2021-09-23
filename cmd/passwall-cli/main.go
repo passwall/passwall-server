@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -62,9 +61,19 @@ func main() {
 		log.Fatal(err)
 	}
 
-	fmt.Println("User created successfully.")
-	jsonValue, _ := json.MarshalIndent(model.ToUserDTO(createdUser), "", "  ")
-	fmt.Println(string(jsonValue))
+	subscription := &model.Subscription{
+		UserID: int(createdUser.ID),
+		Email:  createdUser.Email,
+		Status: "active",
+		Type:   "pro",
+	}
+
+	_, err = s.Subscriptions().Save(subscription)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	color.Green("User created successfully.")
 }
 
 func clearInput(input string) string {
