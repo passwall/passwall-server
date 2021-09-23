@@ -14,13 +14,11 @@ import (
 	"github.com/passwall/passwall-server/internal/config"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
+	"github.com/passwall/passwall-server/pkg/constants"
 )
 
 func main() {
-	var configPath = "./../../store/"
-	var configName = "config"
-
-	cfg, err := config.SetupConfigDefaults(configPath, configName)
+	cfg, err := config.SetupConfigDefaults(constants.ConfigPath, constants.ConfigName)
 	if err != nil {
 		log.Fatal(err)
 	}

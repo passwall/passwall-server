@@ -1,6 +1,6 @@
 package constants
 
 const (
-	ConfigPath = "./store/"
+	ConfigPath = "./"
 	ConfigName = "config"
 )
