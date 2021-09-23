@@ -5,11 +5,11 @@ go 1.14
 require (
 	github.com/DATA-DOG/go-sqlmock v1.4.1
 	github.com/Luzifer/go-openssl/v4 v4.1.0
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/didip/tollbooth v4.0.2+incompatible
 	github.com/fatih/color v1.13.0
 	github.com/go-playground/validator/v10 v10.2.0
 	github.com/go-test/deep v1.0.6
+	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/gorilla/mux v1.7.4
 	github.com/jinzhu/gorm v1.9.15
 	github.com/mattn/go-sqlite3 v2.0.1+incompatible // indirect
