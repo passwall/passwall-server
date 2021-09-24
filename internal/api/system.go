@@ -235,7 +235,7 @@ func Restore(s storage.Store) http.HandlerFunc {
 				Password: base64.StdEncoding.EncodeToString(app.Encrypt(loginDTOs[i].Password, viper.GetString("server.passphrase"))),
 			}
 
-			s.Logins().Save(login, schema)
+			s.Logins().Update(login, schema)
 		}
 
 		response := model.Response{Code: http.StatusOK, Status: Success, Message: RestoreBackupSuccess}

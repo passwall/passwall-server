@@ -2,9 +2,11 @@ package storage
 
 import (
 	"fmt"
+	"io"
+	"log"
+	"os"
+	"time"
 
-	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/postgres"
 	"github.com/passwall/passwall-server/internal/config"
 	"github.com/passwall/passwall-server/internal/storage/bankaccount"
 	"github.com/passwall/passwall-server/internal/storage/creditcard"
@@ -15,6 +17,10 @@ import (
 	"github.com/passwall/passwall-server/internal/storage/subscription"
 	"github.com/passwall/passwall-server/internal/storage/token"
 	"github.com/passwall/passwall-server/internal/storage/user"
+	"github.com/spf13/viper"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 // Database is the concrete store provider.
@@ -36,12 +42,27 @@ func DBConn(cfg *config.DatabaseConfiguration) (*gorm.DB, error) {
 	var db *gorm.DB
 	var err error
 
-	db, err = gorm.Open("postgres", "host="+cfg.Host+" port="+cfg.Port+" user="+cfg.Username+" dbname="+cfg.Name+"  sslmode="+cfg.SSLMode+" password="+cfg.Password)
+	logmode := viper.GetBool("database.logmode")
+	loglevel := logger.Silent
+	if logmode {
+		loglevel = logger.Info
+	}
+
+	newDBLogger := logger.New(
+		log.New(getWriter(), "\n", log.LstdFlags), // io writer
+		logger.Config{
+			SlowThreshold:             time.Second, // Slow SQL threshold
+			LogLevel:                  loglevel,    // Log level (Silent, Error, Warn, Info)
+			IgnoreRecordNotFoundError: true,        // Ignore ErrRecordNotFound error for logger
+			Colorful:                  false,       // Disable color
+		},
+	)
+
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s", cfg.Host, cfg.Username, cfg.Password, cfg.Name, cfg.Port, cfg.SSLMode)
+	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: newDBLogger})
 	if err != nil {
 		return nil, fmt.Errorf("could not open postgresql connection: %w", err)
 	}
-
-	db.LogMode(cfg.LogMode)
 
 	return db, err
 }
@@ -109,5 +130,19 @@ func (db *Database) Subscriptions() SubscriptionRepository {
 
 // Ping checks if database is up
 func (db *Database) Ping() error {
-	return db.db.DB().Ping()
+	sqlDB, err := db.db.DB()
+	if err != nil {
+		return err
+	}
+
+	return sqlDB.Ping()
+}
+
+func getWriter() io.Writer {
+	file, err := os.OpenFile("passwall-server.db.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		return os.Stdout
+	} else {
+		return file
+	}
 }

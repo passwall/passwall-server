@@ -10,7 +10,7 @@ func CreateBankAccount(s storage.Store, dto *model.BankAccountDTO, schema string
 	rawModel := model.ToBankAccount(dto)
 	encModel := EncryptModel(rawModel)
 
-	createdBankAccount, err := s.BankAccounts().Save(encModel.(*model.BankAccount), schema)
+	createdBankAccount, err := s.BankAccounts().Create(encModel.(*model.BankAccount), schema)
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +31,7 @@ func UpdateBankAccount(s storage.Store, bankAccount *model.BankAccount, dto *mod
 	bankAccount.Currency = encModel.Currency
 	bankAccount.Password = encModel.Password
 
-	updatedBankAccount, err := s.BankAccounts().Save(bankAccount, schema)
+	updatedBankAccount, err := s.BankAccounts().Update(bankAccount, schema)
 	if err != nil {
 		return nil, err
 	}

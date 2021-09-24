@@ -17,7 +17,7 @@ func CreateSubscription(s storage.Store, r *http.Request) (int, string) {
 		return http.StatusBadRequest, message
 	}
 
-	_, err = s.Subscriptions().Save(model.RequestToSub(r))
+	_, err = s.Subscriptions().Create(model.RequestToSub(r))
 	if err != nil {
 		return http.StatusInternalServerError, err.Error()
 	}
@@ -58,7 +58,7 @@ func UpdateSubscription(s storage.Store, r *http.Request) (int, string) {
 	subscription.NextBillDate = nextBillDate
 	subscription.Status = r.FormValue("status")
 
-	_, err = s.Subscriptions().Save(subscription)
+	_, err = s.Subscriptions().Update(subscription)
 	if err != nil {
 		return http.StatusInternalServerError, err.Error()
 	}
@@ -93,7 +93,7 @@ func PaymentSucceedSubscription(s storage.Store, r *http.Request) (int, string) 
 
 	subscription.NextBillDate = nextBillDate
 
-	_, err = s.Subscriptions().Save(subscription)
+	_, err = s.Subscriptions().Update(subscription)
 	if err != nil {
 		return http.StatusInternalServerError, err.Error()
 	}
@@ -115,7 +115,7 @@ func PaymentFailedSubscription(s storage.Store, r *http.Request) (int, string) {
 	subscription.NextBillDate = nextBillDate
 	subscription.Status = r.FormValue("status")
 
-	_, err = s.Subscriptions().Save(subscription)
+	_, err = s.Subscriptions().Update(subscription)
 	if err != nil {
 		return http.StatusInternalServerError, err.Error()
 	}

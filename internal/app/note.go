@@ -10,7 +10,7 @@ func CreateNote(s storage.Store, dto *model.NoteDTO, schema string) (*model.Note
 	rawModel := model.ToNote(dto)
 	encModel := EncryptModel(rawModel)
 
-	createdNote, err := s.Notes().Save(encModel.(*model.Note), schema)
+	createdNote, err := s.Notes().Create(encModel.(*model.Note), schema)
 	if err != nil {
 		return nil, err
 	}
@@ -26,7 +26,7 @@ func UpdateNote(s storage.Store, note *model.Note, dto *model.NoteDTO, schema st
 	note.Title = encModel.Title
 	note.Note = encModel.Note
 
-	updatedNote, err := s.Notes().Save(note, schema)
+	updatedNote, err := s.Notes().Update(note, schema)
 	if err != nil {
 		return nil, err
 	}

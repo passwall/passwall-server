@@ -1,18 +1,6 @@
 package api
 
-import (
-	"testing"
-
-	"github.com/jinzhu/gorm"
-	"github.com/passwall/passwall-server/internal/app"
-	"github.com/passwall/passwall-server/internal/config"
-	"github.com/passwall/passwall-server/internal/storage"
-	"github.com/passwall/passwall-server/model"
-	"github.com/passwall/passwall-server/pkg/logger"
-	"github.com/spf13/viper"
-	"github.com/stretchr/testify/suite"
-)
-
+/*
 type TestSuiteEnv struct {
 	suite.Suite
 	db   *storage.Database
@@ -95,3 +83,5 @@ func TestSuite(t *testing.T) {
 	// This is what actually runs our suite
 	suite.Run(t, new(TestSuiteEnv))
 }
+
+*/

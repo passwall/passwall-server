@@ -1,8 +1,9 @@
 package subscription
 
 import (
-	"github.com/jinzhu/gorm"
 	"github.com/passwall/passwall-server/model"
+	"github.com/passwall/passwall-server/pkg/logger"
+	"gorm.io/gorm"
 )
 
 // Repository ...
@@ -64,10 +65,26 @@ func (p *Repository) FindBySubscriptionID(id uint) (*model.Subscription, error) 
 	return subscription, err
 }
 
-// Save ...
-func (p *Repository) Save(subscription *model.Subscription) (*model.Subscription, error) {
+// Update ...
+func (p *Repository) Update(subscription *model.Subscription) (*model.Subscription, error) {
 	err := p.db.Save(&subscription).Error
-	return subscription, err
+	if err != nil {
+		logger.Errorf("Error updating subscription %v error %v", subscription, err)
+		return nil, err
+	}
+
+	return subscription, nil
+}
+
+// Create ...
+func (p *Repository) Create(subscription *model.Subscription) (*model.Subscription, error) {
+	err := p.db.Create(&subscription).Error
+	if err != nil {
+		logger.Errorf("Error creating subscription %v error %v", subscription, err)
+		return nil, err
+	}
+
+	return subscription, nil
 }
 
 // Delete ...
@@ -78,5 +95,5 @@ func (p *Repository) Delete(id uint) error {
 
 // Migrate ...
 func (p *Repository) Migrate() error {
-	return p.db.AutoMigrate(&model.Subscription{}).Error
+	return p.db.AutoMigrate(&model.Subscription{})
 }

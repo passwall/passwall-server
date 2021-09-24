@@ -10,7 +10,7 @@ func CreateServer(s storage.Store, dto *model.ServerDTO, schema string) (*model.
 	rawModel := model.ToServer(dto)
 	encModel := EncryptModel(rawModel)
 
-	createdServer, err := s.Servers().Save(encModel.(*model.Server), schema)
+	createdServer, err := s.Servers().Create(encModel.(*model.Server), schema)
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +34,7 @@ func UpdateServer(s storage.Store, server *model.Server, dto *model.ServerDTO, s
 	server.AdminPassword = encModel.AdminPassword
 	server.Extra = encModel.Extra
 
-	updatedServer, err := s.Servers().Save(server, schema)
+	updatedServer, err := s.Servers().Update(server, schema)
 	if err != nil {
 		return nil, err
 	}

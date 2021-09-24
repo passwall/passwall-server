@@ -1,8 +1,9 @@
 package server
 
 import (
-	"github.com/jinzhu/gorm"
 	"github.com/passwall/passwall-server/model"
+	"github.com/passwall/passwall-server/pkg/logger"
+	"gorm.io/gorm"
 )
 
 // Repository ...
@@ -51,10 +52,26 @@ func (p *Repository) FindByID(id uint, schema string) (*model.Server, error) {
 	return server, err
 }
 
-// Save ...
-func (p *Repository) Save(server *model.Server, schema string) (*model.Server, error) {
+// Update ...
+func (p *Repository) Update(server *model.Server, schema string) (*model.Server, error) {
 	err := p.db.Table(schema + ".servers").Save(&server).Error
-	return server, err
+	if err != nil {
+		logger.Errorf("Error updating server %v error %v", server, err)
+		return nil, err
+	}
+
+	return server, nil
+}
+
+// Create ...
+func (p *Repository) Create(server *model.Server, schema string) (*model.Server, error) {
+	err := p.db.Table(schema + ".servers").Create(&server).Error
+	if err != nil {
+		logger.Errorf("Error creating server %v error %v", server, err)
+		return nil, err
+	}
+
+	return server, nil
 }
 
 // Delete ...
@@ -65,5 +82,5 @@ func (p *Repository) Delete(id uint, schema string) error {
 
 // Migrate ...
 func (p *Repository) Migrate(schema string) error {
-	return p.db.Table(schema + ".servers").AutoMigrate(&model.Server{}).Error
+	return p.db.Table(schema + ".servers").AutoMigrate(&model.Server{})
 }

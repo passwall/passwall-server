@@ -264,8 +264,8 @@ func Signin(s storage.Store) http.HandlerFunc {
 		s.Tokens().Delete(int(user.ID))
 
 		//create tokens on db
-		s.Tokens().Save(int(user.ID), token.AtUUID, token.AccessToken, token.AtExpiresTime, token.TransmissionKey)
-		s.Tokens().Save(int(user.ID), token.RtUUID, token.RefreshToken, token.RtExpiresTime, "")
+		s.Tokens().Create(int(user.ID), token.AtUUID, token.AccessToken, token.AtExpiresTime, token.TransmissionKey)
+		s.Tokens().Create(int(user.ID), token.RtUUID, token.RefreshToken, token.RtExpiresTime, "")
 
 		authLoginResponse := model.AuthLoginResponse{
 			AccessToken:         token.AccessToken,
@@ -374,8 +374,8 @@ func RefreshToken(s storage.Store) http.HandlerFunc {
 		s.Tokens().DeleteByUUID(userUUID)
 
 		//create tokens on db
-		s.Tokens().Save(int(user.ID), newtoken.AtUUID, newtoken.AccessToken, newtoken.AtExpiresTime, newtoken.TransmissionKey)
-		s.Tokens().Save(int(user.ID), newtoken.RtUUID, newtoken.RefreshToken, newtoken.RtExpiresTime, "")
+		s.Tokens().Create(int(user.ID), newtoken.AtUUID, newtoken.AccessToken, newtoken.AtExpiresTime, newtoken.TransmissionKey)
+		s.Tokens().Create(int(user.ID), newtoken.RtUUID, newtoken.RefreshToken, newtoken.RtExpiresTime, "")
 
 		authLoginResponse := model.AuthLoginResponse{
 			AccessToken:     newtoken.AccessToken,

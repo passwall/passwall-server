@@ -10,7 +10,7 @@ func CreateEmail(s storage.Store, dto *model.EmailDTO, schema string) (*model.Em
 	rawModel := model.ToEmail(dto)
 	encModel := EncryptModel(rawModel)
 
-	createdEmail, err := s.Emails().Save(encModel.(*model.Email), schema)
+	createdEmail, err := s.Emails().Create(encModel.(*model.Email), schema)
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +27,7 @@ func UpdateEmail(s storage.Store, email *model.Email, dto *model.EmailDTO, schem
 	email.Email = encModel.Email
 	email.Password = encModel.Password
 
-	updatedEmail, err := s.Emails().Save(email, schema)
+	updatedEmail, err := s.Emails().Update(email, schema)
 	if err != nil {
 		return nil, err
 	}

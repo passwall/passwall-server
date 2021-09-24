@@ -20,8 +20,11 @@ require (
 	github.com/spf13/viper v1.9.0
 	github.com/stretchr/testify v1.7.0
 	github.com/urfave/negroni v1.0.0
+	github.com/yakuter/nice v0.0.0-20210419134248-768d285a4413 // indirect
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	gopkg.in/yaml.v2 v2.4.0
+	gorm.io/driver/postgres v1.1.1 // indirect
+	gorm.io/gorm v1.21.15 // indirect
 )
 
 replace (

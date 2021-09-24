@@ -68,7 +68,7 @@ func main() {
 		Type:   "pro",
 	}
 
-	_, err = s.Subscriptions().Save(subscription)
+	_, err = s.Subscriptions().Create(subscription)
 	if err != nil {
 		logger.Fatalf("s.Subscriptions().Save: %v", err)
 	}
