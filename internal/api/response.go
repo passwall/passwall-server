@@ -43,6 +43,15 @@ func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Write(response)
 }
 
+// RespondWithToken
+func RespondWithToken(w http.ResponseWriter, code int, cookie *http.Cookie, payload interface{}) {
+	response, _ := json.Marshal(payload)
+	w.Header().Set("Content-Type", "application/json")
+	http.SetCookie(w, cookie)
+	w.WriteHeader(code)
+	w.Write(response)
+}
+
 // RespondWithEncJSON encrypts returning json data
 func RespondWithEncJSON(w http.ResponseWriter, code int, transmissionKey string, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")

@@ -3,80 +3,80 @@ package router
 import (
 	"context"
 	"net/http"
-	"strings"
 
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
+	"github.com/passwall/passwall-server/pkg/logger"
+	"github.com/spf13/viper"
 	"github.com/urfave/negroni"
 )
 
-//Auth verify authentication
+// Create the JWT key used to create the signature
+var jwtKey = []byte(viper.GetString("server.secret"))
 
+// Auth is a middleware that checks for a valid JWT token
 func Auth(s storage.Store) negroni.HandlerFunc {
 
 	return negroni.HandlerFunc(func(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-
-		var tokenstr string
-		bearerToken := r.Header.Get("Authorization")
-		strArr := strings.Split(bearerToken, " ")
-		if len(strArr) == 2 {
-			tokenstr = strArr[1]
-		}
-
-		token, err := app.TokenValid(tokenstr)
+		// We can obtain the session token from the requests cookies, which come with every request
+		c, err := r.Cookie("passwall_token")
 		if err != nil {
-			if token != nil {
-				claims, _ := token.Claims.(jwt.MapClaims)
-				uuid, _ := claims["uuid"].(string)
-				s.Tokens().DeleteByUUID(uuid)
+			logger.Errorf("Error getting cookie: %v", err)
+			if err == http.ErrNoCookie {
+				// If the cookie is not set, return an unauthorized status
+				w.WriteHeader(http.StatusUnauthorized)
+				return
 			}
-			w.WriteHeader(http.StatusUnauthorized)
+			// For any other type of error, return a bad request status
+			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		claims, _ := token.Claims.(jwt.MapClaims)
-		uuid, _ := claims["uuid"].(string)
+		// Get the JWT string from the cookie
+		tknStr := c.Value
 
-		// Check token from tokens db table
-		tokenRow, tokenExist := s.Tokens().Any(uuid)
+		// Initialize a new instance of `Claims`
+		claims := &app.Claims{}
 
-		// Get User UUID from claims
-		ctxUserUUID, ok := claims["user_uuid"].(string)
-		if !ok {
+		// Parse the JWT string and store the result in `claims`.
+		tkn, err := jwt.ParseWithClaims(
+			tknStr,
+			claims,
+			func(token *jwt.Token) (interface{}, error) {
+				return jwtKey, nil
+			},
+		)
+		if err != nil {
+			logger.Errorf("Error parsing JWT: %v", err)
+
+			if err == jwt.ErrSignatureInvalid {
+				logger.Errorf("Error invalid token signature: %v", err)
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		if !tkn.Valid {
+			logger.Errorf("Token is invalid: %v", err)
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 
 		// Get user details from db by User UUID
-		user, err := s.Users().FindByUUID(ctxUserUUID)
+		user, err := s.Users().FindByUUID(claims.UserUUID)
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 
-		// Token invalidation for old token usage
-		if !tokenExist {
-			s.Tokens().Delete(int(user.ID))
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-
-		// Admin or Member
-		ctxAuthorized, ok := claims["authorized"].(bool)
-		if !ok {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-
-		ctxSchema := user.Schema
-		ctxTransmissionKey := tokenRow.TransmissionKey
-
 		ctx := r.Context()
-		ctxWithUUID := context.WithValue(ctx, "uuid", ctxUserUUID)
-		ctxWithAuthorized := context.WithValue(ctxWithUUID, "authorized", ctxAuthorized)
-		ctxWithSchema := context.WithValue(ctxWithAuthorized, "schema", ctxSchema)
-		ctxWithTransmissionKey := context.WithValue(ctxWithSchema, "transmissionKey", ctxTransmissionKey)
+		ctxWithUUID := context.WithValue(ctx, "uuid", claims.UserUUID)
+		ctxWithAuthorized := context.WithValue(ctxWithUUID, "authorized", claims.Authorized)
+		ctxWithSchema := context.WithValue(ctxWithAuthorized, "schema", user.Schema)
+		ctxWithTransmissionKey := context.WithValue(ctxWithSchema, "transmissionKey", claims.TransmissionKey)
 
 		// These context variables can be accesable with
 		// ctxAuthorized := r.Context().Value("authorized").(bool)

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/gorilla/mux"
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
@@ -31,6 +31,9 @@ var (
 	verifySuccess  = "Email verified successfully"
 	codeSuccess    = "Code created successfully"
 )
+
+// Create the JWT key used to create the signature
+var jwtKey = []byte(viper.GetString("server.secret"))
 
 // Create email verification code
 func CreateCode(s storage.Store) http.HandlerFunc {
@@ -253,30 +256,105 @@ func Signin(s storage.Store) http.HandlerFunc {
 			subscriptionType = "free"
 		}
 
-		//create token
-		token, err := app.CreateToken(user)
+		// Create token with http cookie
+		cookieWithToken, err := app.CreateToken(user)
 		if err != nil {
+			logger.Errorf("Error while generating token: %v\n", err)
 			RespondWithError(w, http.StatusInternalServerError, tokenCreateErr)
 			return
 		}
 
-		//delete tokens from db
-		s.Tokens().Delete(int(user.ID))
-
-		//create tokens on db
-		s.Tokens().Create(int(user.ID), token.AtUUID, token.AccessToken, token.AtExpiresTime, token.TransmissionKey)
-		s.Tokens().Create(int(user.ID), token.RtUUID, token.RefreshToken, token.RtExpiresTime, "")
-
 		authLoginResponse := model.AuthLoginResponse{
-			AccessToken:         token.AccessToken,
-			RefreshToken:        token.RefreshToken,
-			TransmissionKey:     token.TransmissionKey,
 			Type:                subscriptionType,
 			UserDTO:             model.ToUserDTO(user),
 			SubscriptionAuthDTO: model.ToSubscriptionAuthDTO(subscription),
 		}
 
-		RespondWithJSON(w, 200, authLoginResponse)
+		RespondWithToken(w, http.StatusOK, cookieWithToken, authLoginResponse)
+	}
+}
+
+// RefreshToken ...
+func RefreshToken(s storage.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		// We can obtain the session token from the requests cookies, which come with every request
+		c, err := r.Cookie("passwall_token")
+		if err != nil {
+			logger.Errorf("Error getting cookie: %v", err)
+			if err == http.ErrNoCookie {
+				// If the cookie is not set, return an unauthorized status
+				logger.Errorf("Cookie is not set")
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			// For any other type of error, return a bad request status
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		// Get the JWT string from the cookie
+		tknStr := c.Value
+
+		// Initialize a new instance of `Claims`
+		claims := &app.Claims{}
+
+		// Parse the JWT string and store the result in `claims`.
+		tkn, err := jwt.ParseWithClaims(
+			tknStr,
+			claims,
+			func(token *jwt.Token) (interface{}, error) {
+				return jwtKey, nil
+			},
+		)
+		if err != nil {
+			logger.Errorf("Error parsing JWT: %v", err)
+
+			if err == jwt.ErrSignatureInvalid {
+				logger.Errorf("Error invalid token signature: %v", err)
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		if !tkn.Valid {
+			logger.Errorf("Token is invalid: %v", err)
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		// (END) The code up-till this point is the same as the auth middleware.
+
+		// Get user info
+		user, err := s.Users().FindByUUID(claims.UserUUID)
+		if err != nil {
+			RespondWithError(w, http.StatusUnauthorized, invalidUser)
+			return
+		}
+
+		// Check if user has an active subscription
+		subscriptionType := "pro"
+		subscription, err := s.Subscriptions().FindByEmail(user.Email)
+		if err != nil {
+			subscriptionType = "free"
+		}
+
+		// Refresh token with claims
+		cookieWithToken, err := app.RefreshTokenWithClaims(user, claims)
+		if err != nil {
+			logger.Errorf("Error while generating token: %v\n", err)
+			RespondWithError(w, http.StatusInternalServerError, tokenCreateErr)
+			return
+		}
+
+		authLoginResponse := model.AuthLoginResponse{
+			Type:                subscriptionType,
+			UserDTO:             model.ToUserDTO(user),
+			SubscriptionAuthDTO: model.ToSubscriptionAuthDTO(subscription),
+		}
+
+		RespondWithToken(w, http.StatusOK, cookieWithToken, authLoginResponse)
 	}
 }
 
@@ -314,77 +392,6 @@ func RecoverDelete(s storage.Store) http.HandlerFunc {
 			Message: "User deleted successfully!",
 		}
 		RespondWithJSON(w, http.StatusOK, response)
-	}
-}
-
-// RefreshToken ...
-func RefreshToken(s storage.Store) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Get token from authorization header
-		mapToken := map[string]string{}
-
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&mapToken); err != nil {
-			errs := []string{"REFRESH_TOKEN_ERROR"}
-			RespondWithErrors(w, http.StatusUnprocessableEntity, InvalidJSON, errs)
-			return
-		}
-		defer r.Body.Close()
-
-		token, err := app.TokenValid(mapToken["refresh_token"])
-
-		if err != nil {
-			if token != nil {
-				claims := token.Claims.(jwt.MapClaims)
-				userUUID := claims["user_uuid"].(string)
-				s.Tokens().DeleteByUUID(userUUID)
-			}
-			RespondWithError(w, http.StatusUnauthorized, err.Error())
-			return
-		}
-
-		claims := token.Claims.(jwt.MapClaims)
-		uuid := claims["uuid"].(string)
-
-		//Check from tokens db table
-		_, tokenExist := s.Tokens().Any(uuid)
-		if !tokenExist {
-			userUUID := claims["user_uuid"].(string)
-			s.Tokens().DeleteByUUID(userUUID)
-			RespondWithError(w, http.StatusUnauthorized, invalidToken)
-			return
-		}
-
-		// Get user info
-		userUUID := claims["user_uuid"].(string)
-		user, err := s.Users().FindByUUID(userUUID)
-		if err != nil {
-			RespondWithError(w, http.StatusUnauthorized, invalidUser)
-			return
-		}
-
-		//create token
-		newtoken, err := app.CreateToken(user)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, tokenCreateErr)
-			return
-		}
-
-		//delete tokens from db
-		s.Tokens().DeleteByUUID(userUUID)
-
-		//create tokens on db
-		s.Tokens().Create(int(user.ID), newtoken.AtUUID, newtoken.AccessToken, newtoken.AtExpiresTime, newtoken.TransmissionKey)
-		s.Tokens().Create(int(user.ID), newtoken.RtUUID, newtoken.RefreshToken, newtoken.RtExpiresTime, "")
-
-		authLoginResponse := model.AuthLoginResponse{
-			AccessToken:     newtoken.AccessToken,
-			RefreshToken:    newtoken.RefreshToken,
-			TransmissionKey: newtoken.TransmissionKey,
-			UserDTO:         model.ToUserDTO(user),
-		}
-
-		RespondWithJSON(w, 200, authLoginResponse)
 	}
 }
 

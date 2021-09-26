@@ -19,10 +19,7 @@ type AuthLoginDTO struct {
 
 //AuthLoginResponse ...
 type AuthLoginResponse struct {
-	AccessToken     string `json:"access_token"`
-	RefreshToken    string `json:"refresh_token"`
-	TransmissionKey string `json:"transmission_key"`
-	Type            string `json:"type"`
+	Type string `json:"type"`
 	*UserDTO
 	*SubscriptionAuthDTO
 }
