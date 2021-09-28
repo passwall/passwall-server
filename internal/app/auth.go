@@ -9,8 +9,8 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/passwall/passwall-server/model"
+	"github.com/passwall/passwall-server/pkg/constants"
 	"github.com/passwall/passwall-server/pkg/logger"
-	"github.com/patrickmn/go-cache"
 
 	uuid "github.com/satori/go.uuid"
 	"github.com/spf13/viper"
@@ -36,13 +36,7 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-// CreateCache
-func CreateCache(defaultExpiration, cleanupInterval time.Duration) *cache.Cache {
-	return cache.New(defaultExpiration, cleanupInterval)
-}
-
 // CreateToken generates new token with claims: user_uuid, exp, uuid, authorized
-
 func CreateToken(user *model.User) (*http.Cookie, string, error) {
 
 	transmissionKey, err := GenerateSecureKey(viper.GetInt("server.generatedPasswordLength"))
@@ -76,7 +70,7 @@ func CreateToken(user *model.User) (*http.Cookie, string, error) {
 	// Finally, we set the client cookie for "token" as the JWT we just generated
 	// we also set an expiry time which is the same as the token itself
 	return &http.Cookie{
-		Name:     "passwall_token",
+		Name:     constants.CookieName,
 		Value:    tokenString,
 		Expires:  expirationTime,
 		HttpOnly: true,
@@ -103,7 +97,7 @@ func RefreshTokenWithClaims(user *model.User, claims *Claims) (*http.Cookie, err
 	// Finally, we set the client cookie for "token" as the JWT we just generated
 	// we also set an expiry time which is the same as the token itself
 	return &http.Cookie{
-		Name:     "passwall_token",
+		Name:     constants.CookieName,
 		Value:    tokenString,
 		Expires:  expirationTime,
 		HttpOnly: true,
@@ -111,6 +105,17 @@ func RefreshTokenWithClaims(user *model.User, claims *Claims) (*http.Cookie, err
 		// TODO : add secure flag
 		// Secure:   true,
 	}, nil
+}
+
+// DeleteCookie sets defined cookie expire immediately
+func DeleteCookie(cookieName string) *http.Cookie {
+	return &http.Cookie{
+		Name:     cookieName,
+		Value:    "",
+		Expires:  time.Unix(0, 0),
+		HttpOnly: true,
+		Path:     "/",
+	}
 }
 
 func accessTokenExpTime() time.Time {
@@ -169,27 +174,3 @@ func resolveTokenExpireDuration(config string) time.Duration {
 		return time.Duration(time.Minute.Nanoseconds() * 30)
 	}
 }
-
-/* it may need us later to read access detail
-
-type AccessDetailsDTO struct {
-	UserID uint64
-}
-
-func extractTokenMetadata(r *http.Request) (*AccessDetailsDTO, error) {
-	token, err := verifyToken(r)
-	if err != nil {
-		return nil, err
-	}
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if ok && token.Valid {
-		userID, err := strconv.ParseUint(fmt.Sprintf("%.f", claims["user_id"]), 10, 64)
-		if err != nil {
-			return nil, err
-		}
-		return &AccessDetailsDTO{
-			UserID: userID,
-		}, nil
-	}
-	return nil, err
-}*/

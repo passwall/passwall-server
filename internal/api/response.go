@@ -44,7 +44,7 @@ func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 }
 
 // RespondWithToken
-func RespondWithToken(w http.ResponseWriter, code int, cookie *http.Cookie, payload interface{}) {
+func RespondWithCookie(w http.ResponseWriter, code int, cookie *http.Cookie, payload interface{}) {
 	response, _ := json.Marshal(payload)
 	w.Header().Set("Content-Type", "application/json")
 	http.SetCookie(w, cookie)

@@ -15,6 +15,7 @@ import (
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
+	"github.com/passwall/passwall-server/pkg/constants"
 	"github.com/passwall/passwall-server/pkg/logger"
 	"github.com/patrickmn/go-cache"
 	"github.com/spf13/viper"
@@ -28,6 +29,7 @@ var (
 	noToken        = "Token could not found! "
 	tokenCreateErr = "Token could not be created"
 	signupSuccess  = "User created successfully"
+	signoutSuccess = "User signed out successfully"
 	verifySuccess  = "Email verified successfully"
 	codeSuccess    = "Code created successfully"
 )
@@ -271,7 +273,20 @@ func Signin(s storage.Store) http.HandlerFunc {
 			SubscriptionAuthDTO: model.ToSubscriptionAuthDTO(subscription),
 		}
 
-		RespondWithToken(w, http.StatusOK, cookieWithToken, authLoginResponse)
+		RespondWithCookie(w, http.StatusOK, cookieWithToken, authLoginResponse)
+	}
+}
+
+func Signout() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		deletedCookie := app.DeleteCookie(constants.CookieName)
+
+		response := model.Response{
+			Code:    http.StatusOK,
+			Status:  Success,
+			Message: signoutSuccess,
+		}
+		RespondWithCookie(w, http.StatusOK, deletedCookie, response)
 	}
 }
 
@@ -355,7 +370,7 @@ func RefreshToken(s storage.Store) http.HandlerFunc {
 			SubscriptionAuthDTO: model.ToSubscriptionAuthDTO(subscription),
 		}
 
-		RespondWithToken(w, http.StatusOK, cookieWithToken, authLoginResponse)
+		RespondWithCookie(w, http.StatusOK, cookieWithToken, authLoginResponse)
 	}
 }
 

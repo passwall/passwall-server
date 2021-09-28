@@ -114,6 +114,7 @@ func (r *Router) initRoutes() {
 	authRouter.HandleFunc("/verify/{code:[0-9]+}", api.VerifyCode()).Queries("email", "{email}").Methods(http.MethodGet)
 	authRouter.HandleFunc("/signup", api.Signup(r.store)).Methods(http.MethodPost)
 	authRouter.HandleFunc("/signin", api.Signin(r.store)).Methods(http.MethodPost)
+	authRouter.HandleFunc("/signout", api.Signout()).Methods(http.MethodPost)
 	authRouter.HandleFunc("/refresh", api.RefreshToken(r.store)).Methods(http.MethodPost)
 	authRouter.HandleFunc("/check", api.CheckToken(r.store)).Methods(http.MethodPost)
 	authRouter.HandleFunc("/delete-code", api.CreateDeleteCode(r.store)).Methods(http.MethodPost)
