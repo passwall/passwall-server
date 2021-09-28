@@ -19,7 +19,8 @@ type AuthLoginDTO struct {
 
 //AuthLoginResponse ...
 type AuthLoginResponse struct {
-	Type string `json:"type"`
+	Type            string `json:"type"`
+	TransmissionKey string `json:"transmission_key"`
 	*UserDTO
 	*SubscriptionAuthDTO
 }

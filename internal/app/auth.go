@@ -43,12 +43,12 @@ func CreateCache(defaultExpiration, cleanupInterval time.Duration) *cache.Cache 
 
 // CreateToken generates new token with claims: user_uuid, exp, uuid, authorized
 
-func CreateToken(user *model.User) (*http.Cookie, error) {
+func CreateToken(user *model.User) (*http.Cookie, string, error) {
 
 	transmissionKey, err := GenerateSecureKey(viper.GetInt("server.generatedPasswordLength"))
 	if err != nil {
 		logger.Errorf("Error while generating transmission key: %v\n", err)
-		return nil, err
+		return nil, "", err
 	}
 
 	expirationTime := accessTokenExpTime()
@@ -70,7 +70,7 @@ func CreateToken(user *model.User) (*http.Cookie, error) {
 	tokenString, err := token.SignedString(jwtKey)
 	if err != nil {
 		logger.Errorf("Error while signing the access token: %v", err)
-		return nil, err
+		return nil, transmissionKey, err
 	}
 
 	// Finally, we set the client cookie for "token" as the JWT we just generated
@@ -80,9 +80,10 @@ func CreateToken(user *model.User) (*http.Cookie, error) {
 		Value:    tokenString,
 		Expires:  expirationTime,
 		HttpOnly: true,
+		Path:     "/",
 		// TODO : add secure flag
 		// Secure:   true,
-	}, nil
+	}, transmissionKey, nil
 }
 
 func RefreshTokenWithClaims(user *model.User, claims *Claims) (*http.Cookie, error) {
@@ -106,6 +107,7 @@ func RefreshTokenWithClaims(user *model.User, claims *Claims) (*http.Cookie, err
 		Value:    tokenString,
 		Expires:  expirationTime,
 		HttpOnly: true,
+		Path:     "/",
 		// TODO : add secure flag
 		// Secure:   true,
 	}, nil

@@ -257,7 +257,7 @@ func Signin(s storage.Store) http.HandlerFunc {
 		}
 
 		// Create token with http cookie
-		cookieWithToken, err := app.CreateToken(user)
+		cookieWithToken, transmissionKey, err := app.CreateToken(user)
 		if err != nil {
 			logger.Errorf("Error while generating token: %v\n", err)
 			RespondWithError(w, http.StatusInternalServerError, tokenCreateErr)
@@ -266,6 +266,7 @@ func Signin(s storage.Store) http.HandlerFunc {
 
 		authLoginResponse := model.AuthLoginResponse{
 			Type:                subscriptionType,
+			TransmissionKey:     transmissionKey,
 			UserDTO:             model.ToUserDTO(user),
 			SubscriptionAuthDTO: model.ToSubscriptionAuthDTO(subscription),
 		}
