@@ -13,9 +13,6 @@ var (
 	configuration *Configuration
 	configFileExt = ".yml"
 	configType    = "yaml"
-	appName       = "passwall-server"
-
-	storeDirectory = "./store"
 )
 
 // Configuration ...
@@ -23,7 +20,6 @@ type Configuration struct {
 	Server   ServerConfiguration
 	Database DatabaseConfiguration
 	Email    EmailConfiguration
-	Backup   BackupConfiguration
 }
 
 // ServerConfiguration is the required parameters to set up a server
@@ -60,13 +56,6 @@ type EmailConfiguration struct {
 	Password string `default:"password"`
 	From     string `default:"hello@passwall.io"`
 	Admin    string `default:"hello@passwall.io"`
-}
-
-// BackupConfiguration is the required parameters to backup
-type BackupConfiguration struct {
-	Folder   string `default:"./store/"`
-	Rotation string `default:"7"`
-	Period   string `default:"24h"`
 }
 
 // Init initializes the configuration manager
@@ -156,10 +145,6 @@ func bindEnvs() {
 	viper.BindEnv("email.fromEmail", "PW_EMAIL_FROM_EMAIL")
 	viper.BindEnv("email.fromName", "PW_EMAIL_FROM_NAME")
 	viper.BindEnv("email.apiKey", "PW_EMAIL_API_KEY")
-
-	viper.BindEnv("backup.folder", "PW_BACKUP_FOLDER")
-	viper.BindEnv("backup.rotation", "PW_BACKUP_ROTATION")
-	viper.BindEnv("backup.period", "PW_BACKUP_PERIOD")
 }
 
 func setDefaults() {
@@ -196,11 +181,6 @@ func setDefaults() {
 	viper.SetDefault("email.fromName", "Passwall")
 	viper.SetDefault("email.fromEmail", "hello@passwall.io")
 	viper.SetDefault("email.apiKey", "apiKey")
-
-	// Backup defaults
-	viper.SetDefault("backup.folder", storeDirectory)
-	viper.SetDefault("backup.rotation", 7)
-	viper.SetDefault("backup.period", "24h")
 }
 
 func generateKey() string {
