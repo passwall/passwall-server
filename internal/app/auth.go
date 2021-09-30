@@ -3,14 +3,11 @@ package app
 import (
 	"errors"
 	"fmt"
-	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/passwall/passwall-server/model"
-	"github.com/passwall/passwall-server/pkg/constants"
-	"github.com/passwall/passwall-server/pkg/logger"
 
 	uuid "github.com/satori/go.uuid"
 	"github.com/spf13/viper"
@@ -23,99 +20,58 @@ var (
 	ErrUnauthorized = errors.New("unauthorized")
 )
 
-// Create the JWT key used to create the signature
-var jwtKey = []byte(viper.GetString("server.secret"))
+//CreateToken ...
+func CreateToken(user *model.User) (*model.TokenDetailsDTO, error) {
 
-// Create a struct that will be encoded to a JWT.
-// We add jwt.StandardClaims as an embedded type, to provide fields like expiry time
-type Claims struct {
-	UUID            string `json:"uuid,omitempty"`
-	UserUUID        string `json:"user_uuid,omitempty"`
-	Authorized      bool   `json:"authorized,omitempty"`
-	TransmissionKey string `json:"transmission_key,omitempty"`
-	jwt.RegisteredClaims
-}
+	var err error
+	accessSecret := viper.GetString("server.secret")
+	td := &model.TokenDetailsDTO{}
 
-// CreateToken generates new token with claims: user_uuid, exp, uuid, authorized
-func CreateToken(user *model.User) (*http.Cookie, string, error) {
+	accessTokenExpireDuration := resolveTokenExpireDuration(viper.GetString("server.accessTokenExpireDuration"))
+	refreshTokenExpireDuration := resolveTokenExpireDuration(viper.GetString("server.refreshTokenExpireDuration"))
 
-	transmissionKey, err := GenerateSecureKey(viper.GetInt("server.generatedPasswordLength"))
-	if err != nil {
-		logger.Errorf("Error while generating transmission key: %v\n", err)
-		return nil, "", err
+	td.AtExpiresTime = time.Now().Add(accessTokenExpireDuration)
+	td.RtExpiresTime = time.Now().Add(refreshTokenExpireDuration)
+
+	td.AtUUID = uuid.NewV4()
+	td.RtUUID = uuid.NewV4()
+
+	//create access token
+	atClaims := jwt.MapClaims{}
+
+	atClaims["authorized"] = false
+	if user.Role == "Admin" {
+		atClaims["authorized"] = true
 	}
 
-	expirationTime := accessTokenExpTime()
-
-	claims := &Claims{
-		UUID:            uuid.NewV4().String(),
-		UserUUID:        user.UUID.String(),
-		Authorized:      isAuthorized(user.Role),
-		TransmissionKey: transmissionKey,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(expirationTime),
-		},
-	}
-
-	// Declare the token with the algorithm used for signing and the claims
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	// Create the JWT string
-	tokenString, err := token.SignedString(jwtKey)
+	atClaims["user_uuid"] = user.UUID.String()
+	atClaims["exp"] = td.AtExpiresTime.Unix()
+	atClaims["uuid"] = td.AtUUID.String()
+	at := jwt.NewWithClaims(jwt.SigningMethodHS256, atClaims)
+	td.AccessToken, err = at.SignedString([]byte(accessSecret))
 	if err != nil {
-		logger.Errorf("Error while signing the access token: %v", err)
-		return nil, transmissionKey, err
-	}
-
-	// Finally, we set the client cookie for "token" as the JWT we just generated
-	// we also set an expiry time which is the same as the token itself
-	return &http.Cookie{
-		Name:     constants.CookieName,
-		Value:    tokenString,
-		Expires:  expirationTime,
-		HttpOnly: true,
-		Path:     "/",
-		// TODO : add secure flag
-		// Secure:   true,
-	}, transmissionKey, nil
-}
-
-func RefreshTokenWithClaims(user *model.User, claims *Claims) (*http.Cookie, error) {
-
-	expirationTime := accessTokenExpTime()
-
-	// Declare the token with the algorithm used for signing and the claims
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	// Create the JWT string
-	tokenString, err := token.SignedString(jwtKey)
-	if err != nil {
-		logger.Errorf("Error while signing the access token: %v", err)
 		return nil, err
 	}
 
-	// Finally, we set the client cookie for "token" as the JWT we just generated
-	// we also set an expiry time which is the same as the token itself
-	return &http.Cookie{
-		Name:     constants.CookieName,
-		Value:    tokenString,
-		Expires:  expirationTime,
-		HttpOnly: true,
-		Path:     "/",
-		// TODO : add secure flag
-		// Secure:   true,
-	}, nil
-}
+	//create refresh token
+	rtClaims := jwt.MapClaims{}
+	rtClaims["user_uuid"] = user.UUID.String()
+	rtClaims["exp"] = td.RtExpiresTime.Unix()
+	rtClaims["uuid"] = td.RtUUID.String()
 
-// DeleteCookie sets defined cookie expire immediately
-func DeleteCookie(cookieName string) *http.Cookie {
-	return &http.Cookie{
-		Name:     cookieName,
-		Value:    "",
-		Expires:  time.Unix(0, 0),
-		HttpOnly: true,
-		Path:     "/",
+	rt := jwt.NewWithClaims(jwt.SigningMethodHS256, rtClaims)
+	td.RefreshToken, err = rt.SignedString([]byte(accessSecret))
+	if err != nil {
+		return nil, err
 	}
+
+	generatedPass, err := GenerateSecureKey(viper.GetInt("server.generatedPasswordLength"))
+	if err != nil {
+		return nil, err
+	}
+	td.TransmissionKey = generatedPass
+
+	return td, nil
 }
 
 func accessTokenExpTime() time.Time {

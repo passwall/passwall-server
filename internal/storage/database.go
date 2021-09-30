@@ -61,7 +61,7 @@ func DBConn(cfg *config.DatabaseConfiguration) (*gorm.DB, error) {
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s", cfg.Host, cfg.Username, cfg.Password, cfg.Name, cfg.Port, cfg.SSLMode)
 	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: newDBLogger})
 	if err != nil {
-		return nil, fmt.Errorf("could not open postgresql connection: %w", err)
+		return nil, fmt.Errorf("could not open postgresql connection: %v", err)
 	}
 
 	return db, err
