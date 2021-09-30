@@ -124,16 +124,6 @@ func ChangeMasterPassword(s storage.Store, user *model.User, newMasterPassword s
 	return updatedUser, nil
 }
 
-// ChangeMasterPassword updates the user with the new master password
-func ChangeMasterPassword(s storage.Store, user *model.User, newMasterPassword string) (*model.User, error) {
-	user.MasterPassword = NewBcrypt([]byte(newMasterPassword))
-	updatedUser, err := s.Users().Save(user)
-	if err != nil {
-		return nil, err
-	}
-	return updatedUser, nil
-}
-
 // GenerateSchema creates user schema and tables
 func GenerateSchema(s storage.Store, user *model.User) (*model.User, error) {
 	user.Schema = fmt.Sprintf("user%d", user.ID)
