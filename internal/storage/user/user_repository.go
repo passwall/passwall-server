@@ -1,11 +1,10 @@
 package user
 
 import (
-	"log"
-
-	"github.com/jinzhu/gorm"
 	"github.com/passwall/passwall-server/model"
+	"github.com/passwall/passwall-server/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 // Repository ...
@@ -91,7 +90,34 @@ func (p *Repository) FindByCredentials(email, masterPassword string) (*model.Use
 // Save ...
 func (p *Repository) Save(user *model.User) (*model.User, error) {
 	err := p.db.Save(&user).Error
-	return user, err
+	if err != nil {
+		logger.Errorf("Error saving user %v error %v", user, err)
+		return nil, err
+	}
+
+	return user, nil
+}
+
+// Update ...
+func (p *Repository) Update(user *model.User) (*model.User, error) {
+	err := p.db.Save(&user).Error
+	if err != nil {
+		logger.Errorf("Error saving user %v error %v", user, err)
+		return nil, err
+	}
+
+	return user, nil
+}
+
+// Create ...
+func (p *Repository) Create(user *model.User) (*model.User, error) {
+	err := p.db.Create(&user).Error
+	if err != nil {
+		logger.Errorf("Error saving user %v error %v", user, err)
+		return nil, err
+	}
+
+	return user, nil
 }
 
 // Delete ...
@@ -99,7 +125,7 @@ func (p *Repository) Delete(id uint, schema string) error {
 
 	err := p.db.Exec("DROP SCHEMA " + schema + " CASCADE").Error
 	if err != nil {
-		log.Println(err)
+		logger.Errorf("Error deleting schema %s error %v", schema, err)
 	}
 
 	err = p.db.Delete(&model.User{ID: id}).Error
@@ -108,7 +134,7 @@ func (p *Repository) Delete(id uint, schema string) error {
 
 // Migrate ...
 func (p *Repository) Migrate() error {
-	return p.db.AutoMigrate(&model.User{}).Error
+	return p.db.AutoMigrate(&model.User{})
 }
 
 // CreateSchema ...
@@ -117,7 +143,7 @@ func (p *Repository) CreateSchema(schema string) error {
 	if schema != "" && schema != "public" {
 		err := p.db.Exec("CREATE SCHEMA IF NOT EXISTS " + schema).Error
 		if err != nil {
-			log.Println(err)
+			logger.Errorf("Error creating schema %s error %v", schema, err)
 		}
 	}
 	return err

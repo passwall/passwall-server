@@ -6,9 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/passwall/passwall-server/model"
-	"github.com/patrickmn/go-cache"
 
 	uuid "github.com/satori/go.uuid"
 	"github.com/spf13/viper"
@@ -20,11 +19,6 @@ var (
 	//ErrUnauthorized represents message for unauthorized
 	ErrUnauthorized = errors.New("unauthorized")
 )
-
-// CreateCache
-func CreateCache(defaultExpiration, cleanupInterval time.Duration) *cache.Cache {
-	return cache.New(defaultExpiration, cleanupInterval)
-}
 
 //CreateToken ...
 func CreateToken(user *model.User) (*model.TokenDetailsDTO, error) {
@@ -80,6 +74,15 @@ func CreateToken(user *model.User) (*model.TokenDetailsDTO, error) {
 	return td, nil
 }
 
+func accessTokenExpTime() time.Time {
+	expirationDuration := resolveTokenExpireDuration(viper.GetString("server.accessTokenExpireDuration"))
+	return time.Now().Add(expirationDuration)
+}
+
+func isAuthorized(role string) bool {
+	return role == "Admin"
+}
+
 //TokenValid ...
 func TokenValid(bearerToken string) (*jwt.Token, error) {
 	token, err := verifyToken(bearerToken)
@@ -127,27 +130,3 @@ func resolveTokenExpireDuration(config string) time.Duration {
 		return time.Duration(time.Minute.Nanoseconds() * 30)
 	}
 }
-
-/* it may need us later to read access detail
-
-type AccessDetailsDTO struct {
-	UserID uint64
-}
-
-func extractTokenMetadata(r *http.Request) (*AccessDetailsDTO, error) {
-	token, err := verifyToken(r)
-	if err != nil {
-		return nil, err
-	}
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if ok && token.Valid {
-		userID, err := strconv.ParseUint(fmt.Sprintf("%.f", claims["user_id"]), 10, 64)
-		if err != nil {
-			return nil, err
-		}
-		return &AccessDetailsDTO{
-			UserID: userID,
-		}, nil
-	}
-	return nil, err
-}*/

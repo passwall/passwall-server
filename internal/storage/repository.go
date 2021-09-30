@@ -16,8 +16,10 @@ type LoginRepository interface {
 	FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.Login, error)
 	// FindByID finds the entity regarding to its ID.
 	FindByID(id uint, schema string) (*model.Login, error)
-	// Save stores the entity to the repository
-	Save(login *model.Login, schema string) (*model.Login, error)
+	// Update stores the entity to the repository
+	Update(login *model.Login, schema string) (*model.Login, error)
+	// Create stores the entity to the repository
+	Create(login *model.Login, schema string) (*model.Login, error)
 	// Delete removes the entity from the store
 	Delete(id uint, schema string) error
 	// Migrate migrates the repository
@@ -33,8 +35,10 @@ type CreditCardRepository interface {
 	FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.CreditCard, error)
 	// FindByID finds the entity regarding to its ID.
 	FindByID(id uint, schema string) (*model.CreditCard, error)
-	// Save stores the entity to the repository
-	Save(card *model.CreditCard, schema string) (*model.CreditCard, error)
+	// Update stores the entity to the repository
+	Update(card *model.CreditCard, schema string) (*model.CreditCard, error)
+	// Create stores the entity to the repository
+	Create(card *model.CreditCard, schema string) (*model.CreditCard, error)
 	// Delete removes the entity from the store
 	Delete(id uint, schema string) error
 	// Migrate migrates the repository
@@ -50,8 +54,10 @@ type BankAccountRepository interface {
 	FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.BankAccount, error)
 	// FindByID finds the entity regarding to its ID.
 	FindByID(id uint, schema string) (*model.BankAccount, error)
-	// Save stores the entity to the repository
-	Save(account *model.BankAccount, schema string) (*model.BankAccount, error)
+	// Update stores the entity to the repository
+	Update(account *model.BankAccount, schema string) (*model.BankAccount, error)
+	// Create stores the entity to the repository
+	Create(account *model.BankAccount, schema string) (*model.BankAccount, error)
 	// Delete removes the entity from the store
 	Delete(id uint, schema string) error
 	// Migrate migrates the repository
@@ -67,8 +73,10 @@ type NoteRepository interface {
 	FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.Note, error)
 	// FindByID finds the entity regarding to its ID.
 	FindByID(id uint, schema string) (*model.Note, error)
-	// Save stores the entity to the repository
-	Save(account *model.Note, schema string) (*model.Note, error)
+	// Update stores the entity to the repository
+	Update(account *model.Note, schema string) (*model.Note, error)
+	// Create stores the entity to the repository
+	Create(account *model.Note, schema string) (*model.Note, error)
 	// Delete removes the entity from the store
 	Delete(id uint, schema string) error
 	// Migrate migrates the repository
@@ -84,8 +92,10 @@ type EmailRepository interface {
 	FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.Email, error)
 	// FindByID finds the entity regarding to its ID.
 	FindByID(id uint, schema string) (*model.Email, error)
-	// Save stores the entity to the repository
-	Save(account *model.Email, schema string) (*model.Email, error)
+	// Update stores the entity to the repository
+	Update(account *model.Email, schema string) (*model.Email, error)
+	// Create stores the entity to the repository
+	Create(account *model.Email, schema string) (*model.Email, error)
 	// Delete removes the entity from the store
 	Delete(id uint, schema string) error
 	// Migrate migrates the repository
@@ -96,7 +106,7 @@ type EmailRepository interface {
 // TODO: Add explanation to functions in TokenRepository
 type TokenRepository interface {
 	Any(uuid string) (model.Token, bool)
-	Save(userid int, uuid uuid.UUID, tkn string, expriydate time.Time, transmissionKey string)
+	Create(userid int, uuid uuid.UUID, tkn string, expriydate time.Time, transmissionKey string)
 	Delete(userid int)
 	DeleteByUUID(uuid string)
 	Migrate() error
@@ -117,8 +127,10 @@ type UserRepository interface {
 	FindByEmail(email string) (*model.User, error)
 	// FindByCredentials finds the entity regarding to its Email and Master Password.
 	FindByCredentials(email, masterPassword string) (*model.User, error)
-	// Save stores the entity to the repository
-	Save(login *model.User) (*model.User, error)
+	// Update stores the entity to the repository
+	Update(login *model.User) (*model.User, error)
+	// Create stores the entity to the repository
+	Create(login *model.User) (*model.User, error)
 	// Delete removes the entity from the store
 	Delete(id uint, schema string) error
 	// Migrate migrates the repository
@@ -136,8 +148,10 @@ type ServerRepository interface {
 	FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.Server, error)
 	// FindByID finds the entity regarding to its ID.
 	FindByID(id uint, schema string) (*model.Server, error)
-	// Save stores the entity to the repository
-	Save(server *model.Server, schema string) (*model.Server, error)
+	// Update stores the entity to the repository
+	Update(server *model.Server, schema string) (*model.Server, error)
+	// Create stores the entity to the repository
+	Create(server *model.Server, schema string) (*model.Server, error)
 	// Delete removes the entity from the store
 	Delete(id uint, schema string) error
 	// Migrate migrates the repository
@@ -157,8 +171,10 @@ type SubscriptionRepository interface {
 	FindByEmail(email string) (*model.Subscription, error)
 	// FindBySubscriptionID finds the entity regarding to its Subscription ID.
 	FindBySubscriptionID(id uint) (*model.Subscription, error)
-	// Save stores the entity to the repository
-	Save(subscription *model.Subscription) (*model.Subscription, error)
+	// Update stores the entity to the repository
+	Update(subscription *model.Subscription) (*model.Subscription, error)
+	// Create stores the entity to the repository
+	Create(subscription *model.Subscription) (*model.Subscription, error)
 	// Delete removes the entity from the store
 	Delete(id uint) error
 	// Migrate migrates the repository

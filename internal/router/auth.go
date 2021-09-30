@@ -3,28 +3,22 @@ package router
 import (
 	"context"
 	"net/http"
-	"strings"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
+	"github.com/passwall/passwall-server/pkg/token"
 	"github.com/urfave/negroni"
 )
 
-//Auth verify authentication
-
+// Auth is a middleware that checks for a valid JWT token
 func Auth(s storage.Store) negroni.HandlerFunc {
 
 	return negroni.HandlerFunc(func(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 
-		var tokenstr string
-		bearerToken := r.Header.Get("Authorization")
-		strArr := strings.Split(bearerToken, " ")
-		if len(strArr) == 2 {
-			tokenstr = strArr[1]
-		}
+		tokenStr := token.Find(r)
 
-		token, err := app.TokenValid(tokenstr)
+		token, err := app.TokenValid(tokenStr)
 		if err != nil {
 			if token != nil {
 				claims, _ := token.Claims.(jwt.MapClaims)

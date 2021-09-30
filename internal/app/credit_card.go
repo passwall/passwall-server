@@ -10,7 +10,7 @@ func CreateCreditCard(s storage.Store, dto *model.CreditCardDTO, schema string) 
 	rawModel := model.ToCreditCard(dto)
 	encModel := EncryptModel(rawModel)
 
-	createdCreditCard, err := s.CreditCards().Save(encModel.(*model.CreditCard), schema)
+	createdCreditCard, err := s.CreditCards().Create(encModel.(*model.CreditCard), schema)
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +30,7 @@ func UpdateCreditCard(s storage.Store, creditCard *model.CreditCard, dto *model.
 	creditCard.VerificationNumber = encModel.VerificationNumber
 	creditCard.ExpiryDate = encModel.ExpiryDate
 
-	updatedCreditCard, err := s.CreditCards().Save(creditCard, schema)
+	updatedCreditCard, err := s.CreditCards().Update(creditCard, schema)
 	if err != nil {
 		return nil, err
 	}

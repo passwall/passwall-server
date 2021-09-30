@@ -1,8 +1,9 @@
 package creditcard
 
 import (
-	"github.com/jinzhu/gorm"
 	"github.com/passwall/passwall-server/model"
+	"github.com/passwall/passwall-server/pkg/logger"
+	"gorm.io/gorm"
 )
 
 // Repository ...
@@ -56,10 +57,25 @@ func (p *Repository) FindByID(id uint, schema string) (*model.CreditCard, error)
 	return creditCard, err
 }
 
-// Save ...
-func (p *Repository) Save(creditCard *model.CreditCard, schema string) (*model.CreditCard, error) {
+// Update ...
+func (p *Repository) Update(creditCard *model.CreditCard, schema string) (*model.CreditCard, error) {
 	err := p.db.Table(schema + ".credit_cards").Save(&creditCard).Error
-	return creditCard, err
+	if err != nil {
+		logger.Errorf("Error updating credit card %v error %v", creditCard, err)
+		return nil, err
+	}
+
+	return creditCard, nil
+}
+
+// Create ...
+func (p *Repository) Create(creditCard *model.CreditCard, schema string) (*model.CreditCard, error) {
+	err := p.db.Table(schema + ".credit_cards").Create(&creditCard).Error
+	if err != nil {
+		logger.Errorf("Error creating credit card %v error %v", creditCard, err)
+		return nil, err
+	}
+	return creditCard, nil
 }
 
 // Delete ...
@@ -70,5 +86,5 @@ func (p *Repository) Delete(id uint, schema string) error {
 
 // Migrate ...
 func (p *Repository) Migrate(schema string) error {
-	return p.db.Table(schema + ".credit_cards").AutoMigrate(&model.CreditCard{}).Error
+	return p.db.Table(schema + ".credit_cards").AutoMigrate(&model.CreditCard{})
 }

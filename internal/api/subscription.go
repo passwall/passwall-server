@@ -160,7 +160,7 @@ func CreateSubscription(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		createdSubscription, err := s.Subscriptions().Save(model.ToSubscription(&subscriptionDTO))
+		createdSubscription, err := s.Subscriptions().Create(model.ToSubscription(&subscriptionDTO))
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return

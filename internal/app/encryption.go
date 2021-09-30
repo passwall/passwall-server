@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/Luzifer/go-openssl/v4"
+	"github.com/passwall/passwall-server/pkg/logger"
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -95,38 +96,40 @@ func CreateHash(key string) string {
 }
 
 // Encrypt ..
+// TODO: Return error if encryption fails
 func Encrypt(dataStr string, passphrase string) []byte {
 	dataByte := []byte(dataStr)
 	block, _ := aes.NewCipher([]byte(CreateHash(passphrase)))
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		panic(err.Error())
+		logger.Errorf("Error while creating GCM: %s", err.Error())
 	}
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		panic(err.Error())
+		logger.Errorf("Error while creating nonce: %s", err.Error())
 	}
 	cipherByte := gcm.Seal(nonce, nonce, dataByte, nil)
 	return cipherByte
 }
 
 // Decrypt ...
+// TODO: Return error if decryption fails
 func Decrypt(dataStr string, passphrase string) []byte {
 	dataByte := []byte(dataStr)
 	key := []byte(CreateHash(passphrase))
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		panic(err.Error())
+		logger.Errorf("Error while creating cipher: %s", err.Error())
 	}
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		panic(err.Error())
+		logger.Errorf("Error while creating GCM: %s", err.Error())
 	}
 	nonceSize := gcm.NonceSize()
 	nonce, ciphertext := dataByte[:nonceSize], dataByte[nonceSize:]
 	plainByte, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		panic(err.Error())
+		logger.Errorf("Error while decrypting: %s", err.Error())
 	}
 	return plainByte
 	// return string(plainByte[:])

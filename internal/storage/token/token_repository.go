@@ -1,11 +1,12 @@
 package token
 
 import (
+	"errors"
 	"time"
 
-	"github.com/jinzhu/gorm"
 	"github.com/passwall/passwall-server/model"
 	uuid "github.com/satori/go.uuid"
+	"gorm.io/gorm"
 )
 
 // Repository ...
@@ -23,15 +24,17 @@ func (p *Repository) Any(uuid string) (model.Token, bool) {
 
 	token := model.Token{}
 
-	if !p.db.Where("uuid = ?", uuid).First(&token).RecordNotFound() {
+	// TODO: refactor this.
+	err := p.db.Where("uuid = ?", uuid).First(&token).Error
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return token, true
 	}
 
 	return token, false
 }
 
-//Save saves model to database
-func (p *Repository) Save(userid int, uid uuid.UUID, tkn string, expriydate time.Time, transmissionKey string) {
+// Create creates model to database
+func (p *Repository) Create(userid int, uid uuid.UUID, tkn string, expriydate time.Time, transmissionKey string) {
 
 	token := &model.Token{
 		UserID:          userid,
@@ -56,5 +59,5 @@ func (p *Repository) DeleteByUUID(uuid string) {
 
 // Migrate ...
 func (p *Repository) Migrate() error {
-	return p.db.AutoMigrate(&model.Token{}).Error
+	return p.db.AutoMigrate(&model.Token{})
 }

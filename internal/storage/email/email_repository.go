@@ -1,8 +1,9 @@
 package email
 
 import (
-	"github.com/jinzhu/gorm"
 	"github.com/passwall/passwall-server/model"
+	"github.com/passwall/passwall-server/pkg/logger"
+	"gorm.io/gorm"
 )
 
 // Repository ...
@@ -51,10 +52,24 @@ func (p *Repository) FindByID(id uint, schema string) (*model.Email, error) {
 	return email, err
 }
 
-// Save ...
-func (p *Repository) Save(email *model.Email, schema string) (*model.Email, error) {
+// Update ...
+func (p *Repository) Update(email *model.Email, schema string) (*model.Email, error) {
 	err := p.db.Table(schema + ".emails").Save(&email).Error
-	return email, err
+	if err != nil {
+		logger.Errorf("Error updating email %v error %v", email, err)
+		return nil, err
+	}
+	return email, nil
+}
+
+// Create ...
+func (p *Repository) Create(email *model.Email, schema string) (*model.Email, error) {
+	err := p.db.Table(schema + ".emails").Create(&email).Error
+	if err != nil {
+		logger.Errorf("Error creating email %v error %v", email, err)
+		return nil, err
+	}
+	return email, nil
 }
 
 // Delete ...
@@ -65,5 +80,5 @@ func (p *Repository) Delete(id uint, schema string) error {
 
 // Migrate ...
 func (p *Repository) Migrate(schema string) error {
-	return p.db.Table(schema + ".emails").AutoMigrate(&model.Email{}).Error
+	return p.db.Table(schema + ".emails").AutoMigrate(&model.Email{})
 }

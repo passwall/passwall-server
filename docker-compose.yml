@@ -24,6 +24,7 @@ services:
       - PW_DB_HOST=postgres
       - PW_DB_PORT=5432
       - PW_DB_LOG_MODE=false
+      - PW_DB_SSL_MODE=disable
     build:
       context: .
     depends_on:
@@ -31,4 +32,5 @@ services:
     ports:
       - 3625:3625
     volumes:
-      - $HOME/docker/volumes/passwall-server:/app/store      
+      - $HOME/docker/volumes/passwall-server/config.yml:/app/config.yml
+            

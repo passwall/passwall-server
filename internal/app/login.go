@@ -10,7 +10,7 @@ func CreateLogin(s storage.Store, dto *model.LoginDTO, schema string) (*model.Lo
 	rawLogin := model.ToLogin(dto)
 	encLogin := EncryptModel(rawLogin)
 
-	createdLogin, err := s.Logins().Save(encLogin.(*model.Login), schema)
+	createdLogin, err := s.Logins().Create(encLogin.(*model.Login), schema)
 	if err != nil {
 		return nil, err
 	}
@@ -24,7 +24,7 @@ func CreateLogins(s storage.Store, dtos []model.LoginDTO, schema string) error {
 		rawLogin := model.ToLogin(&dtos[i])
 		encLogin := EncryptModel(rawLogin)
 
-		_, err := s.Logins().Save(encLogin.(*model.Login), schema)
+		_, err := s.Logins().Create(encLogin.(*model.Login), schema)
 		if err != nil {
 			return err
 		}
@@ -44,7 +44,7 @@ func UpdateLogin(s storage.Store, login *model.Login, dto *model.LoginDTO, schem
 	login.Password = encModel.Password
 	login.Extra = encModel.Extra
 
-	updatedLogin, err := s.Logins().Save(login, schema)
+	updatedLogin, err := s.Logins().Update(login, schema)
 	if err != nil {
 		return nil, err
 	}

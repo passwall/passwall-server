@@ -1,8 +1,9 @@
 package note
 
 import (
-	"github.com/jinzhu/gorm"
 	"github.com/passwall/passwall-server/model"
+	"github.com/passwall/passwall-server/pkg/logger"
+	"gorm.io/gorm"
 )
 
 // Repository ...
@@ -52,10 +53,26 @@ func (p *Repository) FindByID(id uint, schema string) (*model.Note, error) {
 	return note, err
 }
 
-// Save ...
-func (p *Repository) Save(note *model.Note, schema string) (*model.Note, error) {
+// Update ...
+func (p *Repository) Update(note *model.Note, schema string) (*model.Note, error) {
 	err := p.db.Table(schema + ".notes").Save(&note).Error
-	return note, err
+	if err != nil {
+		logger.Errorf("Error updating note: %s", err)
+		return nil, err
+	}
+
+	return note, nil
+}
+
+// Create ...
+func (p *Repository) Create(note *model.Note, schema string) (*model.Note, error) {
+	err := p.db.Table(schema + ".notes").Create(&note).Error
+	if err != nil {
+		logger.Errorf("Error creating note: %s", err)
+		return nil, err
+	}
+
+	return note, nil
 }
 
 // Delete ...
@@ -66,5 +83,5 @@ func (p *Repository) Delete(id uint, schema string) error {
 
 // Migrate ...
 func (p *Repository) Migrate(schema string) error {
-	return p.db.Table(schema + ".notes").AutoMigrate(&model.Note{}).Error
+	return p.db.Table(schema + ".notes").AutoMigrate(&model.Note{})
 }

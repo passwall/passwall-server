@@ -1,76 +1,64 @@
 package login
 
-import (
-	"regexp"
-	"testing"
-	"time"
+// func dbSetup() (*gorm.DB, sqlmock.Sqlmock) {
+// 	db, mock, _ := sqlmock.New()
+// 	DB, _ := gorm.Open("postgres", db)
 
-	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/go-test/deep"
-	"github.com/jinzhu/gorm"
-	"github.com/passwall/passwall-server/model"
-	"github.com/stretchr/testify/assert"
-)
+// 	DB.LogMode(false)
 
-func dbSetup() (*gorm.DB, sqlmock.Sqlmock) {
-	db, mock, _ := sqlmock.New()
-	DB, _ := gorm.Open("postgres", db)
+// 	return DB, mock
+// }
 
-	DB.LogMode(false)
+// func TestAll(t *testing.T) {
 
-	return DB, mock
-}
+// 	// Create mock db
+// 	mockDB, mock := dbSetup()
 
-func TestAll(t *testing.T) {
+// 	// Initialize repository
+// 	loginRepository := NewRepository(mockDB)
 
-	// Create mock db
-	mockDB, mock := dbSetup()
+// 	const sqlSelectAll = `SELECT * FROM "user-test"."logins"  WHERE "user-test"."logins"."deleted_at" IS NULL`
+// 	mock.ExpectQuery(regexp.QuoteMeta(sqlSelectAll)).
+// 		WillReturnRows(sqlmock.NewRows(nil))
 
-	// Initialize repository
-	loginRepository := NewRepository(mockDB)
+// 	expected := []model.Login{}
+// 	loginList, err := loginRepository.All("user-test")
+// 	assert.Nil(t, err)
 
-	const sqlSelectAll = `SELECT * FROM "user-test"."logins"  WHERE "user-test"."logins"."deleted_at" IS NULL`
-	mock.ExpectQuery(regexp.QuoteMeta(sqlSelectAll)).
-		WillReturnRows(sqlmock.NewRows(nil))
+// 	assert.Nil(t, deep.Equal(expected, loginList))
+// }
 
-	expected := []model.Login{}
-	loginList, err := loginRepository.All("user-test")
-	assert.Nil(t, err)
+// func TestFindByID(t *testing.T) {
 
-	assert.Nil(t, deep.Equal(expected, loginList))
-}
+// 	// Create mock db
+// 	mockDB, mock := dbSetup()
 
-func TestFindByID(t *testing.T) {
+// 	// Initialize repository
+// 	loginRepository := NewRepository(mockDB)
 
-	// Create mock db
-	mockDB, mock := dbSetup()
+// 	login := &model.Login{
+// 		ID:        1,
+// 		CreatedAt: time.Now(),
+// 		UpdatedAt: time.Now(),
+// 		DeletedAt: nil,
+// 		Title:     "Dummy Title",
+// 		URL:       "http://dummy.com",
+// 		Username:  "dummyuser",
+// 		Password:  "dummypassword",
+// 	}
 
-	// Initialize repository
-	loginRepository := NewRepository(mockDB)
+// 	rows := sqlmock.
+// 		NewRows([]string{"id", "created_at", "updated_at", "deleted_at", "title", "url", "username", "password"}).
+// 		AddRow(login.ID, login.CreatedAt, login.UpdatedAt, login.DeletedAt, login.Title, login.URL, login.Username, login.Password)
 
-	login := &model.Login{
-		ID:        1,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-		DeletedAt: nil,
-		Title:     "Dummy Title",
-		URL:       "http://dummy.com",
-		Username:  "dummyuser",
-		Password:  "dummypassword",
-	}
+// 	const sqlSelectOne = `SELECT * FROM "user-test"."logins" WHERE "user-test"."logins"."deleted_at" IS NULL AND ((id = $1))`
 
-	rows := sqlmock.
-		NewRows([]string{"id", "created_at", "updated_at", "deleted_at", "title", "url", "username", "password"}).
-		AddRow(login.ID, login.CreatedAt, login.UpdatedAt, login.DeletedAt, login.Title, login.URL, login.Username, login.Password)
+// 	mock.ExpectQuery(regexp.QuoteMeta(sqlSelectOne)).
+// 		WithArgs(login.ID).
+// 		WillReturnRows(rows)
 
-	const sqlSelectOne = `SELECT * FROM "user-test"."logins" WHERE "user-test"."logins"."deleted_at" IS NULL AND ((id = $1))`
+// 	resultLogin, err := loginRepository.FindByID(login.ID, "user-test")
+// 	assert.Nil(t, err)
 
-	mock.ExpectQuery(regexp.QuoteMeta(sqlSelectOne)).
-		WithArgs(login.ID).
-		WillReturnRows(rows)
-
-	resultLogin, err := loginRepository.FindByID(login.ID, "user-test")
-	assert.Nil(t, err)
-
-	assert.Nil(t, deep.Equal(login, resultLogin))
-}
+// 	assert.Nil(t, deep.Equal(login, resultLogin))
+// }

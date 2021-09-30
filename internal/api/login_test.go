@@ -1,17 +1,6 @@
 package api
 
-import (
-	"context"
-	"database/sql/driver"
-	"net/http"
-	"net/http/httptest"
-	"time"
-
-	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/gorilla/mux"
-	"github.com/jinzhu/gorm"
-	"github.com/passwall/passwall-server/internal/storage"
-)
+/*
 
 func (suite *TestSuiteEnv) TestFindAllLogins() {
 
@@ -40,7 +29,7 @@ func (suite *TestSuiteEnv) TestFindAllLogins() {
 	// }
 }
 
-/* func TestFindAllLogins(t *testing.T) {
+ func TestFindAllLogins(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	// Create mock db
@@ -147,7 +136,7 @@ func (suite *TestSuiteEnv) TestFindAllLogins() {
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}
-} */
+}
 
 func dbSetup() (*gorm.DB, sqlmock.Sqlmock) {
 	db, mock, _ := sqlmock.New()
@@ -187,55 +176,55 @@ func contextMiddleware(h http.Handler) http.Handler {
 	})
 }
 
-// func TestDeleteLogin(t *testing.T) {
-// 	w := httptest.NewRecorder()
+func TestDeleteLogin(t *testing.T) {
+	w := httptest.NewRecorder()
 
-// 	// Create mock db
-// 	mockDB, mock := dbSetup()
+	// Create mock db
+	mockDB, mock := dbSetup()
 
-// 	// Initialize router
-// 	r := routersSetup(mockDB)
+	// Initialize router
+	r := routersSetup(mockDB)
 
-// 	// Generate dummy login
-// 	loginDTO := &model.LoginDTO{
-// 		ID:       1,
-// 		Title:    "Dummy Title",
-// 		URL:      "http://dummy.com",
-// 		Username: "dummyuser",
-// 		Password: "dummypassword",
-// 	}
+	// Generate dummy login
+	loginDTO := &model.LoginDTO{
+		ID:       1,
+		Title:    "Dummy Title",
+		URL:      "http://dummy.com",
+		Username: "dummyuser",
+		Password: "dummypassword",
+	}
 
-// 	encryptedPassword := "GRr4f5bWKolEVw8EjXSryNPvVLEorL3VILyYhMUkZiize6FlBvP4C1I="
+	encryptedPassword := "GRr4f5bWKolEVw8EjXSryNPvVLEorL3VILyYhMUkZiize6FlBvP4C1I="
 
-// 	// Add dummy login to dummy db table
-// 	rows := sqlmock.
-// 		NewRows([]string{"id", "created_at", "updated_at", "deleted_at", "title", "url", "username", "password"}).
-// 		AddRow(loginDTO.ID, time.Now(), time.Now(), nil, loginDTO.Title, loginDTO.URL, loginDTO.Username, encryptedPassword)
+	// Add dummy login to dummy db table
+	rows := sqlmock.
+		NewRows([]string{"id", "created_at", "updated_at", "deleted_at", "title", "url", "username", "password"}).
+		AddRow(loginDTO.ID, time.Now(), time.Now(), nil, loginDTO.Title, loginDTO.URL, loginDTO.Username, encryptedPassword)
 
-// 	// Define expected query
-// 	const sqlSelectOne = `SELECT * FROM "user-test"."logins" WHERE "user-test"."logins"."deleted_at" IS NULL AND ((id = $1))`
-// 	mock.ExpectQuery(regexp.QuoteMeta(sqlSelectOne)).
-// 		WithArgs(loginDTO.ID).
-// 		WillReturnRows(rows)
+	// Define expected query
+	const sqlSelectOne = `SELECT * FROM "user-test"."logins" WHERE "user-test"."logins"."deleted_at" IS NULL AND ((id = $1))`
+	mock.ExpectQuery(regexp.QuoteMeta(sqlSelectOne)).
+		WithArgs(loginDTO.ID).
+		WillReturnRows(rows)
 
-// 	// Define expected query
-// 	const sqlDeleteOne = `DELETE FROM "user-test"."logins" WHERE "user-test"."logins"."deleted_at" IS NULL AND ((id = $1))`
-// 	mock.ExpectBegin() // start transaction
-// 	mock.ExpectQuery(regexp.QuoteMeta(sqlDeleteOne)).
-// 		WithArgs(loginDTO.ID).
-// 		WillReturnRows(rows)
-// 	mock.ExpectCommit() // commit transaction
+	// Define expected query
+	const sqlDeleteOne = `DELETE FROM "user-test"."logins" WHERE "user-test"."logins"."deleted_at" IS NULL AND ((id = $1))`
+	mock.ExpectBegin() // start transaction
+	mock.ExpectQuery(regexp.QuoteMeta(sqlDeleteOne)).
+		WithArgs(loginDTO.ID).
+		WillReturnRows(rows)
+	mock.ExpectCommit() // commit transaction
 
-// 	// Make request
-// 	r.ServeHTTP(w, httptest.NewRequest("DELETE", "/api/logins/1", nil))
+	// Make request
+	r.ServeHTTP(w, httptest.NewRequest("DELETE", "/api/logins/1", nil))
 
-// 	// Check status code
-// 	assert.Equal(t, http.StatusOK, w.Code, "Did not get expected HTTP status code, got")
+	// Check status code
+	assert.Equal(t, http.StatusOK, w.Code, "Did not get expected HTTP status code, got")
 
-// 	fmt.Println(w.Body.String())
-// }
+	fmt.Println(w.Body.String())
+}
 
-/* func TestCreateLogin(t *testing.T) {
+func TestCreateLogin(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	// Create mock db
@@ -267,7 +256,7 @@ func contextMiddleware(h http.Handler) http.Handler {
 	req, _ := http.NewRequest("POST", "/api/logins", bytes.NewBuffer(data))
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
-} */
+}
 
 type AnyTime struct{}
 
@@ -275,3 +264,5 @@ func (a AnyTime) Match(v driver.Value) bool {
 	_, ok := v.(time.Time)
 	return ok
 }
+
+*/
