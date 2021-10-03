@@ -20,46 +20,37 @@ I promise all the coffee you have ordered will be spent on this project
     <img src="https://www.yakuter.com/wp-content/yuklemeler/passwall-screenshot.png" alt="" width="600" height="425" />
 </p>
 
-## API Documentation
-API documentation available at [Postman Public Directory](https://documenter.getpostman.com/view/3658426/SzYbyHXj)
+## On Premise Installation
+1. Pull passwall-server image from Docker Hub.
 
-PassWall has both server and client side encryption. So when creating user to work with Postman you should use already SHA256 encrypted password in JSON or use a Postman Pre-request Script to encrypt json in form. 
-
-**Postman Pre-request Script Usage**  
-While creating a user via Postman, you should send a post request to **/auth/signup** endpoint. In the request use the JSON schema below as **raw body**. Do not change **{{password}}**, it is an environment variable in Postman.
-```json
-{
-    "name": "Erhan Yakut",
-    "email": "erhan@passwall.io",
-    "master_password": "{{password}}"
-}
+```
+docker pull passwall/passwall-server
 ```
 
-Then in Pre-request Script, copy and paste the javascript code below. You should change the password in the code.
-```javascript
-var newPassword = '123456' // Change this
+2. Download the docker-compose.yml file and start the server with the following commands.
 
-pm.environment.set('password', newPassword);
+```
+mkdir $HOME/passwall-server
+```
+```
+cd $HOME/passwall-server
+```
+```
+wget https://passwall-downloads.s3.eu-central-1.amazonaws.com/docker-compose.yml
+```
+```
+docker-compose up -d
+```
 
-var encryptedPassword = CryptoJS.SHA256(pm.environment.get('password')).toString();
+3. Create a new user with passwall-cli.
+```
+docker exec -it passwall-server /app/passwall-cli
+```
 
-pm.environment.set('password',encryptedPassword);
-
-console.log(encryptedPassword);
-```  
-Click on [this link](https://www.youtube.com/watch?v=bFgstpIA3iE&list=PL645jNNONo8TBOBDFRq7SolX_aWCT2Ia9) to visit our Youtube playlist.  
-
-
-## Database support
-PassWall works with **PostgreSQL** databases. 
-
-## Configuration
-When PassWall Server starts, it automatically generates **config.yml** in the folders below:  
-**MacOS:** $HOME/Library/Application Support/passwall-server  
-**Windows:** $APPDATA/passwall-server  
-**Linux:** $HOME/.config/passwall-server  
-
-
+4. Download and install any passwall client you want from [paswall.io](https://signup.passwall.io).
+5. Open your client and write http://localhost:3625 into the server url field. Login with your newly created user information.
+## API Documentation
+API documentation available at [Postman Public Directory](https://documenter.getpostman.com/view/3658426/SzYbyHXj)
 ## Security
 1. PassWall uses The Advanced Encryption Standard (AES) encryption algorithm with Galois/Counter Mode (GCM) symmetric-key cryptographic mode. Passwords encrypted with AES can only be decrypted with the passphrase defined in the **config.yml** file.
 
@@ -90,24 +81,6 @@ These environment variables are accepted:
 - PW_DB_HOST
 - PW_DB_PORT
 - PW_DB_LOG_MODE
-
-**Backup Variables**
-- PW_BACKUP_FOLDER
-- PW_BACKUP_ROTATION
-- PW_BACKUP_PERIOD
-
-## Development usage
-Install Go to your computer. Pull the server repo. Execute the command in server folder.
-
-```
-go run ./cmd/passwall-server
-```
-
-## Docker
-
-```
-docker-compose up --build
-```
 
 ## Hello Contributors
 
