@@ -20,7 +20,7 @@ I promise all the coffee you have ordered will be spent on this project
     <img src="https://www.yakuter.com/wp-content/yuklemeler/passwall-screenshot.png" alt="" width="600" height="425" />
 </p>
 
-## On Premis Installation
+## On Premise Installation
 1. Pull passwall-server image from Docker Hub.
 
 ```
