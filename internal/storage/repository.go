@@ -103,12 +103,16 @@ type EmailRepository interface {
 }
 
 // TokenRepository ...
-// TODO: Add explanation to functions in TokenRepository
 type TokenRepository interface {
+	// Any finds the token regarding to its UUID
 	Any(uuid string) (model.Token, bool)
+	// Create stores the entity to the repository
 	Create(userid int, uuid uuid.UUID, tkn string, expriydate time.Time, transmissionKey string)
+	// Delete removes the entity regarding to its User ID
 	Delete(userid int)
+	// DeleteByUUID removes the entity regarding to its UUID
 	DeleteByUUID(uuid string)
+	// Migrate migrates the repository
 	Migrate() error
 }
 
