@@ -19,7 +19,7 @@ func NewRepository(db *gorm.DB) *Repository {
 }
 
 //Any represents any match
-func (p *Repository) Any(uuid string) (model.Token, error) {
+func (p *Repository) FindByUUID(uuid string) (model.Token, error) {
 	token := model.Token{}
 	err := p.db.Where("uuid = ?", uuid).First(&token).Error
 	return token, err

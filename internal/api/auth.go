@@ -127,8 +127,8 @@ func RefreshToken(s storage.Store) http.HandlerFunc {
 		claims := token.Claims.(jwt.MapClaims)
 		uuid := claims["uuid"].(string)
 
-		//Check from tokens db table
-		_, err = s.Tokens().Any(uuid)
+		// Get token details from db by User UUID
+		_, err = s.Tokens().FindByUUID(uuid)
 		if err != nil {
 			userUUID := claims["user_uuid"].(string)
 			s.Tokens().DeleteByUUID(userUUID)

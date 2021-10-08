@@ -46,8 +46,8 @@ func Auth(s storage.Store) negroni.HandlerFunc {
 			return
 		}
 
-		// Check token from tokens db table
-		tokenRow, err := s.Tokens().Any(uuid)
+		// Get token details from db by User UUID
+		tokenRow, err := s.Tokens().FindByUUID(uuid)
 
 		// Token invalidation for old token usage
 		if err != nil {
