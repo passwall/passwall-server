@@ -128,8 +128,8 @@ func RefreshToken(s storage.Store) http.HandlerFunc {
 		uuid := claims["uuid"].(string)
 
 		//Check from tokens db table
-		_, tokenExist := s.Tokens().Any(uuid)
-		if !tokenExist {
+		_, err = s.Tokens().Any(uuid)
+		if err != nil {
 			userUUID := claims["user_uuid"].(string)
 			s.Tokens().DeleteByUUID(userUUID)
 			RespondWithError(w, http.StatusUnauthorized, invalidToken)

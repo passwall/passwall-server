@@ -32,9 +32,6 @@ func Auth(s storage.Store) negroni.HandlerFunc {
 		claims, _ := token.Claims.(jwt.MapClaims)
 		uuid, _ := claims["uuid"].(string)
 
-		// Check token from tokens db table
-		tokenRow, tokenExist := s.Tokens().Any(uuid)
-
 		// Get User UUID from claims
 		ctxUserUUID, ok := claims["user_uuid"].(string)
 		if !ok {
@@ -49,8 +46,11 @@ func Auth(s storage.Store) negroni.HandlerFunc {
 			return
 		}
 
+		// Check token from tokens db table
+		tokenRow, err := s.Tokens().Any(uuid)
+
 		// Token invalidation for old token usage
-		if !tokenExist {
+		if err != nil {
 			s.Tokens().Delete(int(user.ID))
 			w.WriteHeader(http.StatusUnauthorized)
 			return

@@ -1,7 +1,6 @@
 package token
 
 import (
-	"errors"
 	"time"
 
 	"github.com/passwall/passwall-server/model"
@@ -20,17 +19,10 @@ func NewRepository(db *gorm.DB) *Repository {
 }
 
 //Any represents any match
-func (p *Repository) Any(uuid string) (model.Token, bool) {
-
+func (p *Repository) Any(uuid string) (model.Token, error) {
 	token := model.Token{}
-
-	// TODO: refactor this.
 	err := p.db.Where("uuid = ?", uuid).First(&token).Error
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return token, true
-	}
-
-	return token, false
+	return token, err
 }
 
 // Create creates model to database
