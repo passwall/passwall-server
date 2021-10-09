@@ -104,8 +104,8 @@ type EmailRepository interface {
 
 // TokenRepository ...
 type TokenRepository interface {
-	// Any finds the token regarding to its UUID
-	Any(uuid string) (model.Token, bool)
+	// FindByUUID finds the entity regarding to its UUID.
+	FindByUUID(uuid string) (model.Token, error)
 	// Create stores the entity to the repository
 	Create(userid int, uuid uuid.UUID, tkn string, expriydate time.Time, transmissionKey string)
 	// Delete removes the entity regarding to its User ID
