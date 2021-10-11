@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/passwall/passwall-server/pkg/logger"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -228,11 +229,15 @@ func Restore(s storage.Store) http.HandlerFunc {
 		json.Unmarshal(loginsByte, &loginDTOs)
 		schema := r.Context().Value("schema").(string)
 		for i := range loginDTOs {
+			password, err := app.Encrypt(loginDTOs[i].Password, viper.GetString("server.passphrase"))
+			if err != nil {
+				logger.Errorf("Error while encrypting: %s", err.Error())
+			}
 
 			login := &model.Login{
 				URL:      loginDTOs[i].URL,
 				Username: loginDTOs[i].Username,
-				Password: base64.StdEncoding.EncodeToString(app.Encrypt(loginDTOs[i].Password, viper.GetString("server.passphrase"))),
+				Password: base64.StdEncoding.EncodeToString(password),
 			}
 
 			s.Logins().Update(login, schema)
