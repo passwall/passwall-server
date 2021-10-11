@@ -14,10 +14,10 @@ services:
       - $HOME/docker/volumes/passwall-postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 5s
   
   passwall-server:
     container_name: passwall-server
@@ -39,4 +39,4 @@ services:
     ports:
       - 3625:3625
     volumes:
-      - $HOME/docker/volumes/passwall-server/config.yml:/app/config.yml
+      - $HOME/docker/volumes/passwall-server:/app/config

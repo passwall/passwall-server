@@ -1,7 +1,7 @@
 package constants
 
 const (
-	ConfigPath = "./"
+	ConfigPath = "./config"
 	ConfigName = "config"
 	CookieName = "passwall_token"
 )
