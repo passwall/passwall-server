@@ -40,3 +40,19 @@ services:
       - 3625:3625
     volumes:
       - $HOME/docker/volumes/passwall-server:/app/config
+  nginx:
+    image: umputun/nginx-le:v1.4.2
+    hostname: nginx
+    restart: always
+    container_name: nginx
+    volumes:
+      - ./etc/ssl:/etc/nginx/ssl
+      - ./etc/service.conf:/etc/nginx/service.conf
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - TZ=UTC
+      - LETSENCRYPT=true
+      - LE_EMAIL=ykk@theykk.com
+      - LE_FQDN=theykk.com
