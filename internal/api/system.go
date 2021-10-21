@@ -4,12 +4,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/passwall/passwall-server/pkg/logger"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/passwall/passwall-server/pkg/logger"
 
 	"github.com/gorilla/mux"
 	"github.com/passwall/passwall-server/internal/app"
@@ -169,32 +170,44 @@ func Import(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// Export exports all logins as CSV file
-/* func Export(s storage.Store) http.HandlerFunc {
+// Export exports all data as CSV file
+func Export(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Get all data from db
+		logins := getLogins(s, w, r)
+		bankAccounts := getBankAccounts(s, w, r)
+		creditCards := getCreditCards(s, w, r)
+		emails := getEmails(s, w, r)
+		notes := getNotes(s, w, r)
+		servers := getServers(s, w, r)
 
-		var loginList []model.Login
-		s.Find(&loginList)
+		// Create data array
+		var csvModels []csvModel
 
-		loginList = app.DecryptLoginPasswords(loginList)
+		// Append all data to array
+		csvModels = append(csvModels, csvModel{"Logins", logins}, csvModel{"BankAccounts", bankAccounts},
+			csvModel{"CreditCards", creditCards}, csvModel{"Emails", emails},
+			csvModel{"Notes", notes}, csvModel{"Servers", servers})
 
-		var content [][]string
-		content = append(content, []string{"URL", "Username", "Password"})
-		for i := range loginList {
-			content = append(content, []string{loginList[i].URL, loginList[i].Username, loginList[i].Password})
+		// Generate csv files from csv data
+		csvFiles, err := generateCVS(csvModels)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
 		}
 
-		b := &bytes.Buffer{} // creates IO Writer
-		csvWriter := csv.NewWriter(b)
-		strWrite := content
-		csvWriter.WriteAll(strWrite)
-		csvWriter.Flush()
+		// Generate zip file from csv files
+		zipFile, err := generateZip(csvFiles)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 
-		w.Header().Set("Content-Type", "text/csv")
-		w.Header().Set("Content-Disposition", "attachment;filename=PassWall.csv")
-		w.Write(b.Bytes())
+		w.Header().Set("Content-Type", "application/zip")
+		w.Header().Set("Content-Disposition", "attachment;filename=PassWall.zip")
+		w.Write(zipFile)
 	}
-} */
+}
 
 // Restore restores logins from backup file ./store/passwall-{BACKUP_DATE}.bak
 func Restore(s storage.Store) http.HandlerFunc {
