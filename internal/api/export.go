@@ -15,12 +15,10 @@ func getLogins(s storage.Store, w http.ResponseWriter, r *http.Request) [][]stri
 	var err error
 	var loginList []model.Login
 
-	fields := []string{"id", "created_at", "updated_at", "title"}
-	argsStr, argsInt := SetArgs(r, fields)
 	schema := r.Context().Value("schema").(string)
 
 	// Get all logins from db
-	loginList, err = s.Logins().FindAll(argsStr, argsInt, schema)
+	loginList, err = s.Logins().All(schema)
 	if err != nil {
 		RespondWithError(w, http.StatusNotFound, err.Error())
 		return nil
@@ -49,12 +47,10 @@ func getBankAccounts(s storage.Store, w http.ResponseWriter, r *http.Request) []
 	var err error
 	var bankAccountList []model.BankAccount
 
-	fields := []string{"id", "created_at", "updated_at", "bank_name", "bank_code", "account_name", "account_number", "iban", "currency"}
-	argsStr, argsInt := SetArgs(r, fields)
 	schema := r.Context().Value("schema").(string)
 
 	// Get all bank accounts from db
-	bankAccountList, err = s.BankAccounts().FindAll(argsStr, argsInt, schema)
+	bankAccountList, err = s.BankAccounts().All(schema)
 	if err != nil {
 		RespondWithError(w, http.StatusNotFound, err.Error())
 		return nil
@@ -86,12 +82,10 @@ func getCreditCards(s storage.Store, w http.ResponseWriter, r *http.Request) [][
 	var err error
 	var creditCardList []model.CreditCard
 
-	fields := []string{"id", "created_at", "updated_at", "bank_name", "bank_code", "account_name", "account_number", "iban", "currency"}
-	argsStr, argsInt := SetArgs(r, fields)
 	schema := r.Context().Value("schema").(string)
 
 	// Get all credit cards from db
-	creditCardList, err = s.CreditCards().FindAll(argsStr, argsInt, schema)
+	creditCardList, err = s.CreditCards().All(schema)
 	if err != nil {
 		RespondWithError(w, http.StatusNotFound, err.Error())
 		return nil
@@ -123,12 +117,10 @@ func getEmails(s storage.Store, w http.ResponseWriter, r *http.Request) [][]stri
 	var err error
 	var emailList []model.Email
 
-	fields := []string{"id", "created_at", "updated_at", "email"}
-	argsStr, argsInt := SetArgs(r, fields)
 	schema := r.Context().Value("schema").(string)
 
 	// Get all emails from db
-	emailList, err = s.Emails().FindAll(argsStr, argsInt, schema)
+	emailList, err = s.Emails().All(schema)
 	if err != nil {
 		RespondWithError(w, http.StatusNotFound, err.Error())
 		return nil
@@ -157,12 +149,10 @@ func getNotes(s storage.Store, w http.ResponseWriter, r *http.Request) [][]strin
 	var err error
 	var noteList []model.Note
 
-	fields := []string{"id", "created_at", "updated_at", "note"}
-	argsStr, argsInt := SetArgs(r, fields)
 	schema := r.Context().Value("schema").(string)
 
 	// Get all notes from db
-	noteList, err = s.Notes().FindAll(argsStr, argsInt, schema)
+	noteList, err = s.Notes().All(schema)
 	if err != nil {
 		RespondWithError(w, http.StatusNotFound, err.Error())
 		return nil
@@ -191,12 +181,10 @@ func getServers(s storage.Store, w http.ResponseWriter, r *http.Request) [][]str
 	var err error
 	var serverList []model.Server
 
-	fields := []string{"id", "created_at", "updated_at", "title", "ip", "url"}
-	argsStr, argsInt := SetArgs(r, fields)
 	schema := r.Context().Value("schema").(string)
 
 	// Get all servers from db
-	serverList, err = s.Servers().FindAll(argsStr, argsInt, schema)
+	serverList, err = s.Servers().All(schema)
 	if err != nil {
 		RespondWithError(w, http.StatusNotFound, err.Error())
 		return nil
