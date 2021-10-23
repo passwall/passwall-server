@@ -12,8 +12,6 @@ import (
 type LoginRepository interface {
 	// All returns all the data in the repository.
 	All(schema string) ([]model.Login, error)
-	// FindAll returns the entities matching the arguments.
-	FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.Login, error)
 	// FindByID finds the entity regarding to its ID.
 	FindByID(id uint, schema string) (*model.Login, error)
 	// Update stores the entity to the repository
@@ -31,8 +29,6 @@ type LoginRepository interface {
 type CreditCardRepository interface {
 	// All returns all the data in the repository.
 	All(schema string) ([]model.CreditCard, error)
-	// FindAll returns the entities matching the arguments.
-	FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.CreditCard, error)
 	// FindByID finds the entity regarding to its ID.
 	FindByID(id uint, schema string) (*model.CreditCard, error)
 	// Update stores the entity to the repository
@@ -50,8 +46,6 @@ type CreditCardRepository interface {
 type BankAccountRepository interface {
 	// All returns all the data in the repository.
 	All(schema string) ([]model.BankAccount, error)
-	// FindAll returns the entities matching the arguments.
-	FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.BankAccount, error)
 	// FindByID finds the entity regarding to its ID.
 	FindByID(id uint, schema string) (*model.BankAccount, error)
 	// Update stores the entity to the repository
@@ -69,8 +63,6 @@ type BankAccountRepository interface {
 type NoteRepository interface {
 	// All returns all the data in the repository.
 	All(schema string) ([]model.Note, error)
-	// FindAll returns the entities matching the arguments.
-	FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.Note, error)
 	// FindByID finds the entity regarding to its ID.
 	FindByID(id uint, schema string) (*model.Note, error)
 	// Update stores the entity to the repository
@@ -88,8 +80,6 @@ type NoteRepository interface {
 type EmailRepository interface {
 	// All returns all the data in the repository.
 	All(schema string) ([]model.Email, error)
-	// FindAll returns the entities matching the arguments.
-	FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.Email, error)
 	// FindByID finds the entity regarding to its ID.
 	FindByID(id uint, schema string) (*model.Email, error)
 	// Update stores the entity to the repository
@@ -148,8 +138,6 @@ type UserRepository interface {
 type ServerRepository interface {
 	// All returns all the data in the repository.
 	All(schema string) ([]model.Server, error)
-	// FindAll returns the entities matching the arguments.
-	FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.Server, error)
 	// FindByID finds the entity regarding to its ID.
 	FindByID(id uint, schema string) (*model.Server, error)
 	// Update stores the entity to the repository
@@ -167,8 +155,6 @@ type ServerRepository interface {
 type SubscriptionRepository interface {
 	// All returns all the data in the repository.
 	All() ([]model.Subscription, error)
-	// FindAll returns the entities matching the arguments.
-	FindAll(argsStr map[string]string, argsInt map[string]int) ([]model.Subscription, error)
 	// FindByID finds the entity regarding to its ID.
 	FindByID(id uint) (*model.Subscription, error)
 	// FindByEmail finds the entity regarding to its email.

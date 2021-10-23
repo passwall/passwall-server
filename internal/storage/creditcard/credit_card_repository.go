@@ -20,33 +20,10 @@ func NewRepository(db *gorm.DB) *Repository {
 func (p *Repository) All(schema string) ([]model.CreditCard, error) {
 	creditCards := []model.CreditCard{}
 	err := p.db.Table(schema + ".credit_cards").Find(&creditCards).Error
-	return creditCards, err
-}
-
-// FindAll ...
-func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.CreditCard, error) {
-	creditCards := []model.CreditCard{}
-
-	query := p.db
-	query = query.Table(schema + ".credit_cards")
-	query = query.Limit(argsInt["limit"])
-	if argsInt["limit"] > 0 {
-		// offset can't be declared without a valid limit
-		query = query.Offset(argsInt["offset"])
+	if err != nil {
+		logger.Errorf("Error getting all credit cards error %v", err)
+		return nil, err
 	}
-
-	query = query.Order(argsStr["order"])
-
-	if argsStr["search"] != "" {
-		query = query.Where("card_name LIKE ?", "%"+argsStr["search"]+"%")
-
-		fields := []string{"cardholder_name", "type", "number", "verification_number", "expiry_date"}
-		for i := range fields {
-			query = query.Or(fields[i]+" LIKE ?", "%"+argsStr["search"]+"%")
-		}
-	}
-
-	err := query.Find(&creditCards).Error
 	return creditCards, err
 }
 
@@ -54,6 +31,10 @@ func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int, 
 func (p *Repository) FindByID(id uint, schema string) (*model.CreditCard, error) {
 	creditCard := new(model.CreditCard)
 	err := p.db.Table(schema+".credit_cards").Where(`id = ?`, id).First(&creditCard).Error
+	if err != nil {
+		logger.Errorf("Error getting credit card by id %v error %v", id, err)
+		return nil, err
+	}
 	return creditCard, err
 }
 

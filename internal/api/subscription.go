@@ -77,10 +77,7 @@ func FindAllSubscriptions(s storage.Store) http.HandlerFunc {
 		var err error
 		var subscriptionList []model.Subscription
 
-		fields := []string{"id", "created_at", "updated_at", "title", "ip", "url"}
-		argsStr, argsInt := SetArgs(r, fields)
-
-		subscriptionList, err = s.Subscriptions().FindAll(argsStr, argsInt)
+		subscriptionList, err = s.Subscriptions().All()
 
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())

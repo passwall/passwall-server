@@ -26,12 +26,9 @@ func FindAllNotes(s storage.Store) http.HandlerFunc {
 		// Setup variables
 		transmissionKey := r.Context().Value("transmissionKey").(string)
 
-		fields := []string{"id", "created_at", "updated_at", "note"}
-		argsStr, argsInt := SetArgs(r, fields)
-
 		// Get all notes from db
 		schema := r.Context().Value("schema").(string)
-		noteList, err = s.Notes().FindAll(argsStr, argsInt, schema)
+		noteList, err = s.Notes().All(schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return

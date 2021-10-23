@@ -20,28 +20,10 @@ func NewRepository(db *gorm.DB) *Repository {
 func (p *Repository) All(schema string) ([]model.Email, error) {
 	emails := []model.Email{}
 	err := p.db.Table(schema + ".emails").Find(&emails).Error
-	return emails, err
-}
-
-// FindAll ...
-func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.Email, error) {
-	emails := []model.Email{}
-
-	query := p.db
-	query = query.Table(schema + ".emails")
-	query = query.Limit(argsInt["limit"])
-	if argsInt["limit"] > 0 {
-		// offset can't be declared without a valid limit
-		query = query.Offset(argsInt["offset"])
+	if err != nil {
+		logger.Errorf("Error getting all emails error %v", err)
+		return nil, err
 	}
-
-	query = query.Order(argsStr["order"])
-
-	if argsStr["search"] != "" {
-		query = query.Where("email LIKE ?", "%"+argsStr["search"]+"%")
-	}
-
-	err := query.Find(&emails).Error
 	return emails, err
 }
 
@@ -49,6 +31,10 @@ func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int, 
 func (p *Repository) FindByID(id uint, schema string) (*model.Email, error) {
 	email := new(model.Email)
 	err := p.db.Table(schema+".emails").Where(`id = ?`, id).First(&email).Error
+	if err != nil {
+		logger.Errorf("Error getting email by id %v error %v", id, err)
+		return nil, err
+	}
 	return email, err
 }
 

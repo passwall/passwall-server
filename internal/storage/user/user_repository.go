@@ -46,6 +46,10 @@ func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int) 
 	}
 
 	err := query.Find(&users).Error
+	if err != nil {
+		logger.Errorf("Error finding users error %v", err)
+		return nil, err
+	}
 	return users, err
 }
 
@@ -53,6 +57,10 @@ func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int) 
 func (p *Repository) FindByID(id uint) (*model.User, error) {
 	user := new(model.User)
 	err := p.db.Where(`id = ?`, id).First(&user).Error
+	if err != nil {
+		logger.Errorf("Error finding user %v error %v", user, err)
+		return nil, err
+	}
 	return user, err
 }
 

@@ -27,12 +27,9 @@ func FindAllServers(s storage.Store) http.HandlerFunc {
 		// Setup variables
 		transmissionKey := r.Context().Value("transmissionKey").(string)
 
-		fields := []string{"id", "created_at", "updated_at", "title", "ip", "url"}
-		argsStr, argsInt := SetArgs(r, fields)
-
 		// Get all servers from db
 		schema := r.Context().Value("schema").(string)
-		serverList, err = s.Servers().FindAll(argsStr, argsInt, schema)
+		serverList, err = s.Servers().All(schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return

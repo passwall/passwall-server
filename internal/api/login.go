@@ -26,12 +26,9 @@ func FindAllLogins(s storage.Store) http.HandlerFunc {
 		// Setup variables
 		transmissionKey := r.Context().Value("transmissionKey").(string)
 
-		fields := []string{"id", "created_at", "updated_at", "title"}
-		argsStr, argsInt := SetArgs(r, fields)
-
 		// Get all logins from db
 		schema := r.Context().Value("schema").(string)
-		loginList, err = s.Logins().FindAll(argsStr, argsInt, schema)
+		loginList, err = s.Logins().All(schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return

@@ -17,16 +17,13 @@ import (
 func FindAllEmails(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
-		emailList := []model.Email{}
+		var emailList []model.Email
 
 		// Setup variables
 		transmissionKey := r.Context().Value("transmissionKey").(string)
 
-		fields := []string{"id", "created_at", "updated_at", "email"}
-		argsStr, argsInt := SetArgs(r, fields)
-
 		schema := r.Context().Value("schema").(string)
-		emailList, err = s.Emails().FindAll(argsStr, argsInt, schema)
+		emailList, err = s.Emails().All(schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
