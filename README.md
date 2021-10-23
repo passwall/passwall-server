@@ -36,7 +36,7 @@ mkdir $HOME/passwall-server
 cd $HOME/passwall-server
 ```
 ```
-wget https://passwall-downloads.s3.eu-central-1.amazonaws.com/docker-compose.yml
+wget https://raw.githubusercontent.com/passwall/passwall-server/main/docker-compose.yml
 ```
 ```
 docker-compose up -d
