@@ -236,7 +236,11 @@ func Restore(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		loginsByte := app.DecryptFile(backupPath, viper.GetString("server.passphrase"))
+		loginsByte, err := app.DecryptFile(backupPath, viper.GetString("server.passphrase"))
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 
 		var loginDTOs []model.LoginDTO
 		json.Unmarshal(loginsByte, &loginDTOs)

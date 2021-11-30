@@ -114,25 +114,30 @@ func Encrypt(dataStr string, passphrase string) ([]byte, error) {
 }
 
 // Decrypt ...
-// TODO: Return error if decryption fails
-func Decrypt(dataStr string, passphrase string) []byte {
+func Decrypt(dataStr string, passphrase string) ([]byte, error) {
 	dataByte := []byte(dataStr)
 	key := []byte(CreateHash(passphrase))
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		logger.Errorf("Error while creating cipher: %s", err.Error())
+		return nil, err
+
 	}
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		logger.Errorf("Error while creating GCM: %s", err.Error())
+		return nil, err
+
 	}
 	nonceSize := gcm.NonceSize()
 	nonce, ciphertext := dataByte[:nonceSize], dataByte[nonceSize:]
 	plainByte, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
 		logger.Errorf("Error while decrypting: %s", err.Error())
+		return nil, err
+
 	}
-	return plainByte
+	return plainByte, err
 	// return string(plainByte[:])
 }
 
@@ -150,9 +155,14 @@ func EncryptFile(filename string, data []byte, passphrase string) {
 }
 
 // DecryptFile ...
-func DecryptFile(filename string, passphrase string) []byte {
+func DecryptFile(filename string, passphrase string) ([]byte, error) {
 	data, _ := ioutil.ReadFile(filename)
-	return Decrypt(string(data[:]), passphrase)
+	decrypted, err := Decrypt(string(data[:]), passphrase)
+	if err != nil {
+		logger.Errorf("Error while decrypting file: %s", err.Error())
+		return nil, err
+	}
+	return decrypted, err
 }
 
 // EncryptModel encrypts struct pointer according to struct tags
@@ -167,7 +177,7 @@ func EncryptModel(rawModel interface{}) interface{} {
 
 		if tagVal == "true" {
 			encrypted, err := Encrypt(value, viper.GetString("server.passphrase"))
-			if err!=nil{
+			if err != nil {
 				logger.Errorf("Error while encrypting: %s", err.Error())
 			}
 
@@ -193,7 +203,11 @@ func DecryptModel(rawModel interface{}) (interface{}, error) {
 
 		if tagVal == "true" {
 			valueByte, err = base64.StdEncoding.DecodeString(value)
-			value = string(Decrypt(string(valueByte[:]), viper.GetString("server.passphrase")))
+
+			var decrypted []byte
+			decrypted, err = Decrypt(string(valueByte[:]), viper.GetString("server.passphrase"))
+			value = string(decrypted)
+
 			reflect.ValueOf(rawModel).Elem().Field(i).SetString(value)
 		}
 	}
