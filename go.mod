@@ -1,6 +1,6 @@
 module github.com/passwall/passwall-server
 
-go 1.14
+go 1.17
 
 require (
 	github.com/Luzifer/go-openssl/v4 v4.1.0
