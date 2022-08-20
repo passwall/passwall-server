@@ -5,3 +5,8 @@ const (
 	ConfigName = "config"
 	CookieName = "passwall_token"
 )
+
+const (
+	EnvDev  = "dev"
+	EnvProd = "prod"
+)

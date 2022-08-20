@@ -3,7 +3,28 @@ package app
 import (
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
+	"github.com/passwall/passwall-server/pkg/logger"
 )
+
+// FindAllLogins finds all logins
+func FindAllLogins(s storage.Store, schema string) ([]model.Login, error) {
+	loginList, err := s.Logins().All(schema)
+	if err != nil {
+		return nil, err
+	}
+
+	// Decrypt server side encrypted fields
+	for i := range loginList {
+		uLogin, err := DecryptModel(&loginList[i])
+		if err != nil {
+			logger.Errorf("Error while decrypting login: %v", err)
+			continue
+		}
+		loginList[i] = *uLogin.(*model.Login)
+	}
+
+	return loginList, nil
+}
 
 // CreateLogin creates a login and saves it to the store
 func CreateLogin(s storage.Store, dto *model.LoginDTO, schema string) (*model.Login, error) {

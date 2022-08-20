@@ -48,7 +48,7 @@ func main() {
 		Handler:        router.New(s),
 	}
 
-	msg := fmt.Sprintf("Passwall Server is up and running on %s", cfg.Server.Port)
+	msg := fmt.Sprintf("Passwall Server is up and running on '%s' in '%s' mode", cfg.Server.Port, cfg.Server.Env)
 	fmt.Println(msg)
 	logger.Infof("Passwall Server is up and running on %s", cfg.Server.Port)
 	if err := srv.ListenAndServe(); err != nil {

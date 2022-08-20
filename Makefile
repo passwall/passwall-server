@@ -103,6 +103,8 @@ build: generate
 	rm -f ./passwall-server
 	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build -trimpath -tags "$(GO_BUILD_TAGS)" \
 		-ldflags "$(GO_BUILD_LDFLAGS)" -o ./passwall-server ./cmd/passwall-server
+	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build -trimpath -tags "$(GO_BUILD_TAGS)" \
+		-ldflags "$(GO_BUILD_LDFLAGS)" -o ./passwall-cli ./cmd/passwall-cli
 
 
 # We embed files in pkg/embedded package with go generate command.

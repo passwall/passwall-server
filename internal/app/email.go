@@ -3,7 +3,28 @@ package app
 import (
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
+	"github.com/passwall/passwall-server/pkg/logger"
 )
+
+// FindAllEmails finds all logins
+func FindAllEmails(s storage.Store, schema string) ([]model.Email, error) {
+	list, err := s.Emails().All(schema)
+	if err != nil {
+		return nil, err
+	}
+
+	// Decrypt server side encrypted fields
+	for i := range list {
+		m, err := DecryptModel(&list[i])
+		if err != nil {
+			logger.Errorf("Error while decrypting credit card: %v", err)
+			continue
+		}
+		list[i] = *m.(*model.Email)
+	}
+
+	return list, nil
+}
 
 // CreateEmail creates a new bank account and saves it to the store
 func CreateEmail(s storage.Store, dto *model.EmailDTO, schema string) (*model.Email, error) {

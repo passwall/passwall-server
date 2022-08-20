@@ -174,39 +174,58 @@ func Import(s storage.Store) http.HandlerFunc {
 // Export exports all data as CSV file
 func Export(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Get all data from db
-		logins := getLogins(s, w, r)
-		bankAccounts := getBankAccounts(s, w, r)
-		creditCards := getCreditCards(s, w, r)
-		emails := getEmails(s, w, r)
-		notes := getNotes(s, w, r)
-		servers := getServers(s, w, r)
 
-		// Create data array
-		var csvModels []csvModel
-
-		// Append all data to array
-		csvModels = append(csvModels, csvModel{"Logins", logins}, csvModel{"BankAccounts", bankAccounts},
-			csvModel{"CreditCards", creditCards}, csvModel{"Emails", emails},
-			csvModel{"Notes", notes}, csvModel{"Servers", servers})
-
-		// Generate csv files from csv data
-		csvFiles, err := generateCVS(csvModels)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
+		type AllModels struct {
+			Logins       []model.Login
+			BankAccounts []model.BankAccount
+			CreditCards  []model.CreditCard
+			Emails       []model.Email
+			Notes        []model.Note
+			Servers      []model.Server
 		}
 
-		// Generate zip file from csv files
-		zipFile, err := generateZip(csvFiles)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
+		var allRecords AllModels
+
+		schema := r.Context().Value("schema").(string)
+
+		if l, err := app.FindAllLogins(s, schema); err != nil {
+			logger.Errorf("Error while getting logins: %v", err)
+		} else {
+			allRecords.Logins = l
 		}
 
-		w.Header().Set("Content-Type", "application/zip")
-		w.Header().Set("Content-Disposition", "attachment;filename=PassWall.zip")
-		w.Write(zipFile)
+		if ba, err := app.FindAllBankAccounts(s, schema); err != nil {
+			logger.Errorf("Error while getting logins: %v", err)
+		} else {
+			allRecords.BankAccounts = ba
+		}
+
+		if cc, err := app.FindAllCreditCards(s, schema); err != nil {
+			logger.Errorf("Error while getting logins: %v", err)
+		} else {
+			allRecords.CreditCards = cc
+		}
+
+		if nt, err := app.FindAllNotes(s, schema); err != nil {
+			logger.Errorf("Error while getting logins: %v", err)
+		} else {
+			allRecords.Notes = nt
+		}
+
+		if sr, err := app.FindAllServers(s, schema); err != nil {
+			logger.Errorf("Error while getting logins: %v", err)
+		} else {
+			allRecords.Servers = sr
+		}
+
+		if em, err := app.FindAllEmails(s, schema); err != nil {
+			logger.Errorf("Error while getting logins: %v", err)
+		} else {
+			allRecords.Emails = em
+		}
+
+		transmissionKey := r.Context().Value("transmissionKey").(string)
+		RespondWithEncJSON(w, http.StatusOK, transmissionKey, allRecords)
 	}
 }
 

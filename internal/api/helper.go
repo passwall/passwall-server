@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/passwall/passwall-server/model"
-
 	"github.com/passwall/passwall-server/internal/app"
+	"github.com/passwall/passwall-server/model"
+	"github.com/passwall/passwall-server/pkg/constants"
 )
 
 // SetArgs ...
@@ -107,7 +107,7 @@ func ToPayload(r *http.Request) (model.Payload, error) {
 func ToBody(r *http.Request, env, transmissionKey string) error {
 
 	// Check environment
-	if env == "dev" {
+	if env == constants.EnvDev {
 		return nil
 	}
 

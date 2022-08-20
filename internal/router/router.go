@@ -96,14 +96,13 @@ func (r *Router) initRoutes() {
 
 	apiRouter.HandleFunc("/system/generate-password", api.GeneratePassword).Methods(http.MethodPost)
 	apiRouter.HandleFunc("/system/import", api.Import(r.store)).Methods(http.MethodPost)
+	apiRouter.HandleFunc("/system/export", api.Export(r.store)).Methods(http.MethodGet)
 
 	// These endpoints designed just for logins. Now we have extra types like bank accounts
 	// apiRouter.HandleFunc("/system/check-password", api.FindSamePassword(r.store)).Methods(http.MethodPost)
 	// apiRouter.HandleFunc("/system/backup", api.Backup(r.store)).Methods(http.MethodPost)
 	// apiRouter.HandleFunc("/system/backup", api.ListBackup).Methods(http.MethodGet)
 	// apiRouter.HandleFunc("/system/restore", api.Restore(r.store)).Methods(http.MethodPost)
-
-	apiRouter.HandleFunc("/system/export", api.Export(r.store)).Methods(http.MethodGet)
 
 	apiRouter.HandleFunc("/system/languages", api.Languages(r.store)).Methods(http.MethodGet)
 	apiRouter.HandleFunc("/system/languages/{lang}", api.Language(r.store)).Methods(http.MethodGet)
