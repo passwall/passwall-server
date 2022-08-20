@@ -10,14 +10,15 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/passwall/passwall-server/pkg/logger"
-
 	"github.com/gorilla/mux"
+	"github.com/spf13/viper"
+	"gopkg.in/yaml.v2"
+
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
-	"github.com/spf13/viper"
-	"gopkg.in/yaml.v2"
+	"github.com/passwall/passwall-server/pkg/buildvars"
+	"github.com/passwall/passwall-server/pkg/logger"
 )
 
 const (
@@ -48,7 +49,7 @@ func CheckUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	update := Update{
-		LatestVersion: "0.1.4",
+		LatestVersion: buildvars.Version,
 		DownloadURL:   "https://passwall.io/download/passwall-macos/",
 		ProductURL:    "https://signup.passwall.io",
 	}
