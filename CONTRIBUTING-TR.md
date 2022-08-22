@@ -89,7 +89,7 @@ Eğer daha önce hiç pull request yapmadıysanız aramıza hoşgeldiniz :tada: 
    # Klonlanan dizine gidin
    cd <repo-name>
    # Orjinal repoyu "upstream" adlı bir remote called'a atayın
-   git remote add upstream https://github.com/hoodiehq/<repo-name>
+   git remote add upstream https://github.com/passwall/<repo-name>
    ```
    
 2. Eğer daha önce fork yaptıysanız, upstream üzerinden en son değişiklikleri alın:
@@ -117,7 +117,7 @@ Eğer daha önce hiç pull request yapmadıysanız aramıza hoşgeldiniz :tada: 
 
 7. Net, anlaşılır bir başlık ve açıklama ile pull request açın. [Konu hakkında yardımcı döküman](https://help.github.com/articles/using-pull-requests/)
     
-Açık kaynak projeye nasıl katkıda bulunulabileceğini anlatan daha detaylı bir dokümana [şuradan](https://egghead.io/series/how-to-contribute-to-an-open-source-project-on-github) ulaşabilirsiniz.
+Açık kaynak projeye nasıl katkıda bulunulabileceğini anlatan daha detaylı bir dokümana [şuradan](https://app.egghead.io/playlists/how-to-contribute-to-an-open-source-project-on-github) ulaşabilirsiniz.
 
 Hata bildirimi (Bug report)
 ------------

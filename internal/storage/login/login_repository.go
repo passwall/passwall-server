@@ -20,28 +20,11 @@ func NewRepository(db *gorm.DB) *Repository {
 func (p *Repository) All(schema string) ([]model.Login, error) {
 	logins := []model.Login{}
 	err := p.db.Table(schema + ".logins").Find(&logins).Error
-	return logins, err
-}
-
-// FindAll ...
-func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.Login, error) {
-	logins := []model.Login{}
-
-	query := p.db
-	query = query.Table(schema + ".logins")
-	query = query.Limit(argsInt["limit"])
-	if argsInt["limit"] > 0 {
-		// offset can't be declared without a valid limit
-		query = query.Offset(argsInt["offset"])
+	if err != nil {
+		logger.Errorf("Error getting all logins error %v", err)
+		return nil, err
 	}
 
-	query = query.Order(argsStr["order"])
-
-	if argsStr["search"] != "" {
-		query = query.Where("url LIKE ? OR username LIKE ?", "%"+argsStr["search"]+"%", "%"+argsStr["search"]+"%")
-	}
-
-	err := query.Find(&logins).Error
 	return logins, err
 }
 
@@ -49,6 +32,10 @@ func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int, 
 func (p *Repository) FindByID(id uint, schema string) (*model.Login, error) {
 	login := new(model.Login)
 	err := p.db.Table(schema+".logins").Where(`id = ?`, id).First(&login).Error
+	if err != nil {
+		logger.Errorf("Error finding login %v error %v", id, err)
+		return nil, err
+	}
 	return login, err
 }
 

@@ -31,5 +31,3 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certifi
 COPY --from=builder /app/passwall-server /app/passwall-server
 
 COPY --from=builder /app/passwall-cli /app/passwall-cli
-
-COPY --from=builder /app/store /app/store

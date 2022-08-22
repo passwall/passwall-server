@@ -31,12 +31,9 @@ func FindAllCreditCards(s storage.Store) http.HandlerFunc {
 		// Setup variables
 		transmissionKey := r.Context().Value("transmissionKey").(string)
 
-		fields := []string{"id", "created_at", "updated_at", "bank_name", "bank_code", "account_name", "account_number", "iban", "currency"}
-		argsStr, argsInt := SetArgs(r, fields)
-
 		// Get all credit cards from db
 		schema := r.Context().Value("schema").(string)
-		creditCardList, err = s.CreditCards().FindAll(argsStr, argsInt, schema)
+		creditCardList, err = s.CreditCards().All(schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return

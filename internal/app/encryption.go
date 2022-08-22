@@ -96,42 +96,48 @@ func CreateHash(key string) string {
 }
 
 // Encrypt ..
-// TODO: Return error if encryption fails
-func Encrypt(dataStr string, passphrase string) []byte {
+func Encrypt(dataStr string, passphrase string) ([]byte, error) {
 	dataByte := []byte(dataStr)
 	block, _ := aes.NewCipher([]byte(CreateHash(passphrase)))
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		logger.Errorf("Error while creating GCM: %s", err.Error())
+		return nil, err
 	}
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
 		logger.Errorf("Error while creating nonce: %s", err.Error())
+		return nil, err
 	}
 	cipherByte := gcm.Seal(nonce, nonce, dataByte, nil)
-	return cipherByte
+	return cipherByte, err
 }
 
 // Decrypt ...
-// TODO: Return error if decryption fails
-func Decrypt(dataStr string, passphrase string) []byte {
+func Decrypt(dataStr string, passphrase string) ([]byte, error) {
 	dataByte := []byte(dataStr)
 	key := []byte(CreateHash(passphrase))
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		logger.Errorf("Error while creating cipher: %s", err.Error())
+		return nil, err
+
 	}
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		logger.Errorf("Error while creating GCM: %s", err.Error())
+		return nil, err
+
 	}
 	nonceSize := gcm.NonceSize()
 	nonce, ciphertext := dataByte[:nonceSize], dataByte[nonceSize:]
 	plainByte, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
 		logger.Errorf("Error while decrypting: %s", err.Error())
+		return nil, err
+
 	}
-	return plainByte
+	return plainByte, err
 	// return string(plainByte[:])
 }
 
@@ -139,13 +145,24 @@ func Decrypt(dataStr string, passphrase string) []byte {
 func EncryptFile(filename string, data []byte, passphrase string) {
 	f, _ := os.Create(filename)
 	defer f.Close()
-	f.Write(Encrypt(string(data[:]), passphrase))
+
+	encrypted, err := Encrypt(string(data[:]), passphrase)
+	if err != nil {
+		logger.Errorf("Error while encrypting: %s", err.Error())
+	}
+
+	f.Write(encrypted)
 }
 
 // DecryptFile ...
-func DecryptFile(filename string, passphrase string) []byte {
+func DecryptFile(filename string, passphrase string) ([]byte, error) {
 	data, _ := ioutil.ReadFile(filename)
-	return Decrypt(string(data[:]), passphrase)
+	decrypted, err := Decrypt(string(data[:]), passphrase)
+	if err != nil {
+		logger.Errorf("Error while decrypting file: %s", err.Error())
+		return nil, err
+	}
+	return decrypted, err
 }
 
 // EncryptModel encrypts struct pointer according to struct tags
@@ -159,7 +176,12 @@ func EncryptModel(rawModel interface{}) interface{} {
 		value := reflect.ValueOf(rawModel).Elem().Field(i).String()
 
 		if tagVal == "true" {
-			value = base64.StdEncoding.EncodeToString(Encrypt(value, viper.GetString("server.passphrase")))
+			encrypted, err := Encrypt(value, viper.GetString("server.passphrase"))
+			if err != nil {
+				logger.Errorf("Error while encrypting: %s", err.Error())
+			}
+
+			value = base64.StdEncoding.EncodeToString(encrypted)
 			reflect.ValueOf(rawModel).Elem().Field(i).SetString(value)
 		}
 	}
@@ -181,7 +203,11 @@ func DecryptModel(rawModel interface{}) (interface{}, error) {
 
 		if tagVal == "true" {
 			valueByte, err = base64.StdEncoding.DecodeString(value)
-			value = string(Decrypt(string(valueByte[:]), viper.GetString("server.passphrase")))
+
+			var decrypted []byte
+			decrypted, err = Decrypt(string(valueByte[:]), viper.GetString("server.passphrase"))
+			value = string(decrypted)
+
 			reflect.ValueOf(rawModel).Elem().Field(i).SetString(value)
 		}
 	}

@@ -20,29 +20,10 @@ func NewRepository(db *gorm.DB) *Repository {
 func (p *Repository) All(schema string) ([]model.Note, error) {
 	notes := []model.Note{}
 	err := p.db.Table(schema + ".notes").Find(&notes).Error
-	return notes, err
-}
-
-// FindAll ...
-func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int, schema string) ([]model.Note, error) {
-	notes := []model.Note{}
-
-	query := p.db
-	query = query.Table(schema + ".notes")
-	query = query.Limit(argsInt["limit"])
-	if argsInt["limit"] > 0 {
-		// offset can't be declared without a valid limit
-		query = query.Offset(argsInt["offset"])
+	if err != nil {
+		logger.Errorf("Error getting all notes: %s", err)
+		return nil, err
 	}
-
-	query = query.Order(argsStr["order"])
-
-	// TODO: This is not working because notes are encrypted
-	if argsStr["search"] != "" {
-		query = query.Where("note LIKE ?", "%"+argsStr["search"]+"%")
-	}
-
-	err := query.Find(&notes).Error
 	return notes, err
 }
 
@@ -50,6 +31,10 @@ func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int, 
 func (p *Repository) FindByID(id uint, schema string) (*model.Note, error) {
 	note := new(model.Note)
 	err := p.db.Table(schema+".notes").Where(`id = ?`, id).First(&note).Error
+	if err != nil {
+		logger.Errorf("Error finding note: %s", err)
+		return nil, err
+	}
 	return note, err
 }
 

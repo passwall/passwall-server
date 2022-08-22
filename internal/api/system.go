@@ -11,11 +11,14 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+	"github.com/spf13/viper"
+	"gopkg.in/yaml.v2"
+
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
-	"github.com/spf13/viper"
-	"gopkg.in/yaml.v2"
+	"github.com/passwall/passwall-server/pkg/buildvars"
+	"github.com/passwall/passwall-server/pkg/logger"
 )
 
 const (
@@ -46,7 +49,7 @@ func CheckUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	update := Update{
-		LatestVersion: "0.1.4",
+		LatestVersion: buildvars.Version,
 		DownloadURL:   "https://passwall.io/download/passwall-macos/",
 		ProductURL:    "https://signup.passwall.io",
 	}
@@ -168,32 +171,63 @@ func Import(s storage.Store) http.HandlerFunc {
 	}
 }
 
-// Export exports all logins as CSV file
-/* func Export(s storage.Store) http.HandlerFunc {
+// Export exports all data as CSV file
+func Export(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		var loginList []model.Login
-		s.Find(&loginList)
-
-		loginList = app.DecryptLoginPasswords(loginList)
-
-		var content [][]string
-		content = append(content, []string{"URL", "Username", "Password"})
-		for i := range loginList {
-			content = append(content, []string{loginList[i].URL, loginList[i].Username, loginList[i].Password})
+		type AllModels struct {
+			Logins       []model.Login
+			BankAccounts []model.BankAccount
+			CreditCards  []model.CreditCard
+			Emails       []model.Email
+			Notes        []model.Note
+			Servers      []model.Server
 		}
 
-		b := &bytes.Buffer{} // creates IO Writer
-		csvWriter := csv.NewWriter(b)
-		strWrite := content
-		csvWriter.WriteAll(strWrite)
-		csvWriter.Flush()
+		var allRecords AllModels
 
-		w.Header().Set("Content-Type", "text/csv")
-		w.Header().Set("Content-Disposition", "attachment;filename=PassWall.csv")
-		w.Write(b.Bytes())
+		schema := r.Context().Value("schema").(string)
+
+		if l, err := app.FindAllLogins(s, schema); err != nil {
+			logger.Errorf("Error while getting logins: %v", err)
+		} else {
+			allRecords.Logins = l
+		}
+
+		if ba, err := app.FindAllBankAccounts(s, schema); err != nil {
+			logger.Errorf("Error while getting logins: %v", err)
+		} else {
+			allRecords.BankAccounts = ba
+		}
+
+		if cc, err := app.FindAllCreditCards(s, schema); err != nil {
+			logger.Errorf("Error while getting logins: %v", err)
+		} else {
+			allRecords.CreditCards = cc
+		}
+
+		if nt, err := app.FindAllNotes(s, schema); err != nil {
+			logger.Errorf("Error while getting logins: %v", err)
+		} else {
+			allRecords.Notes = nt
+		}
+
+		if sr, err := app.FindAllServers(s, schema); err != nil {
+			logger.Errorf("Error while getting logins: %v", err)
+		} else {
+			allRecords.Servers = sr
+		}
+
+		if em, err := app.FindAllEmails(s, schema); err != nil {
+			logger.Errorf("Error while getting logins: %v", err)
+		} else {
+			allRecords.Emails = em
+		}
+
+		transmissionKey := r.Context().Value("transmissionKey").(string)
+		RespondWithEncJSON(w, http.StatusOK, transmissionKey, allRecords)
 	}
-} */
+}
 
 // Restore restores logins from backup file ./store/passwall-{BACKUP_DATE}.bak
 func Restore(s storage.Store) http.HandlerFunc {
@@ -222,17 +256,25 @@ func Restore(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		loginsByte := app.DecryptFile(backupPath, viper.GetString("server.passphrase"))
+		loginsByte, err := app.DecryptFile(backupPath, viper.GetString("server.passphrase"))
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 
 		var loginDTOs []model.LoginDTO
 		json.Unmarshal(loginsByte, &loginDTOs)
 		schema := r.Context().Value("schema").(string)
 		for i := range loginDTOs {
+			password, err := app.Encrypt(loginDTOs[i].Password, viper.GetString("server.passphrase"))
+			if err != nil {
+				logger.Errorf("Error while encrypting: %s", err.Error())
+			}
 
 			login := &model.Login{
 				URL:      loginDTOs[i].URL,
 				Username: loginDTOs[i].Username,
-				Password: base64.StdEncoding.EncodeToString(app.Encrypt(loginDTOs[i].Password, viper.GetString("server.passphrase"))),
+				Password: base64.StdEncoding.EncodeToString(password),
 			}
 
 			s.Logins().Update(login, schema)

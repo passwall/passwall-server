@@ -20,27 +20,10 @@ func NewRepository(db *gorm.DB) *Repository {
 func (p *Repository) All() ([]model.Subscription, error) {
 	subscriptions := []model.Subscription{}
 	err := p.db.Find(&subscriptions).Error
-	return subscriptions, err
-}
-
-// FindAll ...
-func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int) ([]model.Subscription, error) {
-	subscriptions := []model.Subscription{}
-
-	query := p.db
-	query = query.Limit(argsInt["limit"])
-	if argsInt["limit"] > 0 {
-		// offset can't be declared without a valid limit
-		query = query.Offset(argsInt["offset"])
+	if err != nil {
+		logger.Errorf("Error getting all subscriptions error %v", err)
+		return nil, err
 	}
-
-	query = query.Order(argsStr["order"])
-
-	if argsStr["search"] != "" {
-		query = query.Where("title LIKE ? OR ip LIKE ?", "%"+argsStr["search"]+"%", "%"+argsStr["search"]+"%")
-	}
-
-	err := query.Find(&subscriptions).Error
 	return subscriptions, err
 }
 
@@ -48,6 +31,10 @@ func (p *Repository) FindAll(argsStr map[string]string, argsInt map[string]int) 
 func (p *Repository) FindByID(id uint) (*model.Subscription, error) {
 	subscription := new(model.Subscription)
 	err := p.db.Where(`id = ?`, id).First(&subscription).Error
+	if err != nil {
+		logger.Errorf("Error getting subscription by id %v error %v", id, err)
+		return nil, err
+	}
 	return subscription, err
 }
 

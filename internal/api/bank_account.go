@@ -26,12 +26,9 @@ func FindAllBankAccounts(s storage.Store) http.HandlerFunc {
 		// Setup variables
 		transmissionKey := r.Context().Value("transmissionKey").(string)
 
-		fields := []string{"id", "created_at", "updated_at", "bank_name", "bank_code", "account_name", "account_number", "iban", "currency"}
-		argsStr, argsInt := SetArgs(r, fields)
-
 		// Get all bank accounts from db
 		schema := r.Context().Value("schema").(string)
-		bankAccountList, err = s.BankAccounts().FindAll(argsStr, argsInt, schema)
+		bankAccountList, err = s.BankAccounts().All(schema)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
