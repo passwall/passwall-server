@@ -31,6 +31,7 @@ func main() {
 	c := color.New(color.FgCyan)
 
 	reader := bufio.NewReader(os.Stdin)
+
 	c.Print("Enter Name Surname: ")
 	name, _ := reader.ReadString('\n')
 
