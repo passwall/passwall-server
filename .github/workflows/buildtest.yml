@@ -47,6 +47,5 @@ jobs:
           chmod +x ./passwall
           ./passwall &
 
-      - name: Run Tests
-        run: go test -v --race ./...
-
+      #- name: Run Tests
+      #  run: go test -v --race ./...
