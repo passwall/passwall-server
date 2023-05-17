@@ -1,0 +1,21 @@
+version: '3.3'
+
+services:
+  passwall-server:
+    container_name: passwall-server
+    image: passwall/passwall-server:latest
+    restart: on-failure
+    environment:
+      - PW_DB_NAME=passwall
+      - PW_DB_USERNAME=postgres
+      - PW_DB_PASSWORD=password
+      - PW_DB_HOST=postgres
+      - PW_DB_PORT=5432
+      - PW_DB_LOG_MODE=false
+      - PW_DB_SSL_MODE=disable
+    build:
+      context: .
+    ports:
+      - 3625:3625
+    volumes:
+      - $HOME/docker/volumes/passwall-server:/app/config
