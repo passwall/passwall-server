@@ -5,12 +5,11 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/gorilla/mux"
+
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
-	"github.com/spf13/viper"
-
-	"github.com/gorilla/mux"
 )
 
 const (
@@ -23,9 +22,6 @@ func FindAllServers(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		var serverList []model.Server
-
-		// Setup variables
-		transmissionKey := r.Context().Value("transmissionKey").(string)
 
 		// Get all servers from db
 		schema := r.Context().Value("schema").(string)
@@ -45,17 +41,13 @@ func FindAllServers(s storage.Store) http.HandlerFunc {
 			serverList[i] = *decServer.(*model.Server)
 		}
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, serverList)
+		RespondWithJSON(w, http.StatusOK, serverList)
 	}
 }
 
 // FindServerByID ...
 func FindServerByID(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		// Setup variables
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
 		// Check if id is integer
 		vars := mux.Vars(r)
 		id, err := strconv.Atoi(vars["id"])
@@ -81,27 +73,13 @@ func FindServerByID(s storage.Store) http.HandlerFunc {
 
 		serverDTO := model.ToServerDTO(decServer.(*model.Server))
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, serverDTO)
+		RespondWithJSON(w, http.StatusOK, serverDTO)
 	}
 }
 
 // CreateServer ...
 func CreateServer(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		// Setup variables
-		env := viper.GetString("server.env")
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
-		// Update request body according to env.
-		// If env is dev, then do nothing
-		// If env is prod, then decrypt payload with transmission key
-		if err := ToBody(r, env, transmissionKey); err != nil {
-			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
-			return
-		}
-		defer r.Body.Close()
-
 		// Unmarshal request body to serverDTO
 		var serverDTO model.ServerDTO
 		decoder := json.NewDecoder(r.Body)
@@ -128,7 +106,7 @@ func CreateServer(s storage.Store) http.HandlerFunc {
 		// Create DTO
 		createdServerDTO := model.ToServerDTO(decServer.(*model.Server))
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, createdServerDTO)
+		RespondWithJSON(w, http.StatusOK, createdServerDTO)
 	}
 }
 
@@ -141,16 +119,6 @@ func UpdateServer(s storage.Store) http.HandlerFunc {
 			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-
-		// Setup variables
-		env := viper.GetString("server.env")
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
-		if err := ToBody(r, env, transmissionKey); err != nil {
-			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
-			return
-		}
-		defer r.Body.Close()
 
 		// Unmarshal request body to serverDTO
 		var serverDTO model.ServerDTO
@@ -186,7 +154,7 @@ func UpdateServer(s storage.Store) http.HandlerFunc {
 		// Create DTO
 		updatedServerDTO := model.ToServerDTO(decServer.(*model.Server))
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, updatedServerDTO)
+		RespondWithJSON(w, http.StatusOK, updatedServerDTO)
 	}
 }
 
@@ -194,15 +162,6 @@ func UpdateServer(s storage.Store) http.HandlerFunc {
 func BulkUpdateServers(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var serverList []model.ServerDTO
-
-		// Setup variables
-		env := viper.GetString("server.env")
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-		if err := ToBody(r, env, transmissionKey); err != nil {
-			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
-			return
-		}
-		defer r.Body.Close()
 
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&serverList); err != nil {

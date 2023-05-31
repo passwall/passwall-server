@@ -5,13 +5,12 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/gorilla/mux"
+
 	"github.com/go-playground/validator/v10"
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
-	"github.com/spf13/viper"
-
-	"github.com/gorilla/mux"
 )
 
 // FindAllUsers ...
@@ -187,17 +186,7 @@ func DeleteUser(s storage.Store) http.HandlerFunc {
 // UpdateUser ...
 func ChangeMasterPassword(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		// Setup variables
-		env := viper.GetString("server.env")
-		transmissionKey := r.Context().Value("transmissionKey").(string)
 		tokenUserUUID := r.Context().Value("uuid").(string)
-
-		if err := ToBody(r, env, transmissionKey); err != nil {
-			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
-			return
-		}
-		defer r.Body.Close()
 
 		var changeMasterPasswordDTO model.ChangeMasterPasswordDTO
 		if err := json.NewDecoder(r.Body).Decode(&changeMasterPasswordDTO); err != nil {
@@ -249,17 +238,7 @@ func ChangeMasterPassword(s storage.Store) http.HandlerFunc {
 // CheckCredentials ...
 func CheckCredentials(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		// Setup variables
-		env := viper.GetString("server.env")
-		transmissionKey := r.Context().Value("transmissionKey").(string)
 		tokenUserUUID := r.Context().Value("uuid").(string)
-
-		if err := ToBody(r, env, transmissionKey); err != nil {
-			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
-			return
-		}
-		defer r.Body.Close()
 
 		var loginDTO model.AuthLoginDTO
 		if err := json.NewDecoder(r.Body).Decode(&loginDTO); err != nil {

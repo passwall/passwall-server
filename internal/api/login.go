@@ -8,7 +8,6 @@ import (
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
-	"github.com/spf13/viper"
 
 	"github.com/gorilla/mux"
 )
@@ -22,10 +21,6 @@ func FindAllLogins(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		var loginList []model.Login
-
-		// Setup variables
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
 		// Get all logins from db
 		schema := r.Context().Value("schema").(string)
 		loginList, err = s.Logins().All(schema)
@@ -44,17 +39,13 @@ func FindAllLogins(s storage.Store) http.HandlerFunc {
 			loginList[i] = *uLogin.(*model.Login)
 		}
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, loginList)
+		RespondWithJSON(w, http.StatusOK, loginList)
 	}
 }
 
 // FindLoginsByID finds a login by id
 func FindLoginsByID(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		// Setup variables
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
 		// Check if id is integer
 		vars := mux.Vars(r)
 		id, err := strconv.Atoi(vars["id"])
@@ -81,27 +72,13 @@ func FindLoginsByID(s storage.Store) http.HandlerFunc {
 		// Create DTO
 		loginDTO := model.ToLoginDTO(uLogin.(*model.Login))
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, loginDTO)
+		RespondWithJSON(w, http.StatusOK, loginDTO)
 	}
 }
 
 // CreateLogin creates a login
 func CreateLogin(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		// Setup variables
-		env := viper.GetString("server.env")
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
-		// Update request body according to env.
-		// If env is dev, then do nothing
-		// If env is prod, then decrypt payload with transmission key
-		if err := ToBody(r, env, transmissionKey); err != nil {
-			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
-			return
-		}
-		defer r.Body.Close()
-
 		// Unmarshal request body to loginDTO
 		var loginDTO model.LoginDTO
 		decoder := json.NewDecoder(r.Body)
@@ -129,7 +106,7 @@ func CreateLogin(s storage.Store) http.HandlerFunc {
 		// Create DTO
 		createdLoginDTO := model.ToLoginDTO(decLogin.(*model.Login))
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, createdLoginDTO)
+		RespondWithJSON(w, http.StatusOK, createdLoginDTO)
 	}
 }
 
@@ -142,16 +119,6 @@ func UpdateLogin(s storage.Store) http.HandlerFunc {
 			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-
-		// Setup variables
-		env := viper.GetString("server.env")
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
-		if err := ToBody(r, env, transmissionKey); err != nil {
-			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
-			return
-		}
-		defer r.Body.Close()
 
 		// Unmarshal request body to loginDTO
 		var loginDTO model.LoginDTO
@@ -187,7 +154,7 @@ func UpdateLogin(s storage.Store) http.HandlerFunc {
 		// Create DTO
 		updatedLoginDTO := model.ToLoginDTO(decLogin.(*model.Login))
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, updatedLoginDTO)
+		RespondWithJSON(w, http.StatusOK, updatedLoginDTO)
 	}
 }
 
@@ -195,16 +162,6 @@ func UpdateLogin(s storage.Store) http.HandlerFunc {
 func BulkUpdateLogins(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var loginList []model.LoginDTO
-		// var loginDTO model.LoginDTO
-
-		// Setup variables
-		env := viper.GetString("server.env")
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-		if err := ToBody(r, env, transmissionKey); err != nil {
-			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
-			return
-		}
-		defer r.Body.Close()
 
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&loginList); err != nil {

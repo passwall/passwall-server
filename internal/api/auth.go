@@ -75,13 +75,12 @@ func Signin(s storage.Store) http.HandlerFunc {
 		s.Tokens().DeleteByUUID(token.RtUUID.String())
 
 		//create tokens on db
-		s.Tokens().Create(int(user.ID), token.AtUUID, token.AccessToken, token.AtExpiresTime, token.TransmissionKey)
-		s.Tokens().Create(int(user.ID), token.RtUUID, token.RefreshToken, token.RtExpiresTime, "")
+		s.Tokens().Create(int(user.ID), token.AtUUID, token.AccessToken, token.AtExpiresTime)
+		s.Tokens().Create(int(user.ID), token.RtUUID, token.RefreshToken, token.RtExpiresTime)
 
 		authLoginResponse := model.AuthLoginResponse{
 			AccessToken:         token.AccessToken,
 			RefreshToken:        token.RefreshToken,
-			TransmissionKey:     token.TransmissionKey,
 			Type:                subscriptionType,
 			UserDTO:             model.ToUserDTO(user),
 			SubscriptionAuthDTO: model.ToSubscriptionAuthDTO(subscription),
@@ -155,14 +154,13 @@ func RefreshToken(s storage.Store) http.HandlerFunc {
 		s.Tokens().DeleteByUUID(userUUID)
 
 		//create tokens on db
-		s.Tokens().Create(int(user.ID), newtoken.AtUUID, newtoken.AccessToken, newtoken.AtExpiresTime, newtoken.TransmissionKey)
-		s.Tokens().Create(int(user.ID), newtoken.RtUUID, newtoken.RefreshToken, newtoken.RtExpiresTime, "")
+		s.Tokens().Create(int(user.ID), newtoken.AtUUID, newtoken.AccessToken, newtoken.AtExpiresTime)
+		s.Tokens().Create(int(user.ID), newtoken.RtUUID, newtoken.RefreshToken, newtoken.RtExpiresTime)
 
 		authLoginResponse := model.AuthLoginResponse{
-			AccessToken:     newtoken.AccessToken,
-			RefreshToken:    newtoken.RefreshToken,
-			TransmissionKey: newtoken.TransmissionKey,
-			UserDTO:         model.ToUserDTO(user),
+			AccessToken:  newtoken.AccessToken,
+			RefreshToken: newtoken.RefreshToken,
+			UserDTO:      model.ToUserDTO(user),
 		}
 
 		// cookie is necessary for Passwall Desktop

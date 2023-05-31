@@ -8,7 +8,6 @@ import (
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
-	"github.com/spf13/viper"
 
 	"github.com/gorilla/mux"
 )
@@ -22,10 +21,6 @@ func FindAllNotes(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		var noteList []model.Note
-
-		// Setup variables
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
 		// Get all notes from db
 		schema := r.Context().Value("schema").(string)
 		noteList, err = s.Notes().All(schema)
@@ -44,17 +39,13 @@ func FindAllNotes(s storage.Store) http.HandlerFunc {
 			noteList[i] = *uNote.(*model.Note)
 		}
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, noteList)
+		RespondWithJSON(w, http.StatusOK, noteList)
 	}
 }
 
 // FindNoteByID finds a note by id
 func FindNoteByID(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		// Setup variables
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
 		// Check if id is integer
 		vars := mux.Vars(r)
 		id, err := strconv.Atoi(vars["id"])
@@ -81,27 +72,13 @@ func FindNoteByID(s storage.Store) http.HandlerFunc {
 		// Create DTO
 		noteDTO := model.ToNoteDTO(uNote.(*model.Note))
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, noteDTO)
+		RespondWithJSON(w, http.StatusOK, noteDTO)
 	}
 }
 
 // CreateNote creates a note
 func CreateNote(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		// Setup variables
-		env := viper.GetString("server.env")
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
-		// Update request body according to env.
-		// If env is dev, then do nothing
-		// If env is prod, then decrypt payload with transmission key
-		if err := ToBody(r, env, transmissionKey); err != nil {
-			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
-			return
-		}
-		defer r.Body.Close()
-
 		// Unmarshal request body to noteDTO
 		var noteDTO model.NoteDTO
 		decoder := json.NewDecoder(r.Body)
@@ -129,7 +106,7 @@ func CreateNote(s storage.Store) http.HandlerFunc {
 		// Create DTO
 		createdNoteDTO := model.ToNoteDTO(decNote.(*model.Note))
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, createdNoteDTO)
+		RespondWithJSON(w, http.StatusOK, createdNoteDTO)
 	}
 }
 
@@ -142,16 +119,6 @@ func UpdateNote(s storage.Store) http.HandlerFunc {
 			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-
-		// Setup variables
-		env := viper.GetString("server.env")
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
-		if err := ToBody(r, env, transmissionKey); err != nil {
-			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
-			return
-		}
-		defer r.Body.Close()
 
 		// Unmarshal request body to noteDTO
 		var noteDTO model.NoteDTO
@@ -187,7 +154,7 @@ func UpdateNote(s storage.Store) http.HandlerFunc {
 		// Create DTO
 		updatedNoteDTO := model.ToNoteDTO(decNote.(*model.Note))
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, updatedNoteDTO)
+		RespondWithJSON(w, http.StatusOK, updatedNoteDTO)
 	}
 }
 
@@ -195,15 +162,6 @@ func UpdateNote(s storage.Store) http.HandlerFunc {
 func BulkUpdateNotes(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var noteList []model.NoteDTO
-
-		// Setup variables
-		env := viper.GetString("server.env")
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-		if err := ToBody(r, env, transmissionKey); err != nil {
-			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
-			return
-		}
-		defer r.Body.Close()
 
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&noteList); err != nil {

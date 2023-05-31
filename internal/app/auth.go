@@ -20,7 +20,7 @@ var (
 	ErrUnauthorized = errors.New("unauthorized")
 )
 
-//CreateToken ...
+// CreateToken ...
 func CreateToken(user *model.User) (*model.TokenDetailsDTO, error) {
 
 	var err error
@@ -65,12 +65,6 @@ func CreateToken(user *model.User) (*model.TokenDetailsDTO, error) {
 		return nil, err
 	}
 
-	generatedPass, err := GenerateSecureKey(viper.GetInt("server.generatedPasswordLength"))
-	if err != nil {
-		return nil, err
-	}
-	td.TransmissionKey = generatedPass
-
 	return td, nil
 }
 
@@ -83,7 +77,7 @@ func isAuthorized(role string) bool {
 	return role == "Admin"
 }
 
-//TokenValid ...
+// TokenValid ...
 func TokenValid(bearerToken string) (*jwt.Token, error) {
 	token, err := verifyToken(bearerToken)
 	if err != nil {
@@ -98,7 +92,7 @@ func TokenValid(bearerToken string) (*jwt.Token, error) {
 	return token, nil
 }
 
-//verifyToken verify token
+// verifyToken verify token
 func verifyToken(tokenString string) (*jwt.Token, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		//Make sure that the token method conform to "SigningMethodHMAC"

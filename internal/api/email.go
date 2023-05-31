@@ -8,7 +8,6 @@ import (
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
-	"github.com/spf13/viper"
 
 	"github.com/gorilla/mux"
 )
@@ -18,9 +17,6 @@ func FindAllEmails(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		var emailList []model.Email
-
-		// Setup variables
-		transmissionKey := r.Context().Value("transmissionKey").(string)
 
 		schema := r.Context().Value("schema").(string)
 		emailList, err = s.Emails().All(schema)
@@ -39,17 +35,13 @@ func FindAllEmails(s storage.Store) http.HandlerFunc {
 			emailList[i] = *decEmail.(*model.Email)
 		}
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, emailList)
+		RespondWithJSON(w, http.StatusOK, emailList)
 	}
 }
 
 // FindEmailByID ...
 func FindEmailByID(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		// Setup variables
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
 		// Check if id is integer
 		vars := mux.Vars(r)
 		id, err := strconv.Atoi(vars["id"])
@@ -74,27 +66,13 @@ func FindEmailByID(s storage.Store) http.HandlerFunc {
 
 		emailDTO := model.ToEmailDTO(decEmail.(*model.Email))
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, emailDTO)
+		RespondWithJSON(w, http.StatusOK, emailDTO)
 	}
 }
 
 // CreateEmail ...
 func CreateEmail(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		// Setup variables
-		env := viper.GetString("server.env")
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
-		// Update request body according to env.
-		// If env is dev, then do nothing
-		// If env is prod, then decrypt payload with transmission key
-		if err := ToBody(r, env, transmissionKey); err != nil {
-			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
-			return
-		}
-		defer r.Body.Close()
-
 		// Unmarshal request body to emailDTO
 		var emailDTO model.EmailDTO
 		decoder := json.NewDecoder(r.Body)
@@ -122,7 +100,7 @@ func CreateEmail(s storage.Store) http.HandlerFunc {
 		// Create DTO
 		createdEmailDTO := model.ToEmailDTO(decEmail.(*model.Email))
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, createdEmailDTO)
+		RespondWithJSON(w, http.StatusOK, createdEmailDTO)
 	}
 }
 
@@ -135,16 +113,6 @@ func UpdateEmail(s storage.Store) http.HandlerFunc {
 			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-
-		// Setup variables
-		env := viper.GetString("server.env")
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
-		if err := ToBody(r, env, transmissionKey); err != nil {
-			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
-			return
-		}
-		defer r.Body.Close()
 
 		// Unmarshal request body to emailDTO
 		var emailDTO model.EmailDTO
@@ -180,7 +148,7 @@ func UpdateEmail(s storage.Store) http.HandlerFunc {
 		// Create DTO
 		updatedEmailDTO := model.ToEmailDTO(decEmail.(*model.Email))
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, updatedEmailDTO)
+		RespondWithJSON(w, http.StatusOK, updatedEmailDTO)
 
 	}
 }
@@ -189,15 +157,6 @@ func UpdateEmail(s storage.Store) http.HandlerFunc {
 func BulkUpdateEmails(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var emailList []model.EmailDTO
-
-		// Setup variables
-		env := viper.GetString("server.env")
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-		if err := ToBody(r, env, transmissionKey); err != nil {
-			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
-			return
-		}
-		defer r.Body.Close()
 
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&emailList); err != nil {

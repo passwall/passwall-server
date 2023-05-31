@@ -97,7 +97,7 @@ type TokenRepository interface {
 	// FindByUUID finds the entity regarding to its UUID.
 	FindByUUID(uuid string) (model.Token, error)
 	// Create stores the entity to the repository
-	Create(userid int, uuid uuid.UUID, tkn string, expriydate time.Time, transmissionKey string)
+	Create(userid int, uuid uuid.UUID, tkn string, expriydate time.Time)
 	// Delete removes the entity regarding to its User ID
 	Delete(userid int)
 	// DeleteByUUID removes the entity regarding to its UUID

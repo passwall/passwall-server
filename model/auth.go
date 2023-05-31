@@ -11,29 +11,27 @@ type AuthEmail struct {
 	Email string `json:"email"`
 }
 
-//AuthLoginDTO ...
+// AuthLoginDTO ...
 type AuthLoginDTO struct {
 	Email          string `validate:"required" json:"email"`
 	MasterPassword string `validate:"required" json:"master_password"`
 }
 
-//AuthLoginResponse ...
+// AuthLoginResponse ...
 type AuthLoginResponse struct {
-	AccessToken     string `json:"access_token"`
-	RefreshToken    string `json:"refresh_token"`
-	TransmissionKey string `json:"transmission_key"`
-	Type            string `json:"type"`
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	Type         string `json:"type"`
 	*UserDTO
 	*SubscriptionAuthDTO
 }
 
-//TokenDetailsDTO ...
+// TokenDetailsDTO ...
 type TokenDetailsDTO struct {
-	AccessToken     string `json:"access_token"`
-	RefreshToken    string `json:"refresh_token"`
-	AtExpiresTime   time.Time
-	RtExpiresTime   time.Time
-	AtUUID          uuid.UUID
-	RtUUID          uuid.UUID
-	TransmissionKey string `json:"transmission_key"`
+	AccessToken   string `json:"access_token"`
+	RefreshToken  string `json:"refresh_token"`
+	AtExpiresTime time.Time
+	RtExpiresTime time.Time
+	AtUUID        uuid.UUID
+	RtUUID        uuid.UUID
 }

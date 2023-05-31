@@ -8,7 +8,6 @@ import (
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
-	"github.com/spf13/viper"
 
 	"github.com/gorilla/mux"
 )
@@ -28,9 +27,6 @@ func FindAllCreditCards(s storage.Store) http.HandlerFunc {
 		var err error
 		var creditCardList []model.CreditCard
 
-		// Setup variables
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
 		// Get all credit cards from db
 		schema := r.Context().Value("schema").(string)
 		creditCardList, err = s.CreditCards().All(schema)
@@ -49,16 +45,13 @@ func FindAllCreditCards(s storage.Store) http.HandlerFunc {
 			creditCardList[i] = *uCreditCard.(*model.CreditCard)
 		}
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, creditCardList)
+		RespondWithJSON(w, http.StatusOK, creditCardList)
 	}
 }
 
 // FindCreditCardByID finds a credit cart by id
 func FindCreditCardByID(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		// Setup variables
-		transmissionKey := r.Context().Value("transmissionKey").(string)
 
 		// Check if id is integer
 		vars := mux.Vars(r)
@@ -86,27 +79,13 @@ func FindCreditCardByID(s storage.Store) http.HandlerFunc {
 		// Create DTO
 		creditCardDTO := model.ToCreditCardDTO(uCreditCard.(*model.CreditCard))
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, creditCardDTO)
+		RespondWithJSON(w, http.StatusOK, creditCardDTO)
 	}
 }
 
 // CreateCreditCard creates a credit cart
 func CreateCreditCard(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		// Setup variables
-		env := viper.GetString("server.env")
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
-		// Update request body according to env.
-		// If env is dev, then do nothing
-		// If env is prod, then decrypt payload with transmission key
-		if err := ToBody(r, env, transmissionKey); err != nil {
-			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
-			return
-		}
-		defer r.Body.Close()
-
 		// Unmarshal request body to creditCardDTO
 		var creditCardDTO model.CreditCardDTO
 		decoder := json.NewDecoder(r.Body)
@@ -134,30 +113,19 @@ func CreateCreditCard(s storage.Store) http.HandlerFunc {
 		// Create DTO
 		createdCreditCardDTO := model.ToCreditCardDTO(decCreditCard.(*model.CreditCard))
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, createdCreditCardDTO)
+		RespondWithJSON(w, http.StatusOK, createdCreditCardDTO)
 	}
 }
 
 // UpdateCreditCard updates a credit cart
 func UpdateCreditCard(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		// Setup variables
-		env := viper.GetString("server.env")
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
 		vars := mux.Vars(r)
 		id, err := strconv.Atoi(vars["id"])
 		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-
-		if err := ToBody(r, env, transmissionKey); err != nil {
-			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
-			return
-		}
-		defer r.Body.Close()
 
 		// Unmarshal request body to creditCardDTO
 		var creditCardDTO model.CreditCardDTO
@@ -193,7 +161,7 @@ func UpdateCreditCard(s storage.Store) http.HandlerFunc {
 		// Create DTO
 		updatedCreditCardDTO := model.ToCreditCardDTO(decCreditCard.(*model.CreditCard))
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, updatedCreditCardDTO)
+		RespondWithJSON(w, http.StatusOK, updatedCreditCardDTO)
 	}
 }
 
@@ -201,16 +169,6 @@ func UpdateCreditCard(s storage.Store) http.HandlerFunc {
 func BulkUpdateCreditCards(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var creditCardList []model.CreditCardDTO
-
-		// Setup variables
-		env := viper.GetString("server.env")
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-		if err := ToBody(r, env, transmissionKey); err != nil {
-			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
-			return
-		}
-		defer r.Body.Close()
-
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&creditCardList); err != nil {
 			RespondWithError(w, http.StatusInternalServerError, err.Error())

@@ -224,8 +224,7 @@ func Export(s storage.Store) http.HandlerFunc {
 			allRecords.Emails = em
 		}
 
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, allRecords)
+		RespondWithJSON(w, http.StatusOK, allRecords)
 	}
 }
 

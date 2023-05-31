@@ -20,7 +20,7 @@
 
 Passwall Server, veritabanı olarak **Postgresql** kullanmaktadır. Postgresql'i hazır docker compose dosyasını kullanarak aşağıdaki komut ile ayağa kaldırıyoruz. Postgresql veritabanı bilgilerini (kullanıcı adı, parola vb.) bu dosyayı bir metin editörüyle açarak görebilir ve herhangi bir Postgresql aracıyla bu bilgileri kullanarak bağlanabilirsiniz.
 ```bash
-docker compose -f docker-compose-postgres.yml up -d
+docker compose -f docker-compose-postgres.yml up -d --remove-orphans
 ```
 
 ## Run Passwall
@@ -28,7 +28,7 @@ docker compose -f docker-compose-postgres.yml up -d
 Passwall Server'ı yine aynı reponun içindeyken aşağıdaki komut ile docker üzerinde ayağa kaldırabilirsiniz.
 
 ```bash
-docker compose -f docker-compose-passwall.yml up -d
+docker compose -f docker-compose-passwall.yml up -d --remove-orphans
 ```
 
 ## Create User

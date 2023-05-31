@@ -28,9 +28,7 @@ func Auth(s storage.Store) negroni.HandlerFunc {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-
 		claims, _ := token.Claims.(jwt.MapClaims)
-		uuid, _ := claims["uuid"].(string)
 
 		// Get User UUID from claims
 		ctxUserUUID, ok := claims["user_uuid"].(string)
@@ -45,9 +43,6 @@ func Auth(s storage.Store) negroni.HandlerFunc {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-
-		// Get token details from db by User UUID
-		tokenRow, err := s.Tokens().FindByUUID(uuid)
 
 		// Token invalidation for old token usage
 		if err != nil {
@@ -64,18 +59,15 @@ func Auth(s storage.Store) negroni.HandlerFunc {
 		}
 
 		ctxSchema := user.Schema
-		ctxTransmissionKey := tokenRow.TransmissionKey
 
 		ctx := r.Context()
 		ctxWithUUID := context.WithValue(ctx, "uuid", ctxUserUUID)
 		ctxWithAuthorized := context.WithValue(ctxWithUUID, "authorized", ctxAuthorized)
 		ctxWithSchema := context.WithValue(ctxWithAuthorized, "schema", ctxSchema)
-		ctxWithTransmissionKey := context.WithValue(ctxWithSchema, "transmissionKey", ctxTransmissionKey)
-
 		// These context variables can be accesable with
 		// ctxAuthorized := r.Context().Value("authorized").(bool)
 		// ctxID := r.Context().Value("id").(float64)
 
-		next(w, r.WithContext(ctxWithTransmissionKey))
+		next(w, r.WithContext(ctxWithSchema))
 	})
 }

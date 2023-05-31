@@ -8,7 +8,6 @@ import (
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
-	"github.com/spf13/viper"
 
 	"github.com/gorilla/mux"
 )
@@ -22,9 +21,6 @@ func FindAllBankAccounts(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		var bankAccountList []model.BankAccount
-
-		// Setup variables
-		transmissionKey := r.Context().Value("transmissionKey").(string)
 
 		// Get all bank accounts from db
 		schema := r.Context().Value("schema").(string)
@@ -44,16 +40,13 @@ func FindAllBankAccounts(s storage.Store) http.HandlerFunc {
 			bankAccountList[i] = *uBankAccount.(*model.BankAccount)
 		}
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, bankAccountList)
+		RespondWithJSON(w, http.StatusOK, bankAccountList)
 	}
 }
 
 // FindBankAccountByID finds a bank account by id
 func FindBankAccountByID(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Setup variables
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
 		// Check if id is integer
 		vars := mux.Vars(r)
 		id, err := strconv.Atoi(vars["id"])
@@ -80,26 +73,13 @@ func FindBankAccountByID(s storage.Store) http.HandlerFunc {
 		// Create DTO
 		bankAccountDTO := model.ToBankAccountDTO(uBankAccount.(*model.BankAccount))
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, bankAccountDTO)
+		RespondWithJSON(w, http.StatusOK, bankAccountDTO)
 	}
 }
 
 // CreateBankAccount creates a bank aaccount
 func CreateBankAccount(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Setup variables
-		env := viper.GetString("server.env")
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
-		// Update request body according to env.
-		// If env is dev, then do nothing
-		// If env is prod, then decrypt payload with transmission key
-		if err := ToBody(r, env, transmissionKey); err != nil {
-			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
-			return
-		}
-		defer r.Body.Close()
-
 		// Unmarshal request body to bankAccountDTO
 		var bankAccountDTO model.BankAccountDTO
 		decoder := json.NewDecoder(r.Body)
@@ -127,7 +107,7 @@ func CreateBankAccount(s storage.Store) http.HandlerFunc {
 		// Create DTO
 		createdBankAccountDTO := model.ToBankAccountDTO(decBankAccount.(*model.BankAccount))
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, createdBankAccountDTO)
+		RespondWithJSON(w, http.StatusOK, createdBankAccountDTO)
 	}
 }
 
@@ -140,16 +120,6 @@ func UpdateBankAccount(s storage.Store) http.HandlerFunc {
 			RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-
-		// Setup variables
-		env := viper.GetString("server.env")
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-
-		if err := ToBody(r, env, transmissionKey); err != nil {
-			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
-			return
-		}
-		defer r.Body.Close()
 
 		// Unmarshal request body to loginDTO
 		var bankAccountDTO model.BankAccountDTO
@@ -185,7 +155,7 @@ func UpdateBankAccount(s storage.Store) http.HandlerFunc {
 		// Create DTO
 		updatedBankAccountDTO := model.ToBankAccountDTO(decBankAccount.(*model.BankAccount))
 
-		RespondWithEncJSON(w, http.StatusOK, transmissionKey, updatedBankAccountDTO)
+		RespondWithJSON(w, http.StatusOK, updatedBankAccountDTO)
 	}
 }
 
@@ -193,15 +163,6 @@ func UpdateBankAccount(s storage.Store) http.HandlerFunc {
 func BulkUpdateBankAccounts(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var bankAccountList []model.BankAccountDTO
-
-		// Setup variables
-		env := viper.GetString("server.env")
-		transmissionKey := r.Context().Value("transmissionKey").(string)
-		if err := ToBody(r, env, transmissionKey); err != nil {
-			RespondWithError(w, http.StatusBadRequest, InvalidRequestPayload)
-			return
-		}
-		defer r.Body.Close()
 
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&bankAccountList); err != nil {

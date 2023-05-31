@@ -8,12 +8,11 @@ import (
 	"text/template"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/passwall/passwall-server/internal/app"
+
 	"github.com/passwall/passwall-server/model"
-	"github.com/spf13/viper"
 )
 
-//ErrorResponseDTO represents error resposne
+// ErrorResponseDTO represents error resposne
 type ErrorResponseDTO struct {
 	Code    int      `json:"code"`
 	Status  string   `json:"status"`
@@ -49,31 +48,6 @@ func RespondWithCookie(w http.ResponseWriter, code int, cookie *http.Cookie, pay
 	w.Header().Set("Content-Type", "application/json")
 	http.SetCookie(w, cookie)
 	w.WriteHeader(code)
-	w.Write(response)
-}
-
-// RespondWithEncJSON encrypts returning json data
-func RespondWithEncJSON(w http.ResponseWriter, code int, transmissionKey string, payload interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-
-	// Get env from config
-	env := viper.GetString("server.env")
-
-	if env == "dev" {
-		response, _ := json.Marshal(payload)
-		w.Write(response)
-		return
-	}
-
-	encrypted, err := app.EncryptJSON(transmissionKey, payload)
-	if err != nil {
-		RespondWithError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	var encPayload model.Payload
-	encPayload.Data = string(encrypted)
-	response, _ := json.Marshal(encPayload)
 	w.Write(response)
 }
 
