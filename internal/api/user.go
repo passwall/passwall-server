@@ -153,7 +153,7 @@ func UpdateUser(s storage.Store) http.HandlerFunc {
 }
 
 // UpdateUser ...
-func SetMigratedTrue(s storage.Store) http.HandlerFunc {
+func Migrate(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		// Get id and check if it is an integer
