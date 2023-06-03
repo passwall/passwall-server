@@ -152,6 +152,42 @@ func UpdateUser(s storage.Store) http.HandlerFunc {
 	}
 }
 
+// UpdateUser ...
+func SetMigratedTrue(s storage.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		// Get id and check if it is an integer
+		vars := mux.Vars(r)
+		id, err := strconv.Atoi(vars["id"])
+		if err != nil {
+			RespondWithError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		// Check if user exist in database
+		user, err := s.Users().FindByID(uint(id))
+		if err != nil {
+			RespondWithError(w, http.StatusNotFound, err.Error())
+			return
+		}
+
+		userDTO := model.ToUserDTO(user)
+		userDTO.IsMigrated = true
+
+		isAuthorized := r.Context().Value("authorized").(bool)
+
+		// Update user
+
+		updatedUser, err := app.UpdateUser(s, user, userDTO, isAuthorized)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		RespondWithJSON(w, http.StatusOK, model.ToUserDTO(updatedUser))
+	}
+}
+
 // DeleteUser ...
 func DeleteUser(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

@@ -90,6 +90,7 @@ func (r *Router) initRoutes() {
 	apiRouter.HandleFunc("/users/{id:[0-9]+}", api.FindUserByID(r.store)).Methods(http.MethodGet)
 	apiRouter.HandleFunc("/users/{id:[0-9]+}", api.UpdateUser(r.store)).Methods(http.MethodPut)
 	apiRouter.HandleFunc("/users/{id:[0-9]+}", api.DeleteUser(r.store)).Methods(http.MethodDelete)
+	apiRouter.HandleFunc("/users/{id:[0-9]+}/migrate", api.SetMigratedTrue(r.store)).Methods(http.MethodPut)
 
 	apiRouter.HandleFunc("/users/check-credentials", api.CheckCredentials(r.store)).Methods(http.MethodPost)
 	apiRouter.HandleFunc("/users/change-master-password", api.ChangeMasterPassword(r.store)).Methods(http.MethodPost)

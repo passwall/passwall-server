@@ -27,6 +27,7 @@ type User struct {
 	Role             string     `json:"role"`
 	ConfirmationCode string     `json:"confirmation_code"`
 	EmailVerifiedAt  time.Time  `json:"email_verified_at"`
+	IsMigrated       bool       `json:"is_migrated"`
 }
 
 // UserDTO DTO object for User type
@@ -40,6 +41,7 @@ type UserDTO struct {
 	Schema          string    `json:"schema"`
 	Role            string    `json:"role"`
 	EmailVerifiedAt time.Time `json:"email_verified_at"`
+	IsMigrated      bool      `json:"is_migrated"`
 }
 
 // UserSignup object for Auth Signup endpoint
@@ -80,19 +82,21 @@ func ToUser(userDTO *UserDTO) *User {
 		Schema:          userDTO.Schema,
 		Role:            userDTO.Role,
 		EmailVerifiedAt: userDTO.EmailVerifiedAt,
+		IsMigrated:      userDTO.IsMigrated,
 	}
 }
 
 // ToUserDTO ...
 func ToUserDTO(user *User) *UserDTO {
 	return &UserDTO{
-		ID:     user.ID,
-		UUID:   user.UUID,
-		Name:   user.Name,
-		Email:  user.Email,
-		Secret: user.Secret,
-		Schema: user.Schema,
-		Role:   user.Role,
+		ID:         user.ID,
+		UUID:       user.UUID,
+		Name:       user.Name,
+		Email:      user.Email,
+		Secret:     user.Secret,
+		Schema:     user.Schema,
+		Role:       user.Role,
+		IsMigrated: user.IsMigrated,
 	}
 }
 

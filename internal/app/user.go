@@ -107,6 +107,8 @@ func UpdateUser(s storage.Store, user *model.User, userDTO *model.UserDTO, isAut
 		user.Role = userDTO.Role
 	}
 
+	user.IsMigrated = userDTO.IsMigrated
+
 	updatedUser, err := s.Users().Update(user)
 	if err != nil {
 		return nil, err
