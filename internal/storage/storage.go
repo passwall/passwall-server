@@ -10,6 +10,5 @@ type Store interface {
 	Tokens() TokenRepository
 	Users() UserRepository
 	Servers() ServerRepository
-	Subscriptions() SubscriptionRepository
 	Ping() error
 }

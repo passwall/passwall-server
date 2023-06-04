@@ -57,21 +57,9 @@ func main() {
 		MasterPassword: passwordHash,
 	}
 
-	createdUser, err := app.CreateUser(s, newUser)
+	_, err = app.CreateUser(s, newUser)
 	if err != nil {
 		logger.Fatalf("app.CreateUser: %v", err)
-	}
-
-	subscription := &model.Subscription{
-		UserID: int(createdUser.ID),
-		Email:  createdUser.Email,
-		Status: "active",
-		Type:   "pro",
-	}
-
-	_, err = s.Subscriptions().Create(subscription)
-	if err != nil {
-		logger.Fatalf("s.Subscriptions().Save: %v", err)
 	}
 
 	color.Green("User created successfully.")
