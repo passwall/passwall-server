@@ -18,8 +18,7 @@ import (
 
 func main() {
 	// Set current working directory to make logger and config use the application dir
-	err := os.Chdir(filepath.Dir(appFilePath()))
-	if err != nil {
+	if err := os.Chdir(filepath.Dir(appFilePath())); err != nil {
 		logger.Fatalf("os.Chdir failed error: %v", err)
 	}
 

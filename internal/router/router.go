@@ -95,18 +95,8 @@ func (r *Router) initRoutes() {
 	apiRouter.HandleFunc("/users/check-credentials", api.CheckCredentials(r.store)).Methods(http.MethodPost)
 	apiRouter.HandleFunc("/users/change-master-password", api.ChangeMasterPassword(r.store)).Methods(http.MethodPost)
 
-	apiRouter.HandleFunc("/system/generate-password", api.GeneratePassword).Methods(http.MethodPost)
 	apiRouter.HandleFunc("/system/import", api.Import(r.store)).Methods(http.MethodPost)
 	apiRouter.HandleFunc("/system/export", api.Export(r.store)).Methods(http.MethodGet)
-
-	// These endpoints designed just for logins. Now we have extra types like bank accounts
-	// apiRouter.HandleFunc("/system/check-password", api.FindSamePassword(r.store)).Methods(http.MethodPost)
-	// apiRouter.HandleFunc("/system/backup", api.Backup(r.store)).Methods(http.MethodPost)
-	// apiRouter.HandleFunc("/system/backup", api.ListBackup).Methods(http.MethodGet)
-	// apiRouter.HandleFunc("/system/restore", api.Restore(r.store)).Methods(http.MethodPost)
-
-	apiRouter.HandleFunc("/system/languages", api.Languages(r.store)).Methods(http.MethodGet)
-	apiRouter.HandleFunc("/system/languages/{lang}", api.Language(r.store)).Methods(http.MethodGet)
 
 	// Auth endpoints
 	authRouter := mux.NewRouter().PathPrefix("/auth").Subrouter()
@@ -123,9 +113,6 @@ func (r *Router) initRoutes() {
 	// Check Updated
 	webRouter := mux.NewRouter().PathPrefix("/web").Subrouter()
 	webRouter.HandleFunc("/check-update/{product:[0-9]+}", api.CheckUpdate).Methods(http.MethodGet)
-
-	// Subscription endpoints under web
-	webRouter.HandleFunc("/subscriptions", api.PostSubscription(r.store)).Methods(http.MethodPost)
 
 	n := negroni.Classic()
 	n.Use(negroni.HandlerFunc(CORS))
@@ -148,6 +135,4 @@ func (r *Router) initRoutes() {
 
 	// Insecure endpoints
 	r.router.HandleFunc("/health", api.HealthCheck(r.store)).Methods(http.MethodGet)
-	// r.router.HandleFunc("/check-update/{product:[0-9]+}", api.CheckUpdate).Methods(http.MethodGet)
-
 }

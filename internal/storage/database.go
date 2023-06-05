@@ -14,7 +14,6 @@ import (
 	"github.com/passwall/passwall-server/internal/storage/login"
 	"github.com/passwall/passwall-server/internal/storage/note"
 	"github.com/passwall/passwall-server/internal/storage/server"
-	"github.com/passwall/passwall-server/internal/storage/subscription"
 	"github.com/passwall/passwall-server/internal/storage/token"
 	"github.com/passwall/passwall-server/internal/storage/user"
 	"github.com/spf13/viper"
@@ -25,19 +24,18 @@ import (
 
 // Database is the concrete store provider.
 type Database struct {
-	db            *gorm.DB
-	logins        LoginRepository
-	cards         CreditCardRepository
-	accounts      BankAccountRepository
-	notes         NoteRepository
-	emails        EmailRepository
-	tokens        TokenRepository
-	users         UserRepository
-	servers       ServerRepository
-	subscriptions SubscriptionRepository
+	db       *gorm.DB
+	logins   LoginRepository
+	cards    CreditCardRepository
+	accounts BankAccountRepository
+	notes    NoteRepository
+	emails   EmailRepository
+	tokens   TokenRepository
+	users    UserRepository
+	servers  ServerRepository
 }
 
-//DBConn databese connection
+// DBConn databese connection
 func DBConn(cfg *config.DatabaseConfiguration) (*gorm.DB, error) {
 	var db *gorm.DB
 	var err error
@@ -70,16 +68,15 @@ func DBConn(cfg *config.DatabaseConfiguration) (*gorm.DB, error) {
 // New opens a database according to configuration.
 func New(db *gorm.DB) *Database {
 	return &Database{
-		db:            db,
-		logins:        login.NewRepository(db),
-		cards:         creditcard.NewRepository(db),
-		accounts:      bankaccount.NewRepository(db),
-		notes:         note.NewRepository(db),
-		emails:        email.NewRepository(db),
-		tokens:        token.NewRepository(db),
-		users:         user.NewRepository(db),
-		servers:       server.NewRepository(db),
-		subscriptions: subscription.NewRepository(db),
+		db:       db,
+		logins:   login.NewRepository(db),
+		cards:    creditcard.NewRepository(db),
+		accounts: bankaccount.NewRepository(db),
+		notes:    note.NewRepository(db),
+		emails:   email.NewRepository(db),
+		tokens:   token.NewRepository(db),
+		users:    user.NewRepository(db),
+		servers:  server.NewRepository(db),
 	}
 }
 
@@ -121,11 +118,6 @@ func (db *Database) Users() UserRepository {
 // Servers returns the UserRepository.
 func (db *Database) Servers() ServerRepository {
 	return db.servers
-}
-
-// Subscriptions returns the UserRepository.
-func (db *Database) Subscriptions() SubscriptionRepository {
-	return db.subscriptions
 }
 
 // Ping checks if database is up

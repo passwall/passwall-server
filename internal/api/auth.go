@@ -8,39 +8,46 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/golang-jwt/jwt/v4"
+	uuid "github.com/satori/go.uuid"
+	"github.com/spf13/viper"
+
 	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/storage"
 	"github.com/passwall/passwall-server/model"
 	"github.com/passwall/passwall-server/pkg/constants"
 	"github.com/passwall/passwall-server/pkg/cookie"
+	"github.com/passwall/passwall-server/pkg/logger"
 	"github.com/passwall/passwall-server/pkg/token"
-	"github.com/spf13/viper"
 )
 
 var (
-	userLoginErr   = "User email or master password is wrong."
-	invalidUser    = "Invalid user"
-	invalidToken   = "Token is expired or not valid!"
-	noToken        = "Token could not found! "
-	tokenCreateErr = "Token could not be created"
-	signupSuccess  = "User created successfully"
-	signoutSuccess = "User signed out successfully"
-	codeSuccess    = "Code created successfully"
+	userLoginErr         = "User email or master password is wrong."
+	invalidUser          = "Invalid user"
+	invalidToken         = "Token is expired or not valid!"
+	noToken              = "Token could not found! "
+	tokenCreateErr       = "Token could not be created"
+	signupSuccess        = "User created successfully"
+	signoutSuccess       = "User signed out successfully"
+	codeSuccess          = "Code created successfully"
+	subscriptionTypePro  = "pro"
+	subscriptionTypeFree = "free"
 )
 
 // Signin ...
 func Signin(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var loginDTO model.AuthLoginDTO
-		subscriptionType := "pro"
 
-		// get loginDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&loginDTO); err != nil {
 			RespondWithError(w, http.StatusUnprocessableEntity, InvalidJSON)
 			return
 		}
-		defer r.Body.Close()
+		defer func() {
+			if err := r.Body.Close(); err != nil {
+				logger.Errorf("Failed to close body error: %v", err)
+			}
+		}()
 
 		// Run validator according to model.AuthLoginDTO validator tags
 		err := app.PayloadValidator(loginDTO)
@@ -57,10 +64,9 @@ func Signin(s storage.Store) http.HandlerFunc {
 			return
 		}
 
-		// Check if user has an active subscription
-		subscription, err := s.Subscriptions().FindByEmail(user.Email)
-		if err != nil {
-			subscriptionType = "free"
+		sType := subscriptionTypeFree
+		if isPro(user.UUID) {
+			sType = subscriptionTypePro
 		}
 
 		// token is necessary for Passwall Extension
@@ -79,11 +85,10 @@ func Signin(s storage.Store) http.HandlerFunc {
 		s.Tokens().Create(int(user.ID), token.RtUUID, token.RefreshToken, token.RtExpiresTime)
 
 		authLoginResponse := model.AuthLoginResponse{
-			AccessToken:         token.AccessToken,
-			RefreshToken:        token.RefreshToken,
-			Type:                subscriptionType,
-			UserDTO:             model.ToUserDTO(user),
-			SubscriptionAuthDTO: model.ToSubscriptionAuthDTO(subscription),
+			AccessToken:  token.AccessToken,
+			RefreshToken: token.RefreshToken,
+			Type:         sType,
+			UserDTO:      model.ToUserDTO(user),
 		}
 
 		// cookie is necessary for Passwall Desktop
@@ -238,4 +243,44 @@ func isMailVerified(email string) error {
 	}
 
 	return nil
+}
+
+func isPro(uuid uuid.UUID) bool {
+	url := "https://api.revenuecat.com/v1/subscribers/" + uuid.String()
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		logger.Errorf("Error creating request: %v", err)
+		return false
+	}
+
+	req.Header.Add("accept", "application/json")
+	req.Header.Add("X-Platform", "ios")
+	req.Header.Add("authorization", "Bearer "+viper.GetString("server.apiKey"))
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		logger.Errorf("Error sending request: %v", err)
+		return false
+	}
+
+	defer func() {
+		if res.Body.Close() != nil {
+			logger.Errorf("Error closing response body: %v", err)
+		}
+	}()
+
+	type Customer struct {
+		Subscriber struct {
+			Entitlements map[string]any `json:"entitlements"`
+		} `json:"subscriber"`
+	}
+	var customer Customer
+	if err = json.NewDecoder(res.Body).Decode(&customer); err != nil {
+		logger.Errorf("Error decoding response body: %v", err)
+		return false
+	}
+
+	_, ok := customer.Subscriber.Entitlements["Pro"]
+	return ok
 }
