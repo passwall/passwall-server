@@ -52,6 +52,8 @@ func CreateUser(s storage.Store, userDTO *model.UserDTO) (*model.User, error) {
 	// Generate new UUID for user
 	userDTO.UUID = uuid.NewV4()
 
+	userDTO.IsMigrated = true
+
 	createdUser, err := s.Users().Create(model.ToUser(userDTO))
 	if err != nil {
 		logger.Errorf("Error while creating user: %v", err)

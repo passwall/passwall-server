@@ -98,6 +98,7 @@ func Signin(s storage.Store) http.HandlerFunc {
 	}
 }
 
+// Signout ...
 func Signout() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		deletedCookie := cookie.Delete(constants.CookieName)
