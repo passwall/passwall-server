@@ -1,17 +1,13 @@
 package api
 
 import (
-	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/gorilla/mux"
-	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
 
 	"github.com/passwall/passwall-server/internal/app"
@@ -136,8 +132,7 @@ func Language(s storage.Store) http.HandlerFunc {
 // Import ...
 func Import(s storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var payloadList []model.Payload
-		var loginDTO model.LoginDTO
+		var payloadList []model.LoginDTO
 
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&payloadList); err != nil {
@@ -145,14 +140,7 @@ func Import(s storage.Store) http.HandlerFunc {
 		}
 		defer r.Body.Close()
 
-		for i := range payloadList {
-			// Decrypt payload
-			key := r.Context().Value("transmissionKey").(string)
-			if err := app.DecryptJSON(key, []byte(payloadList[i].Data), &loginDTO); err != nil {
-				RespondWithError(w, http.StatusInternalServerError, err.Error())
-				return
-			}
-
+		for _, loginDTO := range payloadList {
 			// Add new login to db
 			schema := r.Context().Value("schema").(string)
 			_, err := app.CreateLogin(s, &loginDTO, schema)
@@ -226,124 +214,4 @@ func Export(s storage.Store) http.HandlerFunc {
 
 		RespondWithJSON(w, http.StatusOK, allRecords)
 	}
-}
-
-// Restore restores logins from backup file ./store/passwall-{BACKUP_DATE}.bak
-func Restore(s storage.Store) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var restoreDTO model.RestoreDTO
-
-		// get restoreDTO
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&restoreDTO); err != nil {
-			RespondWithError(w, http.StatusUnprocessableEntity, InvalidJSON)
-			return
-		}
-		defer r.Body.Close()
-
-		backupFolder := viper.GetString("backup.folder")
-		backupFile := restoreDTO.Name
-		// add extension if there is no
-		if len(filepath.Ext(restoreDTO.Name)) <= 0 {
-			backupFile = fmt.Sprintf("%s%s", restoreDTO.Name, ".bak")
-		}
-		backupPath := filepath.Join(backupFolder, backupFile)
-
-		_, err := os.Open(backupPath)
-		if err != nil {
-			RespondWithError(w, http.StatusNotFound, err.Error())
-			return
-		}
-
-		loginsByte, err := app.DecryptFile(backupPath, viper.GetString("server.passphrase"))
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-
-		var loginDTOs []model.LoginDTO
-		json.Unmarshal(loginsByte, &loginDTOs)
-		schema := r.Context().Value("schema").(string)
-		for i := range loginDTOs {
-			password, err := app.Encrypt(loginDTOs[i].Password, viper.GetString("server.passphrase"))
-			if err != nil {
-				logger.Errorf("Error while encrypting: %s", err.Error())
-			}
-
-			login := &model.Login{
-				URL:      loginDTOs[i].URL,
-				Username: loginDTOs[i].Username,
-				Password: base64.StdEncoding.EncodeToString(password),
-			}
-
-			s.Logins().Update(login, schema)
-		}
-
-		response := model.Response{Code: http.StatusOK, Status: Success, Message: RestoreBackupSuccess}
-		RespondWithJSON(w, http.StatusOK, response)
-	}
-}
-
-// Backup backups the store
-/* func Backup(s storage.Store) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		err := app.BackupData(s)
-
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-
-		response := model.Response{http.StatusOK, Success, BackupSuccess}
-		RespondWithJSON(w, http.StatusOK, response)
-	}
-} */
-
-// ListBackup all backups
-/* func ListBackup(w http.ResponseWriter, r *http.Request) {
-	backupFiles, err := app.GetBackupFiles()
-
-	if err != nil {
-		RespondWithError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	var response []model.Backup
-	for _, backupFile := range backupFiles {
-		response = append(response, model.Backup{Name: backupFile.Name(), CreatedAt: backupFile.ModTime()})
-	}
-
-	RespondWithJSON(w, http.StatusOK, response)
-} */
-
-func upload(r *http.Request) (*os.File, error) {
-
-	// Max 10 MB
-	r.ParseMultipartForm(10 << 20)
-
-	file, header, err := r.FormFile("file")
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	ext := filepath.Ext(header.Filename)
-
-	if ext != ".csv" {
-		return nil, fmt.Errorf("%s unsupported filetype", ext)
-	}
-
-	tempFile, err := ioutil.TempFile("/tmp", "passwall-import-*.csv")
-	if err != nil {
-		return nil, err
-	}
-
-	fileBytes, err := ioutil.ReadAll(file)
-	if err != nil {
-		return nil, err
-	}
-
-	tempFile.Write(fileBytes)
-
-	return tempFile, err
 }
