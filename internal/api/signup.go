@@ -153,9 +153,9 @@ func CreateDeleteCode(s storage.Store) http.HandlerFunc {
 		c.Set(signup.Email, code, cache.DefaultExpiration)
 
 		// 4. Send verification email to user
-		subject := "Passwall User Deletion Verification"
-		body := "Passwall user deletion code: " + code
-		if err = app.SendMail("Passwall user deletion Code", signup.Email, subject, body); err != nil {
+		subject := "PassWall User Deletion Verification"
+		body := "PassWall user deletion code: " + code + "<br><br>If you didn't request this code to delete your PassWall account, you can safely ignore it."
+		if err = app.SendMail("PassWall user deletion Code", signup.Email, subject, body); err != nil {
 			logger.Errorf("can't send email to %s error: %v\n", signup.Email, err)
 			RespondWithError(w, http.StatusBadRequest, "Couldn't send email")
 			return
