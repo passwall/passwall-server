@@ -1,21 +1,28 @@
 package app
 
 import (
-	"github.com/sendgrid/sendgrid-go"
-	"github.com/sendgrid/sendgrid-go/helpers/mail"
 	"github.com/spf13/viper"
+	"gopkg.in/gomail.v2"
+
+	"github.com/passwall/passwall-server/pkg/logger"
 )
 
 // SendMail is an helper to send mail all over the project
-func SendMail(name, email string, subject, bodyHTML string) error {
-	from := mail.NewEmail(viper.GetString("email.fromName"), viper.GetString("email.fromEmail"))
-	to := mail.NewEmail(name, email)
-	bodyText := ""
-	message := mail.NewSingleEmail(from, subject, to, bodyText, bodyHTML)
-	client := sendgrid.NewSendClient(viper.GetString("email.apiKey"))
-	_, err := client.Send(message)
+func SendMail(toName, toEmail string, subject, bodyHTML string) error {
+	m := gomail.NewMessage()
+	m.SetHeader("From", m.FormatAddress(viper.GetString("email.fromemail"), viper.GetString("email.fromname")))
+	m.SetHeader("To", m.FormatAddress(toEmail, toName))
+	m.SetHeader("Subject", subject)
+	m.SetBody("text/html", bodyHTML)
+	d := gomail.NewDialer(
+		viper.GetString("email.host"),
+		viper.GetInt("email.port"),
+		viper.GetString("email.username"),
+		viper.GetString("email.password"),
+	)
+	err := d.DialAndSend(m)
 	if err != nil {
-		return err
+		logger.Errorf("Failed to send email to '%s' error: %v", toEmail, err)
 	}
-	return nil
+	return err
 }
