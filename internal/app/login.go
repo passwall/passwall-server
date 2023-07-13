@@ -64,6 +64,7 @@ func UpdateLogin(s storage.Store, login *model.Login, dto *model.LoginDTO, schem
 	login.Username = encModel.Username
 	login.Password = encModel.Password
 	login.Extra = encModel.Extra
+	login.TOTPSecret = encModel.TOTPSecret
 
 	updatedLogin, err := s.Logins().Update(login, schema)
 	if err != nil {

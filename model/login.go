@@ -6,47 +6,51 @@ import (
 
 // Login ...
 type Login struct {
-	ID        uint       `gorm:"primary_key" json:"id"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
-	DeletedAt *time.Time `json:"deleted_at"`
-	Title     string     `json:"title"`
-	URL       string     `json:"url"`
-	Username  string     `json:"username" encrypt:"true"`
-	Password  string     `json:"password" encrypt:"true"`
-	Extra     string     `json:"extra" encrypt:"true"`
+	ID         uint       `gorm:"primary_key" json:"id"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+	DeletedAt  *time.Time `json:"deleted_at"`
+	Title      string     `json:"title"`
+	URL        string     `json:"url"`
+	Username   string     `json:"username" encrypt:"true"`
+	Password   string     `json:"password" encrypt:"true"`
+	TOTPSecret string     `json:"totp_secret" encrypt:"true"`
+	Extra      string     `json:"extra" encrypt:"true"`
 }
 
-//LoginDTO DTO object for Login type
+// LoginDTO DTO object for Login type
 type LoginDTO struct {
-	ID       uint   `json:"id"`
-	Title    string `json:"title"`
-	URL      string `json:"url"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Extra    string `json:"extra"`
+	ID         uint   `json:"id"`
+	Title      string `json:"title"`
+	URL        string `json:"url"`
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+	TOTPSecret string `json:"totp_secret" encrypt:"true"`
+	Extra      string `json:"extra"`
 }
 
 // ToLogin ...
 func ToLogin(loginDTO *LoginDTO) *Login {
 	return &Login{
-		Title:    loginDTO.Title,
-		URL:      loginDTO.URL,
-		Username: loginDTO.Username,
-		Password: loginDTO.Password,
-		Extra:    loginDTO.Extra,
+		Title:      loginDTO.Title,
+		URL:        loginDTO.URL,
+		Username:   loginDTO.Username,
+		Password:   loginDTO.Password,
+		Extra:      loginDTO.Extra,
+		TOTPSecret: loginDTO.TOTPSecret,
 	}
 }
 
 // ToLoginDTO ...
 func ToLoginDTO(login *Login) *LoginDTO {
 	return &LoginDTO{
-		ID:       login.ID,
-		Title:    login.Title,
-		URL:      login.URL,
-		Username: login.Username,
-		Password: login.Password,
-		Extra:    login.Extra,
+		ID:         login.ID,
+		Title:      login.Title,
+		URL:        login.URL,
+		Username:   login.Username,
+		Password:   login.Password,
+		Extra:      login.Extra,
+		TOTPSecret: login.TOTPSecret,
 	}
 }
 

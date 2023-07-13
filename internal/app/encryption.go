@@ -44,7 +44,7 @@ func checkSecureKeyLen(length int) error {
 	return nil
 }
 
-//FallbackInsecureKey fallback method for sercure key
+// FallbackInsecureKey fallback method for sercure key
 func FallbackInsecureKey(length int) (string, error) {
 	const charset = "abcdefghijklmnopqrstuvwxyz" +
 		"ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
@@ -66,7 +66,7 @@ func FallbackInsecureKey(length int) (string, error) {
 	return string(b), nil
 }
 
-//GenerateSecureKey generates a secure key width a given length
+// GenerateSecureKey generates a secure key width a given length
 func GenerateSecureKey(length int) (string, error) {
 	key := make([]byte, length)
 
@@ -191,28 +191,34 @@ func EncryptModel(rawModel interface{}) interface{} {
 
 // DecryptModel decrypts struct pointer according to struct tags
 func DecryptModel(rawModel interface{}) (interface{}, error) {
-	var err error
-	var valueByte []byte
 	num := reflect.ValueOf(rawModel).Elem().NumField()
 
 	var tagVal string
-
+	var lastErr error
 	for i := 0; i < num; i++ {
 		tagVal = reflect.TypeOf(rawModel).Elem().Field(i).Tag.Get("encrypt")
 		value := reflect.ValueOf(rawModel).Elem().Field(i).String()
 
-		if tagVal == "true" {
-			valueByte, err = base64.StdEncoding.DecodeString(value)
+		if tagVal == "true" && value != "" {
+			valueByte, err := base64.StdEncoding.DecodeString(value)
+			if err != nil {
+				logger.Errorf("Error while decoding: %s", err.Error())
+				lastErr = err
+			}
 
 			var decrypted []byte
 			decrypted, err = Decrypt(string(valueByte[:]), viper.GetString("server.passphrase"))
+			if err != nil {
+				logger.Errorf("Error while decrypting: %s", err.Error())
+				lastErr = err
+			}
 			value = string(decrypted)
 
 			reflect.ValueOf(rawModel).Elem().Field(i).SetString(value)
 		}
 	}
 
-	return rawModel, err
+	return rawModel, lastErr
 }
 
 // DecryptPayload ...
