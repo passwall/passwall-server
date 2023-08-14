@@ -19,7 +19,7 @@ protocol: Protocol
 
 # Lisans
 license_key: License Key
-key: Anahtar
+key: Key
 
 # Logins
 url: Website
@@ -27,7 +27,7 @@ url: Website
 # Bank Accounts
 bank_name: Bank Name
 bank_code: Bank Code
-account_name: Acount Name
+account_name: Account Name
 account_number: Account Number
 iban: IBAN
 currency: Currency
