@@ -65,7 +65,7 @@ func CreateUser(s storage.Store) http.HandlerFunc {
 		// 1. Decode request body to userDTO object
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&userDTO); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, "Invalid request payload")
 			return
 		}
 		defer r.Body.Close()
@@ -115,7 +115,7 @@ func UpdateUser(s storage.Store) http.HandlerFunc {
 		var userDTO model.UserDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&userDTO); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, "Invalid request payload")
 			return
 		}
 		defer r.Body.Close()

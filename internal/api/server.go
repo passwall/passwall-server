@@ -84,7 +84,7 @@ func CreateServer(s storage.Store) http.HandlerFunc {
 		var serverDTO model.ServerDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&serverDTO); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, "Invalid request payload")
 			return
 		}
 		defer r.Body.Close()
@@ -124,7 +124,7 @@ func UpdateServer(s storage.Store) http.HandlerFunc {
 		var serverDTO model.ServerDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&serverDTO); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, "Invalid request payload")
 			return
 		}
 		defer r.Body.Close()

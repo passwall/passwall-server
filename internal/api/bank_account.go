@@ -84,7 +84,7 @@ func CreateBankAccount(s storage.Store) http.HandlerFunc {
 		var bankAccountDTO model.BankAccountDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&bankAccountDTO); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, "Invalid request payload")
 			return
 		}
 		defer r.Body.Close()
@@ -125,7 +125,7 @@ func UpdateBankAccount(s storage.Store) http.HandlerFunc {
 		var bankAccountDTO model.BankAccountDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&bankAccountDTO); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, "Invalid request payload")
 			return
 		}
 		defer r.Body.Close()

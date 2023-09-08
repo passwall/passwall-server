@@ -83,7 +83,7 @@ func CreateNote(s storage.Store) http.HandlerFunc {
 		var noteDTO model.NoteDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&noteDTO); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, "Invalid request payload")
 			return
 		}
 		defer r.Body.Close()
@@ -124,7 +124,7 @@ func UpdateNote(s storage.Store) http.HandlerFunc {
 		var noteDTO model.NoteDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&noteDTO); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, "Invalid request payload")
 			return
 		}
 		defer r.Body.Close()

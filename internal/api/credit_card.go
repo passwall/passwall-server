@@ -90,7 +90,7 @@ func CreateCreditCard(s storage.Store) http.HandlerFunc {
 		var creditCardDTO model.CreditCardDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&creditCardDTO); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, "Invalid request payload")
 			return
 		}
 		defer r.Body.Close()
@@ -131,7 +131,7 @@ func UpdateCreditCard(s storage.Store) http.HandlerFunc {
 		var creditCardDTO model.CreditCardDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&creditCardDTO); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, "Invalid request payload")
 			return
 		}
 		defer r.Body.Close()
