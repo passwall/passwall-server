@@ -77,7 +77,7 @@ func CreateEmail(s storage.Store) http.HandlerFunc {
 		var emailDTO model.EmailDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&emailDTO); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, "Invalid request payload")
 			return
 		}
 		defer r.Body.Close()
@@ -118,7 +118,7 @@ func UpdateEmail(s storage.Store) http.HandlerFunc {
 		var emailDTO model.EmailDTO
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&emailDTO); err != nil {
-			RespondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+			RespondWithError(w, http.StatusBadRequest, "Invalid request payload")
 			return
 		}
 		defer r.Body.Close()
