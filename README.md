@@ -81,6 +81,8 @@ These environment variables are accepted:
 - PW_DB_HOST
 - PW_DB_PORT
 - PW_DB_LOG_MODE
+- PW_DB_SSL_MODE
+
 
 ## Hello Contributors
 
