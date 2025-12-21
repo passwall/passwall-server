@@ -13,6 +13,17 @@
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
+# Build artifacts
+build/passwall-server
+build/passwall-cli
+coverage.out
+coverage.html
+*-cover.out
+
+# Air live reload
+tmp/
+build-errors.log
+
 ### Go Patch ###
 /vendor/
 /Godeps/

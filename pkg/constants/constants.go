@@ -1,5 +1,7 @@
 package constants
 
+import "os"
+
 const (
 	ConfigPath = "./config"
 	ConfigName = "config"
@@ -10,3 +12,7 @@ const (
 	EnvDev  = "dev"
 	EnvProd = "prod"
 )
+
+func IsDev() bool {
+	return os.Getenv("APP_ENV") == "dev"
+}

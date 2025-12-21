@@ -1,5 +1,3 @@
-version: '3.3'
-
 services:
   postgres:
     container_name: passwall-postgresql
@@ -12,5 +10,5 @@ services:
     ports:
       - 5432:5432
     volumes:
-      - $HOME/docker/volumes/passwall-postgres:/var/lib/postgresql/data
+      - ../../volumes/postgres:/var/lib/postgresql/data
   

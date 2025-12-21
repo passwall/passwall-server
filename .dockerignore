@@ -1,0 +1,50 @@
+# Git
+.git
+.gitignore
+.gitconfig
+
+# CI/CD
+.travis.yml
+.github
+
+# Documentation
+*.md
+LICENSE
+CONTRIBUTING*.md
+CHANGELOG.md
+HOWTO*.md
+
+# Build artifacts
+build/passwall-server
+build/passwall-cli
+tmp/
+coverage.out
+coverage.html
+*-cover.out
+*.test
+*.log
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Mac
+.DS_Store
+
+# Test files
+*_test.go
+testdata/
+
+# Air
+.air.toml
+build-errors.log
+
+# Example files
+example.csv
+
+# Debug
+debug/
+
