@@ -143,14 +143,13 @@ jobs:
 
       - name: Extract metadata for Docker
         id: meta
+        if: steps.check-tag.outputs.IS_TAG == 'true'
         uses: docker/metadata-action@v5
         with:
           images: passwall/passwall-server
           tags: |
             type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=latest,enable=${{ steps.check-tag.outputs.IS_TAG == 'true' }}
+            type=raw,value=latest
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -158,7 +157,7 @@ jobs:
           context: .
           file: build/docker/Dockerfile
           push: ${{ steps.check-tag.outputs.IS_TAG == 'true' }}
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ steps.check-tag.outputs.IS_TAG == 'true' && steps.meta.outputs.tags || 'passwall/passwall-server:test' }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
