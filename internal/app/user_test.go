@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"os"
 	"reflect"
 	"testing"
@@ -15,12 +16,15 @@ import (
 
 var (
 	mockName     = "passwall-patron"
-	mockEmail    = "patron@passwall.io"
 	mockPassword = "123456789123456789"
 	mockSecret   = "supersecret"
 	now          = time.Now()
-	uuidN        = uuid.NewV4()
 )
+
+// generateTestEmail generates a unique email for each test
+func generateTestEmail() string {
+	return fmt.Sprintf("test-%s@passwall.io", uuid.NewV4().String())
+}
 
 func TestGenerateSchema(t *testing.T) {
 	setupTestConfig()
@@ -29,6 +33,8 @@ func TestGenerateSchema(t *testing.T) {
 		t.Errorf("Error in database initialization ! err:  %v", err)
 	}
 	defer cleanupTestDB(store, t)
+
+	testEmail := generateTestEmail()
 
 	type args struct {
 		s    storage.Store
@@ -45,7 +51,7 @@ func TestGenerateSchema(t *testing.T) {
 				ID:               0,
 				UUID:             uuid.NewV4(),
 				Name:             mockName,
-				Email:            mockEmail,
+				Email:            testEmail,
 				MasterPassword:   mockPassword,
 				Secret:           mockSecret,
 				Schema:           "users",
@@ -65,7 +71,7 @@ func TestGenerateSchema(t *testing.T) {
 				t.Errorf("GenerateSchema() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			want, err := store.Users().FindByEmail(mockEmail)
+			want, err := store.Users().FindByEmail(testEmail)
 			if err != nil {
 				t.Errorf("FindByEmail() error %v", err)
 			}
@@ -88,6 +94,8 @@ func TestCreateUser(t *testing.T) {
 	}
 	defer cleanupTestDB(store, t)
 
+	testEmail := generateTestEmail()
+
 	type args struct {
 		s       storage.Store
 		userDTO *model.UserDTO
@@ -101,9 +109,9 @@ func TestCreateUser(t *testing.T) {
 			s: store,
 			userDTO: &model.UserDTO{
 				ID:              0,
-				UUID:            uuidN,
+				UUID:            uuid.NewV4(),
 				Name:            mockName,
-				Email:           mockEmail,
+				Email:           testEmail,
 				MasterPassword:  mockPassword,
 				Secret:          mockSecret,
 				Schema:          "users",
@@ -117,7 +125,7 @@ func TestCreateUser(t *testing.T) {
 			s: store,
 			userDTO: &model.UserDTO{
 				ID:              1,
-				UUID:            uuidN,
+				UUID:            uuid.NewV4(),
 				Name:            "",
 				Email:           "",
 				MasterPassword:  "",
@@ -145,7 +153,7 @@ func TestCreateUser(t *testing.T) {
 				return
 			}
 
-			user, err := store.Users().FindByEmail(mockEmail)
+			user, err := store.Users().FindByEmail(testEmail)
 			if err != nil {
 				t.Errorf("FindByEmail() error = %v", err)
 				return
@@ -219,12 +227,9 @@ func getEnv(key, defaultValue string) string {
 
 // cleanupTestDB cleans up test data from database
 func cleanupTestDB(store *storage.Database, t *testing.T) {
-	// Clean up users table
-	db := store.DB()
-	if err := db.Exec("TRUNCATE TABLE users CASCADE").Error; err != nil {
-		t.Logf("Warning: Failed to cleanup users table: %v", err)
-	}
-	if err := db.Exec("TRUNCATE TABLE tokens CASCADE").Error; err != nil {
-		t.Logf("Warning: Failed to cleanup tokens table: %v", err)
-	}
+	// For now, we skip cleanup as tests use unique data
+	// and the database is fresh for each CI run.
+	// In the future, consider adding a DeleteAll method to repositories
+	// or using database transactions with rollback for tests.
+	t.Log("Test cleanup: skipped (database fresh for each CI run)")
 }
