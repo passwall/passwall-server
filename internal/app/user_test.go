@@ -28,6 +28,8 @@ func TestGenerateSchema(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error in database initialization ! err:  %v", err)
 	}
+	defer cleanupTestDB(store, t)
+
 	type args struct {
 		s    storage.Store
 		user *model.User
@@ -84,6 +86,7 @@ func TestCreateUser(t *testing.T) {
 	if err != nil {
 		t.Skipf("Skipping test - database not available: %v", err)
 	}
+	defer cleanupTestDB(store, t)
 
 	type args struct {
 		s       storage.Store
@@ -199,6 +202,10 @@ func initDB() (*storage.Database, error) {
 	}
 
 	db := storage.New(mockDB)
+
+	// Run migrations to create necessary tables
+	MigrateSystemTables(db)
+
 	return db, nil
 }
 
@@ -208,4 +215,16 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// cleanupTestDB cleans up test data from database
+func cleanupTestDB(store *storage.Database, t *testing.T) {
+	// Clean up users table
+	db := store.DB()
+	if err := db.Exec("TRUNCATE TABLE users CASCADE").Error; err != nil {
+		t.Logf("Warning: Failed to cleanup users table: %v", err)
+	}
+	if err := db.Exec("TRUNCATE TABLE tokens CASCADE").Error; err != nil {
+		t.Logf("Warning: Failed to cleanup tokens table: %v", err)
+	}
 }
