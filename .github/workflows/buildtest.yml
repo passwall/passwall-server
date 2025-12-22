@@ -2,6 +2,8 @@ name: Build Server & Test
 on:
   push:
     branches: [main, master, develop]
+    tags:
+      - "v*" # Trigger on version tags (v1.0.0, v1.2.3, etc.)
   pull_request:
     branches: [main, master]
 
