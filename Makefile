@@ -87,12 +87,24 @@ build: generate ## Build server and CLI binaries
 
 build-linux: ## Build for Linux
 	@echo "$(BLUE)Building for Linux...$(NC)"
-	@GOOS=linux GOARCH=amd64 $(MAKE) build
+	@mkdir -p $(BUILD_DIR)
+	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -tags "$(GO_BUILD_TAGS)" \
+		-ldflags "$(GO_BUILD_LDFLAGS)" -o $(BUILD_DIR)/passwall-server-linux-amd64 ./cmd/passwall-server
+	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -tags "$(GO_BUILD_TAGS)" \
+		-ldflags "$(GO_BUILD_LDFLAGS)" -o $(BUILD_DIR)/passwall-cli-linux-amd64 ./cmd/passwall-cli
 	@echo "$(GREEN)✓ Linux build completed$(NC)"
 
 build-darwin: ## Build for macOS
 	@echo "$(BLUE)Building for macOS...$(NC)"
-	@GOOS=darwin GOARCH=arm64 $(MAKE) build
+	@mkdir -p $(BUILD_DIR)
+	@GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -tags "$(GO_BUILD_TAGS)" \
+		-ldflags "$(GO_BUILD_LDFLAGS)" -o $(BUILD_DIR)/passwall-server-darwin-amd64 ./cmd/passwall-server
+	@GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -tags "$(GO_BUILD_TAGS)" \
+		-ldflags "$(GO_BUILD_LDFLAGS)" -o $(BUILD_DIR)/passwall-server-darwin-arm64 ./cmd/passwall-server
+	@GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -tags "$(GO_BUILD_TAGS)" \
+		-ldflags "$(GO_BUILD_LDFLAGS)" -o $(BUILD_DIR)/passwall-cli-darwin-amd64 ./cmd/passwall-cli
+	@GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -tags "$(GO_BUILD_TAGS)" \
+		-ldflags "$(GO_BUILD_LDFLAGS)" -o $(BUILD_DIR)/passwall-cli-darwin-arm64 ./cmd/passwall-cli
 	@echo "$(GREEN)✓ macOS build completed$(NC)"
 
 build-all: build-linux build-darwin ## Build for all platforms
@@ -115,14 +127,23 @@ image-build: ## Build Docker image
 		--build-arg COMMIT_ID=$(COMMIT_ID) .
 	@echo "$(GREEN)✓ Docker image built: $(DOCKER_IMAGE):$(DOCKER_TAG)$(NC)"
 
-image-publish: image-build ## Build and publish Docker image to Docker Hub
+image-publish: image-build ## Build and publish Docker image to Docker Hub (requires git tag)
 	@echo "$(BLUE)Publishing Docker image to Docker Hub...$(NC)"
-	@docker tag $(DOCKER_IMAGE):$(DOCKER_TAG) $(DOCKER_IMAGE):$(VERSION)
-	@docker push $(DOCKER_IMAGE):$(DOCKER_TAG)
-	@docker push $(DOCKER_IMAGE):$(VERSION)
-	@echo "$(GREEN)✓ Docker image published:$(NC)"
-	@echo "  - $(YELLOW)$(DOCKER_IMAGE):$(DOCKER_TAG)$(NC)"
-	@echo "  - $(YELLOW)$(DOCKER_IMAGE):$(VERSION)$(NC)"
+	@if echo "$(VERSION)" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+'; then \
+		echo "$(GREEN)✓ Valid version tag detected: $(VERSION)$(NC)"; \
+		docker tag $(DOCKER_IMAGE):$(DOCKER_TAG) $(DOCKER_IMAGE):$(VERSION); \
+		docker tag $(DOCKER_IMAGE):$(DOCKER_TAG) $(DOCKER_IMAGE):latest; \
+		docker push $(DOCKER_IMAGE):$(VERSION); \
+		docker push $(DOCKER_IMAGE):latest; \
+		echo "$(GREEN)✓ Docker image published:$(NC)"; \
+		echo "  - $(YELLOW)$(DOCKER_IMAGE):$(VERSION)$(NC)"; \
+		echo "  - $(YELLOW)$(DOCKER_IMAGE):latest$(NC)"; \
+	else \
+		echo "$(RED)✗ Cannot publish without a valid version tag$(NC)"; \
+		echo "$(YELLOW)Current version: $(VERSION)$(NC)"; \
+		echo "$(YELLOW)Create a git tag first: git tag v1.0.0 && git push origin v1.0.0$(NC)"; \
+		exit 1; \
+	fi
 
 ##@ Docker Compose
 

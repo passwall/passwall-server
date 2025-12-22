@@ -1,12 +1,17 @@
 name: Build Server & Test
-on: [push, pull_request]
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
 
 jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-20.04, ubuntu-22.04]
+        os: [ubuntu-22.04, ubuntu-24.04]
+
     services:
       postgres:
         image: postgres:alpine
@@ -23,29 +28,152 @@ jobs:
           - 5432:5432
 
     steps:
-      - name: Set up Go 1.17
-        uses: actions/setup-go@v2
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read Go version from go.mod
+        id: go-version
+        run: echo "GO_VERSION=$(grep '^go ' go.mod | awk '{print $2}')" >> $GITHUB_OUTPUT
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          go-version: 1.17
-        id: go
+          go-version: ${{ steps.go-version.outputs.GO_VERSION }}
+          cache: true
 
-
-      - name: Check out code into the Go module directory
-        uses: actions/checkout@v1
+      - name: Display Go version
+        run: go version
 
       - name: Get dependencies
+        run: go mod download
+
+      - name: Run go mod tidy check
         run: |
-          go get -v -t -d ./...
-          if [ -f Gopkg.toml ]; then
-             curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-             dep ensure
+          go mod tidy
+          git diff --exit-code go.mod go.sum || (echo "go.mod or go.sum needs tidying" && exit 1)
+
+      - name: Run go generate
+        run: go generate ./...
+
+      - name: Build PassWall Server
+        run: make build
+
+      - name: Run tests
+        env:
+          PW_DB_HOST: localhost
+          PW_DB_PORT: 5432
+          PW_DB_NAME: passwall
+          PW_DB_USERNAME: postgres
+          PW_DB_PASSWORD: postgres
+        run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.out
+          flags: unittests
+          fail_ci_if_error: false
+
+      - name: Build artifacts
+        run: |
+          make build-linux
+          make build-darwin
+
+      - name: Upload Linux binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: passwall-server-linux-${{ matrix.os }}
+          path: build/passwall-server-linux-amd64
+
+      - name: Upload Darwin binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: passwall-server-darwin-${{ matrix.os }}
+          path: build/passwall-server-darwin-amd64
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read Go version from go.mod
+        id: go-version
+        run: echo "GO_VERSION=$(grep '^go ' go.mod | awk '{print $2}')" >> $GITHUB_OUTPUT
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ steps.go-version.outputs.GO_VERSION }}
+          cache: true
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: [build, lint]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check if tagged release
+        id: check-tag
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            echo "IS_TAG=true" >> $GITHUB_OUTPUT
+            echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "IS_TAG=false" >> $GITHUB_OUTPUT
+            echo "TAG=test" >> $GITHUB_OUTPUT
           fi
 
-      - name: Build and Run Pass-Wall Server
-        run: |
-          go build -o passwall ./cmd/passwall-server/main.go
-          chmod +x ./passwall
-          ./passwall &
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      #- name: Run Tests
-      #  run: go test -v --race ./...
+      - name: Login to Docker Hub
+        if: steps.check-tag.outputs.IS_TAG == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: passwall/passwall-server
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable=${{ steps.check-tag.outputs.IS_TAG == 'true' }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: build/docker/Dockerfile
+          push: ${{ steps.check-tag.outputs.IS_TAG == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.check-tag.outputs.TAG }}
+
+      - name: Docker build summary
+        run: |
+          echo "### 🐳 Docker Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ steps.check-tag.outputs.IS_TAG }}" == "true" ]]; then
+            echo "✅ **Tagged Release**: ${{ steps.check-tag.outputs.TAG }}" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Pushed to Docker Hub**: Yes" >> $GITHUB_STEP_SUMMARY
+            echo "🏷️ **Tags**: ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ **No tag detected**: Build only (no push)" >> $GITHUB_STEP_SUMMARY
+            echo "ℹ️ To publish, create a tag: \`git tag v1.0.0 && git push origin v1.0.0\`" >> $GITHUB_STEP_SUMMARY
+          fi
