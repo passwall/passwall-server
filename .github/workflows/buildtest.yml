@@ -7,10 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ubuntu-latest
 
     services:
       postgres:
@@ -82,13 +79,13 @@ jobs:
       - name: Upload Linux binary
         uses: actions/upload-artifact@v4
         with:
-          name: passwall-server-linux-${{ matrix.os }}
+          name: passwall-server-linux-amd64
           path: build/passwall-server-linux-amd64
 
       - name: Upload Darwin binary
         uses: actions/upload-artifact@v4
         with:
-          name: passwall-server-darwin-${{ matrix.os }}
+          name: passwall-server-darwin-amd64
           path: build/passwall-server-darwin-amd64
 
   lint:
