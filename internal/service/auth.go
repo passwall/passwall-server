@@ -102,6 +102,11 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 		return nil, fmt.Errorf("authentication failed: %w", err)
 	}
 
+	// Delete old tokens before creating new ones
+	if err := s.tokenRepo.Delete(ctx, int(user.ID)); err != nil {
+		// Log error but continue - don't block login if cleanup fails
+	}
+
 	// Create tokens
 	tokenDetails, err := s.createToken(user)
 	if err != nil {
@@ -179,6 +184,7 @@ func (s *authService) RefreshToken(ctx context.Context, refreshToken string) (*d
 }
 
 func (s *authService) ValidateToken(ctx context.Context, tokenString string) (*domain.TokenClaims, error) {
+	// Verify JWT signature and expiration
 	token, err := s.verifyToken(tokenString)
 	if err != nil {
 		return nil, err
@@ -192,6 +198,20 @@ func (s *authService) ValidateToken(ctx context.Context, tokenString string) (*d
 	userUUID, _ := claims["user_uuid"].(string)
 	tokenUUID, _ := claims["uuid"].(string)
 	exp, _ := claims["exp"].(float64)
+
+	// SECURITY: Check if token exists in database (revocation check)
+	dbToken, err := s.tokenRepo.GetByUUID(ctx, tokenUUID)
+	if err != nil {
+		// Token not found in DB = revoked/logged out
+		return nil, ErrExpiredToken
+	}
+
+	// SECURITY: Double-check token expiration from database
+	if dbToken.IsExpired() {
+		// Clean up expired token
+		_ = s.tokenRepo.DeleteByUUID(ctx, tokenUUID)
+		return nil, ErrExpiredToken
+	}
 
 	// Get user to get user ID, email, and schema
 	user, err := s.userRepo.GetByUUID(ctx, userUUID)

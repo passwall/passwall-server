@@ -118,6 +118,7 @@ type TokenRepository interface {
 	Create(ctx context.Context, userID int, uuid uuid.UUID, token string, expiryTime time.Time) error
 	Delete(ctx context.Context, userID int) error
 	DeleteByUUID(ctx context.Context, uuid string) error
+	DeleteExpired(ctx context.Context) (int64, error)
 	Migrate() error
 }
 

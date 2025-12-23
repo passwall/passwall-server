@@ -2,6 +2,7 @@ package core
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	httpHandler "github.com/passwall/passwall-server/internal/handler/http"
@@ -37,12 +38,21 @@ func SetupRouter(
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
+	// Rate limiters for auth endpoints
+	// SignIn/SignUp: 5 requests per minute per IP (prevents brute force)
+	authRateLimiter := httpHandler.NewRateLimiter(12*time.Second, 5)
+	// Refresh token: 10 requests per minute per IP
+	refreshRateLimiter := httpHandler.NewRateLimiter(6*time.Second, 10)
+
 	// Auth routes (no auth middleware)
 	authGroup := router.Group("/auth")
 	{
-		authGroup.POST("/signup", authHandler.SignUp)
-		authGroup.POST("/signin", authHandler.SignIn)
-		authGroup.POST("/refresh", authHandler.RefreshToken)
+		// Rate-limited endpoints
+		authGroup.POST("/signup", httpHandler.RateLimitMiddleware(authRateLimiter), authHandler.SignUp)
+		authGroup.POST("/signin", httpHandler.RateLimitMiddleware(authRateLimiter), authHandler.SignIn)
+		authGroup.POST("/refresh", httpHandler.RateLimitMiddleware(refreshRateLimiter), authHandler.RefreshToken)
+		
+		// No rate limit on token check (it's already authenticated)
 		authGroup.POST("/check", authHandler.CheckToken)
 	}
 

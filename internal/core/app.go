@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/passwall/passwall-server/internal/cleanup"
 	"github.com/passwall/passwall-server/internal/config"
 	httpHandler "github.com/passwall/passwall-server/internal/handler/http"
 	"github.com/passwall/passwall-server/internal/repository/gormrepo"
@@ -21,9 +22,12 @@ import (
 
 // App represents the application
 type App struct {
-	config *config.Config
-	db     database.Database
-	server *http.Server
+	config       *config.Config
+	db           database.Database
+	server       *http.Server
+	tokenCleanup *cleanup.TokenCleanup
+	cleanupCtx   context.Context
+	cleanupStop  context.CancelFunc
 }
 
 // New creates a new application instance
@@ -130,6 +134,13 @@ func (a *App) Run() error {
 		IdleTimeout:  60 * time.Second,
 	}
 
+	// Initialize token cleanup service (runs every hour)
+	a.tokenCleanup = cleanup.NewTokenCleanup(tokenRepo, 1*time.Hour)
+	a.cleanupCtx, a.cleanupStop = context.WithCancel(context.Background())
+
+	// Start token cleanup in background
+	go a.tokenCleanup.Start(a.cleanupCtx)
+
 	// Start server in a goroutine
 	go func() {
 		logger.Infof("Server starting on %s", addr)
@@ -152,6 +163,12 @@ func (a *App) waitForShutdown() error {
 
 	logger.Infof("Shutting down server...")
 	fmt.Println("\n⏳ Shutting down gracefully...")
+
+	// Stop token cleanup
+	if a.cleanupStop != nil {
+		a.cleanupStop()
+		logger.Infof("Token cleanup stopped")
+	}
 
 	// Give outstanding requests 5 seconds to complete
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

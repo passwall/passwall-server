@@ -7,6 +7,7 @@ import (
 
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
+	"github.com/passwall/passwall-server/pkg/hash"
 	uuid "github.com/satori/go.uuid"
 	"gorm.io/gorm"
 )
@@ -33,10 +34,14 @@ func (r *tokenRepository) GetByUUID(ctx context.Context, uuid string) (*domain.T
 }
 
 func (r *tokenRepository) Create(ctx context.Context, userID int, tokenUUID uuid.UUID, token string, expiryTime time.Time) error {
+	// SECURITY: Hash the token before storing in database
+	// This prevents token theft if database is compromised
+	hashedToken := hash.SHA256(token)
+
 	t := &domain.Token{
 		UserID:     userID,
 		UUID:       tokenUUID,
-		Token:      token,
+		Token:      hashedToken,
 		ExpiryTime: expiryTime,
 	}
 	return r.db.WithContext(ctx).Create(t).Error
@@ -48,6 +53,11 @@ func (r *tokenRepository) Delete(ctx context.Context, userID int) error {
 
 func (r *tokenRepository) DeleteByUUID(ctx context.Context, uuid string) error {
 	return r.db.WithContext(ctx).Where("uuid = ?", uuid).Delete(&domain.Token{}).Error
+}
+
+func (r *tokenRepository) DeleteExpired(ctx context.Context) (int64, error) {
+	result := r.db.WithContext(ctx).Where("expiry_time < ?", time.Now()).Delete(&domain.Token{})
+	return result.RowsAffected, result.Error
 }
 
 func (r *tokenRepository) Migrate() error {
