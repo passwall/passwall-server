@@ -43,8 +43,8 @@ jobs:
       - name: Display Go version
         run: go version
 
-      - name: Get dependencies
-        run: go mod download
+      - name: Verify go.mod
+        run: go mod verify
 
       - name: Run go mod tidy check
         run: |

@@ -16,6 +16,7 @@
 # Build artifacts
 build/passwall-server
 build/passwall-cli
+build/docker/postgres-data
 coverage.out
 coverage.html
 *-cover.out
