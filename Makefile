@@ -69,7 +69,7 @@ test-coverage: test ## Run tests with coverage report
 
 ##@ Build
 
-build: generate ## Build server and CLI binaries
+build: generate ## Build server binary
 	@echo "$(BLUE)Building PassWall Server...$(NC)"
 	@echo "Version: $(YELLOW)$(VERSION)$(NC)"
 	@echo "Commit: $(YELLOW)$(COMMIT_ID)$(NC)"
@@ -77,21 +77,16 @@ build: generate ## Build server and CLI binaries
 	@mkdir -p $(BUILD_DIR)
 	@CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build -trimpath -tags "$(GO_BUILD_TAGS)" \
 		-ldflags "$(GO_BUILD_LDFLAGS)" -o $(BUILD_DIR)/passwall-server ./cmd/passwall-server
-	@CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build -trimpath -tags "$(GO_BUILD_TAGS)" \
-		-ldflags "$(GO_BUILD_LDFLAGS)" -o $(BUILD_DIR)/passwall-cli ./cmd/passwall-cli
 	@echo "$(BLUE)Copying config files...$(NC)"
 	@cp -r config $(BUILD_DIR)/config 2>/dev/null || echo "$(YELLOW)⚠ No config folder found$(NC)"
 	@echo "$(GREEN)✓ Build completed successfully$(NC)"
-	@echo "Binaries: $(YELLOW)$(BUILD_DIR)/passwall-server$(NC) and $(YELLOW)$(BUILD_DIR)/passwall-cli$(NC)"
-	@echo "Binaries: $(YELLOW)$(BUILD_DIR)/passwall-server$(NC) and $(YELLOW)$(BUILD_DIR)/passwall-cli$(NC)"
+	@echo "Binary: $(YELLOW)$(BUILD_DIR)/passwall-server$(NC)"
 
 build-linux: ## Build for Linux
 	@echo "$(BLUE)Building for Linux...$(NC)"
 	@mkdir -p $(BUILD_DIR)
 	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -tags "$(GO_BUILD_TAGS)" \
 		-ldflags "$(GO_BUILD_LDFLAGS)" -o $(BUILD_DIR)/passwall-server-linux-amd64 ./cmd/passwall-server
-	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -tags "$(GO_BUILD_TAGS)" \
-		-ldflags "$(GO_BUILD_LDFLAGS)" -o $(BUILD_DIR)/passwall-cli-linux-amd64 ./cmd/passwall-cli
 	@echo "$(GREEN)✓ Linux build completed$(NC)"
 
 build-darwin: ## Build for macOS
@@ -101,17 +96,13 @@ build-darwin: ## Build for macOS
 		-ldflags "$(GO_BUILD_LDFLAGS)" -o $(BUILD_DIR)/passwall-server-darwin-amd64 ./cmd/passwall-server
 	@GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -tags "$(GO_BUILD_TAGS)" \
 		-ldflags "$(GO_BUILD_LDFLAGS)" -o $(BUILD_DIR)/passwall-server-darwin-arm64 ./cmd/passwall-server
-	@GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -tags "$(GO_BUILD_TAGS)" \
-		-ldflags "$(GO_BUILD_LDFLAGS)" -o $(BUILD_DIR)/passwall-cli-darwin-amd64 ./cmd/passwall-cli
-	@GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -tags "$(GO_BUILD_TAGS)" \
-		-ldflags "$(GO_BUILD_LDFLAGS)" -o $(BUILD_DIR)/passwall-cli-darwin-arm64 ./cmd/passwall-cli
 	@echo "$(GREEN)✓ macOS build completed$(NC)"
 
 build-all: build-linux build-darwin ## Build for all platforms
 
 clean: ## Clean build artifacts
 	@echo "$(BLUE)Cleaning build artifacts...$(NC)"
-	@rm -rf $(BUILD_DIR)/passwall-server $(BUILD_DIR)/passwall-cli
+	@rm -rf $(BUILD_DIR)/passwall-server $(BUILD_DIR)/passwall-server-*
 	@rm -f coverage.out coverage.html
 	@rm -f *-cover.out
 	@echo "$(GREEN)✓ Cleaned$(NC)"
@@ -187,9 +178,6 @@ dev: ## Run server in development mode with auto-reload (requires air)
 	}
 	@air
 
-create-user: build ## Create a new user with CLI
-	@echo "$(BLUE)Creating new user...$(NC)"
-	@$(BUILD_DIR)/passwall-cli
 
 ##@ Database
 

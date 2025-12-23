@@ -3,14 +3,14 @@ package constants
 import "os"
 
 const (
-	ConfigPath = "./config"
-	ConfigName = "config"
-	CookieName = "passwall_token"
+	ConfigFilePath = "./config.yml"
+	CookieName     = "passwall_token"
 )
 
 const (
-	EnvDev  = "dev"
-	EnvProd = "prod"
+	EnvPrefix = "PW"
+	EnvDev    = "dev"
+	EnvProd   = "prod"
 )
 
 func IsDev() bool {

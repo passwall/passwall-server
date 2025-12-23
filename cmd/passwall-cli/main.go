@@ -2,34 +2,55 @@ package main
 
 import (
 	"bufio"
-	"crypto/sha256"
+	"context"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/fatih/color"
-	"github.com/passwall/passwall-server/internal/app"
 	"github.com/passwall/passwall-server/internal/config"
-	"github.com/passwall/passwall-server/internal/storage"
-	"github.com/passwall/passwall-server/model"
+	"github.com/passwall/passwall-server/internal/domain"
+	"github.com/passwall/passwall-server/internal/repository/gormrepo"
+	"github.com/passwall/passwall-server/internal/service"
 	"github.com/passwall/passwall-server/pkg/constants"
+	"github.com/passwall/passwall-server/pkg/database"
+	"github.com/passwall/passwall-server/pkg/database/postgres"
 	"github.com/passwall/passwall-server/pkg/logger"
 )
 
 func main() {
-	cfg, err := config.Init(constants.ConfigPath, constants.ConfigName)
+	// Load configuration
+	cfg, err := config.Load(config.LoaderOptions{
+		ConfigFile: constants.ConfigFilePath,
+		EnvPrefix:  constants.EnvPrefix,
+	})
 	if err != nil {
-		logger.Fatalf("config.Init: %v", err)
+		logger.Fatalf("Failed to load config: %v", err)
 	}
 
-	db, err := storage.DBConn(&cfg.Database)
-	if err != nil {
-		logger.Fatalf("storage.DBConn: %v", err)
+	// Initialize database
+	dbCfg := &database.Config{
+		Host:     cfg.Database.Host,
+		Port:     cfg.Database.Port,
+		Username: cfg.Database.Username,
+		Password: cfg.Database.Password,
+		Database: cfg.Database.Name,
+		SSLMode:  cfg.Database.SSLMode,
+		LogMode:  cfg.Database.LogMode,
 	}
 
-	s := storage.New(db)
+	db, err := postgres.New(dbCfg)
+	if err != nil {
+		logger.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer db.Close()
+
+	// Initialize repositories
+	userRepo := gormrepo.NewUserRepository(db.DB())
+	tokenRepo := gormrepo.NewTokenRepository(db.DB())
+
+	// CLI interface
 	c := color.New(color.FgCyan)
-
 	reader := bufio.NewReader(os.Stdin)
 
 	c.Print("Enter Name Surname: ")
@@ -49,27 +70,32 @@ func main() {
 		logger.Fatalf("All fields are required.")
 	}
 
-	passwordHash := fmt.Sprintf("%x", newSHA256([]byte(password))[:])
-
-	newUser := &model.UserDTO{
+	// Create signup request
+	req := &domain.SignUpRequest{
 		Name:           name,
 		Email:          email,
-		MasterPassword: passwordHash,
+		MasterPassword: password,
 	}
 
-	_, err = app.CreateUser(s, newUser)
+	// Create auth service for proper user creation with hashing and schema
+	authConfig := &service.AuthConfig{
+		JWTSecret:            cfg.Server.Secret,
+		AccessTokenDuration:  cfg.Server.AccessTokenExpireDuration,
+		RefreshTokenDuration: cfg.Server.RefreshTokenExpireDuration,
+	}
+	authService := service.NewAuthService(userRepo, tokenRepo, authConfig)
+
+	user, err := authService.SignUp(context.Background(), req)
 	if err != nil {
-		logger.Fatalf("app.CreateUser: %v", err)
+		logger.Fatalf("Failed to create user: %v", err)
 	}
 
-	color.Green("User created successfully.")
+	color.Green("User created successfully!")
+	fmt.Printf("User ID: %d\n", user.ID)
+	fmt.Printf("Email: %s\n", user.Email)
+	fmt.Printf("Schema: %s\n", user.Schema)
 }
 
 func clearInput(input string) string {
 	return strings.TrimSpace(input)
-}
-
-func newSHA256(data []byte) []byte {
-	hash := sha256.Sum256(data)
-	return hash[:]
 }
