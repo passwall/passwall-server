@@ -37,15 +37,10 @@ func TestLoad_DefaultConfig(t *testing.T) {
 }
 
 func TestLoad_WithEnvironmentVariables(t *testing.T) {
-	// Set environment variables
-	os.Setenv("PW_SERVER_PORT", "8080")
-	os.Setenv("PW_DB_NAME", "test_db")
-	os.Setenv("PW_DB_HOST", "testhost")
-	defer func() {
-		os.Unsetenv("PW_SERVER_PORT")
-		os.Unsetenv("PW_DB_NAME")
-		os.Unsetenv("PW_DB_HOST")
-	}()
+	// Set environment variables using t.Setenv (automatic cleanup)
+	t.Setenv("PW_SERVER_PORT", "8080")
+	t.Setenv("PW_DB_NAME", "test_db")
+	t.Setenv("PW_DB_HOST", "testhost")
 
 	tempDir := t.TempDir()
 	configFile := filepath.Join(tempDir, "config.yml")
@@ -63,14 +58,10 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 
 func TestLoad_BackwardsCompatibleEnvVars(t *testing.T) {
 	// Test backwards compatible environment variables
-	os.Setenv("PORT", "9000")
-	os.Setenv("POSTGRES_DB", "legacy_db")
-	os.Setenv("POSTGRES_USER", "legacy_user")
-	defer func() {
-		os.Unsetenv("PORT")
-		os.Unsetenv("POSTGRES_DB")
-		os.Unsetenv("POSTGRES_USER")
-	}()
+	// These must be set BEFORE calling Load()
+	t.Setenv("PORT", "9000")
+	t.Setenv("POSTGRES_DB", "legacy_db")
+	t.Setenv("POSTGRES_USER", "legacy_user")
 
 	tempDir := t.TempDir()
 	configFile := filepath.Join(tempDir, "config.yml")
