@@ -81,16 +81,17 @@ func Load(opts ...LoaderOptions) (*Config, error) {
 		v.SetConfigType("yaml")
 	}
 
-	// Set defaults
+	// Set defaults first
 	setDefaults(v)
+
+	// Bind specific environment variables BEFORE AutomaticEnv
+	// This is important for backwards compatibility
+	bindEnvVariables(v)
 
 	// Enable automatic env variable reading
 	v.SetEnvPrefix(opt.EnvPrefix)
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
-
-	// Bind specific environment variables for backwards compatibility
-	bindEnvVariables(v)
 
 	// Check if config file exists
 	if opt.ConfigFile != "" {
