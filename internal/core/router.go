@@ -112,7 +112,9 @@ func SetupRouter(
 		apiGroup.PUT("/servers/bulk-update", serverHandler.BulkUpdate)
 
 		// User routes
+		apiGroup.GET("/users", userHandler.List)
 		apiGroup.GET("/users/:id", userHandler.GetByID)
+		apiGroup.POST("/users", userHandler.Create)
 		apiGroup.PUT("/users/:id", userHandler.Update)
 		apiGroup.DELETE("/users/:id", userHandler.Delete)
 		apiGroup.POST("/users/change-master-password", userHandler.ChangeMasterPassword)

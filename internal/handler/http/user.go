@@ -18,6 +18,43 @@ func NewUserHandler(service service.UserService) *UserHandler {
 	return &UserHandler{service: service}
 }
 
+func (h *UserHandler) List(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	users, err := h.service.List(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch users"})
+		return
+	}
+
+	c.JSON(http.StatusOK, users)
+}
+
+func (h *UserHandler) Create(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	var user domain.User
+	if err := c.ShouldBindJSON(&user); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
+		return
+	}
+
+	if err := h.service.Create(ctx, &user); err != nil {
+		if errors.Is(err, repository.ErrAlreadyExists) {
+			c.JSON(http.StatusConflict, gin.H{"error": "user already exists"})
+			return
+		}
+		if errors.Is(err, repository.ErrInvalidInput) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid input"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, user)
+}
+
 func (h *UserHandler) GetByID(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -69,7 +106,14 @@ func (h *UserHandler) Update(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "user updated successfully"})
+	// Get updated user to return full data
+	updatedUser, err := h.service.GetByID(ctx, id)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "user updated successfully"})
+		return
+	}
+
+	c.JSON(http.StatusOK, updatedUser)
 }
 
 func (h *UserHandler) Delete(c *gin.Context) {

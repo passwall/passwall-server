@@ -122,6 +122,13 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 		return nil, fmt.Errorf("failed to store refresh token: %w", err)
 	}
 
+	// Update last sign in timestamp
+	now := time.Now()
+	user.LastSignInAt = &now
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		// Log error but don't fail login if timestamp update fails
+	}
+
 	return &domain.AuthResponse{
 		AccessToken:  tokenDetails.AccessToken,
 		RefreshToken: tokenDetails.RefreshToken,

@@ -45,6 +45,7 @@ func (r *userRepository) GetByUUID(ctx context.Context, uuid string) (*domain.Us
 
 func (r *userRepository) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
 	var user domain.User
+	// Only get non-deleted users (hard delete won't return anything anyway)
 	err := r.db.WithContext(ctx).Where("email = ?", email).First(&user).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -135,8 +136,8 @@ func (r *userRepository) Delete(ctx context.Context, id uint, schema string) err
 			// Log error but continue to delete user
 		}
 	}
-	// Delete user
-	return r.db.WithContext(ctx).Delete(&domain.User{ID: id}).Error
+	// Hard delete user (not soft delete) to allow re-registration with same email
+	return r.db.WithContext(ctx).Unscoped().Delete(&domain.User{}, id).Error
 }
 
 func (r *userRepository) Migrate() error {

@@ -36,6 +36,16 @@ func (s *userService) GetByEmail(ctx context.Context, email string) (*domain.Use
 	return s.repo.GetByEmail(ctx, email)
 }
 
+func (s *userService) List(ctx context.Context) ([]*domain.User, error) {
+	users, _, err := s.repo.List(ctx, repository.ListFilter{})
+	if err != nil {
+		s.logger.Error("failed to list users", "error", err)
+		return nil, err
+	}
+	s.logger.Debug("users listed", "count", len(users))
+	return users, nil
+}
+
 func (s *userService) Create(ctx context.Context, user *domain.User) error {
 	// Validate
 	if user.Email == "" {
