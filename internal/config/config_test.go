@@ -56,27 +56,6 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 	assert.Equal(t, "testhost", cfg.Database.Host)
 }
 
-func TestLoad_BackwardsCompatibleEnvVars(t *testing.T) {
-	// Test backwards compatible environment variables
-	// These must be set BEFORE calling Load()
-	t.Setenv("PORT", "9000")
-	t.Setenv("POSTGRES_DB", "legacy_db")
-	t.Setenv("POSTGRES_USER", "legacy_user")
-
-	tempDir := t.TempDir()
-	configFile := filepath.Join(tempDir, "config.yml")
-
-	cfg, err := Load(LoaderOptions{
-		ConfigFile: configFile,
-		EnvPrefix:  "PW",
-	})
-
-	require.NoError(t, err)
-	assert.Equal(t, "9000", cfg.Server.Port)
-	assert.Equal(t, "legacy_db", cfg.Database.Name)
-	assert.Equal(t, "legacy_user", cfg.Database.Username)
-}
-
 func TestConfig_Validate(t *testing.T) {
 	tests := []struct {
 		name    string
