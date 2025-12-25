@@ -3,6 +3,7 @@ package domain
 import (
 	"time"
 
+	"github.com/passwall/passwall-server/pkg/constants"
 	uuid "github.com/satori/go.uuid"
 )
 
@@ -18,7 +19,8 @@ type User struct {
 	MasterPassword   string     `json:"-" gorm:"type:varchar(255);not null"` // Never expose in JSON
 	Secret           string     `json:"-" gorm:"type:text"`                  // Encryption secret
 	Schema           string     `json:"schema" gorm:"type:varchar(255);uniqueIndex;not null"`
-	Role             string     `json:"role" gorm:"type:varchar(50);default:'user'"`
+	RoleID           uint       `json:"role_id" gorm:"not null;default:2;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"` // Foreign key with constraints
+	Role             *Role      `json:"role,omitempty" gorm:"foreignKey:RoleID"`
 	ConfirmationCode string     `json:"-" gorm:"type:varchar(10)"`
 	EmailVerifiedAt  time.Time  `json:"email_verified_at"`
 	LastSignInAt     *time.Time `json:"last_sign_in_at" gorm:"type:timestamp"`
@@ -28,5 +30,31 @@ type User struct {
 // TableName specifies the table name for User
 func (User) TableName() string {
 	return "users"
+}
+
+// GetRoleName returns the role name with proper null handling
+func (u *User) GetRoleName() string {
+	if u.Role != nil {
+		return u.Role.Name
+	}
+	return constants.RoleMember // Default fallback using constant
+}
+
+// IsAdmin checks if user is an admin
+func (u *User) IsAdmin() bool {
+	return u.GetRoleName() == constants.RoleAdmin
+}
+
+// HasPermission checks if user has a specific permission (requires Role.Permissions to be loaded)
+func (u *User) HasPermission(permission string) bool {
+	if u.Role == nil || u.Role.Permissions == nil {
+		return false
+	}
+	for _, p := range u.Role.Permissions {
+		if p.Name == permission {
+			return true
+		}
+	}
+	return false
 }
 

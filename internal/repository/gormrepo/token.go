@@ -60,6 +60,11 @@ func (r *tokenRepository) DeleteExpired(ctx context.Context) (int64, error) {
 	return result.RowsAffected, result.Error
 }
 
+func (r *tokenRepository) Cleanup(ctx context.Context) error {
+	_, err := r.DeleteExpired(ctx)
+	return err
+}
+
 func (r *tokenRepository) Migrate() error {
 	return r.db.AutoMigrate(&domain.Token{})
 }

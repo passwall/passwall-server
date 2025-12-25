@@ -11,6 +11,7 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
+	"github.com/passwall/passwall-server/pkg/constants"
 	uuid "github.com/satori/go.uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -75,8 +76,8 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 		MasterPassword: string(hashedPassword),
 		Secret:         secret,
 		Schema:         schema,
-		Role:           "user",
-		IsMigrated:     true, // New users don't need migration
+		RoleID:         constants.RoleIDMember, // Default: Member role
+		IsMigrated:     true,                   // New users don't need migration
 	}
 
 	// Create schema
@@ -132,14 +133,14 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 	return &domain.AuthResponse{
 		AccessToken:  tokenDetails.AccessToken,
 		RefreshToken: tokenDetails.RefreshToken,
-		Type:         "Bearer", // Token type - backward compatible
+		Type:         "Bearer",           // Token type - backward compatible
 		UserID:       user.ID,
 		Email:        user.Email,
 		Name:         user.Name,
 		Schema:       user.Schema,
-		Role:         user.Role,       // User role - backward compatible (mobile app uses this)
-		Secret:       user.Secret,     // Required by extension for PBKDF2 encryption
-		IsMigrated:   user.IsMigrated, // Migration status for extension
+		Role:         user.GetRoleName(), // User role - backward compatible (mobile app uses this)
+		Secret:       user.Secret,        // Required by extension for PBKDF2 encryption
+		IsMigrated:   user.IsMigrated,    // Migration status for extension
 	}, nil
 }
 
@@ -220,7 +221,7 @@ func (s *authService) ValidateToken(ctx context.Context, tokenString string) (*d
 		return nil, ErrExpiredToken
 	}
 
-	// Get user to get user ID, email, and schema
+	// Get user to get user ID, email, schema, and role
 	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
 		return nil, fmt.Errorf("user not found: %w", err)
@@ -230,6 +231,7 @@ func (s *authService) ValidateToken(ctx context.Context, tokenString string) (*d
 		UserID: user.ID,
 		Email:  user.Email,
 		Schema: user.Schema,
+		Role:   user.GetRoleName(),
 		UUID:   uuid.FromStringOrNil(tokenUUID),
 		Exp:    int64(exp),
 	}, nil
@@ -252,8 +254,9 @@ func (s *authService) createToken(user *domain.User) (*domain.TokenDetails, erro
 
 	// Create access token
 	atClaims := jwt.MapClaims{
-		"authorized": user.Role == "Admin",
+		"authorized": user.IsAdmin(),
 		"user_uuid":  user.UUID.String(),
+		"role":       user.GetRoleName(),
 		"exp":        td.AtExpiresTime.Unix(),
 		"uuid":       td.AtUUID.String(),
 	}

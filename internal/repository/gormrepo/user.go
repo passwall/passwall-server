@@ -21,7 +21,7 @@ func NewUserRepository(db *gorm.DB) repository.UserRepository {
 
 func (r *userRepository) GetByID(ctx context.Context, id uint) (*domain.User, error) {
 	var user domain.User
-	err := r.db.WithContext(ctx).Where("id = ?", id).First(&user).Error
+	err := r.db.WithContext(ctx).Preload("Role.Permissions").Where("id = ?", id).First(&user).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, repository.ErrNotFound
@@ -33,7 +33,7 @@ func (r *userRepository) GetByID(ctx context.Context, id uint) (*domain.User, er
 
 func (r *userRepository) GetByUUID(ctx context.Context, uuid string) (*domain.User, error) {
 	var user domain.User
-	err := r.db.WithContext(ctx).Where("uuid = ?", uuid).First(&user).Error
+	err := r.db.WithContext(ctx).Preload("Role.Permissions").Where("uuid = ?", uuid).First(&user).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, repository.ErrNotFound
@@ -46,7 +46,7 @@ func (r *userRepository) GetByUUID(ctx context.Context, uuid string) (*domain.Us
 func (r *userRepository) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
 	var user domain.User
 	// Only get non-deleted users (hard delete won't return anything anyway)
-	err := r.db.WithContext(ctx).Where("email = ?", email).First(&user).Error
+	err := r.db.WithContext(ctx).Preload("Role.Permissions").Where("email = ?", email).First(&user).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, repository.ErrNotFound
@@ -75,7 +75,7 @@ func (r *userRepository) List(ctx context.Context, filter repository.ListFilter)
 	var users []*domain.User
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&domain.User{})
+	query := r.db.WithContext(ctx).Model(&domain.User{}).Preload("Role")
 
 	// Count total
 	if err := query.Count(&total).Error; err != nil {

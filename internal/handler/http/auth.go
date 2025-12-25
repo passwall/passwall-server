@@ -8,6 +8,7 @@ import (
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/internal/service"
+	"github.com/passwall/passwall-server/pkg/constants"
 )
 
 type AuthHandler struct {
@@ -102,7 +103,7 @@ func (h *AuthHandler) SignOut(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	// Get user ID from context (set by auth middleware)
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get(constants.ContextKeyUserID)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return

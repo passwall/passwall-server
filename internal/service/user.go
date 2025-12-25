@@ -72,29 +72,14 @@ func (s *userService) Create(ctx context.Context, user *domain.User) error {
 }
 
 func (s *userService) Update(ctx context.Context, id uint, user *domain.User) error {
-	existing, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		s.logger.Error("user not found for update", "id", id, "error", err)
-		return err
-	}
-
-	// Update fields (partial update pattern)
-	if user.Name != "" {
-		existing.Name = user.Name
-	}
-	if user.Email != "" {
-		existing.Email = user.Email
-	}
-	if user.Role != "" {
-		existing.Role = user.Role
-	}
-
-	if err := s.repo.Update(ctx, existing); err != nil {
+	// user parameter already contains the updates applied
+	// Just save to database
+	if err := s.repo.Update(ctx, user); err != nil {
 		s.logger.Error("failed to update user", "id", id, "error", err)
 		return err
 	}
 
-	s.logger.Info("user updated", "id", id, "email", existing.Email)
+	s.logger.Info("user updated", "id", id, "email", user.Email, "role_id", user.RoleID)
 	return nil
 }
 

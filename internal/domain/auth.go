@@ -31,11 +31,13 @@ type TokenDetails struct {
 
 // TokenClaims represents JWT token claims
 type TokenClaims struct {
-	UserID uint      `json:"user_id"`
-	Email  string    `json:"email"`
-	Schema string    `json:"schema"`
-	UUID   uuid.UUID `json:"uuid"`
-	Exp    int64     `json:"exp"`
+	UserID      uint      `json:"user_id"`
+	Email       string    `json:"email"`
+	Schema      string    `json:"schema"`
+	Role        string    `json:"role"`
+	Permissions []string  `json:"permissions,omitempty"` // Optional: list of permission names
+	UUID        uuid.UUID `json:"uuid"`
+	Exp         int64     `json:"exp"`
 }
 
 // AuthResponse represents authentication response

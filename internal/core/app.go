@@ -4,9 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -26,12 +23,10 @@ type App struct {
 	db           database.Database
 	server       *http.Server
 	tokenCleanup *cleanup.TokenCleanup
-	cleanupCtx   context.Context
-	cleanupStop  context.CancelFunc
 }
 
-// New creates a new application instance
-func New() (*App, error) {
+// New creates a new application instance with the given context
+func New(ctx context.Context) (*App, error) {
 	// Load configuration
 	cfg, err := config.Load(config.LoaderOptions{
 		ConfigFile: constants.ConfigFilePath,
@@ -52,14 +47,21 @@ func New() (*App, error) {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
+	// Seed roles and permissions (using application context)
+	if err := gormrepo.SeedRolesAndPermissions(ctx, db.DB()); err != nil {
+		fmt.Printf("Note: roles and permissions might already exist: %v\n", err)
+	} else {
+		fmt.Println("✓ Roles and permissions seeded successfully")
+	}
+
 	return &App{
 		config: cfg,
 		db:     db,
 	}, nil
 }
 
-// Run starts the application
-func (a *App) Run() error {
+// Run starts the application with the given context
+func (a *App) Run(ctx context.Context) error {
 	// Configure Gin to use our logger
 	gin.DefaultWriter = logger.GetWriter()
 	gin.DefaultErrorWriter = logger.GetWriter()
@@ -70,6 +72,10 @@ func (a *App) Run() error {
 	}
 
 	// Initialize repositories
+	// Role and Permission repos (for future use)
+	_ = gormrepo.NewRoleRepository(a.db.DB())
+	_ = gormrepo.NewPermissionRepository(a.db.DB())
+
 	loginRepo := gormrepo.NewLoginRepository(a.db.DB())
 	bankAccountRepo := gormrepo.NewBankAccountRepository(a.db.DB())
 	creditCardRepo := gormrepo.NewCreditCardRepository(a.db.DB())
@@ -136,55 +142,61 @@ func (a *App) Run() error {
 
 	// Initialize token cleanup service (runs every hour)
 	a.tokenCleanup = cleanup.NewTokenCleanup(tokenRepo, 1*time.Hour)
-	a.cleanupCtx, a.cleanupStop = context.WithCancel(context.Background())
 
-	// Start token cleanup in background
-	go a.tokenCleanup.Start(a.cleanupCtx)
+	// Start token cleanup in background (using application context)
+	go a.tokenCleanup.Start(ctx)
 
 	// Start server in a goroutine
+	serverErrChan := make(chan error, 1)
 	go func() {
 		logger.Infof("Server starting on %s", addr)
 		fmt.Printf("🚀 Passwall Server is starting at %s in '%s' mode\n", addr, a.config.Server.Env)
 
 		if err := a.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatalf("Server failed to start: %v", err)
+			logger.Errorf("Server failed: %v", err)
+			serverErrChan <- err
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shut down the server
-	return a.waitForShutdown()
+	// Wait for context cancellation or server error
+	select {
+	case <-ctx.Done():
+		// Context canceled (signal received)
+		return a.gracefulShutdown()
+	case err := <-serverErrChan:
+		// Server failed to start
+		return fmt.Errorf("server error: %w", err)
+	}
 }
 
-// waitForShutdown waits for interrupt signal and performs graceful shutdown
-func (a *App) waitForShutdown() error {
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+// gracefulShutdown performs graceful shutdown of all app components
+func (a *App) gracefulShutdown() error {
+	logger.Infof("Initiating graceful shutdown...")
 
-	logger.Infof("Shutting down server...")
-	fmt.Println("\n⏳ Shutting down gracefully...")
+	// Create shutdown context with timeout
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
 
-	// Stop token cleanup
-	if a.cleanupStop != nil {
-		a.cleanupStop()
-		logger.Infof("Token cleanup stopped")
-	}
-
-	// Give outstanding requests 5 seconds to complete
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := a.server.Shutdown(ctx); err != nil {
-		logger.Errorf("Server forced to shutdown: %v", err)
+	// Shutdown HTTP server (stops accepting new connections, waits for existing)
+	logger.Infof("Shutting down HTTP server...")
+	if err := a.server.Shutdown(shutdownCtx); err != nil {
+		logger.Errorf("HTTP server forced to shutdown: %v", err)
 		return fmt.Errorf("server forced to shutdown: %w", err)
 	}
+	logger.Infof("HTTP server stopped gracefully")
+
+	// Token cleanup already stopped via context cancellation
+	logger.Infof("Token cleanup stopped")
 
 	// Close database connection
+	logger.Infof("Closing database connection...")
 	if err := a.db.Close(); err != nil {
 		logger.Errorf("Failed to close database: %v", err)
+		// Don't return error, continue shutdown
+	} else {
+		logger.Infof("Database connection closed")
 	}
 
-	logger.Infof("Server exited successfully")
-	fmt.Println("✅ Server stopped")
+	logger.Infof("Graceful shutdown completed")
 	return nil
 }

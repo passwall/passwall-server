@@ -1,0 +1,143 @@
+package gormrepo
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/passwall/passwall-server/internal/domain"
+	"github.com/passwall/passwall-server/pkg/constants"
+	"gorm.io/gorm"
+)
+
+// SeedRolesAndPermissions creates initial roles and permissions if they don't exist
+func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB) error {
+	// Check if roles already exist
+	var count int64
+	if err := db.WithContext(ctx).Model(&domain.Role{}).Count(&count).Error; err != nil {
+		return fmt.Errorf("failed to check roles: %w", err)
+	}
+
+	// If roles exist, skip seeding
+	if count > 0 {
+		return nil
+	}
+
+	// Begin transaction
+	return db.Transaction(func(tx *gorm.DB) error {
+		// Create Permissions (using constants)
+		permissions := []domain.Permission{
+			// Users permissions
+			{Name: constants.PermissionUsersRead, DisplayName: "View Users", Description: "Can view user list and details", Resource: "users", Action: "read"},
+			{Name: constants.PermissionUsersCreate, DisplayName: "Create Users", Description: "Can create new users", Resource: "users", Action: "create"},
+			{Name: constants.PermissionUsersUpdate, DisplayName: "Update Users", Description: "Can update user information", Resource: "users", Action: "update"},
+			{Name: constants.PermissionUsersDelete, DisplayName: "Delete Users", Description: "Can delete users", Resource: "users", Action: "delete"},
+
+			// Logins permissions
+			{Name: constants.PermissionLoginsRead, DisplayName: "View Logins", Description: "Can view login credentials", Resource: "logins", Action: "read"},
+			{Name: constants.PermissionLoginsCreate, DisplayName: "Create Logins", Description: "Can create new login credentials", Resource: "logins", Action: "create"},
+			{Name: constants.PermissionLoginsUpdate, DisplayName: "Update Logins", Description: "Can update login credentials", Resource: "logins", Action: "update"},
+			{Name: constants.PermissionLoginsDelete, DisplayName: "Delete Logins", Description: "Can delete login credentials", Resource: "logins", Action: "delete"},
+
+			// Credit Cards permissions
+			{Name: constants.PermissionCreditCardsRead, DisplayName: "View Credit Cards", Description: "Can view credit cards", Resource: "credit_cards", Action: "read"},
+			{Name: constants.PermissionCreditCardsCreate, DisplayName: "Create Credit Cards", Description: "Can create credit cards", Resource: "credit_cards", Action: "create"},
+			{Name: constants.PermissionCreditCardsUpdate, DisplayName: "Update Credit Cards", Description: "Can update credit cards", Resource: "credit_cards", Action: "update"},
+			{Name: constants.PermissionCreditCardsDelete, DisplayName: "Delete Credit Cards", Description: "Can delete credit cards", Resource: "credit_cards", Action: "delete"},
+
+			// Bank Accounts permissions
+			{Name: constants.PermissionBankAccountsRead, DisplayName: "View Bank Accounts", Description: "Can view bank accounts", Resource: "bank_accounts", Action: "read"},
+			{Name: constants.PermissionBankAccountsCreate, DisplayName: "Create Bank Accounts", Description: "Can create bank accounts", Resource: "bank_accounts", Action: "create"},
+			{Name: constants.PermissionBankAccountsUpdate, DisplayName: "Update Bank Accounts", Description: "Can update bank accounts", Resource: "bank_accounts", Action: "update"},
+			{Name: constants.PermissionBankAccountsDelete, DisplayName: "Delete Bank Accounts", Description: "Can delete bank accounts", Resource: "bank_accounts", Action: "delete"},
+
+			// Notes permissions
+			{Name: constants.PermissionNotesRead, DisplayName: "View Notes", Description: "Can view notes", Resource: "notes", Action: "read"},
+			{Name: constants.PermissionNotesCreate, DisplayName: "Create Notes", Description: "Can create notes", Resource: "notes", Action: "create"},
+			{Name: constants.PermissionNotesUpdate, DisplayName: "Update Notes", Description: "Can update notes", Resource: "notes", Action: "update"},
+			{Name: constants.PermissionNotesDelete, DisplayName: "Delete Notes", Description: "Can delete notes", Resource: "notes", Action: "delete"},
+
+			// Emails permissions
+			{Name: constants.PermissionEmailsRead, DisplayName: "View Emails", Description: "Can view emails", Resource: "emails", Action: "read"},
+			{Name: constants.PermissionEmailsCreate, DisplayName: "Create Emails", Description: "Can create emails", Resource: "emails", Action: "create"},
+			{Name: constants.PermissionEmailsUpdate, DisplayName: "Update Emails", Description: "Can update emails", Resource: "emails", Action: "update"},
+			{Name: constants.PermissionEmailsDelete, DisplayName: "Delete Emails", Description: "Can delete emails", Resource: "emails", Action: "delete"},
+		}
+
+		if err := tx.WithContext(ctx).Create(&permissions).Error; err != nil {
+			return fmt.Errorf("failed to create permissions: %w", err)
+		}
+
+		// Create Roles with explicit IDs (using constants)
+		roles := []domain.Role{
+			{
+				ID:          constants.RoleIDAdmin,
+				Name:        constants.RoleAdmin,
+				DisplayName: "Administrator",
+				Description: "Full system access with all permissions",
+			},
+			{
+				ID:          constants.RoleIDMember,
+				Name:        constants.RoleMember,
+				DisplayName: "Member",
+				Description: "Standard user with limited access to own data",
+			},
+		}
+
+		// Create roles
+		for _, role := range roles {
+			if err := tx.WithContext(ctx).Create(&role).Error; err != nil {
+				return fmt.Errorf("failed to create role %s: %w", role.Name, err)
+			}
+		}
+
+		// Fetch created roles for association
+		var adminRole, memberRole domain.Role
+		if err := tx.WithContext(ctx).Where("id = ?", constants.RoleIDAdmin).First(&adminRole).Error; err != nil {
+			return fmt.Errorf("failed to fetch admin role: %w", err)
+		}
+
+		if err := tx.WithContext(ctx).Where("id = ?", constants.RoleIDMember).First(&memberRole).Error; err != nil {
+			return fmt.Errorf("failed to fetch member role: %w", err)
+		}
+
+
+		// Assign ALL permissions to Admin
+		var allPermissions []domain.Permission
+		if err := tx.WithContext(ctx).Find(&allPermissions).Error; err != nil {
+			return fmt.Errorf("failed to fetch permissions: %w", err)
+		}
+
+		if err := tx.WithContext(ctx).Model(&adminRole).Association("Permissions").Append(allPermissions); err != nil {
+			return fmt.Errorf("failed to assign permissions to admin: %w", err)
+		}
+
+		// Assign limited permissions to Member (exclude users.*)
+		var memberPermissions []domain.Permission
+		if err := tx.WithContext(ctx).Where("resource IN ?", []string{"logins", "credit_cards", "bank_accounts", "notes", "emails"}).Find(&memberPermissions).Error; err != nil {
+			return fmt.Errorf("failed to fetch member permissions: %w", err)
+		}
+
+		if err := tx.WithContext(ctx).Model(&memberRole).Association("Permissions").Append(memberPermissions); err != nil {
+			return fmt.Errorf("failed to assign permissions to member: %w", err)
+		}
+
+		// Update existing users to have role_id = member if null
+		if err := tx.WithContext(ctx).Model(&domain.User{}).Where("role_id IS NULL OR role_id = 0").Update("role_id", constants.RoleIDMember).Error; err != nil {
+			return fmt.Errorf("failed to update existing users: %w", err)
+		}
+
+		// Set specific user as admin (erhan@passwall.io)
+		result := tx.WithContext(ctx).Model(&domain.User{}).Where("email = ?", "erhan@passwall.io").Update("role_id", constants.RoleIDAdmin)
+		if result.Error != nil {
+			return fmt.Errorf("failed to update admin user: %w", result.Error)
+		}
+		if result.RowsAffected > 0 {
+			fmt.Printf("✓ Set erhan@passwall.io as admin\n")
+		} else {
+			fmt.Printf("ℹ erhan@passwall.io not found yet (will be admin if created)\n")
+		}
+
+		return nil
+	})
+}
+

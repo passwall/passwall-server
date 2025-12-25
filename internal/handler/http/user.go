@@ -8,6 +8,7 @@ import (
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/internal/service"
+	"github.com/passwall/passwall-server/pkg/constants"
 )
 
 type UserHandler struct {
@@ -27,7 +28,8 @@ func (h *UserHandler) List(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, users)
+	// Convert to DTOs for API response
+	c.JSON(http.StatusOK, domain.ToUserDTOs(users))
 }
 
 func (h *UserHandler) Create(c *gin.Context) {
@@ -37,6 +39,11 @@ func (h *UserHandler) Create(c *gin.Context) {
 	if err := c.ShouldBindJSON(&user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
 		return
+	}
+
+	// Set default role if not provided
+	if user.RoleID == 0 {
+		user.RoleID = constants.RoleIDMember
 	}
 
 	if err := h.service.Create(ctx, &user); err != nil {
@@ -52,7 +59,14 @@ func (h *UserHandler) Create(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, user)
+	// Get created user with role data
+	createdUser, err := h.service.GetByID(ctx, user.ID)
+	if err == nil {
+		c.JSON(http.StatusCreated, domain.ToUserDTO(createdUser))
+		return
+	}
+
+	c.JSON(http.StatusCreated, domain.ToUserDTO(&user))
 }
 
 func (h *UserHandler) GetByID(c *gin.Context) {
@@ -73,14 +87,8 @@ func (h *UserHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"id":     user.ID,
-		"uuid":   user.UUID,
-		"name":   user.Name,
-		"email":  user.Email,
-		"schema": user.Schema,
-		"role":   user.Role,
-	})
+	// Convert to DTO for API response
+	c.JSON(http.StatusOK, domain.ToUserDTO(user))
 }
 
 func (h *UserHandler) Update(c *gin.Context) {
@@ -91,29 +99,47 @@ func (h *UserHandler) Update(c *gin.Context) {
 		return
 	}
 
-	var user domain.User
-	if err := c.ShouldBindJSON(&user); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+	var req domain.UpdateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
 		return
 	}
 
-	if err := h.service.Update(ctx, id, &user); err != nil {
+	// Check if there are any updates
+	if !req.HasUpdates() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no fields to update"})
+		return
+	}
+
+	// Get existing user
+	existingUser, err := h.service.GetByID(ctx, id)
+	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 			return
 		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch user"})
+		return
+	}
+
+	// Apply updates
+	req.ApplyTo(existingUser)
+
+	// Update in database
+	if err := h.service.Update(ctx, id, existingUser); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user"})
 		return
 	}
 
-	// Get updated user to return full data
+	// Get updated user with fresh role data
 	updatedUser, err := h.service.GetByID(ctx, id)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "user updated successfully"})
 		return
 	}
 
-	c.JSON(http.StatusOK, updatedUser)
+	// Convert to DTO for API response
+	c.JSON(http.StatusOK, domain.ToUserDTO(updatedUser))
 }
 
 func (h *UserHandler) Delete(c *gin.Context) {

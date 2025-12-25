@@ -37,6 +37,8 @@ func InitDatabase(cfg *config.Config) (database.Database, error) {
 // Returns nil if migration fails due to existing tables (backup restore scenario)
 func AutoMigrate(db database.Database) error {
 	_ = db.AutoMigrate(
+		&domain.Role{},
+		&domain.Permission{},
 		&domain.User{},
 		&domain.Token{},
 		// Note: Other entities are migrated per schema

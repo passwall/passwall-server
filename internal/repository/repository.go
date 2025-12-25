@@ -9,15 +9,15 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
-// Common repository errors
+// Common errors
 var (
 	ErrNotFound      = errors.New("record not found")
 	ErrAlreadyExists = errors.New("record already exists")
-	ErrInvalidInput  = errors.New("invalid input")
 	ErrUnauthorized  = errors.New("unauthorized")
+	ErrInvalidInput  = errors.New("invalid input")
 )
 
-// ListFilter contains common filtering options
+// ListFilter represents common list filter parameters
 type ListFilter struct {
 	Search string
 	Limit  int
@@ -26,14 +26,13 @@ type ListFilter struct {
 	Order  string
 }
 
-// ListResult contains paginated results metadata
+// ListResult represents list query results with pagination info
 type ListResult struct {
 	Total    int64
 	Filtered int64
 }
 
-// LoginRepository defines the interface for login data access
-// Schema is extracted from context automatically
+// LoginRepository defines login data access methods
 type LoginRepository interface {
 	GetByID(ctx context.Context, id uint) (*domain.Login, error)
 	List(ctx context.Context) ([]*domain.Login, error)
@@ -43,19 +42,7 @@ type LoginRepository interface {
 	Migrate(schema string) error
 }
 
-// CreditCardRepository defines the interface for credit card data access
-// Schema is extracted from context automatically
-type CreditCardRepository interface {
-	GetByID(ctx context.Context, id uint) (*domain.CreditCard, error)
-	List(ctx context.Context) ([]*domain.CreditCard, error)
-	Create(ctx context.Context, card *domain.CreditCard) error
-	Update(ctx context.Context, card *domain.CreditCard) error
-	Delete(ctx context.Context, id uint) error
-	Migrate(schema string) error
-}
-
-// BankAccountRepository defines the interface for bank account data access
-// Schema is extracted from context automatically
+// BankAccountRepository defines bank account data access methods
 type BankAccountRepository interface {
 	GetByID(ctx context.Context, id uint) (*domain.BankAccount, error)
 	List(ctx context.Context) ([]*domain.BankAccount, error)
@@ -65,8 +52,17 @@ type BankAccountRepository interface {
 	Migrate(schema string) error
 }
 
-// NoteRepository defines the interface for note data access
-// Schema is extracted from context automatically
+// CreditCardRepository defines credit card data access methods
+type CreditCardRepository interface {
+	GetByID(ctx context.Context, id uint) (*domain.CreditCard, error)
+	List(ctx context.Context) ([]*domain.CreditCard, error)
+	Create(ctx context.Context, card *domain.CreditCard) error
+	Update(ctx context.Context, card *domain.CreditCard) error
+	Delete(ctx context.Context, id uint) error
+	Migrate(schema string) error
+}
+
+// NoteRepository defines note data access methods
 type NoteRepository interface {
 	GetByID(ctx context.Context, id uint) (*domain.Note, error)
 	List(ctx context.Context) ([]*domain.Note, error)
@@ -76,8 +72,7 @@ type NoteRepository interface {
 	Migrate(schema string) error
 }
 
-// EmailRepository defines the interface for email data access
-// Schema is extracted from context automatically
+// EmailRepository defines email data access methods
 type EmailRepository interface {
 	GetByID(ctx context.Context, id uint) (*domain.Email, error)
 	List(ctx context.Context) ([]*domain.Email, error)
@@ -87,8 +82,7 @@ type EmailRepository interface {
 	Migrate(schema string) error
 }
 
-// ServerRepository defines the interface for server data access
-// Schema is extracted from context automatically
+// ServerRepository defines server data access methods
 type ServerRepository interface {
 	GetByID(ctx context.Context, id uint) (*domain.Server, error)
 	List(ctx context.Context) ([]*domain.Server, error)
@@ -98,7 +92,7 @@ type ServerRepository interface {
 	Migrate(schema string) error
 }
 
-// UserRepository defines the interface for user data access
+// UserRepository defines user data access methods
 type UserRepository interface {
 	GetByID(ctx context.Context, id uint) (*domain.User, error)
 	GetByUUID(ctx context.Context, uuid string) (*domain.User, error)
@@ -112,13 +106,30 @@ type UserRepository interface {
 	CreateSchema(schema string) error
 }
 
-// TokenRepository defines the interface for token data access
+// TokenRepository defines token data access methods
 type TokenRepository interface {
+	Create(ctx context.Context, userID int, tokenUUID uuid.UUID, token string, expiresAt time.Time) error
 	GetByUUID(ctx context.Context, uuid string) (*domain.Token, error)
-	Create(ctx context.Context, userID int, uuid uuid.UUID, token string, expiryTime time.Time) error
 	Delete(ctx context.Context, userID int) error
 	DeleteByUUID(ctx context.Context, uuid string) error
 	DeleteExpired(ctx context.Context) (int64, error)
+	Cleanup(ctx context.Context) error
 	Migrate() error
 }
 
+// RoleRepository defines role data access methods
+type RoleRepository interface {
+	GetByID(ctx context.Context, id uint) (*domain.Role, error)
+	GetByName(ctx context.Context, name string) (*domain.Role, error)
+	List(ctx context.Context) ([]*domain.Role, error)
+	GetPermissions(ctx context.Context, roleID uint) ([]string, error)
+	Migrate() error
+}
+
+// PermissionRepository defines permission data access methods
+type PermissionRepository interface {
+	GetByID(ctx context.Context, id uint) (*domain.Permission, error)
+	GetByName(ctx context.Context, name string) (*domain.Permission, error)
+	List(ctx context.Context) ([]*domain.Permission, error)
+	Migrate() error
+}

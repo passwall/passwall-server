@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/passwall/passwall-server/internal/service"
+	"github.com/passwall/passwall-server/pkg/constants"
 	"github.com/passwall/passwall-server/pkg/database"
 )
 
@@ -37,11 +38,12 @@ func AuthMiddleware(authService service.AuthService) gin.HandlerFunc {
 			return
 		}
 
-		// Set user information in context
-		c.Set("user_id", claims.UserID)
-		c.Set("email", claims.Email)
-		c.Set("schema", claims.Schema)
-		c.Set("token_uuid", claims.UUID.String())
+		// Set user information in context (using constants for keys)
+		c.Set(constants.ContextKeyUserID, claims.UserID)
+		c.Set(constants.ContextKeyEmail, claims.Email)
+		c.Set(constants.ContextKeySchema, claims.Schema)
+		c.Set(constants.ContextKeyUserRole, claims.Role)
+		c.Set(constants.ContextKeyTokenUUID, claims.UUID.String())
 
 		// Set schema in request context for repository/service access
 		ctx := database.WithSchema(c.Request.Context(), claims.Schema)
