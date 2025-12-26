@@ -126,6 +126,11 @@ func (r *userRepository) Create(ctx context.Context, user *domain.User) error {
 }
 
 func (r *userRepository) Update(ctx context.Context, user *domain.User) error {
+	// Note: FullSaveAssociations is set to false in GORM config, but we still
+	// clear the Role pointer as a defense-in-depth measure to prevent any
+	// potential issues with preloaded associations.
+	user.Role = nil
+	
 	return r.db.WithContext(ctx).Save(user).Error
 }
 

@@ -45,6 +45,12 @@ func New(cfg *database.Config) (database.Database, error) {
 			return time.Now().UTC()
 		},
 		PrepareStmt: true, // Prepare statement for better performance
+		// Disable automatic association saving to prevent issues when entities
+		// are loaded with Preload(). This prevents GORM from trying to save
+		// associations during Update operations, which can cause foreign key
+		// values to revert to preloaded values.
+		// If you need to save associations explicitly, use Association() API.
+		FullSaveAssociations: false,
 	}
 
 	// Open database connection

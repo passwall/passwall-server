@@ -9,10 +9,10 @@ import (
 
 // User represents a user account in the system
 type User struct {
-	ID               uint      `gorm:"primary_key" json:"id"`
-	UUID             uuid.UUID `gorm:"type:uuid;type:varchar(100);" json:"uuid"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	ID        uint      `gorm:"primary_key" json:"id"`
+	UUID      uuid.UUID `gorm:"type:uuid;type:varchar(100);" json:"uuid"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 	// DeletedAt removed - using hard delete to allow re-registration with same email
 	Name             string     `json:"name" gorm:"type:varchar(255)"`
 	Email            string     `json:"email" gorm:"type:varchar(255);uniqueIndex;not null"`
@@ -34,8 +34,13 @@ func (User) TableName() string {
 
 // GetRoleName returns the role name with proper null handling
 func (u *User) GetRoleName() string {
+	// First try to get from preloaded Role
 	if u.Role != nil {
 		return u.Role.Name
+	}
+	// Fallback to RoleID if Role is not preloaded (e.g., after Update which clears associations)
+	if u.RoleID == constants.RoleIDAdmin {
+		return constants.RoleAdmin
 	}
 	return constants.RoleMember // Default fallback using constant
 }
@@ -57,4 +62,3 @@ func (u *User) HasPermission(permission string) bool {
 	}
 	return false
 }
-
