@@ -98,6 +98,7 @@ type UserRepository interface {
 	GetByUUID(ctx context.Context, uuid string) (*domain.User, error)
 	GetByEmail(ctx context.Context, email string) (*domain.User, error)
 	GetByCredentials(ctx context.Context, email, masterPassword string) (*domain.User, error)
+	GetBySchema(ctx context.Context, schema string) (*domain.User, error)
 	List(ctx context.Context, filter ListFilter) ([]*domain.User, *ListResult, error)
 	Create(ctx context.Context, user *domain.User) error
 	Update(ctx context.Context, user *domain.User) error

@@ -29,6 +29,7 @@ type AuthService interface {
 	RefreshToken(ctx context.Context, refreshToken string) (*domain.TokenDetails, error)
 	ValidateToken(ctx context.Context, token string) (*domain.TokenClaims, error)
 	SignOut(ctx context.Context, userID int) error
+	ValidateSchema(ctx context.Context, schema string) error
 }
 
 // LoginService defines the business logic for logins

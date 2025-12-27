@@ -328,3 +328,23 @@ func generateSecureKey(length int) (string, error) {
 	}
 	return uuid.NewV4().String(), nil
 }
+
+// ValidateSchema validates that a schema exists in the database
+// This is used when an admin tries to access another user's data
+func (s *authService) ValidateSchema(ctx context.Context, schema string) error {
+	// Schema format validation
+	if schema == "" || schema == "public" {
+		return errors.New("invalid schema")
+	}
+
+	// Check if a user with this schema exists
+	_, err := s.userRepo.GetBySchema(ctx, schema)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return errors.New("schema not found")
+		}
+		return fmt.Errorf("failed to validate schema: %w", err)
+	}
+	
+	return nil
+}

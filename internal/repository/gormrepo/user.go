@@ -71,6 +71,18 @@ func (r *userRepository) GetByCredentials(ctx context.Context, email, masterPass
 	return user, nil
 }
 
+func (r *userRepository) GetBySchema(ctx context.Context, schema string) (*domain.User, error) {
+	var user domain.User
+	err := r.db.WithContext(ctx).Preload("Role.Permissions").Where("schema = ?", schema).First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, repository.ErrNotFound
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
 func (r *userRepository) List(ctx context.Context, filter repository.ListFilter) ([]*domain.User, *repository.ListResult, error) {
 	var users []*domain.User
 	var total int64

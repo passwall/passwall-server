@@ -38,19 +38,36 @@ func AuthMiddleware(authService service.AuthService) gin.HandlerFunc {
 			return
 		}
 
-		// Set user information in context (using constants for keys)
-		c.Set(constants.ContextKeyUserID, claims.UserID)
-		c.Set(constants.ContextKeyEmail, claims.Email)
-		c.Set(constants.ContextKeySchema, claims.Schema)
-		c.Set(constants.ContextKeyUserRole, claims.Role)
-		c.Set(constants.ContextKeyTokenUUID, claims.UUID.String())
+	// Set user information in context (using constants for keys)
+	c.Set(constants.ContextKeyUserID, claims.UserID)
+	c.Set(constants.ContextKeyEmail, claims.Email)
+	c.Set(constants.ContextKeySchema, claims.Schema)
+	c.Set(constants.ContextKeyUserRole, claims.Role)
+	c.Set(constants.ContextKeyTokenUUID, claims.UUID.String())
 
-		// Set schema in request context for repository/service access
-		ctx := database.WithSchema(c.Request.Context(), claims.Schema)
-		c.Request = c.Request.WithContext(ctx)
+	// Determine which schema to use
+	schemaToUse := claims.Schema
 
-		c.Next()
+	// Admin users can override schema using X-User-Schema header
+	if constants.IsAdmin(claims.Role) {
+		customSchema := c.GetHeader("X-User-Schema")
+		if customSchema != "" {
+			// Validate that the custom schema exists
+			if err := authService.ValidateSchema(c.Request.Context(), customSchema); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid schema"})
+				c.Abort()
+				return
+			}
+			schemaToUse = customSchema
+		}
 	}
+
+	// Set schema in request context for repository/service access
+	ctx := database.WithSchema(c.Request.Context(), schemaToUse)
+	c.Request = c.Request.WithContext(ctx)
+
+	c.Next()
+}
 }
 
 // CORSMiddleware handles CORS
@@ -58,7 +75,7 @@ func CORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, X-User-Schema")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
 
 		if c.Request.Method == "OPTIONS" {
