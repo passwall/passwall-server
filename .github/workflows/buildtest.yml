@@ -149,7 +149,7 @@ jobs:
           images: passwall/passwall-server
           tags: |
             type=semver,pattern={{version}}
-            type=raw,value=latest
+            type=raw,value=latest,enable=true
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
