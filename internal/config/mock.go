@@ -9,14 +9,15 @@ func NewMockConfig() *Config {
 			Host:                       "localhost",
 			Port:                       "3625",
 			Domain:                     "http://localhost:3625",
-			Dir:                        "/tmp/test",
 			Passphrase:                 "test-passphrase-for-encryption",
 			Secret:                     "test-secret-for-jwt-tokens",
 			Timeout:                    10,
 			GeneratedPasswordLength:    16,
 			AccessTokenExpireDuration:  "15m",
 			RefreshTokenExpireDuration: "1h",
-			APIKey:                     "test-api-key",
+			FrontendURL:                "http://localhost:5173",
+			RecaptchaSecretKey:         "",
+			RecaptchaThreshold:         0.5,
 		},
 		Database: DatabaseConfig{
 			Name:     "passwall_test",
@@ -35,7 +36,6 @@ func NewMockConfig() *Config {
 			FromName:  "Passwall Test",
 			FromEmail: "test@passwall.io",
 			Admin:     "admin@passwall.io",
-			APIKey:    "test-email-api-key",
 		},
 	}
 }

@@ -10,8 +10,10 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/passwall/passwall-server/internal/domain"
+	"github.com/passwall/passwall-server/internal/email"
 	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/pkg/constants"
+	"github.com/passwall/passwall-server/pkg/database"
 	uuid "github.com/satori/go.uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -29,21 +31,30 @@ type AuthConfig struct {
 }
 
 type authService struct {
-	userRepo  repository.UserRepository
-	tokenRepo repository.TokenRepository
-	config    *AuthConfig
+	userRepo         repository.UserRepository
+	tokenRepo        repository.TokenRepository
+	verificationRepo repository.VerificationRepository
+	emailSender      email.Sender
+	config           *AuthConfig
+	logger           Logger
 }
 
 // NewAuthService creates a new authentication service
 func NewAuthService(
 	userRepo repository.UserRepository,
 	tokenRepo repository.TokenRepository,
+	verificationRepo repository.VerificationRepository,
+	emailSender email.Sender,
 	config *AuthConfig,
+	logger Logger,
 ) AuthService {
 	return &authService{
-		userRepo:  userRepo,
-		tokenRepo: tokenRepo,
-		config:    config,
+		userRepo:         userRepo,
+		tokenRepo:        tokenRepo,
+		verificationRepo: verificationRepo,
+		emailSender:      emailSender,
+		config:           config,
+		logger:           logger,
 	}
 }
 
@@ -57,18 +68,20 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.MasterPassword), bcrypt.DefaultCost)
 	if err != nil {
+		s.logger.Error("failed to hash password", "error", err)
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
 	// Generate secret and schema
 	secret, err := generateSecureKey(32)
 	if err != nil {
+		s.logger.Error("failed to generate secret", "error", err)
 		return nil, fmt.Errorf("failed to generate secret: %w", err)
 	}
 
 	schema := generateSchema(req.Email)
 
-	// Create user
+	// Create user (unverified by default)
 	user := &domain.User{
 		UUID:           uuid.NewV4(),
 		Name:           req.Name,
@@ -77,20 +90,75 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 		Secret:         secret,
 		Schema:         schema,
 		RoleID:         constants.RoleIDMember, // Default: Member role
+		IsVerified:     false,                  // Requires email verification
 		IsMigrated:     true,                   // New users don't need migration
 	}
 
 	// Create schema
 	if err := s.userRepo.CreateSchema(schema); err != nil {
+		s.logger.Error("failed to create schema", "schema", schema, "error", err)
 		return nil, fmt.Errorf("failed to create schema: %w", err)
+	}
+
+	// Migrate all tables in user schema (logins, notes, emails, etc.)
+	if err := s.userRepo.MigrateUserSchema(schema); err != nil {
+		s.logger.Error("failed to migrate user schema tables", "schema", schema, "error", err)
+		return nil, fmt.Errorf("failed to migrate user schema: %w", err)
 	}
 
 	// Save user
 	if err := s.userRepo.Create(ctx, user); err != nil {
+		s.logger.Error("failed to create user", "email", req.Email, "error", err)
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
+	// Generate verification code
+	code, err := generateRandomVerificationCode(6)
+	if err != nil {
+		s.logger.Error("failed to generate verification code", "error", err)
+		// Don't fail signup, but log the error
+		return user, nil
+	}
+
+	// Save verification code
+	verificationCode := &domain.VerificationCode{
+		Email:     req.Email,
+		Code:      code,
+		ExpiresAt: time.Now().Add(15 * time.Minute),
+	}
+
+	if err := s.verificationRepo.Create(ctx, verificationCode); err != nil {
+		s.logger.Error("failed to save verification code", "email", req.Email, "error", err)
+		// Don't fail signup, user can request resend
+		return user, nil
+	}
+
+	// Send verification email (async to not block signup)
+	go func() {
+		emailCtx := context.Background()
+		if err := s.emailSender.SendVerificationEmail(emailCtx, req.Email, req.Name, code); err != nil {
+			s.logger.Error("failed to send verification email", "email", req.Email, "error", err)
+		}
+	}()
+
+	s.logger.Info("user signup successful", "email", req.Email, "user_id", user.ID)
 	return user, nil
+}
+
+// generateRandomVerificationCode generates a random alphanumeric code
+func generateRandomVerificationCode(length int) (string, error) {
+	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	code := make([]byte, length)
+	
+	for i := range code {
+		b := make([]byte, 1)
+		if _, err := rand.Read(b); err != nil {
+			return "", err
+		}
+		code[i] = charset[int(b[0])%len(charset)]
+	}
+	
+	return string(code), nil
 }
 
 func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*domain.AuthResponse, error) {
@@ -100,7 +168,14 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 		if errors.Is(err, repository.ErrNotFound) || errors.Is(err, repository.ErrUnauthorized) {
 			return nil, ErrUnauthorized
 		}
+		s.logger.Error("authentication failed", "email", creds.Email, "error", err)
 		return nil, fmt.Errorf("authentication failed: %w", err)
+	}
+
+	// Check if email is verified
+	if !user.IsVerified {
+		s.logger.Warn("signin attempt with unverified email", "email", creds.Email)
+		return nil, errors.New("email not verified")
 	}
 
 	// Delete old tokens before creating new ones
@@ -133,7 +208,7 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 	return &domain.AuthResponse{
 		AccessToken:  tokenDetails.AccessToken,
 		RefreshToken: tokenDetails.RefreshToken,
-		Type:         "Bearer",           // Token type - backward compatible
+		Type:         "Bearer", // Token type - backward compatible
 		UserID:       user.ID,
 		Email:        user.Email,
 		Name:         user.Name,
@@ -332,9 +407,14 @@ func generateSecureKey(length int) (string, error) {
 // ValidateSchema validates that a schema exists in the database
 // This is used when an admin tries to access another user's data
 func (s *authService) ValidateSchema(ctx context.Context, schema string) error {
-	// Schema format validation
-	if schema == "" || schema == "public" {
-		return errors.New("invalid schema")
+	// Strict schema format validation to prevent SQL injection
+	if err := database.ValidateSchemaName(schema); err != nil {
+		return fmt.Errorf("invalid schema format: %w", err)
+	}
+
+	// Additional security check: "public" schema should not be allowed for user data
+	if schema == "public" {
+		return errors.New("public schema is not allowed for user data access")
 	}
 
 	// Check if a user with this schema exists
@@ -345,6 +425,6 @@ func (s *authService) ValidateSchema(ctx context.Context, schema string) error {
 		}
 		return fmt.Errorf("failed to validate schema: %w", err)
 	}
-	
+
 	return nil
 }

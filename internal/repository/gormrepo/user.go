@@ -3,9 +3,11 @@ package gormrepo
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
+	"github.com/passwall/passwall-server/pkg/database"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -115,9 +117,18 @@ func (r *userRepository) List(ctx context.Context, filter repository.ListFilter)
 		}
 	}
 
-	// Apply sorting
+	// Apply sorting with whitelist protection against ORDER BY injection
 	if filter.Sort != "" && filter.Order != "" {
-		query = query.Order(filter.Sort + " " + filter.Order)
+		// Whitelist of allowed columns for sorting
+		allowedSortColumns := []string{"id", "name", "email", "role", "created_at", "updated_at"}
+
+		// Validate order direction
+		if err := database.ValidateOrderDirection(filter.Order); err == nil {
+			// Check if sort column is in whitelist
+			if database.IsAllowedSortColumn(filter.Sort, allowedSortColumns) {
+				query = query.Order(filter.Sort + " " + filter.Order)
+			}
+		}
 	}
 
 	err := query.Find(&users).Error
@@ -142,15 +153,23 @@ func (r *userRepository) Update(ctx context.Context, user *domain.User) error {
 	// clear the Role pointer as a defense-in-depth measure to prevent any
 	// potential issues with preloaded associations.
 	user.Role = nil
-	
+
 	return r.db.WithContext(ctx).Save(user).Error
 }
 
 func (r *userRepository) Delete(ctx context.Context, id uint, schema string) error {
-	// Drop schema
+	// Drop schema with proper validation and sanitization
 	if schema != "" && schema != "public" {
-		if err := r.db.WithContext(ctx).Exec("DROP SCHEMA " + schema + " CASCADE").Error; err != nil {
-			// Log error but continue to delete user
+		// Validate schema name to prevent SQL injection
+		if err := database.ValidateSchemaName(schema); err != nil {
+			// Log validation error but continue to delete user
+		} else {
+			// Safely quote the schema identifier
+			safeSchema := database.SanitizeIdentifier(schema)
+			dropSQL := fmt.Sprintf("DROP SCHEMA IF EXISTS %s CASCADE", safeSchema)
+			if err := r.db.WithContext(ctx).Exec(dropSQL).Error; err != nil {
+				// Log error but continue to delete user
+			}
 		}
 	}
 	// Hard delete user (not soft delete) to allow re-registration with same email
@@ -163,8 +182,57 @@ func (r *userRepository) Migrate() error {
 
 func (r *userRepository) CreateSchema(schema string) error {
 	if schema != "" && schema != "public" {
-		return r.db.Exec("CREATE SCHEMA IF NOT EXISTS " + schema).Error
+		// Validate schema name to prevent SQL injection
+		if err := database.ValidateSchemaName(schema); err != nil {
+			return fmt.Errorf("invalid schema name: %w", err)
+		}
+
+		// Safely quote the schema identifier
+		safeSchema := database.SanitizeIdentifier(schema)
+		createSQL := fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", safeSchema)
+		return r.db.Exec(createSQL).Error
 	}
 	return nil
 }
 
+// MigrateUserSchema creates all necessary tables in a user's schema
+func (r *userRepository) MigrateUserSchema(schema string) error {
+	if schema == "" || schema == "public" {
+		return fmt.Errorf("invalid schema name: %s", schema)
+	}
+
+	// Validate schema name to prevent SQL injection
+	if err := database.ValidateSchemaName(schema); err != nil {
+		return fmt.Errorf("invalid schema name: %w", err)
+	}
+
+	// Safely quote the schema identifier
+	safeSchema := database.SanitizeIdentifier(schema)
+
+	// Set the search path to the user's schema
+	setPathSQL := fmt.Sprintf("SET search_path TO %s", safeSchema)
+	if err := r.db.Exec(setPathSQL).Error; err != nil {
+		return fmt.Errorf("failed to set search path: %w", err)
+	}
+
+	// Migrate all user-specific tables in this schema
+	if err := r.db.AutoMigrate(
+		&domain.Login{},
+		&domain.BankAccount{},
+		&domain.CreditCard{},
+		&domain.Note{},
+		&domain.Email{},
+		&domain.Server{},
+	); err != nil {
+		// Reset search path to public (using safe literal)
+		_ = r.db.Exec("SET search_path TO public").Error
+		return fmt.Errorf("failed to migrate user schema tables: %w", err)
+	}
+
+	// Reset search path to public (using safe literal)
+	if err := r.db.Exec("SET search_path TO public").Error; err != nil {
+		return fmt.Errorf("failed to reset search path: %w", err)
+	}
+
+	return nil
+}

@@ -105,6 +105,7 @@ type UserRepository interface {
 	Delete(ctx context.Context, id uint, schema string) error
 	Migrate() error
 	CreateSchema(schema string) error
+	MigrateUserSchema(schema string) error
 }
 
 // TokenRepository defines token data access methods
@@ -132,5 +133,14 @@ type PermissionRepository interface {
 	GetByID(ctx context.Context, id uint) (*domain.Permission, error)
 	GetByName(ctx context.Context, name string) (*domain.Permission, error)
 	List(ctx context.Context) ([]*domain.Permission, error)
+	Migrate() error
+}
+
+// VerificationRepository defines verification code data access methods
+type VerificationRepository interface {
+	Create(ctx context.Context, code *domain.VerificationCode) error
+	GetByEmailAndCode(ctx context.Context, email, code string) (*domain.VerificationCode, error)
+	DeleteByEmail(ctx context.Context, email string) error
+	DeleteExpired(ctx context.Context) (int64, error)
 	Migrate() error
 }

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/passwall/passwall-server/internal/config"
 	httpHandler "github.com/passwall/passwall-server/internal/handler/http"
 	"github.com/passwall/passwall-server/internal/service"
 	"github.com/passwall/passwall-server/pkg/logger"
@@ -12,6 +13,7 @@ import (
 
 // SetupRouter configures all application routes
 func SetupRouter(
+	serverConfig *config.ServerConfig,
 	authService service.AuthService,
 	authHandler *httpHandler.AuthHandler,
 	loginHandler *httpHandler.LoginHandler,
@@ -43,15 +45,40 @@ func SetupRouter(
 	authRateLimiter := httpHandler.NewRateLimiter(12*time.Second, 5)
 	// Refresh token: 10 requests per minute per IP
 	refreshRateLimiter := httpHandler.NewRateLimiter(6*time.Second, 10)
+	// Verification: 3 requests per 5 minutes per IP
+	verificationRateLimiter := httpHandler.NewRateLimiter(100*time.Second, 3)
+
+	// Create reCAPTCHA middleware (optional - only applies if token is sent)
+	recaptchaMiddleware := httpHandler.OptionalRecaptchaMiddleware(
+		serverConfig.RecaptchaSecretKey,
+		serverConfig.RecaptchaThreshold,
+	)
 
 	// Auth routes (no auth middleware)
 	authGroup := router.Group("/auth")
 	{
-		// Rate-limited endpoints
-		authGroup.POST("/signup", httpHandler.RateLimitMiddleware(authRateLimiter), authHandler.SignUp)
-		authGroup.POST("/signin", httpHandler.RateLimitMiddleware(authRateLimiter), authHandler.SignIn)
-		authGroup.POST("/refresh", httpHandler.RateLimitMiddleware(refreshRateLimiter), authHandler.RefreshToken)
-		
+		// Rate-limited endpoints with optional reCAPTCHA
+		authGroup.POST("/signup",
+			httpHandler.RateLimitMiddleware(authRateLimiter),
+			recaptchaMiddleware,
+			authHandler.SignUp,
+		)
+		authGroup.POST("/signin",
+			httpHandler.RateLimitMiddleware(authRateLimiter),
+			authHandler.SignIn,
+		)
+		authGroup.POST("/refresh",
+			httpHandler.RateLimitMiddleware(refreshRateLimiter),
+			authHandler.RefreshToken,
+		)
+
+		// Email verification endpoints
+		authGroup.GET("/verify/:code", authHandler.VerifyEmail)
+		authGroup.POST("/resend-verification",
+			httpHandler.RateLimitMiddleware(verificationRateLimiter),
+			authHandler.ResendVerificationCode,
+		)
+
 		// No rate limit on token check (it's already authenticated)
 		authGroup.POST("/check", authHandler.CheckToken)
 	}
@@ -121,7 +148,7 @@ func SetupRouter(
 			usersGroup.PUT("/:id", userHandler.Update)
 			usersGroup.DELETE("/:id", userHandler.Delete)
 		}
-		
+
 		// Change password - any authenticated user
 		apiGroup.POST("/users/change-master-password", userHandler.ChangeMasterPassword)
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/passwall/passwall-server/internal/cleanup"
 	"github.com/passwall/passwall-server/internal/config"
+	"github.com/passwall/passwall-server/internal/email"
 	httpHandler "github.com/passwall/passwall-server/internal/handler/http"
 	"github.com/passwall/passwall-server/internal/repository/gormrepo"
 	"github.com/passwall/passwall-server/internal/service"
@@ -23,6 +24,7 @@ type App struct {
 	db           database.Database
 	server       *http.Server
 	tokenCleanup *cleanup.TokenCleanup
+	emailSender  email.Sender
 }
 
 // New creates a new application instance with the given context
@@ -84,12 +86,26 @@ func (a *App) Run(ctx context.Context) error {
 	serverRepo := gormrepo.NewServerRepository(a.db.DB())
 	userRepo := gormrepo.NewUserRepository(a.db.DB())
 	tokenRepo := gormrepo.NewTokenRepository(a.db.DB())
+	verificationRepo := gormrepo.NewVerificationRepository(a.db.DB())
 
 	// Initialize logger adapter for services
 	serviceLogger := logger.NewAdapter()
 
 	// Initialize encryption service
 	encryptor := service.NewCryptoService(a.config.Server.Passphrase)
+
+	// Initialize email sender
+	emailSender, err := email.NewSender(email.Config{
+		EmailConfig: &a.config.Email,
+		FrontendURL: a.config.Server.FrontendURL,
+		Logger:      serviceLogger,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to initialize email sender: %w", err)
+	}
+
+	// Store email sender for cleanup
+	a.emailSender = emailSender
 
 	// Initialize services
 	authConfig := &service.AuthConfig{
@@ -98,7 +114,8 @@ func (a *App) Run(ctx context.Context) error {
 		RefreshTokenDuration: a.config.Server.RefreshTokenExpireDuration,
 	}
 
-	authService := service.NewAuthService(userRepo, tokenRepo, authConfig)
+	verificationService := service.NewVerificationService(verificationRepo, userRepo, serviceLogger)
+	authService := service.NewAuthService(userRepo, tokenRepo, verificationRepo, emailSender, authConfig, serviceLogger)
 	loginService := service.NewLoginService(loginRepo, encryptor, serviceLogger)
 	bankAccountService := service.NewBankAccountService(bankAccountRepo, encryptor, serviceLogger)
 	creditCardService := service.NewCreditCardService(creditCardRepo, encryptor, serviceLogger)
@@ -108,7 +125,7 @@ func (a *App) Run(ctx context.Context) error {
 	userService := service.NewUserService(userRepo, serviceLogger)
 
 	// Initialize handlers
-	authHandler := httpHandler.NewAuthHandler(authService)
+	authHandler := httpHandler.NewAuthHandler(authService, verificationService, emailSender)
 	loginHandler := httpHandler.NewLoginHandler(loginService)
 	bankAccountHandler := httpHandler.NewBankAccountHandler(bankAccountService)
 	creditCardHandler := httpHandler.NewCreditCardHandler(creditCardService)
@@ -119,6 +136,7 @@ func (a *App) Run(ctx context.Context) error {
 
 	// Setup router
 	router := SetupRouter(
+		&a.config.Server,
 		authService,
 		authHandler,
 		loginHandler,
@@ -187,6 +205,15 @@ func (a *App) gracefulShutdown() error {
 
 	// Token cleanup already stopped via context cancellation
 	logger.Infof("Token cleanup stopped")
+
+	// Close email sender
+	logger.Infof("Closing email sender...")
+	if err := a.emailSender.Close(); err != nil {
+		logger.Errorf("Failed to close email sender: %v", err)
+		// Don't return error, continue shutdown
+	} else {
+		logger.Infof("Email sender closed")
+	}
 
 	// Close database connection
 	logger.Infof("Closing database connection...")

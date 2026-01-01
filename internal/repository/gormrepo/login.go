@@ -3,6 +3,7 @@ package gormrepo
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
@@ -22,8 +23,14 @@ func NewLoginRepository(db *gorm.DB) repository.LoginRepository {
 func (r *loginRepository) GetByID(ctx context.Context, id uint) (*domain.Login, error) {
 	schema := database.GetSchema(ctx)
 	
+	// Build safe qualified table name
+	tableName, err := database.BuildQualifiedTableName(schema, "logins")
+	if err != nil {
+		return nil, fmt.Errorf("invalid table name: %w", err)
+	}
+	
 	var login domain.Login
-	err := r.db.WithContext(ctx).Table(schema+".logins").Where("id = ?", id).First(&login).Error
+	err = r.db.WithContext(ctx).Table(tableName).Where("id = ?", id).First(&login).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, repository.ErrNotFound
@@ -36,8 +43,14 @@ func (r *loginRepository) GetByID(ctx context.Context, id uint) (*domain.Login, 
 func (r *loginRepository) List(ctx context.Context) ([]*domain.Login, error) {
 	schema := database.GetSchema(ctx)
 	
+	// Build safe qualified table name
+	tableName, err := database.BuildQualifiedTableName(schema, "logins")
+	if err != nil {
+		return nil, fmt.Errorf("invalid table name: %w", err)
+	}
+	
 	var logins []*domain.Login
-	err := r.db.WithContext(ctx).Table(schema + ".logins").Find(&logins).Error
+	err = r.db.WithContext(ctx).Table(tableName).Find(&logins).Error
 	if err != nil {
 		return nil, err
 	}
@@ -46,20 +59,47 @@ func (r *loginRepository) List(ctx context.Context) ([]*domain.Login, error) {
 
 func (r *loginRepository) Create(ctx context.Context, login *domain.Login) error {
 	schema := database.GetSchema(ctx)
-	return r.db.WithContext(ctx).Table(schema + ".logins").Create(login).Error
+	
+	// Build safe qualified table name
+	tableName, err := database.BuildQualifiedTableName(schema, "logins")
+	if err != nil {
+		return fmt.Errorf("invalid table name: %w", err)
+	}
+	
+	return r.db.WithContext(ctx).Table(tableName).Create(login).Error
 }
 
 func (r *loginRepository) Update(ctx context.Context, login *domain.Login) error {
 	schema := database.GetSchema(ctx)
-	return r.db.WithContext(ctx).Table(schema + ".logins").Save(login).Error
+	
+	// Build safe qualified table name
+	tableName, err := database.BuildQualifiedTableName(schema, "logins")
+	if err != nil {
+		return fmt.Errorf("invalid table name: %w", err)
+	}
+	
+	return r.db.WithContext(ctx).Table(tableName).Save(login).Error
 }
 
 func (r *loginRepository) Delete(ctx context.Context, id uint) error {
 	schema := database.GetSchema(ctx)
-	return r.db.WithContext(ctx).Table(schema + ".logins").Delete(&domain.Login{ID: id}).Error
+	
+	// Build safe qualified table name
+	tableName, err := database.BuildQualifiedTableName(schema, "logins")
+	if err != nil {
+		return fmt.Errorf("invalid table name: %w", err)
+	}
+	
+	return r.db.WithContext(ctx).Table(tableName).Delete(&domain.Login{ID: id}).Error
 }
 
 func (r *loginRepository) Migrate(schema string) error {
-	return r.db.Table(schema + ".logins").AutoMigrate(&domain.Login{})
+	// Build safe qualified table name
+	tableName, err := database.BuildQualifiedTableName(schema, "logins")
+	if err != nil {
+		return fmt.Errorf("invalid table name: %w", err)
+	}
+	
+	return r.db.Table(tableName).AutoMigrate(&domain.Login{})
 }
 

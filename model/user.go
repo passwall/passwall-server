@@ -28,20 +28,24 @@ type User struct {
 	ConfirmationCode string     `json:"confirmation_code"`
 	EmailVerifiedAt  time.Time  `json:"email_verified_at"`
 	IsMigrated       bool       `json:"is_migrated"`
+	DateOfBirth      *time.Time `json:"date_of_birth"`
+	Language         string     `gorm:"default:'en'" json:"language"`
 }
 
 // UserDTO DTO object for User type
 type UserDTO struct {
-	ID              uint      `json:"id"`
-	UUID            uuid.UUID `json:"uuid"`
-	Name            string    `json:"name" validate:"max=100"`
-	Email           string    `json:"email" validate:"required,email"`
-	MasterPassword  string    `json:"master_password,omitempty" validate:"required,max=100,min=6"`
-	Secret          string    `json:"secret"`
-	Schema          string    `json:"schema"`
-	Role            string    `json:"role"`
-	EmailVerifiedAt time.Time `json:"email_verified_at"`
-	IsMigrated      bool      `json:"is_migrated"`
+	ID              uint       `json:"id"`
+	UUID            uuid.UUID  `json:"uuid"`
+	Name            string     `json:"name" validate:"max=100"`
+	Email           string     `json:"email" validate:"required,email"`
+	MasterPassword  string     `json:"master_password,omitempty" validate:"required,max=100,min=6"`
+	Secret          string     `json:"secret"`
+	Schema          string     `json:"schema"`
+	Role            string     `json:"role"`
+	EmailVerifiedAt time.Time  `json:"email_verified_at"`
+	IsMigrated      bool       `json:"is_migrated"`
+	DateOfBirth     *time.Time `json:"date_of_birth,omitempty"`
+	Language        string     `json:"language" validate:"max=10"`
 }
 
 // UserSignup object for Auth Signup endpoint
@@ -53,12 +57,14 @@ type UserSignup struct {
 
 // UserDTOTable ...
 type UserDTOTable struct {
-	ID     uint      `json:"id"`
-	UUID   uuid.UUID `json:"uuid"`
-	Name   string    `json:"name"`
-	Email  string    `json:"email"`
-	Schema string    `json:"schema"`
-	Role   string    `json:"role"`
+	ID          uint       `json:"id"`
+	UUID        uuid.UUID  `json:"uuid"`
+	Name        string     `json:"name"`
+	Email       string     `json:"email"`
+	Schema      string     `json:"schema"`
+	Role        string     `json:"role"`
+	DateOfBirth *time.Time `json:"date_of_birth,omitempty"`
+	Language    string     `json:"language"`
 }
 
 // ConvertUserDTO converts UserSignup to UserDTO
@@ -83,32 +89,38 @@ func ToUser(userDTO *UserDTO) *User {
 		Role:            userDTO.Role,
 		EmailVerifiedAt: userDTO.EmailVerifiedAt,
 		IsMigrated:      userDTO.IsMigrated,
+		DateOfBirth:     userDTO.DateOfBirth,
+		Language:        userDTO.Language,
 	}
 }
 
 // ToUserDTO ...
 func ToUserDTO(user *User) *UserDTO {
 	return &UserDTO{
-		ID:         user.ID,
-		UUID:       user.UUID,
-		Name:       user.Name,
-		Email:      user.Email,
-		Secret:     user.Secret,
-		Schema:     user.Schema,
-		Role:       user.Role,
-		IsMigrated: user.IsMigrated,
+		ID:          user.ID,
+		UUID:        user.UUID,
+		Name:        user.Name,
+		Email:       user.Email,
+		Secret:      user.Secret,
+		Schema:      user.Schema,
+		Role:        user.Role,
+		IsMigrated:  user.IsMigrated,
+		DateOfBirth: user.DateOfBirth,
+		Language:    user.Language,
 	}
 }
 
 // ToUserDTOTable ...
 func ToUserDTOTable(user User) UserDTOTable {
 	return UserDTOTable{
-		ID:     user.ID,
-		UUID:   user.UUID,
-		Name:   user.Name,
-		Email:  user.Email,
-		Schema: user.Schema,
-		Role:   user.Role,
+		ID:          user.ID,
+		UUID:        user.UUID,
+		Name:        user.Name,
+		Email:       user.Email,
+		Schema:      user.Schema,
+		Role:        user.Role,
+		DateOfBirth: user.DateOfBirth,
+		Language:    user.Language,
 	}
 }
 

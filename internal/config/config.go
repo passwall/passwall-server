@@ -20,18 +20,19 @@ type Config struct {
 
 // ServerConfig contains server-related configuration
 type ServerConfig struct {
-	Env                        string `mapstructure:"env"`
-	Host                       string `mapstructure:"host"`
-	Port                       string `mapstructure:"port"`
-	Domain                     string `mapstructure:"domain"`
-	Dir                        string `mapstructure:"dir"`
-	Passphrase                 string `mapstructure:"passphrase"`
-	Secret                     string `mapstructure:"secret"`
-	Timeout                    int    `mapstructure:"timeout"`
-	GeneratedPasswordLength    int    `mapstructure:"generated_password_length"`
-	AccessTokenExpireDuration  string `mapstructure:"access_token_expire_duration"`
-	RefreshTokenExpireDuration string `mapstructure:"refresh_token_expire_duration"`
-	APIKey                     string `mapstructure:"api_key"`
+	Env                        string  `mapstructure:"env"`
+	Host                       string  `mapstructure:"host"`
+	Port                       string  `mapstructure:"port"`
+	Domain                     string  `mapstructure:"domain"`
+	Passphrase                 string  `mapstructure:"passphrase"`
+	Secret                     string  `mapstructure:"secret"`
+	Timeout                    int     `mapstructure:"timeout"`
+	GeneratedPasswordLength    int     `mapstructure:"generated_password_length"`
+	AccessTokenExpireDuration  string  `mapstructure:"access_token_expire_duration"`
+	RefreshTokenExpireDuration string  `mapstructure:"refresh_token_expire_duration"`
+	FrontendURL                string  `mapstructure:"frontend_url"`
+	RecaptchaSecretKey         string  `mapstructure:"recaptcha_secret_key"`
+	RecaptchaThreshold         float64 `mapstructure:"recaptcha_threshold"`
 }
 
 // DatabaseConfig contains database-related configuration
@@ -54,7 +55,15 @@ type EmailConfig struct {
 	FromName  string `mapstructure:"from_name"`
 	FromEmail string `mapstructure:"from_email"`
 	Admin     string `mapstructure:"admin"`
-	APIKey    string `mapstructure:"api_key"`
+	BCC       string `mapstructure:"bcc"` // BCC email for all outgoing emails
+	// AWS SES specific fields
+	AccessKey string `mapstructure:"access_key"` // AWS Access Key ID
+	SecretKey string `mapstructure:"secret_key"` // AWS Secret Access Key
+	Region    string `mapstructure:"region"`     // AWS Region (e.g., us-east-1)
+	// Gmail API specific fields
+	GmailClientID     string `mapstructure:"gmail_client_id"`     // Gmail OAuth2 Client ID
+	GmailClientSecret string `mapstructure:"gmail_client_secret"` // Gmail OAuth2 Client Secret
+	GmailRefreshToken string `mapstructure:"gmail_refresh_token"` // Gmail OAuth2 Refresh Token
 }
 
 // LoaderOptions contains options for loading configuration
@@ -156,14 +165,15 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("server.host", "0.0.0.0")
 	v.SetDefault("server.port", "3625")
 	v.SetDefault("server.domain", "https://vault.passwall.io")
-	v.SetDefault("server.dir", "/app/config")
 	v.SetDefault("server.passphrase", generateSecureKey())
 	v.SetDefault("server.secret", generateSecureKey())
 	v.SetDefault("server.timeout", 24)
 	v.SetDefault("server.generated_password_length", 16)
 	v.SetDefault("server.access_token_expire_duration", "30m")
 	v.SetDefault("server.refresh_token_expire_duration", "15d")
-	v.SetDefault("server.api_key", generateSecureKey())
+	v.SetDefault("server.frontend_url", "http://localhost:5173")
+	v.SetDefault("server.recaptcha_secret_key", "")
+	v.SetDefault("server.recaptcha_threshold", 0.5)
 
 	// Database defaults
 	v.SetDefault("database.name", "passwall")
@@ -182,7 +192,13 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("email.from_name", "Passwall")
 	v.SetDefault("email.from_email", "hello@passwall.io")
 	v.SetDefault("email.admin", "hello@passwall.io")
-	v.SetDefault("email.api_key", "")
+	v.SetDefault("email.bcc", "")
+	v.SetDefault("email.access_key", "")
+	v.SetDefault("email.secret_key", "")
+	v.SetDefault("email.region", "us-east-1")
+	v.SetDefault("email.gmail_client_id", "")
+	v.SetDefault("email.gmail_client_secret", "")
+	v.SetDefault("email.gmail_refresh_token", "")
 }
 
 // bindEnvVariables binds environment variables for backwards compatibility
@@ -198,7 +214,9 @@ func bindEnvVariables(v *viper.Viper) {
 	v.BindEnv("server.generated_password_length", "PW_SERVER_GENERATED_PASSWORD_LENGTH")
 	v.BindEnv("server.access_token_expire_duration", "PW_SERVER_ACCESS_TOKEN_EXPIRE_DURATION")
 	v.BindEnv("server.refresh_token_expire_duration", "PW_SERVER_REFRESH_TOKEN_EXPIRE_DURATION")
-	v.BindEnv("server.api_key", "PW_SERVER_API_KEY")
+	v.BindEnv("server.frontend_url", "PW_SERVER_FRONTEND_URL", "FRONTEND_URL")
+	v.BindEnv("server.recaptcha_secret_key", "PW_RECAPTCHA_SECRET_KEY", "RECAPTCHA_SECRET_KEY")
+	v.BindEnv("server.recaptcha_threshold", "PW_RECAPTCHA_THRESHOLD", "RECAPTCHA_THRESHOLD")
 
 	// Database bindings
 	v.BindEnv("database.name", "PW_DB_NAME", "POSTGRES_DB")
@@ -217,7 +235,13 @@ func bindEnvVariables(v *viper.Viper) {
 	v.BindEnv("email.from_name", "PW_EMAIL_FROM_NAME")
 	v.BindEnv("email.from_email", "PW_EMAIL_FROM_EMAIL")
 	v.BindEnv("email.admin", "PW_EMAIL_ADMIN")
-	v.BindEnv("email.api_key", "PW_EMAIL_API_KEY")
+	v.BindEnv("email.bcc", "PW_EMAIL_BCC")
+	v.BindEnv("email.access_key", "PW_EMAIL_ACCESS_KEY", "AWS_ACCESS_KEY_ID")
+	v.BindEnv("email.secret_key", "PW_EMAIL_SECRET_KEY", "AWS_SECRET_ACCESS_KEY")
+	v.BindEnv("email.region", "PW_EMAIL_REGION", "AWS_REGION", "AWS_DEFAULT_REGION")
+	v.BindEnv("email.gmail_client_id", "PW_EMAIL_GMAIL_CLIENT_ID", "GMAIL_CLIENT_ID")
+	v.BindEnv("email.gmail_client_secret", "PW_EMAIL_GMAIL_CLIENT_SECRET", "GMAIL_CLIENT_SECRET")
+	v.BindEnv("email.gmail_refresh_token", "PW_EMAIL_GMAIL_REFRESH_TOKEN", "GMAIL_REFRESH_TOKEN")
 }
 
 // createDefaultConfigFile creates a config file with default values

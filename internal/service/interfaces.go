@@ -108,3 +108,11 @@ type ServerService interface {
 	Delete(ctx context.Context, id uint) error
 	BulkUpdate(ctx context.Context, servers []*domain.Server) error
 }
+
+// VerificationService defines the business logic for email verification
+type VerificationService interface {
+	GenerateCode(ctx context.Context, email string) (string, error)
+	VerifyCode(ctx context.Context, email, code string) error
+	ResendCode(ctx context.Context, email string) (string, error)
+	CleanupExpiredCodes(ctx context.Context) error
+}

@@ -10,6 +10,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/passwall/passwall-server/internal/config"
 	"github.com/passwall/passwall-server/internal/domain"
+	"github.com/passwall/passwall-server/internal/email"
 	"github.com/passwall/passwall-server/internal/repository/gormrepo"
 	"github.com/passwall/passwall-server/internal/service"
 	"github.com/passwall/passwall-server/pkg/constants"
@@ -17,6 +18,22 @@ import (
 	"github.com/passwall/passwall-server/pkg/database/postgres"
 	"github.com/passwall/passwall-server/pkg/logger"
 )
+
+// dummyEmailSender is a no-op email sender for CLI usage
+type dummyEmailSender struct{}
+
+func (d *dummyEmailSender) SendVerificationEmail(ctx context.Context, to, name, code string) error {
+	fmt.Printf("📧 Verification email would be sent to: %s (code: %s)\n", to, code)
+	return nil
+}
+
+func (d *dummyEmailSender) Provider() email.Provider {
+	return "cli-dummy"
+}
+
+func (d *dummyEmailSender) Close() error {
+	return nil
+}
 
 func main() {
 	// Load configuration
@@ -48,6 +65,13 @@ func main() {
 	// Initialize repositories
 	userRepo := gormrepo.NewUserRepository(db.DB())
 	tokenRepo := gormrepo.NewTokenRepository(db.DB())
+	verificationRepo := gormrepo.NewVerificationRepository(db.DB())
+
+	// Initialize dummy email sender (CLI doesn't send emails)
+	emailSender := &dummyEmailSender{}
+
+	// Initialize logger adapter
+	serviceLogger := logger.NewAdapter()
 
 	// CLI interface
 	c := color.New(color.FgCyan)
@@ -83,7 +107,7 @@ func main() {
 		AccessTokenDuration:  cfg.Server.AccessTokenExpireDuration,
 		RefreshTokenDuration: cfg.Server.RefreshTokenExpireDuration,
 	}
-	authService := service.NewAuthService(userRepo, tokenRepo, authConfig)
+	authService := service.NewAuthService(userRepo, tokenRepo, verificationRepo, emailSender, authConfig, serviceLogger)
 
 	user, err := authService.SignUp(context.Background(), req)
 	if err != nil {

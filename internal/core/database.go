@@ -41,6 +41,7 @@ func AutoMigrate(db database.Database) error {
 		&domain.Permission{},
 		&domain.User{},
 		&domain.Token{},
+		&domain.VerificationCode{}, // Email verification codes table
 		// Note: Other entities are migrated per schema
 	)
 	

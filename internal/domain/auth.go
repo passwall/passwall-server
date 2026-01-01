@@ -17,6 +17,7 @@ type SignUpRequest struct {
 	Name           string `json:"name" binding:"max=100"`
 	Email          string `json:"email" binding:"required,email"`
 	MasterPassword string `json:"master_password" binding:"required,min=6,max=100"`
+	RecaptchaToken string `json:"recaptcha_token"`
 }
 
 // TokenDetails contains access and refresh token information

@@ -14,17 +14,18 @@ type User struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	// DeletedAt removed - using hard delete to allow re-registration with same email
-	Name             string     `json:"name" gorm:"type:varchar(255)"`
-	Email            string     `json:"email" gorm:"type:varchar(255);uniqueIndex;not null"`
-	MasterPassword   string     `json:"-" gorm:"type:varchar(255);not null"` // Never expose in JSON
-	Secret           string     `json:"-" gorm:"type:text"`                  // Encryption secret
-	Schema           string     `json:"schema" gorm:"type:varchar(255);uniqueIndex;not null"`
-	RoleID           uint       `json:"role_id" gorm:"not null;default:2;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"` // Foreign key with constraints
-	Role             *Role      `json:"role,omitempty" gorm:"foreignKey:RoleID"`
-	ConfirmationCode string     `json:"-" gorm:"type:varchar(10)"`
-	EmailVerifiedAt  time.Time  `json:"email_verified_at"`
-	LastSignInAt     *time.Time `json:"last_sign_in_at" gorm:"type:timestamp"`
-	IsMigrated       bool       `json:"is_migrated" gorm:"default:false"`
+	Name           string     `json:"name" gorm:"type:varchar(255)"`
+	Email          string     `json:"email" gorm:"type:varchar(255);uniqueIndex;not null"`
+	MasterPassword string     `json:"-" gorm:"type:varchar(255);not null"` // Never expose in JSON
+	Secret         string     `json:"-" gorm:"type:text"`                  // Encryption secret
+	Schema         string     `json:"schema" gorm:"type:varchar(255);uniqueIndex;not null"`
+	RoleID         uint       `json:"role_id" gorm:"not null;default:2;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"` // Foreign key with constraints
+	Role           *Role      `json:"role,omitempty" gorm:"foreignKey:RoleID"`
+	IsVerified     bool       `json:"is_verified" gorm:"default:false"`
+	LastSignInAt   *time.Time `json:"last_sign_in_at" gorm:"type:timestamp"`
+	IsMigrated     bool       `json:"is_migrated" gorm:"default:false"`
+	DateOfBirth    *time.Time `json:"date_of_birth,omitempty" gorm:"type:timestamp"`
+	Language       string     `json:"language" gorm:"type:varchar(10);default:'en'"`
 }
 
 // TableName specifies the table name for User
