@@ -43,16 +43,18 @@ type TokenClaims struct {
 
 // AuthResponse represents authentication response
 type AuthResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	Type         string `json:"type"` // Token type (e.g., "Bearer") - BACKWARD COMPATIBLE
-	UserID       uint   `json:"user_id"`
-	Email        string `json:"email"`
-	Name         string `json:"name"`
-	Schema       string `json:"schema"`
-	Role         string `json:"role"`        // User role (e.g., "user", "admin") - BACKWARD COMPATIBLE
-	Secret       string `json:"secret"`      // User's encryption secret (required by extension)
-	IsMigrated   bool   `json:"is_migrated"` // Migration status flag
+	AccessToken  string     `json:"access_token"`
+	RefreshToken string     `json:"refresh_token"`
+	Type         string     `json:"type"` // Token type (e.g., "Bearer") - BACKWARD COMPATIBLE
+	UserID       uint       `json:"user_id"`
+	Email        string     `json:"email"`
+	Name         string     `json:"name"`
+	Schema       string     `json:"schema"`
+	Role         string     `json:"role"`        // User role (e.g., "user", "admin") - BACKWARD COMPATIBLE
+	Secret       string     `json:"secret"`      // User's encryption secret (required by extension)
+	IsMigrated   bool       `json:"is_migrated"` // Migration status flag
+	DateOfBirth  *time.Time `json:"date_of_birth,omitempty"`
+	Language     string     `json:"language,omitempty"`
 }
 
 // ChangeMasterPasswordRequest represents a password change request

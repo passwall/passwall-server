@@ -169,6 +169,72 @@ func (h *UserHandler) Delete(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "user deleted successfully"})
 }
 
+func (h *UserHandler) UpdateProfile(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	// Get authenticated user ID from context (set by AuthMiddleware)
+	userIDValue, exists := c.Get(constants.ContextKeyUserID)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+
+	// Type assertion with safety check
+	userID, ok := userIDValue.(uint)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	var req domain.UpdateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
+		return
+	}
+
+	// Prevent role_id changes via profile update (security)
+	if req.RoleID != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "cannot change role via profile update"})
+		return
+	}
+
+	// Check if there are any updates
+	if !req.HasUpdates() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no fields to update"})
+		return
+	}
+
+	// Get existing user
+	existingUser, err := h.service.GetByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch user"})
+		return
+	}
+
+	// Apply updates (excluding role_id)
+	req.ApplyTo(existingUser)
+
+	// Update in database
+	if err := h.service.Update(ctx, userID, existingUser); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update profile"})
+		return
+	}
+
+	// Get updated user with fresh role data
+	updatedUser, err := h.service.GetByID(ctx, userID)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "profile updated successfully"})
+		return
+	}
+
+	// Convert to DTO for API response
+	c.JSON(http.StatusOK, domain.ToUserDTO(updatedUser))
+}
+
 func (h *UserHandler) ChangeMasterPassword(c *gin.Context) {
 	ctx := c.Request.Context()
 

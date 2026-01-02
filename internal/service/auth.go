@@ -216,6 +216,8 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 		Role:         user.GetRoleName(), // User role - backward compatible (mobile app uses this)
 		Secret:       user.Secret,        // Required by extension for PBKDF2 encryption
 		IsMigrated:   user.IsMigrated,    // Migration status for extension
+		DateOfBirth:  user.DateOfBirth,
+		Language:     user.Language,
 	}, nil
 }
 

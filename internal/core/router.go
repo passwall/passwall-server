@@ -138,7 +138,11 @@ func SetupRouter(
 		apiGroup.DELETE("/servers/:id", serverHandler.Delete)
 		apiGroup.PUT("/servers/bulk-update", serverHandler.BulkUpdate)
 
-		// User routes - Admin only
+		// User profile routes - any authenticated user
+		apiGroup.PUT("/users/me", userHandler.UpdateProfile)
+		apiGroup.POST("/users/change-master-password", userHandler.ChangeMasterPassword)
+
+		// User management routes - Admin only
 		usersGroup := apiGroup.Group("/users")
 		usersGroup.Use(httpHandler.RequireAdminMiddleware())
 		{
@@ -148,9 +152,6 @@ func SetupRouter(
 			usersGroup.PUT("/:id", userHandler.Update)
 			usersGroup.DELETE("/:id", userHandler.Delete)
 		}
-
-		// Change password - any authenticated user
-		apiGroup.POST("/users/change-master-password", userHandler.ChangeMasterPassword)
 	}
 
 	return router
