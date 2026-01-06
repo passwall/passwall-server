@@ -33,14 +33,14 @@ func NewTemplateManager() (*TemplateManager, error) {
 	tm := &TemplateManager{
 		templates: make(map[TemplateType]*template.Template),
 	}
-	
+
 	// Parse verification template
 	verifyTmpl, err := template.New("verification").Parse(verificationEmailTemplate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse verification template: %w", err)
 	}
 	tm.templates[TemplateVerification] = verifyTmpl
-	
+
 	return tm, nil
 }
 
@@ -50,12 +50,12 @@ func (tm *TemplateManager) Render(templateType TemplateType, data interface{}) (
 	if !ok {
 		return "", fmt.Errorf("template not found: %s", templateType)
 	}
-	
+
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
 		return "", fmt.Errorf("failed to execute template: %w", err)
 	}
-	
+
 	return buf.String(), nil
 }
 
@@ -64,9 +64,9 @@ func BuildVerificationEmail(frontendURL, to, name, code string) (*TemplateData, 
 	if frontendURL == "" {
 		frontendURL = "http://localhost:5173" // Default for development
 	}
-	
+
 	verificationURL := fmt.Sprintf("%s/verify-email?email=%s&code=%s", frontendURL, to, code)
-	
+
 	return &TemplateData{
 		Name:            name,
 		Code:            code,
@@ -174,4 +174,3 @@ const verificationEmailTemplate = `<!DOCTYPE html>
     </table>
 </body>
 </html>`
-

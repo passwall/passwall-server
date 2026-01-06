@@ -7,25 +7,54 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
+// KdfType represents the key derivation function type
+type KdfType int
+
+const (
+	KdfTypePBKDF2   KdfType = 0
+	KdfTypeArgon2id KdfType = 1
+)
+
+// String returns the string representation of KdfType
+func (k KdfType) String() string {
+	switch k {
+	case KdfTypePBKDF2:
+		return "PBKDF2-SHA256"
+	case KdfTypeArgon2id:
+		return "Argon2id"
+	default:
+		return "Unknown"
+	}
+}
+
 // User represents a user account in the system
 type User struct {
 	ID        uint      `gorm:"primary_key" json:"id"`
 	UUID      uuid.UUID `gorm:"type:uuid;type:varchar(100);" json:"uuid"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
-	// DeletedAt removed - using hard delete to allow re-registration with same email
-	Name           string     `json:"name" gorm:"type:varchar(255)"`
-	Email          string     `json:"email" gorm:"type:varchar(255);uniqueIndex;not null"`
-	MasterPassword string     `json:"-" gorm:"type:varchar(255);not null"` // Never expose in JSON
-	Secret         string     `json:"-" gorm:"type:text"`                  // Encryption secret
-	Schema         string     `json:"schema" gorm:"type:varchar(255);uniqueIndex;not null"`
-	RoleID         uint       `json:"role_id" gorm:"not null;default:2;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"` // Foreign key with constraints
-	Role           *Role      `json:"role,omitempty" gorm:"foreignKey:RoleID"`
-	IsVerified     bool       `json:"is_verified" gorm:"default:false"`
-	LastSignInAt   *time.Time `json:"last_sign_in_at" gorm:"type:timestamp"`
-	IsMigrated     bool       `json:"is_migrated" gorm:"default:false"`
-	DateOfBirth    *time.Time `json:"date_of_birth,omitempty" gorm:"type:timestamp"`
-	Language       string     `json:"language" gorm:"type:varchar(10);default:'en'"`
+
+	Name   string `json:"name" gorm:"type:varchar(255)"`
+	Email  string `json:"email" gorm:"type:varchar(255);uniqueIndex;not null"`
+	Schema string `json:"schema" gorm:"type:varchar(255);uniqueIndex;not null"`
+
+	// Modern Zero-Knowledge Encryption Fields
+	MasterPasswordHash string `json:"-" gorm:"type:varchar(255);not null"` // bcrypt(HKDF(masterKey, info="auth"))
+	ProtectedUserKey   string `json:"-" gorm:"type:text;not null"`         // EncString: "2.iv|ct|mac"
+
+	// KDF Configuration (per user, configurable)
+	KdfType        KdfType `json:"kdf_type" gorm:"not null;default:0"`            // 0=PBKDF2, 1=Argon2id
+	KdfIterations  int     `json:"kdf_iterations" gorm:"not null;default:600000"` // Default: 600K
+	KdfMemory      *int    `json:"kdf_memory,omitempty"`                          // For Argon2 (MB)
+	KdfParallelism *int    `json:"kdf_parallelism,omitempty"`                     // For Argon2 (threads)
+	KdfSalt        string  `json:"-" gorm:"type:varchar(64);not null"`            // hex-encoded 32 bytes, random per user
+
+	// User metadata
+	RoleID       uint   `json:"role_id" gorm:"not null;default:2;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
+	Role         *Role  `json:"role,omitempty" gorm:"foreignKey:RoleID"`
+	IsVerified   bool   `json:"is_verified" gorm:"default:false"`
+	IsSystemUser bool   `json:"is_system_user" gorm:"default:false;index"` // System users (e.g., super admin) cannot be deleted
+	Language     string `json:"language" gorm:"type:varchar(10);default:'en'"`
 }
 
 // TableName specifies the table name for User

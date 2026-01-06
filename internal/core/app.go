@@ -20,11 +20,12 @@ import (
 
 // App represents the application
 type App struct {
-	config       *config.Config
-	db           database.Database
-	server       *http.Server
-	tokenCleanup *cleanup.TokenCleanup
-	emailSender  email.Sender
+	config          *config.Config
+	db              database.Database
+	server          *http.Server
+	tokenCleanup    *cleanup.TokenCleanup
+	activityCleanup *cleanup.ActivityCleanup
+	emailSender     email.Sender
 }
 
 // New creates a new application instance with the given context
@@ -56,6 +57,11 @@ func New(ctx context.Context) (*App, error) {
 		fmt.Println("✓ Roles and permissions seeded successfully")
 	}
 
+	// Seed super admin (using application context)
+	if err := gormrepo.SeedSuperAdmin(ctx, db.DB(), &cfg.SuperAdmin); err != nil {
+		fmt.Printf("Warning: failed to seed super admin: %v\n", err)
+	}
+
 	return &App{
 		config: cfg,
 		db:     db,
@@ -78,21 +84,23 @@ func (a *App) Run(ctx context.Context) error {
 	_ = gormrepo.NewRoleRepository(a.db.DB())
 	_ = gormrepo.NewPermissionRepository(a.db.DB())
 
-	loginRepo := gormrepo.NewLoginRepository(a.db.DB())
-	bankAccountRepo := gormrepo.NewBankAccountRepository(a.db.DB())
-	creditCardRepo := gormrepo.NewCreditCardRepository(a.db.DB())
-	noteRepo := gormrepo.NewNoteRepository(a.db.DB())
-	emailRepo := gormrepo.NewEmailRepository(a.db.DB())
-	serverRepo := gormrepo.NewServerRepository(a.db.DB())
+	// Modern flexible items repository
+	itemRepo := gormrepo.NewItemRepository(a.db.DB())
+
+	// User and auth repos
 	userRepo := gormrepo.NewUserRepository(a.db.DB())
 	tokenRepo := gormrepo.NewTokenRepository(a.db.DB())
 	verificationRepo := gormrepo.NewVerificationRepository(a.db.DB())
+	userActivityRepo := gormrepo.NewUserActivityRepository(a.db.DB())
+	excludedDomainRepo := gormrepo.NewExcludedDomainRepository(a.db.DB())
+	folderRepo := gormrepo.NewFolderRepository(a.db.DB())
+
+	// NOTE: Legacy repos removed - all item types now use ItemRepository with type field
 
 	// Initialize logger adapter for services
 	serviceLogger := logger.NewAdapter()
 
-	// Initialize encryption service
-	encryptor := service.NewCryptoService(a.config.Server.Passphrase)
+	// NOTE: Legacy encryption service removed - modern items use client-side encryption only
 
 	// Initialize email sender
 	emailSender, err := email.NewSender(email.Config{
@@ -114,37 +122,36 @@ func (a *App) Run(ctx context.Context) error {
 		RefreshTokenDuration: a.config.Server.RefreshTokenExpireDuration,
 	}
 
+	// Initialize services
+	userActivityService := service.NewUserActivityService(userActivityRepo, serviceLogger)
+	excludedDomainService := service.NewExcludedDomainService(excludedDomainRepo, serviceLogger)
+	folderService := service.NewFolderService(folderRepo, serviceLogger)
 	verificationService := service.NewVerificationService(verificationRepo, userRepo, serviceLogger)
-	authService := service.NewAuthService(userRepo, tokenRepo, verificationRepo, emailSender, authConfig, serviceLogger)
-	loginService := service.NewLoginService(loginRepo, encryptor, serviceLogger)
-	bankAccountService := service.NewBankAccountService(bankAccountRepo, encryptor, serviceLogger)
-	creditCardService := service.NewCreditCardService(creditCardRepo, encryptor, serviceLogger)
-	noteService := service.NewNoteService(noteRepo, encryptor, serviceLogger)
-	emailService := service.NewEmailService(emailRepo, encryptor, serviceLogger)
-	serverService := service.NewServerService(serverRepo, encryptor, serviceLogger)
+	authService := service.NewAuthService(userRepo, tokenRepo, verificationRepo, userActivityService, emailSender, authConfig, serviceLogger)
 	userService := service.NewUserService(userRepo, serviceLogger)
 
+	// Modern flexible items service (handles all item types)
+	itemService := service.NewItemService(itemRepo, serviceLogger)
+
 	// Initialize handlers
-	authHandler := httpHandler.NewAuthHandler(authService, verificationService, emailSender)
-	loginHandler := httpHandler.NewLoginHandler(loginService)
-	bankAccountHandler := httpHandler.NewBankAccountHandler(bankAccountService)
-	creditCardHandler := httpHandler.NewCreditCardHandler(creditCardService)
-	noteHandler := httpHandler.NewNoteHandler(noteService)
-	emailHandler := httpHandler.NewEmailHandler(emailService)
-	serverHandler := httpHandler.NewServerHandler(serverService)
+	activityHandler := httpHandler.NewActivityHandler(userActivityService)
+	authHandler := httpHandler.NewAuthHandler(authService, verificationService, userActivityService, emailSender)
 	userHandler := httpHandler.NewUserHandler(userService)
+
+	// Modern handlers (all item types use ItemHandler now)
+	itemHandler := httpHandler.NewItemHandler(itemService)
+	excludedDomainHandler := httpHandler.NewExcludedDomainHandler(excludedDomainService)
+	folderHandler := httpHandler.NewFolderHandler(folderService)
 
 	// Setup router
 	router := SetupRouter(
 		&a.config.Server,
 		authService,
 		authHandler,
-		loginHandler,
-		bankAccountHandler,
-		creditCardHandler,
-		noteHandler,
-		emailHandler,
-		serverHandler,
+		activityHandler,
+		itemHandler,
+		excludedDomainHandler,
+		folderHandler,
 		userHandler,
 	)
 
@@ -161,8 +168,12 @@ func (a *App) Run(ctx context.Context) error {
 	// Initialize token cleanup service (runs every hour)
 	a.tokenCleanup = cleanup.NewTokenCleanup(tokenRepo, 1*time.Hour)
 
-	// Start token cleanup in background (using application context)
+	// Initialize activity cleanup service (runs every 24 hours, keeps 90 days)
+	a.activityCleanup = cleanup.NewActivityCleanup(userActivityService, 24*time.Hour, 90*24*time.Hour)
+
+	// Start cleanup services in background (using application context)
 	go a.tokenCleanup.Start(ctx)
+	go a.activityCleanup.Start(ctx)
 
 	// Start server in a goroutine
 	serverErrChan := make(chan error, 1)
@@ -203,8 +214,9 @@ func (a *App) gracefulShutdown() error {
 	}
 	logger.Infof("HTTP server stopped gracefully")
 
-	// Token cleanup already stopped via context cancellation
+	// Cleanup services already stopped via context cancellation
 	logger.Infof("Token cleanup stopped")
+	logger.Infof("Activity cleanup stopped")
 
 	// Close email sender
 	logger.Infof("Closing email sender...")

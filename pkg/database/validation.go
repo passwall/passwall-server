@@ -133,4 +133,3 @@ func BuildQualifiedTableName(schema, tableName string) (string, error) {
 
 	return fmt.Sprintf("%s.%s", safeSchema, safeTable), nil
 }
-

@@ -56,7 +56,7 @@ func (s *sesSender) initClient(ctx context.Context) error {
 	// Get AWS credentials
 	accessKey := s.config.AccessKey
 	secretKey := s.config.SecretKey
-	
+
 	if accessKey == "" || secretKey == "" {
 		return fmt.Errorf("AWS SES requires access_key and secret_key")
 	}
@@ -162,7 +162,7 @@ func (s *sesSender) sendEmail(ctx context.Context, to, subject, htmlBody string)
 	if s.config.BCC != "" {
 		destination.BccAddresses = []string{s.config.BCC}
 	}
-	
+
 	// Build SES input
 	input := &sesv2.SendEmailInput{
 		FromEmailAddress: aws.String(fromAddress),

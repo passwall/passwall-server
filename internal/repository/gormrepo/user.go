@@ -8,7 +8,6 @@ import (
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/pkg/database"
-	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -35,6 +34,7 @@ func (r *userRepository) GetByID(ctx context.Context, id uint) (*domain.User, er
 
 func (r *userRepository) GetByUUID(ctx context.Context, uuid string) (*domain.User, error) {
 	var user domain.User
+
 	err := r.db.WithContext(ctx).Preload("Role.Permissions").Where("uuid = ?", uuid).First(&user).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -47,6 +47,7 @@ func (r *userRepository) GetByUUID(ctx context.Context, uuid string) (*domain.Us
 
 func (r *userRepository) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
 	var user domain.User
+
 	// Only get non-deleted users (hard delete won't return anything anyway)
 	err := r.db.WithContext(ctx).Preload("Role.Permissions").Where("email = ?", email).First(&user).Error
 	if err != nil {
@@ -56,21 +57,6 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*domain.
 		return nil, err
 	}
 	return &user, nil
-}
-
-func (r *userRepository) GetByCredentials(ctx context.Context, email, masterPassword string) (*domain.User, error) {
-	user, err := r.GetByEmail(ctx, email)
-	if err != nil {
-		return nil, err
-	}
-
-	// Compare the password with the bcrypt hash
-	err = bcrypt.CompareHashAndPassword([]byte(user.MasterPassword), []byte(masterPassword))
-	if err != nil {
-		return nil, repository.ErrUnauthorized
-	}
-
-	return user, nil
 }
 
 func (r *userRepository) GetBySchema(ctx context.Context, schema string) (*domain.User, error) {
@@ -215,21 +201,86 @@ func (r *userRepository) MigrateUserSchema(schema string) error {
 		return fmt.Errorf("failed to set search path: %w", err)
 	}
 
-	// Migrate all user-specific tables in this schema
-	if err := r.db.AutoMigrate(
-		&domain.Login{},
-		&domain.BankAccount{},
-		&domain.CreditCard{},
-		&domain.Note{},
-		&domain.Email{},
-		&domain.Server{},
-	); err != nil {
-		// Reset search path to public (using safe literal)
+	// Create items table (modern flexible items)
+	if err := r.db.AutoMigrate(&domain.Item{}); err != nil {
 		_ = r.db.Exec("SET search_path TO public").Error
-		return fmt.Errorf("failed to migrate user schema tables: %w", err)
+		return fmt.Errorf("failed to create items table: %w", err)
 	}
 
-	// Reset search path to public (using safe literal)
+	// Create sequences for sync and support IDs
+	if err := r.db.Exec("CREATE SEQUENCE IF NOT EXISTS items_revision_seq").Error; err != nil {
+		_ = r.db.Exec("SET search_path TO public").Error
+		return fmt.Errorf("failed to create revision sequence: %w", err)
+	}
+
+	if err := r.db.Exec(`
+		CREATE SEQUENCE IF NOT EXISTS items_support_id_seq
+		START WITH 1000000000000000000
+		INCREMENT BY 1
+		NO MAXVALUE
+		CACHE 100
+	`).Error; err != nil {
+		_ = r.db.Exec("SET search_path TO public").Error
+		return fmt.Errorf("failed to create support_id sequence: %w", err)
+	}
+
+	// Create trigger for auto-updating revision and support_id
+	if err := r.db.Exec(`
+		CREATE OR REPLACE FUNCTION update_item_metadata()
+		RETURNS TRIGGER AS $$
+		BEGIN
+			IF TG_OP = 'INSERT' THEN
+				NEW.support_id = nextval('items_support_id_seq');
+			END IF;
+			
+			NEW.revision = nextval('items_revision_seq');
+			NEW.updated_at = NOW();
+			
+			RETURN NEW;
+		END;
+		$$ LANGUAGE plpgsql
+	`).Error; err != nil {
+		_ = r.db.Exec("SET search_path TO public").Error
+		return fmt.Errorf("failed to create trigger function: %w", err)
+	}
+
+	// Drop trigger first (separate exec)
+	if err := r.db.Exec("DROP TRIGGER IF EXISTS item_metadata_trigger ON items").Error; err != nil {
+		_ = r.db.Exec("SET search_path TO public").Error
+		return fmt.Errorf("failed to drop trigger: %w", err)
+	}
+
+	// Create trigger (separate exec)
+	if err := r.db.Exec(`
+		CREATE TRIGGER item_metadata_trigger
+			BEFORE INSERT OR UPDATE ON items
+			FOR EACH ROW
+			EXECUTE FUNCTION update_item_metadata()
+	`).Error; err != nil {
+		_ = r.db.Exec("SET search_path TO public").Error
+		return fmt.Errorf("failed to create trigger: %w", err)
+	}
+
+	// Create indexes for performance
+	indexes := []string{
+		"CREATE INDEX IF NOT EXISTS idx_items_support_id ON items(support_id)",
+		"CREATE INDEX IF NOT EXISTS idx_items_revision ON items(revision DESC)",
+		"CREATE INDEX IF NOT EXISTS idx_items_type ON items(item_type) WHERE deleted_at IS NULL",
+		"CREATE INDEX IF NOT EXISTS idx_items_favorite ON items(is_favorite) WHERE deleted_at IS NULL AND is_favorite = true",
+		"CREATE INDEX IF NOT EXISTS idx_items_autofill ON items(auto_fill) WHERE item_type = 1 AND auto_fill = true AND deleted_at IS NULL",
+		"CREATE INDEX IF NOT EXISTS idx_items_metadata_gin ON items USING gin(metadata jsonb_path_ops)",
+	}
+
+	for _, indexSQL := range indexes {
+		if err := r.db.Exec(indexSQL).Error; err != nil {
+			_ = r.db.Exec("SET search_path TO public").Error
+			return fmt.Errorf("failed to create index: %w", err)
+		}
+	}
+
+	// NOTE: Legacy tables removed - all item types now use the items table
+
+	// Reset search path to public
 	if err := r.db.Exec("SET search_path TO public").Error; err != nil {
 		return fmt.Errorf("failed to reset search path: %w", err)
 	}

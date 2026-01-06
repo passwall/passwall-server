@@ -26,23 +26,23 @@ func newSMTPSender(cfg Config) (Sender, error) {
 	if err := ValidateConfig(cfg.EmailConfig, ProviderSMTP); err != nil {
 		return nil, fmt.Errorf("invalid SMTP config: %w", err)
 	}
-	
+
 	templateManager, err := NewTemplateManager()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create template manager: %w", err)
 	}
-	
+
 	sender := &smtpSender{
 		config:          cfg.EmailConfig,
 		frontendURL:     cfg.FrontendURL,
 		logger:          cfg.Logger,
 		templateManager: templateManager,
 	}
-	
-	cfg.Logger.Info("SMTP email sender initialized", 
-		"host", cfg.EmailConfig.Host, 
+
+	cfg.Logger.Info("SMTP email sender initialized",
+		"host", cfg.EmailConfig.Host,
 		"port", cfg.EmailConfig.Port)
-	
+
 	return sender, nil
 }
 
@@ -53,22 +53,22 @@ func (s *smtpSender) SendVerificationEmail(ctx context.Context, to, name, code s
 	if err != nil {
 		return fmt.Errorf("failed to build email data: %w", err)
 	}
-	
+
 	// Render template
 	htmlBody, err := s.templateManager.Render(TemplateVerification, data)
 	if err != nil {
 		return fmt.Errorf("failed to render template: %w", err)
 	}
-	
+
 	// Send email
 	subject := "Verify Your Passwall Account"
 	if err := s.sendEmail(ctx, to, subject, htmlBody); err != nil {
-		s.logger.Error("failed to send verification email via SMTP", 
-			"to", to, 
+		s.logger.Error("failed to send verification email via SMTP",
+			"to", to,
 			"error", err)
 		return err
 	}
-	
+
 	s.logger.Info("verification email sent successfully via SMTP", "to", to)
 	return nil
 }
@@ -90,31 +90,31 @@ func (s *smtpSender) sendEmail(ctx context.Context, to, subject, htmlBody string
 	if from == "" {
 		from = s.config.Username
 	}
-	
+
 	fromName := s.config.FromName
 	if fromName == "" {
 		fromName = "Passwall"
 	}
-	
+
 	// Build message
 	msg := s.buildMessage(from, fromName, to, subject, htmlBody)
-	
+
 	// SMTP authentication
 	auth := smtp.PlainAuth("", s.config.Username, s.config.Password, s.config.Host)
-	
+
 	// Server address
 	addr := fmt.Sprintf("%s:%s", s.config.Host, s.config.Port)
-	
+
 	// Recipients list (To + BCC)
 	recipients := []string{to}
 	if s.config.BCC != "" {
 		recipients = append(recipients, s.config.BCC)
 	}
-	
+
 	// Retry with exponential backoff
 	maxRetries := 3
 	var lastErr error
-	
+
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		// Check context cancellation
 		select {
@@ -122,7 +122,7 @@ func (s *smtpSender) sendEmail(ctx context.Context, to, subject, htmlBody string
 			return ctx.Err()
 		default:
 		}
-		
+
 		// Send with TLS if port is 587 (STARTTLS) or 465 (TLS)
 		var err error
 		if s.config.Port == "587" || s.config.Port == "465" {
@@ -130,17 +130,17 @@ func (s *smtpSender) sendEmail(ctx context.Context, to, subject, htmlBody string
 		} else {
 			err = smtp.SendMail(addr, auth, from, recipients, msg)
 		}
-		
+
 		if err == nil {
 			return nil
 		}
-		
+
 		lastErr = err
-		s.logger.Warn("SMTP send failed, retrying", 
-			"attempt", attempt, 
-			"max_retries", maxRetries, 
+		s.logger.Warn("SMTP send failed, retrying",
+			"attempt", attempt,
+			"max_retries", maxRetries,
 			"error", err)
-		
+
 		// Exponential backoff
 		if attempt < maxRetries {
 			backoff := time.Duration(attempt) * time.Second
@@ -151,7 +151,7 @@ func (s *smtpSender) sendEmail(ctx context.Context, to, subject, htmlBody string
 			}
 		}
 	}
-	
+
 	return fmt.Errorf("SMTP send failed after %d attempts: %w", maxRetries, lastErr)
 }
 
@@ -161,7 +161,7 @@ func (s *smtpSender) sendWithTLS(addr string, auth smtp.Auth, from string, recip
 		ServerName: s.config.Host,
 		MinVersion: tls.VersionTLS12,
 	}
-	
+
 	// Try direct TLS connection first (port 465)
 	if s.config.Port == "465" {
 		conn, err := tls.Dial("tcp", addr, tlsConfig)
@@ -169,10 +169,10 @@ func (s *smtpSender) sendWithTLS(addr string, auth smtp.Auth, from string, recip
 			return fmt.Errorf("TLS dial failed: %w", err)
 		}
 		defer conn.Close()
-		
+
 		return s.sendViaClient(conn, auth, from, recipients, msg)
 	}
-	
+
 	// Use STARTTLS (port 587)
 	return s.sendWithSTARTTLS(addr, auth, from, recipients, msg)
 }
@@ -184,7 +184,7 @@ func (s *smtpSender) sendWithSTARTTLS(addr string, auth smtp.Auth, from string, 
 		return fmt.Errorf("SMTP dial failed: %w", err)
 	}
 	defer client.Quit()
-	
+
 	// Use STARTTLS if available
 	if ok, _ := client.Extension("STARTTLS"); ok {
 		tlsConfig := &tls.Config{
@@ -195,40 +195,40 @@ func (s *smtpSender) sendWithSTARTTLS(addr string, auth smtp.Auth, from string, 
 			return fmt.Errorf("STARTTLS failed: %w", err)
 		}
 	}
-	
+
 	// Authenticate
 	if auth != nil {
 		if err = client.Auth(auth); err != nil {
 			return fmt.Errorf("SMTP auth failed: %w", err)
 		}
 	}
-	
+
 	// Set sender
 	if err = client.Mail(from); err != nil {
 		return fmt.Errorf("MAIL command failed: %w", err)
 	}
-	
+
 	// Set recipients (To + BCC)
 	for _, recipient := range recipients {
 		if err = client.Rcpt(recipient); err != nil {
 			return fmt.Errorf("RCPT command failed for %s: %w", recipient, err)
 		}
 	}
-	
+
 	// Send data
 	w, err := client.Data()
 	if err != nil {
 		return fmt.Errorf("DATA command failed: %w", err)
 	}
-	
+
 	if _, err = w.Write(msg); err != nil {
 		return fmt.Errorf("write message failed: %w", err)
 	}
-	
+
 	if err = w.Close(); err != nil {
 		return fmt.Errorf("close message failed: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -239,63 +239,62 @@ func (s *smtpSender) sendViaClient(conn net.Conn, auth smtp.Auth, from string, r
 		return fmt.Errorf("create SMTP client failed: %w", err)
 	}
 	defer client.Quit()
-	
+
 	if auth != nil {
 		if err = client.Auth(auth); err != nil {
 			return fmt.Errorf("SMTP auth failed: %w", err)
 		}
 	}
-	
+
 	if err = client.Mail(from); err != nil {
 		return fmt.Errorf("MAIL command failed: %w", err)
 	}
-	
+
 	// Set all recipients (To + BCC)
 	for _, recipient := range recipients {
 		if err = client.Rcpt(recipient); err != nil {
 			return fmt.Errorf("RCPT command failed for %s: %w", recipient, err)
 		}
 	}
-	
+
 	w, err := client.Data()
 	if err != nil {
 		return fmt.Errorf("DATA command failed: %w", err)
 	}
-	
+
 	if _, err = w.Write(msg); err != nil {
 		return fmt.Errorf("write message failed: %w", err)
 	}
-	
+
 	if err = w.Close(); err != nil {
 		return fmt.Errorf("close message failed: %w", err)
 	}
-	
+
 	return nil
 }
 
 // buildMessage builds the email message with headers
 func (s *smtpSender) buildMessage(from, fromName, to, subject, htmlBody string) []byte {
 	var buf bytes.Buffer
-	
+
 	// Headers
 	buf.WriteString(fmt.Sprintf("From: %s <%s>\r\n", fromName, from))
 	buf.WriteString(fmt.Sprintf("To: %s\r\n", to))
-	
+
 	// Add BCC if configured
 	if s.config.BCC != "" {
 		buf.WriteString(fmt.Sprintf("Bcc: %s\r\n", s.config.BCC))
 	}
-	
+
 	buf.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
 	buf.WriteString("MIME-Version: 1.0\r\n")
 	buf.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
 	buf.WriteString("Content-Transfer-Encoding: 8bit\r\n")
 	buf.WriteString(fmt.Sprintf("Date: %s\r\n", time.Now().Format(time.RFC1123Z)))
 	buf.WriteString("\r\n")
-	
+
 	// Body
 	buf.WriteString(strings.TrimSpace(htmlBody))
-	
+
 	return buf.Bytes()
 }
-

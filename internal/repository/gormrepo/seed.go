@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/passwall/passwall-server/internal/config"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/pkg/constants"
+	uuid "github.com/satori/go.uuid"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -100,7 +103,6 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB) error {
 			return fmt.Errorf("failed to fetch member role: %w", err)
 		}
 
-
 		// Assign ALL permissions to Admin
 		var allPermissions []domain.Permission
 		if err := tx.WithContext(ctx).Find(&allPermissions).Error; err != nil {
@@ -126,18 +128,77 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB) error {
 			return fmt.Errorf("failed to update existing users: %w", err)
 		}
 
-		// Set specific user as admin (erhan@passwall.io)
-		result := tx.WithContext(ctx).Model(&domain.User{}).Where("email = ?", "erhan@passwall.io").Update("role_id", constants.RoleIDAdmin)
-		if result.Error != nil {
-			return fmt.Errorf("failed to update admin user: %w", result.Error)
-		}
-		if result.RowsAffected > 0 {
-			fmt.Printf("✓ Set erhan@passwall.io as admin\n")
-		} else {
-			fmt.Printf("ℹ erhan@passwall.io not found yet (will be admin if created)\n")
-		}
-
 		return nil
 	})
 }
 
+// SeedSuperAdmin creates the super admin user if it doesn't exist
+func SeedSuperAdmin(ctx context.Context, db *gorm.DB, cfg *config.SuperAdminConfig) error {
+	if cfg.Email == "" || cfg.Password == "" {
+		return fmt.Errorf("super admin email and password must be configured")
+	}
+
+	// Check if super admin already exists
+	var existingUser domain.User
+	err := db.WithContext(ctx).Where("email = ?", cfg.Email).First(&existingUser).Error
+	
+	if err == nil {
+		// Super admin exists, ensure it's marked as system user and is admin
+		updates := map[string]interface{}{
+			"is_system_user": true,
+			"role_id":        constants.RoleIDAdmin,
+		}
+		if err := db.WithContext(ctx).Model(&existingUser).Updates(updates).Error; err != nil {
+			return fmt.Errorf("failed to update existing super admin: %w", err)
+		}
+		fmt.Printf("✓ Super admin already exists: %s (updated flags)\n", cfg.Email)
+		return nil
+	}
+	
+	if err != gorm.ErrRecordNotFound {
+		return fmt.Errorf("failed to check super admin existence: %w", err)
+	}
+
+	// Hash password (using bcrypt for compatibility with zero-knowledge auth)
+	// For super admin, we use a simpler auth flow similar to old system
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(cfg.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("failed to hash super admin password: %w", err)
+	}
+
+	// Generate schema name for super admin
+	schema := fmt.Sprintf("user_%s", uuid.NewV4().String()[:8])
+
+	// Create super admin user
+	superAdmin := &domain.User{
+		UUID:               uuid.NewV4(),
+		Name:               cfg.Name,
+		Email:              cfg.Email,
+		MasterPasswordHash: string(hashedPassword),
+		ProtectedUserKey:   "system",                   // Placeholder for system user
+		Schema:             schema,
+		RoleID:             constants.RoleIDAdmin,
+		IsVerified:         true,
+		IsSystemUser:       true, // Mark as system user (cannot be deleted)
+		Language:           "en",
+		KdfType:            domain.KdfTypePBKDF2,
+		KdfIterations:      600000,
+		KdfSalt:            "system", // Placeholder for system user
+	}
+
+	// Begin transaction
+	return db.Transaction(func(tx *gorm.DB) error {
+		// Create schema
+		if err := tx.Exec(fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", schema)).Error; err != nil {
+			return fmt.Errorf("failed to create super admin schema: %w", err)
+		}
+
+		// Create super admin user
+		if err := tx.WithContext(ctx).Create(superAdmin).Error; err != nil {
+			return fmt.Errorf("failed to create super admin user: %w", err)
+		}
+
+		fmt.Printf("✓ Super admin created: %s (email: %s)\n", superAdmin.Name, superAdmin.Email)
+		return nil
+	})
+}

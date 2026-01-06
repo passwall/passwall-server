@@ -57,4 +57,3 @@ const (
 	PermissionEmailsUpdate = "emails.update"
 	PermissionEmailsDelete = "emails.delete"
 )
-

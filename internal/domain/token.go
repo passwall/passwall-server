@@ -13,7 +13,6 @@ type Token struct {
 	UUID       uuid.UUID `gorm:"type:uuid;type:varchar(100);uniqueIndex;not null" json:"uuid"`
 	Token      string    `gorm:"type:text;not null" json:"-"`
 	ExpiryTime time.Time `json:"expiry_time" gorm:"index;not null"`
-	// Note: CreatedAt removed - not in original schema
 }
 
 // TableName specifies the table name for Token
@@ -25,4 +24,3 @@ func (Token) TableName() string {
 func (t *Token) IsExpired() bool {
 	return time.Now().After(t.ExpiryTime)
 }
-

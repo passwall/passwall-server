@@ -19,7 +19,7 @@ type BankAccount struct {
 	Password      string     `json:"password" encrypt:"true"`
 }
 
-//BankAccountDTO DTO object for BankAccount type
+// BankAccountDTO DTO object for BankAccount type
 type BankAccountDTO struct {
 	ID            uint   `json:"id"`
 	BankName      string `json:"title"`

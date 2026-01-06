@@ -71,7 +71,7 @@ func (w *ginWriter) Write(p []byte) (n int, err error) {
 	if len(msg) > 0 && msg[len(msg)-1] == '\n' {
 		msg = msg[:len(msg)-1]
 	}
-	
+
 	// Use Infof directly to get proper file/func info
 	Infof("%s", msg)
 	return len(p), nil

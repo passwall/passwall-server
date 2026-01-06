@@ -22,7 +22,7 @@ type Server struct {
 	Extra           string     `json:"extra" encrypt:"true"`
 }
 
-//ServerDTO DTO object for Server type
+// ServerDTO DTO object for Server type
 type ServerDTO struct {
 	ID              uint   `json:"id"`
 	Title           string `json:"title"`

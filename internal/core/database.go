@@ -34,18 +34,17 @@ func InitDatabase(cfg *config.Config) (database.Database, error) {
 }
 
 // AutoMigrate runs database migrations
-// Returns nil if migration fails due to existing tables (backup restore scenario)
 func AutoMigrate(db database.Database) error {
 	_ = db.AutoMigrate(
 		&domain.Role{},
 		&domain.Permission{},
 		&domain.User{},
 		&domain.Token{},
-		&domain.VerificationCode{}, // Email verification codes table
-		// Note: Other entities are migrated per schema
+		&domain.VerificationCode{},
+		&domain.UserActivity{},
+		&domain.ExcludedDomain{},
+		&domain.Folder{},
 	)
-	
-	// Always return nil - if tables exist from backup, that's fine
-	// If migration fails, tables likely already exist
+
 	return nil
 }

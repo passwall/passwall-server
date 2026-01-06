@@ -162,6 +162,10 @@ func (h *UserHandler) Delete(c *gin.Context) {
 	}
 
 	if err := h.service.Delete(ctx, id, user.Schema); err != nil {
+		if errors.Is(err, repository.ErrForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "cannot delete system user"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete user"})
 		return
 	}

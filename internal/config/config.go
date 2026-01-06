@@ -13,9 +13,10 @@ import (
 
 // Config holds all application configuration
 type Config struct {
-	Server   ServerConfig   `mapstructure:"server"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Email    EmailConfig    `mapstructure:"email"`
+	Server     ServerConfig     `mapstructure:"server"`
+	Database   DatabaseConfig   `mapstructure:"database"`
+	Email      EmailConfig      `mapstructure:"email"`
+	SuperAdmin SuperAdminConfig `mapstructure:"super_admin"`
 }
 
 // ServerConfig contains server-related configuration
@@ -64,6 +65,13 @@ type EmailConfig struct {
 	GmailClientID     string `mapstructure:"gmail_client_id"`     // Gmail OAuth2 Client ID
 	GmailClientSecret string `mapstructure:"gmail_client_secret"` // Gmail OAuth2 Client Secret
 	GmailRefreshToken string `mapstructure:"gmail_refresh_token"` // Gmail OAuth2 Refresh Token
+}
+
+// SuperAdminConfig contains super admin configuration
+type SuperAdminConfig struct {
+	Email    string `mapstructure:"email"`
+	Password string `mapstructure:"password"`
+	Name     string `mapstructure:"name"`
 }
 
 // LoaderOptions contains options for loading configuration
@@ -199,6 +207,11 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("email.gmail_client_id", "")
 	v.SetDefault("email.gmail_client_secret", "")
 	v.SetDefault("email.gmail_refresh_token", "")
+
+	// Super Admin defaults
+	v.SetDefault("super_admin.email", "admin@passwall.io")
+	v.SetDefault("super_admin.password", "PasswallAdmin2025!")
+	v.SetDefault("super_admin.name", "Super Admin")
 }
 
 // bindEnvVariables binds environment variables for backwards compatibility
@@ -242,6 +255,11 @@ func bindEnvVariables(v *viper.Viper) {
 	v.BindEnv("email.gmail_client_id", "PW_EMAIL_GMAIL_CLIENT_ID", "GMAIL_CLIENT_ID")
 	v.BindEnv("email.gmail_client_secret", "PW_EMAIL_GMAIL_CLIENT_SECRET", "GMAIL_CLIENT_SECRET")
 	v.BindEnv("email.gmail_refresh_token", "PW_EMAIL_GMAIL_REFRESH_TOKEN", "GMAIL_REFRESH_TOKEN")
+
+	// Super Admin bindings
+	v.BindEnv("super_admin.email", "PW_SUPER_ADMIN_EMAIL")
+	v.BindEnv("super_admin.password", "PW_SUPER_ADMIN_PASSWORD")
+	v.BindEnv("super_admin.name", "PW_SUPER_ADMIN_NAME")
 }
 
 // createDefaultConfigFile creates a config file with default values

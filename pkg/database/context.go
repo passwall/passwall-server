@@ -33,4 +33,3 @@ func MustGetSchema(ctx context.Context) string {
 	}
 	return schema
 }
-

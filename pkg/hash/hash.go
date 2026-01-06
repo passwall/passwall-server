@@ -16,4 +16,3 @@ func SHA256(input string) string {
 func VerifySHA256(input, hash string) bool {
 	return SHA256(input) == hash
 }
-

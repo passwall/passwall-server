@@ -1,6 +1,6 @@
 package model
 
-//Payload ...
+// Payload ...
 type Payload struct {
 	Data string `json:"data"`
 }

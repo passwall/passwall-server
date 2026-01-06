@@ -16,12 +16,10 @@ func SetupRouter(
 	serverConfig *config.ServerConfig,
 	authService service.AuthService,
 	authHandler *httpHandler.AuthHandler,
-	loginHandler *httpHandler.LoginHandler,
-	bankAccountHandler *httpHandler.BankAccountHandler,
-	creditCardHandler *httpHandler.CreditCardHandler,
-	noteHandler *httpHandler.NoteHandler,
-	emailHandler *httpHandler.EmailHandler,
-	serverHandler *httpHandler.ServerHandler,
+	activityHandler *httpHandler.ActivityHandler,
+	itemHandler *httpHandler.ItemHandler,
+	excludedDomainHandler *httpHandler.ExcludedDomainHandler,
+	folderHandler *httpHandler.FolderHandler,
 	userHandler *httpHandler.UserHandler,
 ) *gin.Engine {
 	// Create router without default middleware
@@ -57,6 +55,10 @@ func SetupRouter(
 	// Auth routes (no auth middleware)
 	authGroup := router.Group("/auth")
 	{
+		// PreLogin endpoint (get KDF config before signin)
+		// No rate limit - needed for every login attempt
+		authGroup.GET("/prelogin", authHandler.PreLogin)
+
 		// Rate-limited endpoints with optional reCAPTCHA
 		authGroup.POST("/signup",
 			httpHandler.RateLimitMiddleware(authRateLimiter),
@@ -90,57 +92,37 @@ func SetupRouter(
 		// Auth protected routes
 		apiGroup.POST("/signout", authHandler.SignOut)
 
-		// Login routes
-		apiGroup.GET("/logins", loginHandler.List)
-		apiGroup.GET("/logins/:id", loginHandler.GetByID)
-		apiGroup.POST("/logins", loginHandler.Create)
-		apiGroup.PUT("/logins/:id", loginHandler.Update)
-		apiGroup.DELETE("/logins/:id", loginHandler.Delete)
-		apiGroup.PUT("/logins/bulk-update", loginHandler.BulkUpdate)
+		// Modern Items API (unified endpoint for all types)
+		apiGroup.POST("/items", itemHandler.Create)
+		apiGroup.GET("/items", itemHandler.List)
+		apiGroup.GET("/items/:id", itemHandler.GetByID)
+		apiGroup.PUT("/items/:id", itemHandler.Update)
+		apiGroup.DELETE("/items/:id", itemHandler.Delete)
 
-		// Bank account routes
-		apiGroup.GET("/bank-accounts", bankAccountHandler.List)
-		apiGroup.GET("/bank-accounts/:id", bankAccountHandler.GetByID)
-		apiGroup.POST("/bank-accounts", bankAccountHandler.Create)
-		apiGroup.PUT("/bank-accounts/:id", bankAccountHandler.Update)
-		apiGroup.DELETE("/bank-accounts/:id", bankAccountHandler.Delete)
-		apiGroup.PUT("/bank-accounts/bulk-update", bankAccountHandler.BulkUpdate)
+		// Excluded Domains API (for "Turn off Passwall for this site")
+		apiGroup.GET("/excluded-domains", excludedDomainHandler.List)
+		apiGroup.POST("/excluded-domains", excludedDomainHandler.Create)
+		apiGroup.DELETE("/excluded-domains/:id", excludedDomainHandler.Delete)
+		apiGroup.DELETE("/excluded-domains/by-domain/:domain", excludedDomainHandler.DeleteByDomain)
+		apiGroup.GET("/excluded-domains/check/:domain", excludedDomainHandler.Check)
 
-		// Credit card routes
-		apiGroup.GET("/credit-cards", creditCardHandler.List)
-		apiGroup.GET("/credit-cards/:id", creditCardHandler.GetByID)
-		apiGroup.POST("/credit-cards", creditCardHandler.Create)
-		apiGroup.PUT("/credit-cards/:id", creditCardHandler.Update)
-		apiGroup.DELETE("/credit-cards/:id", creditCardHandler.Delete)
-		apiGroup.PUT("/credit-cards/bulk-update", creditCardHandler.BulkUpdate)
+		// Folders API (for organizing vault items)
+		apiGroup.GET("/folders", folderHandler.List)
+		apiGroup.POST("/folders", folderHandler.Create)
+		apiGroup.PUT("/folders/:id", folderHandler.Update)
+		apiGroup.DELETE("/folders/:id", folderHandler.Delete)
 
-		// Note routes
-		apiGroup.GET("/notes", noteHandler.List)
-		apiGroup.GET("/notes/:id", noteHandler.GetByID)
-		apiGroup.POST("/notes", noteHandler.Create)
-		apiGroup.PUT("/notes/:id", noteHandler.Update)
-		apiGroup.DELETE("/notes/:id", noteHandler.Delete)
-		apiGroup.PUT("/notes/bulk-update", noteHandler.BulkUpdate)
-
-		// Email routes
-		apiGroup.GET("/emails", emailHandler.List)
-		apiGroup.GET("/emails/:id", emailHandler.GetByID)
-		apiGroup.POST("/emails", emailHandler.Create)
-		apiGroup.PUT("/emails/:id", emailHandler.Update)
-		apiGroup.DELETE("/emails/:id", emailHandler.Delete)
-		apiGroup.PUT("/emails/bulk-update", emailHandler.BulkUpdate)
-
-		// Server routes
-		apiGroup.GET("/servers", serverHandler.List)
-		apiGroup.GET("/servers/:id", serverHandler.GetByID)
-		apiGroup.POST("/servers", serverHandler.Create)
-		apiGroup.PUT("/servers/:id", serverHandler.Update)
-		apiGroup.DELETE("/servers/:id", serverHandler.Delete)
-		apiGroup.PUT("/servers/bulk-update", serverHandler.BulkUpdate)
+		// NOTE: All legacy endpoints (logins, credit-cards, bank-accounts, notes, emails, servers)
+		// have been migrated to the modern /api/items endpoint.
+		// Use /api/items with type parameter: ?type=1 (password), ?type=2 (note), ?type=3 (card), etc.
 
 		// User profile routes - any authenticated user
 		apiGroup.PUT("/users/me", userHandler.UpdateProfile)
-		apiGroup.POST("/users/change-master-password", userHandler.ChangeMasterPassword)
+		apiGroup.POST("/users/change-master-password", authHandler.ChangeMasterPassword)
+
+		// Activity routes - any authenticated user
+		apiGroup.GET("/activities/me", activityHandler.GetMyActivities)
+		apiGroup.GET("/activities/last-signin", activityHandler.GetLastSignIn)
 
 		// User management routes - Admin only
 		usersGroup := apiGroup.Group("/users")
@@ -151,6 +133,14 @@ func SetupRouter(
 			usersGroup.POST("", userHandler.Create)
 			usersGroup.PUT("/:id", userHandler.Update)
 			usersGroup.DELETE("/:id", userHandler.Delete)
+			usersGroup.GET("/:id/activities", activityHandler.GetUserActivities)
+		}
+
+		// Activity management routes - Admin only
+		adminActivitiesGroup := apiGroup.Group("/activities")
+		adminActivitiesGroup.Use(httpHandler.RequireAdminMiddleware())
+		{
+			adminActivitiesGroup.GET("", activityHandler.ListActivities)
 		}
 	}
 

@@ -29,11 +29,11 @@ func newGmailSender(cfg Config) (Sender, error) {
 	if cfg.EmailConfig.GmailClientID == "" {
 		return nil, fmt.Errorf("gmail_client_id is required for Gmail API")
 	}
-	
+
 	if cfg.EmailConfig.GmailClientSecret == "" {
 		return nil, fmt.Errorf("gmail_client_secret is required for Gmail API")
 	}
-	
+
 	if cfg.EmailConfig.GmailRefreshToken == "" {
 		cfg.Logger.Error("Gmail API refresh token missing in config")
 		cfg.Logger.Info("To get refresh token, use OAuth2 Playground:")
@@ -176,12 +176,12 @@ func (s *gmailSender) buildMessage(fromEmail, fromName, to, subject, htmlBody st
 	// Build RFC 2822 email headers
 	buf.WriteString(fmt.Sprintf("From: %s\r\n", fromAddress))
 	buf.WriteString(fmt.Sprintf("To: %s\r\n", to))
-	
+
 	// Add BCC if configured
 	if s.config.BCC != "" {
 		buf.WriteString(fmt.Sprintf("Bcc: %s\r\n", s.config.BCC))
 	}
-	
+
 	buf.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
 	buf.WriteString("MIME-Version: 1.0\r\n")
 	buf.WriteString("Content-Type: text/html; charset=UTF-8\r\n")

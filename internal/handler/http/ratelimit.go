@@ -112,4 +112,3 @@ func RateLimitMiddleware(limiter *RateLimiter) gin.HandlerFunc {
 		c.Next()
 	}
 }
-

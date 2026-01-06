@@ -2,11 +2,10 @@ package service
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type userService struct {
@@ -47,19 +46,8 @@ func (s *userService) List(ctx context.Context) ([]*domain.User, error) {
 }
 
 func (s *userService) Create(ctx context.Context, user *domain.User) error {
-	// Validate
 	if user.Email == "" {
 		return repository.ErrInvalidInput
-	}
-
-	// Hash password if provided
-	if user.MasterPassword != "" {
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.MasterPassword), bcrypt.DefaultCost)
-		if err != nil {
-			s.logger.Error("failed to hash password", "error", err)
-			return fmt.Errorf("failed to hash password: %w", err)
-		}
-		user.MasterPassword = string(hashedPassword)
 	}
 
 	if err := s.repo.Create(ctx, user); err != nil {
@@ -85,9 +73,16 @@ func (s *userService) Update(ctx context.Context, id uint, user *domain.User) er
 
 func (s *userService) Delete(ctx context.Context, id uint, schema string) error {
 	// Check if user exists
-	if _, err := s.repo.GetByID(ctx, id); err != nil {
+	user, err := s.repo.GetByID(ctx, id)
+	if err != nil {
 		s.logger.Error("user not found for deletion", "id", id, "error", err)
 		return err
+	}
+
+	// Prevent deletion of system users (e.g., super admin)
+	if user.IsSystemUser {
+		s.logger.Warn("attempted to delete system user", "id", id, "email", user.Email)
+		return repository.ErrForbidden
 	}
 
 	if err := s.repo.Delete(ctx, id, schema); err != nil {
@@ -100,28 +95,5 @@ func (s *userService) Delete(ctx context.Context, id uint, schema string) error 
 }
 
 func (s *userService) ChangeMasterPassword(ctx context.Context, req *domain.ChangeMasterPasswordRequest) error {
-	// Verify old password
-	user, err := s.repo.GetByCredentials(ctx, req.Email, req.OldMasterPassword)
-	if err != nil {
-		s.logger.Warn("invalid credentials for password change", "email", req.Email)
-		return repository.ErrUnauthorized
-	}
-
-	// Hash new password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewMasterPassword), bcrypt.DefaultCost)
-	if err != nil {
-		s.logger.Error("failed to hash new password", "email", req.Email, "error", err)
-		return fmt.Errorf("failed to hash password: %w", err)
-	}
-
-	user.MasterPassword = string(hashedPassword)
-
-	if err := s.repo.Update(ctx, user); err != nil {
-		s.logger.Error("failed to update user password", "id", user.ID, "error", err)
-		return err
-	}
-
-	s.logger.Info("master password changed", "user_id", user.ID, "email", user.Email)
-	return nil
+	return errors.New("use AuthService.ChangeMasterPassword for zero-knowledge encryption")
 }
-

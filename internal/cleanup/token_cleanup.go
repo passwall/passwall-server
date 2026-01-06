@@ -69,4 +69,3 @@ func (tc *TokenCleanup) cleanup(ctx context.Context) {
 		logger.Debugf("No expired tokens found")
 	}
 }
-

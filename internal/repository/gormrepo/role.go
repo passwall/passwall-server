@@ -59,7 +59,7 @@ func (r *roleRepository) GetPermissions(ctx context.Context, roleID uint) ([]str
 		Joins("INNER JOIN role_permissions ON role_permissions.permission_id = permissions.id").
 		Where("role_permissions.role_id = ?", roleID).
 		Pluck("name", &permissions).Error
-	
+
 	if err != nil {
 		return nil, err
 	}
@@ -69,4 +69,3 @@ func (r *roleRepository) GetPermissions(ctx context.Context, roleID uint) ([]str
 func (r *roleRepository) Migrate() error {
 	return r.db.AutoMigrate(&domain.Role{}, &domain.Permission{})
 }
-

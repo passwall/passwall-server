@@ -16,6 +16,7 @@ import (
 type AuthHandler struct {
 	authService         service.AuthService
 	verificationService service.VerificationService
+	activityService     service.UserActivityService
 	emailSender         email.Sender
 }
 
@@ -23,16 +24,19 @@ type AuthHandler struct {
 func NewAuthHandler(
 	authService service.AuthService,
 	verificationService service.VerificationService,
+	activityService service.UserActivityService,
 	emailSender email.Sender,
 ) *AuthHandler {
 	return &AuthHandler{
 		authService:         authService,
 		verificationService: verificationService,
+		activityService:     activityService,
 		emailSender:         emailSender,
 	}
 }
 
-// SignUp handles user registration
+// SignUp handles user registration (zero-knowledge)
+// Client sends: masterPasswordHash + protectedUserKey + kdfConfig
 func (h *AuthHandler) SignUp(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -57,7 +61,7 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"error": "user already exists"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user", "details": err.Error()})
 		return
 	}
 
@@ -66,11 +70,32 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 		"user_id":     user.ID,
 		"email":       user.Email,
 		"is_verified": user.IsVerified,
+		"kdf_type":    user.KdfType,
 		"note":        "Please check your email for verification code",
 	})
 }
 
-// SignIn handles user authentication
+// PreLogin returns user's KDF configuration
+// Required before signin to derive correct Master Key on client
+func (h *AuthHandler) PreLogin(c *gin.Context) {
+	email := c.Query("email")
+	if email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "email is required"})
+		return
+	}
+
+	response, err := h.authService.PreLogin(c.Request.Context(), email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get KDF configuration"})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// SignIn handles user authentication (zero-knowledge)
+// Client sends: masterPasswordHash (PBKDF2 of Master Key)
+// Server returns: JWT + protectedUserKey + kdfConfig
 func (h *AuthHandler) SignIn(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -82,11 +107,20 @@ func (h *AuthHandler) SignIn(c *gin.Context) {
 
 	authResponse, err := h.authService.SignIn(ctx, &creds)
 	if err != nil {
+		// Log failed signin attempt
+		go func() {
+			_ = h.activityService.LogActivity(context.Background(), &domain.CreateActivityRequest{
+				ActivityType: domain.ActivityTypeFailedSignIn,
+				IPAddress:    GetIPAddress(c),
+				UserAgent:    GetUserAgent(c),
+				Details:      service.CreateActivityDetails(map[string]interface{}{"email": creds.Email}),
+			})
+		}()
+
 		if errors.Is(err, service.ErrUnauthorized) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
 			return
 		}
-		// Check for email verification error
 		if err.Error() == "email not verified" {
 			c.JSON(http.StatusForbidden, gin.H{
 				"error":   "email not verified",
@@ -98,7 +132,59 @@ func (h *AuthHandler) SignIn(c *gin.Context) {
 		return
 	}
 
+	// Log successful signin
+	go func() {
+		_ = h.activityService.LogActivity(context.Background(), &domain.CreateActivityRequest{
+			UserID:       authResponse.User.ID,
+			ActivityType: domain.ActivityTypeSignIn,
+			IPAddress:    GetIPAddress(c),
+			UserAgent:    GetUserAgent(c),
+			Details: service.CreateActivityDetails(map[string]interface{}{
+				"kdf_type":   authResponse.KdfConfig.Type,
+				"iterations": authResponse.KdfConfig.Iterations,
+			}),
+		})
+	}()
+
 	c.JSON(http.StatusOK, authResponse)
+}
+
+// ChangeMasterPassword handles master password change
+func (h *AuthHandler) ChangeMasterPassword(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	var req domain.ChangeMasterPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
+		return
+	}
+
+	if err := h.authService.ChangeMasterPassword(ctx, &req); err != nil {
+		if errors.Is(err, service.ErrUnauthorized) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid current password"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to change password", "details": err.Error()})
+		return
+	}
+
+	// Log password change activity
+	// User ID will be from authenticated context
+	if userID, exists := c.Get("user_id"); exists {
+		go func() {
+			_ = h.activityService.LogActivity(context.Background(), &domain.CreateActivityRequest{
+				UserID:       userID.(uint),
+				ActivityType: domain.ActivityTypePasswordChange,
+				IPAddress:    GetIPAddress(c),
+				UserAgent:    GetUserAgent(c),
+			})
+		}()
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "master password changed successfully",
+		"note":    "Please sign in again on all your devices",
+	})
 }
 
 // RefreshToken handles token refresh

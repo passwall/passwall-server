@@ -54,4 +54,3 @@ func (r *permissionRepository) List(ctx context.Context) ([]*domain.Permission, 
 func (r *permissionRepository) Migrate() error {
 	return r.db.AutoMigrate(&domain.Permission{})
 }
-

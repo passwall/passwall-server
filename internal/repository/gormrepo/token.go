@@ -23,6 +23,7 @@ func NewTokenRepository(db *gorm.DB) repository.TokenRepository {
 
 func (r *tokenRepository) GetByUUID(ctx context.Context, uuid string) (*domain.Token, error) {
 	var token domain.Token
+
 	err := r.db.WithContext(ctx).Where("uuid = ?", uuid).First(&token).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -68,4 +69,3 @@ func (r *tokenRepository) Cleanup(ctx context.Context) error {
 func (r *tokenRepository) Migrate() error {
 	return r.db.AutoMigrate(&domain.Token{})
 }
-

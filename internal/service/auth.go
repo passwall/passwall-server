@@ -34,6 +34,7 @@ type authService struct {
 	userRepo         repository.UserRepository
 	tokenRepo        repository.TokenRepository
 	verificationRepo repository.VerificationRepository
+	activityService  UserActivityService
 	emailSender      email.Sender
 	config           *AuthConfig
 	logger           Logger
@@ -44,6 +45,7 @@ func NewAuthService(
 	userRepo repository.UserRepository,
 	tokenRepo repository.TokenRepository,
 	verificationRepo repository.VerificationRepository,
+	activityService UserActivityService,
 	emailSender email.Sender,
 	config *AuthConfig,
 	logger Logger,
@@ -52,6 +54,7 @@ func NewAuthService(
 		userRepo:         userRepo,
 		tokenRepo:        tokenRepo,
 		verificationRepo: verificationRepo,
+		activityService:  activityService,
 		emailSender:      emailSender,
 		config:           config,
 		logger:           logger,
@@ -59,39 +62,46 @@ func NewAuthService(
 }
 
 func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*domain.User, error) {
+	// Validate request
+	if err := req.Validate(); err != nil {
+		return nil, fmt.Errorf("validation failed: %w", err)
+	}
+
 	// Check if user already exists
 	existingUser, err := s.userRepo.GetByEmail(ctx, req.Email)
 	if err == nil && existingUser != nil {
 		return nil, repository.ErrAlreadyExists
 	}
 
-	// Hash password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.MasterPassword), bcrypt.DefaultCost)
+	// Hash the master password hash with bcrypt (defense in depth)
+	// Client sends: PBKDF2(masterKey, password, 1)
+	// Server stores: bcrypt(PBKDF2(masterKey, password, 1))
+	hashedPassword, err := bcrypt.GenerateFromPassword(
+		[]byte(req.MasterPasswordHash),
+		bcrypt.DefaultCost,
+	)
 	if err != nil {
 		s.logger.Error("failed to hash password", "error", err)
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// Generate secret and schema
-	secret, err := generateSecureKey(32)
-	if err != nil {
-		s.logger.Error("failed to generate secret", "error", err)
-		return nil, fmt.Errorf("failed to generate secret: %w", err)
-	}
-
 	schema := generateSchema(req.Email)
 
-	// Create user (unverified by default)
+	// Create user with modern encryption fields
 	user := &domain.User{
-		UUID:           uuid.NewV4(),
-		Name:           req.Name,
-		Email:          req.Email,
-		MasterPassword: string(hashedPassword),
-		Secret:         secret,
-		Schema:         schema,
-		RoleID:         constants.RoleIDMember, // Default: Member role
-		IsVerified:     false,                  // Requires email verification
-		IsMigrated:     true,                   // New users don't need migration
+		UUID:               uuid.NewV4(),
+		Name:               req.Name,
+		Email:              req.Email,
+		MasterPasswordHash: string(hashedPassword),
+		ProtectedUserKey:   req.ProtectedUserKey, // EncString: "2.iv|ct|mac"
+		Schema:             schema,
+		KdfType:            req.KdfConfig.Type,
+		KdfIterations:      req.KdfConfig.Iterations,
+		KdfMemory:          req.KdfConfig.Memory,
+		KdfParallelism:     req.KdfConfig.Parallelism,
+		KdfSalt:            req.KdfSalt, // Random salt from client
+		RoleID:             constants.RoleIDMember,
+		IsVerified:         false,
 	}
 
 	// Create schema
@@ -100,7 +110,7 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 		return nil, fmt.Errorf("failed to create schema: %w", err)
 	}
 
-	// Migrate all tables in user schema (logins, notes, emails, etc.)
+	// Migrate all tables in user schema
 	if err := s.userRepo.MigrateUserSchema(schema); err != nil {
 		s.logger.Error("failed to migrate user schema tables", "schema", schema, "error", err)
 		return nil, fmt.Errorf("failed to migrate user schema: %w", err)
@@ -116,7 +126,6 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 	code, err := generateRandomVerificationCode(6)
 	if err != nil {
 		s.logger.Error("failed to generate verification code", "error", err)
-		// Don't fail signup, but log the error
 		return user, nil
 	}
 
@@ -129,11 +138,10 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 
 	if err := s.verificationRepo.Create(ctx, verificationCode); err != nil {
 		s.logger.Error("failed to save verification code", "email", req.Email, "error", err)
-		// Don't fail signup, user can request resend
 		return user, nil
 	}
 
-	// Send verification email (async to not block signup)
+	// Send verification email (async)
 	go func() {
 		emailCtx := context.Background()
 		if err := s.emailSender.SendVerificationEmail(emailCtx, req.Email, req.Name, code); err != nil {
@@ -141,7 +149,23 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 		}
 	}()
 
-	s.logger.Info("user signup successful", "email", req.Email, "user_id", user.ID)
+	// Log account creation activity
+	go func() {
+		_ = s.activityService.LogActivity(context.Background(), &domain.CreateActivityRequest{
+			UserID:       user.ID,
+			ActivityType: domain.ActivityTypeAccountCreated,
+			Details: CreateActivityDetails(map[string]interface{}{
+				"kdf_type":   user.KdfType.String(),
+				"iterations": user.KdfIterations,
+			}),
+		})
+	}()
+
+	s.logger.Info("user signup successful (zero-knowledge)",
+		"email", req.Email,
+		"kdf_type", user.KdfType.String(),
+		"iterations", user.KdfIterations)
+
 	return user, nil
 }
 
@@ -149,7 +173,7 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 func generateRandomVerificationCode(length int) (string, error) {
 	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	code := make([]byte, length)
-	
+
 	for i := range code {
 		b := make([]byte, 1)
 		if _, err := rand.Read(b); err != nil {
@@ -157,19 +181,30 @@ func generateRandomVerificationCode(length int) (string, error) {
 		}
 		code[i] = charset[int(b[0])%len(charset)]
 	}
-	
+
 	return string(code), nil
 }
 
 func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*domain.AuthResponse, error) {
-	// Find user by credentials
-	user, err := s.userRepo.GetByCredentials(ctx, creds.Email, creds.MasterPassword)
+	// Find user by email
+	user, err := s.userRepo.GetByEmail(ctx, creds.Email)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) || errors.Is(err, repository.ErrUnauthorized) {
+		if errors.Is(err, repository.ErrNotFound) {
 			return nil, ErrUnauthorized
 		}
-		s.logger.Error("authentication failed", "email", creds.Email, "error", err)
+		s.logger.Error("failed to get user", "email", creds.Email, "error", err)
 		return nil, fmt.Errorf("authentication failed: %w", err)
+	}
+
+	// Verify master password hash
+	// Client sent: PBKDF2(masterKey, password, 1)
+	// Server has: bcrypt(PBKDF2(masterKey, password, 1))
+	if err := bcrypt.CompareHashAndPassword(
+		[]byte(user.MasterPasswordHash),
+		[]byte(creds.MasterPasswordHash),
+	); err != nil {
+		s.logger.Warn("invalid password attempt", "email", creds.Email)
+		return nil, ErrUnauthorized
 	}
 
 	// Check if email is verified
@@ -178,18 +213,18 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 		return nil, errors.New("email not verified")
 	}
 
-	// Delete old tokens before creating new ones
+	// Delete old tokens
 	if err := s.tokenRepo.Delete(ctx, int(user.ID)); err != nil {
-		// Log error but continue - don't block login if cleanup fails
+		s.logger.Warn("failed to delete old tokens", "user_id", user.ID)
 	}
 
-	// Create tokens
+	// Create JWT tokens
 	tokenDetails, err := s.createToken(user)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token: %w", err)
 	}
 
-	// Store tokens in database
+	// Store tokens
 	if err := s.tokenRepo.Create(ctx, int(user.ID), tokenDetails.AtUUID, tokenDetails.AccessToken, tokenDetails.AtExpiresTime); err != nil {
 		return nil, fmt.Errorf("failed to store access token: %w", err)
 	}
@@ -198,26 +233,34 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 		return nil, fmt.Errorf("failed to store refresh token: %w", err)
 	}
 
-	// Update last sign in timestamp
-	now := time.Now()
-	user.LastSignInAt = &now
-	if err := s.userRepo.Update(ctx, user); err != nil {
-		// Log error but don't fail login if timestamp update fails
-	}
+	// Log signin activity (async, non-blocking)
+	// Note: IP and UserAgent should be passed from handler context
+	go func() {
+		_ = s.activityService.LogActivity(context.Background(), &domain.CreateActivityRequest{
+			UserID:       user.ID,
+			ActivityType: domain.ActivityTypeSignIn,
+			// IP and UserAgent will be set in handler middleware
+		})
+	}()
 
+	// Return auth response with protected user key
+	// Client will decrypt User Key with their Master Key
 	return &domain.AuthResponse{
-		AccessToken:  tokenDetails.AccessToken,
-		RefreshToken: tokenDetails.RefreshToken,
-		Type:         "Bearer", // Token type - backward compatible
-		UserID:       user.ID,
-		Email:        user.Email,
-		Name:         user.Name,
-		Schema:       user.Schema,
-		Role:         user.GetRoleName(), // User role - backward compatible (mobile app uses this)
-		Secret:       user.Secret,        // Required by extension for PBKDF2 encryption
-		IsMigrated:   user.IsMigrated,    // Migration status for extension
-		DateOfBirth:  user.DateOfBirth,
-		Language:     user.Language,
+		AccessToken:      tokenDetails.AccessToken,
+		RefreshToken:     tokenDetails.RefreshToken,
+		Type:             "Bearer",
+		ProtectedUserKey: user.ProtectedUserKey, // Encrypted, client will decrypt
+		KdfConfig:        user.GetKdfConfig(),
+		User: &domain.UserAuthDTO{
+			ID:         user.ID,
+			UUID:       user.UUID.String(),
+			Email:      user.Email,
+			Name:       user.Name,
+			Schema:     user.Schema,
+			Role:       user.GetRoleName(),
+			IsVerified: user.IsVerified,
+			Language:   user.Language,
+		},
 	}, nil
 }
 
@@ -393,17 +436,105 @@ func resolveTokenExpireDuration(config string) time.Duration {
 	}
 }
 
-func generateSchema(email string) string {
-	return "user_" + uuid.NewV5(uuid.NamespaceURL, email).String()[:8]
+// PreLogin returns user's KDF configuration
+// Required before signin to derive correct Master Key on client
+func (s *authService) PreLogin(ctx context.Context, email string) (*domain.PreLoginResponse, error) {
+	user, err := s.userRepo.GetByEmail(ctx, email)
+	if err != nil {
+		// Don't reveal if user exists (prevents user enumeration)
+		// Return default config with fake salt
+		fakeSalt := []byte(email + "fake-salt-for-non-existent-user-padding-to-32-bytes-xxxx")
+		return &domain.PreLoginResponse{
+			KdfType:       domain.KdfTypePBKDF2,
+			KdfIterations: domain.PBKDF2DefaultIterations,
+			KdfSalt:       fmt.Sprintf("%x", fakeSalt[:32]),
+		}, nil
+	}
+
+	// Get user's KDF config
+	kdfConfig := user.GetKdfConfig()
+
+	// Validate against downgrade attacks
+	if err := kdfConfig.ValidateForPrelogin(); err != nil {
+		s.logger.Error("KDF downgrade attack detected", "email", email, "error", err)
+		// Return default config to prevent attack (with fake salt)
+		fakeSalt := []byte(email + "downgrade-attack-fake-salt-padding-32-bytes-xxxxx")
+		return &domain.PreLoginResponse{
+			KdfType:       domain.KdfTypePBKDF2,
+			KdfIterations: domain.PBKDF2DefaultIterations,
+			KdfSalt:       fmt.Sprintf("%x", fakeSalt[:32]),
+		}, nil
+	}
+
+	return &domain.PreLoginResponse{
+		KdfType:        user.KdfType,
+		KdfIterations:  user.KdfIterations,
+		KdfMemory:      user.KdfMemory,
+		KdfParallelism: user.KdfParallelism,
+		KdfSalt:        user.KdfSalt,
+	}, nil
 }
 
-func generateSecureKey(length int) (string, error) {
-	key := make([]byte, length)
-	_, err := rand.Read(key)
+// ChangeMasterPassword changes user's master password
+// Zero-knowledge: Client re-wraps User Key with new Master Key
+func (s *authService) ChangeMasterPassword(ctx context.Context, req *domain.ChangeMasterPasswordRequest) error {
+	// Find user
+	user, err := s.userRepo.GetByEmail(ctx, req.Email)
 	if err != nil {
-		return "", err
+		return ErrUnauthorized
 	}
-	return uuid.NewV4().String(), nil
+
+	// Verify current password hash
+	if err := bcrypt.CompareHashAndPassword(
+		[]byte(user.MasterPasswordHash),
+		[]byte(req.CurrentPasswordHash),
+	); err != nil {
+		return ErrUnauthorized
+	}
+
+	// Hash new master password hash
+	newHashedPassword, err := bcrypt.GenerateFromPassword(
+		[]byte(req.NewMasterPasswordHash),
+		bcrypt.DefaultCost,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to hash new password: %w", err)
+	}
+
+	// Update user
+	user.MasterPasswordHash = string(newHashedPassword)
+	user.ProtectedUserKey = req.NewProtectedUserKey
+
+	// Update KDF config if provided
+	if req.NewKdfConfig != nil {
+		if err := req.NewKdfConfig.Validate(); err != nil {
+			return fmt.Errorf("invalid KDF config: %w", err)
+		}
+		user.KdfType = req.NewKdfConfig.Type
+		user.KdfIterations = req.NewKdfConfig.Iterations
+		user.KdfMemory = req.NewKdfConfig.Memory
+		user.KdfParallelism = req.NewKdfConfig.Parallelism
+	}
+
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		s.logger.Error("failed to update user password", "user_id", user.ID, "error", err)
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+
+	// Delete all tokens (force re-login on all devices)
+	if err := s.tokenRepo.Delete(ctx, int(user.ID)); err != nil {
+		s.logger.Warn("failed to delete tokens after password change", "user_id", user.ID)
+	}
+
+	s.logger.Info("master password changed successfully",
+		"user_id", user.ID,
+		"new_kdf", user.KdfType.String())
+
+	return nil
+}
+
+func generateSchema(email string) string {
+	return "user_" + uuid.NewV5(uuid.NamespaceURL, email).String()[:8]
 }
 
 // ValidateSchema validates that a schema exists in the database

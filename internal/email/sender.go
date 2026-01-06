@@ -50,28 +50,28 @@ func NewSender(cfg Config) (Sender, error) {
 	if cfg.EmailConfig == nil {
 		return nil, fmt.Errorf("email config is required")
 	}
-	
+
 	if cfg.Logger == nil {
 		return nil, fmt.Errorf("logger is required")
 	}
 
 	// Detect and create appropriate provider
 	provider := detectProvider(cfg.EmailConfig)
-	
+
 	cfg.Logger.Info("Attempting to initialize email sender", "provider", provider)
-	
+
 	switch provider {
 	case ProviderGmailAPI:
 		// Gmail API selected - must succeed, no fallback
 		return newGmailSender(cfg)
-		
+
 	case ProviderAWSSES:
 		// AWS SES selected - must succeed, no fallback
 		return newSESSender(cfg)
-		
+
 	case ProviderSMTP:
 		return newSMTPSender(cfg)
-		
+
 	default:
 		return nil, fmt.Errorf("unsupported email provider: %s", provider)
 	}
@@ -89,7 +89,7 @@ func detectProvider(cfg *config.EmailConfig) Provider {
 	if cfg.AccessKey != "" && cfg.SecretKey != "" {
 		return ProviderAWSSES
 	}
-	
+
 	// Priority 3: SMTP (fallback)
 	return ProviderSMTP
 }
@@ -100,7 +100,7 @@ func ValidateConfig(cfg *config.EmailConfig, provider Provider) error {
 	if cfg.FromEmail == "" {
 		return fmt.Errorf("from_email is required")
 	}
-	
+
 	switch provider {
 	case ProviderGmailAPI:
 		if cfg.GmailClientID == "" {
