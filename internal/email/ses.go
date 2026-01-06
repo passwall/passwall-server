@@ -124,6 +124,30 @@ func (s *sesSender) SendVerificationEmail(ctx context.Context, to, name, code st
 	return nil
 }
 
+// SendInviteEmail sends an invitation email via AWS SES
+func (s *sesSender) SendInviteEmail(ctx context.Context, to, role, desc string) error {
+	data, err := BuildInviteEmail(s.frontendURL, to, role, desc)
+	if err != nil {
+		return fmt.Errorf("failed to build email data: %w", err)
+	}
+
+	htmlBody, err := s.templateManager.Render(TemplateInvite, data)
+	if err != nil {
+		return fmt.Errorf("failed to render template: %w", err)
+	}
+
+	subject := "You're invited to Passwall"
+	if err := s.sendEmail(ctx, to, subject, htmlBody); err != nil {
+		s.logger.Error("failed to send invite email via AWS SES",
+			"to", to,
+			"error", err)
+		return err
+	}
+
+	s.logger.Info("invite email sent successfully via AWS SES", "to", to)
+	return nil
+}
+
 // Provider returns the provider type
 func (s *sesSender) Provider() Provider {
 	return ProviderAWSSES

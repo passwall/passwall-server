@@ -43,6 +43,9 @@ type UserService interface {
 	GetByEmail(ctx context.Context, email string) (*domain.User, error)
 	List(ctx context.Context) ([]*domain.User, error)
 	Create(ctx context.Context, user *domain.User) error
+	// CreateAdmin creates a user using a full zero-knowledge signup payload,
+	// but marks the user verified immediately (admin-created).
+	CreateAdmin(ctx context.Context, req *domain.AdminCreateUserRequest) (*domain.User, error)
 	Update(ctx context.Context, id uint, user *domain.User) error
 	Delete(ctx context.Context, id uint, schema string) error
 	ChangeMasterPassword(ctx context.Context, req *domain.ChangeMasterPasswordRequest) error

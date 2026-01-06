@@ -57,11 +57,6 @@ func New(ctx context.Context) (*App, error) {
 		fmt.Println("✓ Roles and permissions seeded successfully")
 	}
 
-	// Seed super admin (using application context)
-	if err := gormrepo.SeedSuperAdmin(ctx, db.DB(), &cfg.SuperAdmin); err != nil {
-		fmt.Printf("Warning: failed to seed super admin: %v\n", err)
-	}
-
 	return &App{
 		config: cfg,
 		db:     db,
@@ -136,7 +131,7 @@ func (a *App) Run(ctx context.Context) error {
 	// Initialize handlers
 	activityHandler := httpHandler.NewActivityHandler(userActivityService)
 	authHandler := httpHandler.NewAuthHandler(authService, verificationService, userActivityService, emailSender)
-	userHandler := httpHandler.NewUserHandler(userService)
+	userHandler := httpHandler.NewUserHandler(userService, emailSender)
 
 	// Modern handlers (all item types use ItemHandler now)
 	itemHandler := httpHandler.NewItemHandler(itemService)

@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/passwall/passwall-server/internal/config"
-	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -47,7 +46,13 @@ func TestCryptoService_WithMockConfig(t *testing.T) {
 	})
 
 	t.Run("encrypt model with domain entity", func(t *testing.T) {
-		login := &domain.Login{
+		type TestModel struct {
+			Title      string `json:"title"`
+			Username   string `json:"username" encrypt:"true"`
+			Password   string `json:"password" encrypt:"true"`
+			TOTPSecret string `json:"totp_secret" encrypt:"true"`
+		}
+		model := &TestModel{
 			Title:      "Test Login",
 			Username:   "testuser",
 			Password:   "testpass123",
@@ -55,16 +60,16 @@ func TestCryptoService_WithMockConfig(t *testing.T) {
 		}
 
 		// Encrypt
-		err := cryptoSvc.EncryptModel(login, "")
+		err := cryptoSvc.EncryptModel(model, "")
 		require.NoError(t, err)
-		assert.NotEqual(t, "testuser", login.Username)
-		assert.NotEqual(t, "testpass123", login.Password)
+		assert.NotEqual(t, "testuser", model.Username)
+		assert.NotEqual(t, "testpass123", model.Password)
 
 		// Decrypt
-		err = cryptoSvc.DecryptModel(login, "")
+		err = cryptoSvc.DecryptModel(model, "")
 		require.NoError(t, err)
-		assert.Equal(t, "testuser", login.Username)
-		assert.Equal(t, "testpass123", login.Password)
+		assert.Equal(t, "testuser", model.Username)
+		assert.Equal(t, "testpass123", model.Password)
 	})
 }
 

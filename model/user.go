@@ -27,7 +27,6 @@ type User struct {
 	Role             string     `json:"role"`
 	ConfirmationCode string     `json:"confirmation_code"`
 	EmailVerifiedAt  time.Time  `json:"email_verified_at"`
-	IsMigrated       bool       `json:"is_migrated"`
 	DateOfBirth      *time.Time `json:"date_of_birth"`
 	Language         string     `gorm:"default:'en'" json:"language"`
 }
@@ -43,7 +42,6 @@ type UserDTO struct {
 	Schema          string     `json:"schema"`
 	Role            string     `json:"role"`
 	EmailVerifiedAt time.Time  `json:"email_verified_at"`
-	IsMigrated      bool       `json:"is_migrated"`
 	DateOfBirth     *time.Time `json:"date_of_birth,omitempty"`
 	Language        string     `json:"language" validate:"max=10"`
 }
@@ -88,7 +86,6 @@ func ToUser(userDTO *UserDTO) *User {
 		Schema:          userDTO.Schema,
 		Role:            userDTO.Role,
 		EmailVerifiedAt: userDTO.EmailVerifiedAt,
-		IsMigrated:      userDTO.IsMigrated,
 		DateOfBirth:     userDTO.DateOfBirth,
 		Language:        userDTO.Language,
 	}
@@ -104,7 +101,6 @@ func ToUserDTO(user *User) *UserDTO {
 		Secret:      user.Secret,
 		Schema:      user.Schema,
 		Role:        user.Role,
-		IsMigrated:  user.IsMigrated,
 		DateOfBirth: user.DateOfBirth,
 		Language:    user.Language,
 	}

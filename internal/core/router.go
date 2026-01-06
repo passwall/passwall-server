@@ -131,6 +131,7 @@ func SetupRouter(
 			usersGroup.GET("", userHandler.List)
 			usersGroup.GET("/:id", userHandler.GetByID)
 			usersGroup.POST("", userHandler.Create)
+			usersGroup.POST("/invite", userHandler.Invite)
 			usersGroup.PUT("/:id", userHandler.Update)
 			usersGroup.DELETE("/:id", userHandler.Delete)
 			usersGroup.GET("/:id/activities", activityHandler.GetUserActivities)

@@ -3,9 +3,14 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
+	"github.com/passwall/passwall-server/pkg/constants"
+	uuid "github.com/satori/go.uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type userService struct {
@@ -57,6 +62,75 @@ func (s *userService) Create(ctx context.Context, user *domain.User) error {
 
 	s.logger.Info("user created", "id", user.ID, "email", user.Email)
 	return nil
+}
+
+func (s *userService) CreateAdmin(ctx context.Context, req *domain.AdminCreateUserRequest) (*domain.User, error) {
+	if req == nil {
+		return nil, repository.ErrInvalidInput
+	}
+	if err := req.Validate(); err != nil {
+		return nil, repository.ErrInvalidInput
+	}
+
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+
+	// Check if user already exists
+	existing, err := s.repo.GetByEmail(ctx, email)
+	if err == nil && existing != nil {
+		return nil, repository.ErrAlreadyExists
+	}
+
+	// Hash the auth hash with bcrypt (defense in depth)
+	hashedPassword, err := bcrypt.GenerateFromPassword(
+		[]byte(req.MasterPasswordHash),
+		bcrypt.DefaultCost,
+	)
+	if err != nil {
+		s.logger.Error("failed to hash password", "error", err)
+		return nil, fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	roleID := req.RoleID
+	if roleID == 0 {
+		roleID = constants.RoleIDMember
+	}
+
+	schema := "user_" + uuid.NewV5(uuid.NamespaceURL, email).String()[:8]
+
+	user := &domain.User{
+		UUID:               uuid.NewV4(),
+		Name:               req.Name,
+		Email:              email,
+		MasterPasswordHash: string(hashedPassword),
+		ProtectedUserKey:   req.ProtectedUserKey,
+		Schema:             schema,
+		KdfType:            req.KdfConfig.Type,
+		KdfIterations:      req.KdfConfig.Iterations,
+		KdfMemory:          req.KdfConfig.Memory,
+		KdfParallelism:     req.KdfConfig.Parallelism,
+		KdfSalt:            req.KdfSalt,
+		RoleID:             roleID,
+		IsVerified:         true, // Admin-created users are verified immediately
+		Language:           "en",
+	}
+
+	// Create schema + migrate user schema tables
+	if err := s.repo.CreateSchema(schema); err != nil {
+		s.logger.Error("failed to create schema", "schema", schema, "error", err)
+		return nil, fmt.Errorf("failed to create schema: %w", err)
+	}
+	if err := s.repo.MigrateUserSchema(schema); err != nil {
+		s.logger.Error("failed to migrate user schema tables", "schema", schema, "error", err)
+		return nil, fmt.Errorf("failed to migrate user schema: %w", err)
+	}
+
+	if err := s.repo.Create(ctx, user); err != nil {
+		s.logger.Error("failed to create user (admin)", "email", email, "error", err)
+		return nil, err
+	}
+
+	s.logger.Info("user created by admin", "id", user.ID, "email", user.Email, "role_id", user.RoleID)
+	return user, nil
 }
 
 func (s *userService) Update(ctx context.Context, id uint, user *domain.User) error {
