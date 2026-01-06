@@ -13,9 +13,9 @@ import (
 
 // Config holds all application configuration
 type Config struct {
-	Server     ServerConfig     `mapstructure:"server"`
-	Database   DatabaseConfig   `mapstructure:"database"`
-	Email      EmailConfig      `mapstructure:"email"`
+	Server   ServerConfig   `mapstructure:"server"`
+	Database DatabaseConfig `mapstructure:"database"`
+	Email    EmailConfig    `mapstructure:"email"`
 }
 
 // ServerConfig contains server-related configuration
@@ -142,6 +142,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Server.Secret == "" || c.Server.Secret == "add-your-key-to-here" {
 		return fmt.Errorf("server.secret must be set to a secure value")
+	}
+	if c.Server.FrontendURL == "" {
+		return fmt.Errorf("server.frontend_url is required for email links, CORS, and OAuth redirects")
 	}
 
 	// Database validation

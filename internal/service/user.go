@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
@@ -51,36 +50,25 @@ func (s *userService) List(ctx context.Context) ([]*domain.User, error) {
 }
 
 func (s *userService) Create(ctx context.Context, user *domain.User) error {
-	if user.Email == "" {
-		return repository.ErrInvalidInput
-	}
-
-	if err := s.repo.Create(ctx, user); err != nil {
-		s.logger.Error("failed to create user", "email", user.Email, "error", err)
-		return err
-	}
-
-	s.logger.Info("user created", "id", user.ID, "email", user.Email)
-	return nil
+	return errors.New("use CreateByAdmin for admin-created users with proper encryption setup")
 }
 
-func (s *userService) CreateAdmin(ctx context.Context, req *domain.AdminCreateUserRequest) (*domain.User, error) {
-	if req == nil {
-		return nil, repository.ErrInvalidInput
-	}
+// CreateByAdmin creates a user by admin (with proper zero-knowledge setup)
+func (s *userService) CreateByAdmin(ctx context.Context, req *domain.CreateUserByAdminRequest) (*domain.User, error) {
+	// Validate request
 	if err := req.Validate(); err != nil {
-		return nil, repository.ErrInvalidInput
+		return nil, fmt.Errorf("validation failed: %w", err)
 	}
-
-	email := strings.ToLower(strings.TrimSpace(req.Email))
 
 	// Check if user already exists
-	existing, err := s.repo.GetByEmail(ctx, email)
-	if err == nil && existing != nil {
+	existingUser, err := s.repo.GetByEmail(ctx, req.Email)
+	if err == nil && existingUser != nil {
 		return nil, repository.ErrAlreadyExists
 	}
 
-	// Hash the auth hash with bcrypt (defense in depth)
+	// Hash the master password hash with bcrypt (defense in depth)
+	// Client sends: HKDF(masterKey, info="auth")
+	// Server stores: bcrypt(HKDF(masterKey, info="auth"))
 	hashedPassword, err := bcrypt.GenerateFromPassword(
 		[]byte(req.MasterPasswordHash),
 		bcrypt.DefaultCost,
@@ -90,47 +78,62 @@ func (s *userService) CreateAdmin(ctx context.Context, req *domain.AdminCreateUs
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	roleID := req.RoleID
-	if roleID == 0 {
-		roleID = constants.RoleIDMember
+	schema := generateSchemaFromEmail(req.Email)
+
+	// Set role
+	roleID := constants.RoleIDMember
+	if req.RoleID != nil {
+		roleID = *req.RoleID
 	}
 
-	schema := "user_" + uuid.NewV5(uuid.NamespaceURL, email).String()[:8]
-
+	// Create user with zero-knowledge fields from admin
 	user := &domain.User{
 		UUID:               uuid.NewV4(),
 		Name:               req.Name,
-		Email:              email,
+		Email:              req.Email,
 		MasterPasswordHash: string(hashedPassword),
-		ProtectedUserKey:   req.ProtectedUserKey,
+		ProtectedUserKey:   req.ProtectedUserKey, // EncString from admin
 		Schema:             schema,
 		KdfType:            req.KdfConfig.Type,
 		KdfIterations:      req.KdfConfig.Iterations,
 		KdfMemory:          req.KdfConfig.Memory,
 		KdfParallelism:     req.KdfConfig.Parallelism,
-		KdfSalt:            req.KdfSalt,
+		KdfSalt:            req.KdfSalt, // Random salt from admin
 		RoleID:             roleID,
-		IsVerified:         true, // Admin-created users are verified immediately
-		Language:           "en",
+		IsVerified:         true, // Admin-created users are auto-verified
 	}
 
-	// Create schema + migrate user schema tables
+	// Create schema
 	if err := s.repo.CreateSchema(schema); err != nil {
 		s.logger.Error("failed to create schema", "schema", schema, "error", err)
 		return nil, fmt.Errorf("failed to create schema: %w", err)
 	}
+
+	// Migrate all tables in user schema
 	if err := s.repo.MigrateUserSchema(schema); err != nil {
 		s.logger.Error("failed to migrate user schema tables", "schema", schema, "error", err)
 		return nil, fmt.Errorf("failed to migrate user schema: %w", err)
 	}
 
+	// Save user
 	if err := s.repo.Create(ctx, user); err != nil {
-		s.logger.Error("failed to create user (admin)", "email", email, "error", err)
-		return nil, err
+		s.logger.Error("failed to create user", "email", req.Email, "error", err)
+		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
-	s.logger.Info("user created by admin", "id", user.ID, "email", user.Email, "role_id", user.RoleID)
+	s.logger.Info("user created by admin (zero-knowledge)",
+		"id", user.ID,
+		"email", req.Email,
+		"role_id", roleID,
+		"kdf_type", user.KdfType.String(),
+		"iterations", user.KdfIterations,
+		"is_verified", true)
+
 	return user, nil
+}
+
+func generateSchemaFromEmail(email string) string {
+	return "user_" + uuid.NewV5(uuid.NamespaceURL, email).String()[:8]
 }
 
 func (s *userService) Update(ctx context.Context, id uint, user *domain.User) error {

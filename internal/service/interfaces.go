@@ -14,14 +14,6 @@ type Logger interface {
 	Error(msg string, keysAndValues ...interface{})
 }
 
-// Encryptor handles encryption and decryption operations
-type Encryptor interface {
-	Encrypt(plaintext, passphrase string) (string, error)
-	Decrypt(ciphertext, passphrase string) (string, error)
-	EncryptModel(model interface{}, passphrase string) error
-	DecryptModel(model interface{}, passphrase string) error
-}
-
 // AuthService defines the business logic for authentication
 type AuthService interface {
 	SignUp(ctx context.Context, req *domain.SignUpRequest) (*domain.User, error)
@@ -43,9 +35,7 @@ type UserService interface {
 	GetByEmail(ctx context.Context, email string) (*domain.User, error)
 	List(ctx context.Context) ([]*domain.User, error)
 	Create(ctx context.Context, user *domain.User) error
-	// CreateAdmin creates a user using a full zero-knowledge signup payload,
-	// but marks the user verified immediately (admin-created).
-	CreateAdmin(ctx context.Context, req *domain.AdminCreateUserRequest) (*domain.User, error)
+	CreateByAdmin(ctx context.Context, req *domain.CreateUserByAdminRequest) (*domain.User, error)
 	Update(ctx context.Context, id uint, user *domain.User) error
 	Delete(ctx context.Context, id uint, schema string) error
 	ChangeMasterPassword(ctx context.Context, req *domain.ChangeMasterPasswordRequest) error

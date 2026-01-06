@@ -6,19 +6,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/passwall/passwall-server/internal/domain"
-	"github.com/passwall/passwall-server/internal/email"
 	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/internal/service"
 	"github.com/passwall/passwall-server/pkg/constants"
 )
 
 type UserHandler struct {
-	service     service.UserService
-	emailSender email.Sender
+	service service.UserService
 }
 
-func NewUserHandler(service service.UserService, emailSender email.Sender) *UserHandler {
-	return &UserHandler{service: service, emailSender: emailSender}
+func NewUserHandler(service service.UserService) *UserHandler {
+	return &UserHandler{service: service}
 }
 
 func (h *UserHandler) List(c *gin.Context) {
@@ -37,50 +35,36 @@ func (h *UserHandler) List(c *gin.Context) {
 func (h *UserHandler) Create(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	var req domain.AdminCreateUserRequest
+	var req domain.CreateUserByAdminRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
 		return
 	}
 
-	// Default role if not provided
-	if req.RoleID == 0 {
-		req.RoleID = constants.RoleIDMember
+	// Set default role if not provided
+	if req.RoleID == nil {
+		defaultRole := constants.RoleIDMember
+		req.RoleID = &defaultRole
 	}
 
-	createdUser, err := h.service.CreateAdmin(ctx, &req)
+	user, err := h.service.CreateByAdmin(ctx, &req)
 	if err != nil {
 		if errors.Is(err, repository.ErrAlreadyExists) {
 			c.JSON(http.StatusConflict, gin.H{"error": "user already exists"})
 			return
 		}
-		if errors.Is(err, repository.ErrInvalidInput) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid input"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user", "details": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusCreated, domain.ToUserDTO(createdUser))
-}
-
-func (h *UserHandler) Invite(c *gin.Context) {
-	ctx := c.Request.Context()
-
-	var req domain.AdminInviteUserRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
+	// Get created user with role data
+	createdUser, err := h.service.GetByID(ctx, user.ID)
+	if err == nil {
+		c.JSON(http.StatusCreated, domain.ToUserDTO(createdUser))
 		return
 	}
 
-	// Send invitation email (does not create user)
-	if err := h.emailSender.SendInviteEmail(ctx, req.Email, req.Role, req.Desc); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to send invite email"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"success": true})
+	c.JSON(http.StatusCreated, domain.ToUserDTO(user))
 }
 
 func (h *UserHandler) GetByID(c *gin.Context) {
@@ -176,10 +160,6 @@ func (h *UserHandler) Delete(c *gin.Context) {
 	}
 
 	if err := h.service.Delete(ctx, id, user.Schema); err != nil {
-		if errors.Is(err, repository.ErrForbidden) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "cannot delete system user"})
-			return
-		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete user"})
 		return
 	}

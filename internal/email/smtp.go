@@ -73,27 +73,33 @@ func (s *smtpSender) SendVerificationEmail(ctx context.Context, to, name, code s
 	return nil
 }
 
-// SendInviteEmail sends an invitation email via SMTP
-func (s *smtpSender) SendInviteEmail(ctx context.Context, to, role, desc string) error {
-	data, err := BuildInviteEmail(s.frontendURL, to, role, desc)
+// SendInvitationEmail sends an invitation email via SMTP
+func (s *smtpSender) SendInvitationEmail(ctx context.Context, to, inviterName, code, role string) error {
+	// Build template data
+	data, err := BuildInvitationEmail(s.frontendURL, to, inviterName, code, role)
 	if err != nil {
-		return fmt.Errorf("failed to build email data: %w", err)
+		return fmt.Errorf("failed to build invitation email: %w", err)
 	}
 
-	htmlBody, err := s.templateManager.Render(TemplateInvite, data)
+	// Render template
+	htmlBody, err := s.templateManager.Render(TemplateInvitation, data)
 	if err != nil {
-		return fmt.Errorf("failed to render template: %w", err)
+		return fmt.Errorf("failed to render invitation template: %w", err)
 	}
 
-	subject := "You're invited to Passwall"
+	// Send email
+	subject := "You're Invited to Join Passwall!"
 	if err := s.sendEmail(ctx, to, subject, htmlBody); err != nil {
-		s.logger.Error("failed to send invite email via SMTP",
+		s.logger.Error("failed to send invitation email via SMTP",
 			"to", to,
 			"error", err)
 		return err
 	}
 
-	s.logger.Info("invite email sent successfully via SMTP", "to", to)
+	s.logger.Info("invitation email sent successfully via SMTP",
+		"to", to,
+		"inviter", inviterName,
+		"role", role)
 	return nil
 }
 

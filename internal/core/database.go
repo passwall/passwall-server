@@ -44,6 +44,7 @@ func AutoMigrate(db database.Database) error {
 		&domain.UserActivity{},
 		&domain.ExcludedDomain{},
 		&domain.Folder{},
+		&domain.Invitation{},
 	)
 
 	return nil

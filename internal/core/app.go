@@ -89,6 +89,7 @@ func (a *App) Run(ctx context.Context) error {
 	userActivityRepo := gormrepo.NewUserActivityRepository(a.db.DB())
 	excludedDomainRepo := gormrepo.NewExcludedDomainRepository(a.db.DB())
 	folderRepo := gormrepo.NewFolderRepository(a.db.DB())
+	invitationRepo := gormrepo.NewInvitationRepository(a.db.DB())
 
 	// NOTE: Legacy repos removed - all item types now use ItemRepository with type field
 
@@ -124,6 +125,7 @@ func (a *App) Run(ctx context.Context) error {
 	verificationService := service.NewVerificationService(verificationRepo, userRepo, serviceLogger)
 	authService := service.NewAuthService(userRepo, tokenRepo, verificationRepo, userActivityService, emailSender, authConfig, serviceLogger)
 	userService := service.NewUserService(userRepo, serviceLogger)
+	invitationService := service.NewInvitationService(invitationRepo, userRepo, emailSender, serviceLogger)
 
 	// Modern flexible items service (handles all item types)
 	itemService := service.NewItemService(itemRepo, serviceLogger)
@@ -131,7 +133,8 @@ func (a *App) Run(ctx context.Context) error {
 	// Initialize handlers
 	activityHandler := httpHandler.NewActivityHandler(userActivityService)
 	authHandler := httpHandler.NewAuthHandler(authService, verificationService, userActivityService, emailSender)
-	userHandler := httpHandler.NewUserHandler(userService, emailSender)
+	userHandler := httpHandler.NewUserHandler(userService)
+	invitationHandler := httpHandler.NewInvitationHandler(invitationService, userService)
 
 	// Modern handlers (all item types use ItemHandler now)
 	itemHandler := httpHandler.NewItemHandler(itemService)
@@ -148,6 +151,7 @@ func (a *App) Run(ctx context.Context) error {
 		excludedDomainHandler,
 		folderHandler,
 		userHandler,
+		invitationHandler,
 	)
 
 	// Create server

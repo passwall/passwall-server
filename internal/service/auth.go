@@ -74,8 +74,8 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 	}
 
 	// Hash the master password hash with bcrypt (defense in depth)
-	// Client sends: PBKDF2(masterKey, password, 1)
-	// Server stores: bcrypt(PBKDF2(masterKey, password, 1))
+	// Client sends: HKDF(masterKey, info="auth") (base64-encoded string)
+	// Server stores: bcrypt(HKDF(masterKey, info="auth"))
 	hashedPassword, err := bcrypt.GenerateFromPassword(
 		[]byte(req.MasterPasswordHash),
 		bcrypt.DefaultCost,
@@ -197,8 +197,8 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 	}
 
 	// Verify master password hash
-	// Client sent: PBKDF2(masterKey, password, 1)
-	// Server has: bcrypt(PBKDF2(masterKey, password, 1))
+	// Client sent: HKDF(masterKey, info="auth") (base64-encoded string)
+	// Server has: bcrypt(HKDF(masterKey, info="auth"))
 	if err := bcrypt.CompareHashAndPassword(
 		[]byte(user.MasterPasswordHash),
 		[]byte(creds.MasterPasswordHash),

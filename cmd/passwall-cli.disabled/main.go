@@ -30,14 +30,6 @@ func (d *dummyEmailSender) SendVerificationEmail(ctx context.Context, to, name, 
 	return nil
 }
 
-func (d *dummyEmailSender) SendInviteEmail(ctx context.Context, to, role, desc string) error {
-	fmt.Printf("📧 Invite email would be sent to: %s (role: %s)\n", to, role)
-	if desc != "" {
-		fmt.Printf("   Note: %s\n", desc)
-	}
-	return nil
-}
-
 func (d *dummyEmailSender) Provider() email.Provider {
 	return "cli-dummy"
 }

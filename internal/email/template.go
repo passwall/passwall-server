@@ -12,7 +12,7 @@ type TemplateType string
 
 const (
 	TemplateVerification TemplateType = "verification"
-	TemplateInvite       TemplateType = "invite"
+	TemplateInvitation   TemplateType = "invitation"
 )
 
 // TemplateData holds data for email templates
@@ -22,9 +22,9 @@ type TemplateData struct {
 	ExpiryTime      string
 	Year            int
 	VerificationURL string
-	InviteURL       string
+	InviterName     string
 	Role            string
-	Desc            string
+	InvitationURL   string
 }
 
 // TemplateManager handles email template rendering
@@ -45,12 +45,12 @@ func NewTemplateManager() (*TemplateManager, error) {
 	}
 	tm.templates[TemplateVerification] = verifyTmpl
 
-	// Parse invite template
-	inviteTmpl, err := template.New("invite").Parse(inviteEmailTemplate)
+	// Parse invitation template
+	inviteTmpl, err := template.New("invitation").Parse(invitationEmailTemplate)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse invite template: %w", err)
+		return nil, fmt.Errorf("failed to parse invitation template: %w", err)
 	}
-	tm.templates[TemplateInvite] = inviteTmpl
+	tm.templates[TemplateInvitation] = inviteTmpl
 
 	return tm, nil
 }
@@ -73,7 +73,7 @@ func (tm *TemplateManager) Render(templateType TemplateType, data interface{}) (
 // BuildVerificationEmail builds a verification email with the given parameters
 func BuildVerificationEmail(frontendURL, to, name, code string) (*TemplateData, error) {
 	if frontendURL == "" {
-		frontendURL = "http://localhost:5173" // Default for development
+		return nil, fmt.Errorf("frontend URL is required for verification emails")
 	}
 
 	verificationURL := fmt.Sprintf("%s/verify-email?email=%s&code=%s", frontendURL, to, code)
@@ -84,23 +84,6 @@ func BuildVerificationEmail(frontendURL, to, name, code string) (*TemplateData, 
 		ExpiryTime:      "15 minutes",
 		Year:            time.Now().Year(),
 		VerificationURL: verificationURL,
-	}, nil
-}
-
-// BuildInviteEmail builds an invitation email with a signup link.
-func BuildInviteEmail(frontendURL, to, role, desc string) (*TemplateData, error) {
-	if frontendURL == "" {
-		frontendURL = "http://localhost:5173" // Default for development
-	}
-
-	// Note: role is informational only; server-side role assignment is enforced by admins after signup.
-	inviteURL := fmt.Sprintf("%s/sign-up?email=%s&role=%s", frontendURL, to, role)
-
-	return &TemplateData{
-		Year:      time.Now().Year(),
-		InviteURL: inviteURL,
-		Role:      role,
-		Desc:      desc,
 	}, nil
 }
 
@@ -203,8 +186,26 @@ const verificationEmailTemplate = `<!DOCTYPE html>
 </body>
 </html>`
 
-// inviteEmailTemplate is the HTML template for invitation emails
-const inviteEmailTemplate = `<!DOCTYPE html>
+// BuildInvitationEmail builds an invitation email
+func BuildInvitationEmail(frontendURL, to, inviterName, code, role string) (*TemplateData, error) {
+	if frontendURL == "" {
+		return nil, fmt.Errorf("frontend URL is required for invitation emails")
+	}
+
+	invitationURL := fmt.Sprintf("%s/sign-up?email=%s&invitation=%s", frontendURL, to, code)
+
+	return &TemplateData{
+		InviterName:   inviterName,
+		Code:          code,
+		Role:          role,
+		ExpiryTime:    "7 days",
+		Year:          time.Now().Year(),
+		InvitationURL: invitationURL,
+	}, nil
+}
+
+// invitationEmailTemplate is the HTML template for invitation emails
+const invitationEmailTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -216,6 +217,7 @@ const inviteEmailTemplate = `<!DOCTYPE html>
         <tr>
             <td align="center">
                 <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <!-- Header -->
                     <tr>
                         <td style="padding: 40px 40px 20px; text-align: center; border-bottom: 1px solid #e0e0e0;">
                             <h1 style="margin: 0; font-size: 32px; font-weight: 700; color: #1a1a1a;">
@@ -223,43 +225,58 @@ const inviteEmailTemplate = `<!DOCTYPE html>
                             </h1>
                         </td>
                     </tr>
+                    
+                    <!-- Content -->
                     <tr>
                         <td style="padding: 40px;">
-                            <h2 style="margin: 0 0 12px; font-size: 22px; font-weight: 600; color: #1a1a1a;">
-                                You're invited to Passwall
+                            <h2 style="margin: 0 0 20px; font-size: 24px; font-weight: 600; color: #1a1a1a;">
+                                🎉 You're Invited!
                             </h2>
-                            <p style="margin: 0 0 16px; font-size: 16px; line-height: 1.6; color: #4a5568;">
-                                An administrator invited you to create an account on Passwall.
+                            <p style="margin: 0 0 20px; font-size: 16px; line-height: 1.6; color: #4a5568;">
+                                <strong>{{.InviterName}}</strong> has invited you to join their Passwall team as a <strong>{{.Role}}</strong>.
                             </p>
-                            {{if .Role}}
-                            <p style="margin: 0 0 16px; font-size: 14px; line-height: 1.6; color: #718096;">
-                                Suggested role: <strong style="color:#1a1a1a;">{{.Role}}</strong>
+                            <p style="margin: 0 0 20px; font-size: 16px; line-height: 1.6; color: #4a5568;">
+                                Passwall is a secure password manager that helps teams collaborate safely. Accept this invitation to get started!
                             </p>
-                            {{end}}
-                            {{if .Desc}}
-                            <div style="background-color: #f7fafc; border-left: 4px solid #3b82f6; padding: 16px; margin: 16px 0; border-radius: 4px;">
-                                <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #4a5568;">
-                                    {{.Desc}}
-                                </p>
-                            </div>
-                            {{end}}
-                            <table width="100%" cellpadding="0" cellspacing="0" style="margin: 24px 0;">
+                            
+                            <!-- Join Button -->
+                            <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
                                 <tr>
                                     <td align="center">
-                                        <a href="{{.InviteURL}}" style="display: inline-block; padding: 14px 32px; background-color: #3b82f6; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">
-                                            Create Account
+                                        <a href="{{.InvitationURL}}" style="display: inline-block; padding: 16px 40px; background-color: #10b981; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">
+                                            Accept Invitation
                                         </a>
                                     </td>
                                 </tr>
                             </table>
+                            
                             <p style="margin: 0 0 10px; font-size: 14px; line-height: 1.6; color: #718096; text-align: center;">
                                 Or copy and paste this link into your browser:
                             </p>
-                            <p style="margin: 0; font-size: 13px; line-height: 1.6; color: #3b82f6; text-align: center; word-break: break-all;">
-                                {{.InviteURL}}
+                            <p style="margin: 0 0 20px; font-size: 13px; line-height: 1.6; color: #3b82f6; text-align: center; word-break: break-all;">
+                                {{.InvitationURL}}
                             </p>
+                            
+                            <!-- Info Box -->
+                            <div style="background-color: #dbeafe; border-left: 4px solid #3b82f6; padding: 16px; margin: 20px 0; border-radius: 4px;">
+                                <p style="margin: 0 0 10px; font-size: 14px; color: #1e40af;">
+                                    <strong>📧 Your invitation code:</strong>
+                                </p>
+                                <p style="margin: 0; font-size: 18px; font-weight: 700; color: #1e40af; font-family: 'Courier New', monospace; letter-spacing: 2px;">
+                                    {{.Code}}
+                                </p>
+                            </div>
+                            
+                            <!-- Warning -->
+                            <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; margin: 20px 0; border-radius: 4px;">
+                                <p style="margin: 0; font-size: 14px; color: #92400e;">
+                                    <strong>⚠️ Important:</strong> This invitation will expire in <strong>{{.ExpiryTime}}</strong>. If you didn't expect this invitation, you can safely ignore this email.
+                                </p>
+                            </div>
                         </td>
                     </tr>
+                    
+                    <!-- Footer -->
                     <tr>
                         <td style="padding: 30px 40px; background-color: #f7fafc; border-top: 1px solid #e0e0e0; border-radius: 0 0 8px 8px;">
                             <p style="margin: 0 0 10px; font-size: 14px; color: #718096; text-align: center;">

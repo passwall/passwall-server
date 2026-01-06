@@ -21,9 +21,8 @@ type Sender interface {
 	// SendVerificationEmail sends a verification email with code
 	SendVerificationEmail(ctx context.Context, to, name, code string) error
 
-	// SendInviteEmail sends an invitation email to start signup.
-	// Role and desc are informational (UI hint) and do not grant permissions by themselves.
-	SendInviteEmail(ctx context.Context, to, role, desc string) error
+	// SendInvitationEmail sends an invitation email to a new user
+	SendInvitationEmail(ctx context.Context, to, inviterName, code, role string) error
 
 	// Provider returns the current provider being used
 	Provider() Provider

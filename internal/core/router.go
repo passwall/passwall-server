@@ -21,6 +21,7 @@ func SetupRouter(
 	excludedDomainHandler *httpHandler.ExcludedDomainHandler,
 	folderHandler *httpHandler.FolderHandler,
 	userHandler *httpHandler.UserHandler,
+	invitationHandler *httpHandler.InvitationHandler,
 ) *gin.Engine {
 	// Create router without default middleware
 	router := gin.New()
@@ -131,11 +132,13 @@ func SetupRouter(
 			usersGroup.GET("", userHandler.List)
 			usersGroup.GET("/:id", userHandler.GetByID)
 			usersGroup.POST("", userHandler.Create)
-			usersGroup.POST("/invite", userHandler.Invite)
 			usersGroup.PUT("/:id", userHandler.Update)
 			usersGroup.DELETE("/:id", userHandler.Delete)
 			usersGroup.GET("/:id/activities", activityHandler.GetUserActivities)
 		}
+
+		// Invite - Any authenticated user (role selection for admins only)
+		apiGroup.POST("/invite", invitationHandler.Invite)
 
 		// Activity management routes - Admin only
 		adminActivitiesGroup := apiGroup.Group("/activities")
