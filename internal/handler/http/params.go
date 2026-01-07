@@ -52,3 +52,15 @@ func GetStringParam(c *gin.Context, paramName string) (string, bool) {
 	}
 	return val, true
 }
+
+// GetCurrentUserID extracts user ID from context (helper for handlers)
+// Panics if user ID not found (should never happen after auth middleware)
+func GetCurrentUserID(c *gin.Context) uint {
+	userID, err := GetUserID(c)
+	if err != nil {
+		// This should never happen if auth middleware is working correctly
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+		panic(err)
+	}
+	return userID
+}

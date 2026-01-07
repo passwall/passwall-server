@@ -253,3 +253,107 @@ func (h *UserHandler) ChangeMasterPassword(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "master password changed successfully"})
 }
+
+// GetPublicKey godoc
+// @Summary Get user's RSA public key
+// @Description Get user's RSA public key by email (for organization key wrapping)
+// @Tags users
+// @Produce json
+// @Param email query string true "User email"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /users/public-key [get]
+func (h *UserHandler) GetPublicKey(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	email := c.Query("email")
+	if email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "email parameter is required"})
+		return
+	}
+
+	user, err := h.service.GetByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user"})
+		return
+	}
+
+	// Return public key (can be null if user hasn't joined an org yet)
+	response := gin.H{
+		"user_id":        user.ID,
+		"email":          user.Email,
+		"rsa_public_key": user.RSAPublicKey,
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// CheckRSAKeys godoc
+// @Summary Check if user has RSA keys
+// @Description Check if current user has RSA keys generated
+// @Tags users
+// @Produce json
+// @Success 200 {object} map[string]bool
+// @Router /users/me/rsa-keys [get]
+func (h *UserHandler) CheckRSAKeys(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := GetCurrentUserID(c)
+
+	user, err := h.service.GetByID(ctx, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user"})
+		return
+	}
+
+	hasKeys := user.RSAPublicKey != nil && *user.RSAPublicKey != ""
+
+	c.JSON(http.StatusOK, gin.H{"has_rsa_keys": hasKeys})
+}
+
+// StoreRSAKeys godoc
+// @Summary Store user's RSA keys
+// @Description Store user's RSA key pair (generated client-side)
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param request body map[string]string true "RSA keys"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} map[string]string
+// @Router /users/me/rsa-keys [post]
+func (h *UserHandler) StoreRSAKeys(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := GetCurrentUserID(c)
+
+	var req struct {
+		RSAPublicKey     string `json:"rsa_public_key" binding:"required"`
+		RSAPrivateKeyEnc string `json:"rsa_private_key_enc" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
+		return
+	}
+
+	// Get user
+	user, err := h.service.GetByID(ctx, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user"})
+		return
+	}
+
+	// Update RSA keys
+	user.RSAPublicKey = &req.RSAPublicKey
+	user.RSAPrivateKeyEnc = &req.RSAPrivateKeyEnc
+
+	if err := h.service.Update(ctx, userID, user); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to store RSA keys"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "RSA keys stored successfully"})
+}

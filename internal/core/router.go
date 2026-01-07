@@ -22,6 +22,9 @@ func SetupRouter(
 	folderHandler *httpHandler.FolderHandler,
 	userHandler *httpHandler.UserHandler,
 	invitationHandler *httpHandler.InvitationHandler,
+	organizationHandler *httpHandler.OrganizationHandler,
+	teamHandler *httpHandler.TeamHandler,
+	collectionHandler *httpHandler.CollectionHandler,
 ) *gin.Engine {
 	// Create router without default middleware
 	router := gin.New()
@@ -120,6 +123,9 @@ func SetupRouter(
 		// User profile routes - any authenticated user
 		apiGroup.PUT("/users/me", userHandler.UpdateProfile)
 		apiGroup.POST("/users/change-master-password", authHandler.ChangeMasterPassword)
+		apiGroup.GET("/users/me/rsa-keys", userHandler.CheckRSAKeys)
+		apiGroup.POST("/users/me/rsa-keys", userHandler.StoreRSAKeys)
+		apiGroup.GET("/users/public-key", userHandler.GetPublicKey) // For org key wrapping
 
 		// Activity routes - any authenticated user
 		apiGroup.GET("/activities/me", activityHandler.GetMyActivities)
@@ -145,6 +151,69 @@ func SetupRouter(
 		adminActivitiesGroup.Use(httpHandler.RequireAdminMiddleware())
 		{
 			adminActivitiesGroup.GET("", activityHandler.ListActivities)
+		}
+
+		// ============================================================
+		// ORGANIZATIONS API
+		// ============================================================
+
+		// Organizations CRUD
+		orgsGroup := apiGroup.Group("/organizations")
+		{
+			orgsGroup.POST("", organizationHandler.Create)
+			orgsGroup.GET("", organizationHandler.List)
+			orgsGroup.GET("/:id", organizationHandler.GetByID)
+			orgsGroup.PUT("/:id", organizationHandler.Update)
+			orgsGroup.DELETE("/:id", organizationHandler.Delete)
+
+			// Member management (nested under organization)
+			orgsGroup.POST("/:id/members", organizationHandler.InviteUser)
+			orgsGroup.GET("/:id/members", organizationHandler.GetMembers)
+			orgsGroup.PUT("/:id/members/:userId", organizationHandler.UpdateMemberRole)
+			orgsGroup.DELETE("/:id/members/:userId", organizationHandler.RemoveMember)
+
+			// Teams nested under organization
+			orgsGroup.POST("/:id/teams", teamHandler.Create)
+			orgsGroup.GET("/:id/teams", teamHandler.List)
+
+			// Collections nested under organization
+			orgsGroup.POST("/:id/collections", collectionHandler.Create)
+			orgsGroup.GET("/:id/collections", collectionHandler.List)
+		}
+
+		// Invitation acceptance (not nested)
+		apiGroup.POST("/org-invitations/:id/accept", organizationHandler.AcceptInvitation)
+
+		// Teams (direct access by ID)
+		teamsGroup := apiGroup.Group("/teams")
+		{
+			teamsGroup.GET("/:id", teamHandler.GetByID)
+			teamsGroup.PUT("/:id", teamHandler.Update)
+			teamsGroup.DELETE("/:id", teamHandler.Delete)
+
+			// Team members
+			teamsGroup.POST("/:id/members", teamHandler.AddMember)
+			teamsGroup.GET("/:id/members", teamHandler.GetMembers)
+			teamsGroup.PUT("/:id/members/:memberId", teamHandler.UpdateMember)
+			teamsGroup.DELETE("/:id/members/:memberId", teamHandler.RemoveMember)
+		}
+
+		// Collections (direct access by ID)
+		collectionsGroup := apiGroup.Group("/collections")
+		{
+			collectionsGroup.GET("/:id", collectionHandler.GetByID)
+			collectionsGroup.PUT("/:id", collectionHandler.Update)
+			collectionsGroup.DELETE("/:id", collectionHandler.Delete)
+
+			// User access management
+			collectionsGroup.PUT("/:id/users/:orgUserId", collectionHandler.GrantUserAccess)
+			collectionsGroup.DELETE("/:id/users/:orgUserId", collectionHandler.RevokeUserAccess)
+			collectionsGroup.GET("/:id/users", collectionHandler.GetUserAccess)
+
+			// Team access management
+			collectionsGroup.PUT("/:id/teams/:teamId", collectionHandler.GrantTeamAccess)
+			collectionsGroup.DELETE("/:id/teams/:teamId", collectionHandler.RevokeTeamAccess)
+			collectionsGroup.GET("/:id/teams", collectionHandler.GetTeamAccess)
 		}
 	}
 

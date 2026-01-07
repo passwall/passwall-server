@@ -36,6 +36,7 @@ func InitDatabase(cfg *config.Config) (database.Database, error) {
 // AutoMigrate runs database migrations
 func AutoMigrate(db database.Database) error {
 	_ = db.AutoMigrate(
+		// Core tables
 		&domain.Role{},
 		&domain.Permission{},
 		&domain.User{},
@@ -45,6 +46,17 @@ func AutoMigrate(db database.Database) error {
 		&domain.ExcludedDomain{},
 		&domain.Folder{},
 		&domain.Invitation{},
+		
+		// Organization tables
+		&domain.Organization{},
+		&domain.OrganizationUser{},
+		&domain.Team{},
+		&domain.TeamUser{},
+		&domain.Collection{},
+		&domain.CollectionUser{},
+		&domain.CollectionTeam{},
+		&domain.OrganizationItem{},
+		&domain.ItemShare{},
 	)
 
 	return nil

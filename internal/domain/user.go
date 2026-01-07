@@ -49,6 +49,10 @@ type User struct {
 	KdfParallelism *int    `json:"kdf_parallelism,omitempty"`                     // For Argon2 (threads)
 	KdfSalt        string  `json:"-" gorm:"type:varchar(64);not null"`            // hex-encoded 32 bytes, random per user
 
+	// RSA Keys for Organization Sharing (optional, generated when joining first org)
+	RSAPublicKey     *string `json:"rsa_public_key,omitempty" gorm:"type:text"`    // RSA-2048 public key (PEM format)
+	RSAPrivateKeyEnc *string `json:"-" gorm:"type:text"`                           // RSA private key encrypted with User Key (EncString)
+
 	// User metadata
 	RoleID       uint   `json:"role_id" gorm:"not null;default:2;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
 	Role         *Role  `json:"role,omitempty" gorm:"foreignKey:RoleID"`

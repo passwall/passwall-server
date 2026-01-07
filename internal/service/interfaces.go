@@ -65,3 +65,52 @@ type FolderService interface {
 	Update(ctx context.Context, id uint, userID uint, req *domain.UpdateFolderRequest) (*domain.Folder, error)
 	Delete(ctx context.Context, id uint, userID uint) error
 }
+
+// OrganizationService defines the business logic for organizations
+type OrganizationService interface {
+	Create(ctx context.Context, userID uint, req *domain.CreateOrganizationRequest) (*domain.Organization, error)
+	GetByID(ctx context.Context, id uint, userID uint) (*domain.Organization, error)
+	List(ctx context.Context, userID uint) ([]*domain.Organization, error)
+	Update(ctx context.Context, id uint, userID uint, req *domain.UpdateOrganizationRequest) (*domain.Organization, error)
+	Delete(ctx context.Context, id uint, userID uint) error
+	
+	// Member management
+	InviteUser(ctx context.Context, orgID uint, inviterUserID uint, req *domain.InviteUserToOrgRequest) (*domain.OrganizationUser, error)
+	GetMembers(ctx context.Context, orgID uint, requestingUserID uint) ([]*domain.OrganizationUser, error)
+	UpdateMemberRole(ctx context.Context, orgID, orgUserID uint, requestingUserID uint, req *domain.UpdateOrgUserRoleRequest) error
+	RemoveMember(ctx context.Context, orgID, orgUserID uint, requestingUserID uint) error
+	AcceptInvitation(ctx context.Context, orgUserID uint, userID uint) error
+}
+
+// TeamService defines the business logic for teams
+type TeamService interface {
+	Create(ctx context.Context, orgID uint, userID uint, req *domain.CreateTeamRequest) (*domain.Team, error)
+	GetByID(ctx context.Context, id uint, userID uint) (*domain.Team, error)
+	ListByOrganization(ctx context.Context, orgID uint, userID uint) ([]*domain.Team, error)
+	Update(ctx context.Context, id uint, userID uint, req *domain.UpdateTeamRequest) (*domain.Team, error)
+	Delete(ctx context.Context, id uint, userID uint) error
+	
+	// Member management
+	AddMember(ctx context.Context, teamID uint, userID uint, req *domain.AddTeamUserRequest) error
+	GetMembers(ctx context.Context, teamID uint, userID uint) ([]*domain.TeamUser, error)
+	UpdateMember(ctx context.Context, teamID uint, teamUserID uint, userID uint, req *domain.UpdateTeamUserRequest) error
+	RemoveMember(ctx context.Context, teamID uint, teamUserID uint, userID uint) error
+}
+
+// CollectionService defines the business logic for collections
+type CollectionService interface {
+	Create(ctx context.Context, orgID uint, userID uint, req *domain.CreateCollectionRequest) (*domain.Collection, error)
+	GetByID(ctx context.Context, id uint, userID uint) (*domain.Collection, error)
+	ListByOrganization(ctx context.Context, orgID uint, userID uint) ([]*domain.Collection, error)
+	ListForUser(ctx context.Context, orgID uint, userID uint) ([]*domain.Collection, error)
+	Update(ctx context.Context, id uint, userID uint, req *domain.UpdateCollectionRequest) (*domain.Collection, error)
+	Delete(ctx context.Context, id uint, userID uint) error
+	
+	// Access management
+	GrantUserAccess(ctx context.Context, collectionID uint, orgUserID uint, requestingUserID uint, req *domain.GrantCollectionAccessRequest) error
+	GrantTeamAccess(ctx context.Context, collectionID uint, teamID uint, requestingUserID uint, req *domain.GrantCollectionAccessRequest) error
+	RevokeUserAccess(ctx context.Context, collectionID uint, orgUserID uint, requestingUserID uint) error
+	RevokeTeamAccess(ctx context.Context, collectionID uint, teamID uint, requestingUserID uint) error
+	GetUserAccess(ctx context.Context, collectionID uint, requestingUserID uint) ([]*domain.CollectionUser, error)
+	GetTeamAccess(ctx context.Context, collectionID uint, requestingUserID uint) ([]*domain.CollectionTeam, error)
+}

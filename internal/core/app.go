@@ -91,6 +91,17 @@ func (a *App) Run(ctx context.Context) error {
 	folderRepo := gormrepo.NewFolderRepository(a.db.DB())
 	invitationRepo := gormrepo.NewInvitationRepository(a.db.DB())
 
+	// Organization repos
+	orgRepo := gormrepo.NewOrganizationRepository(a.db.DB())
+	orgUserRepo := gormrepo.NewOrganizationUserRepository(a.db.DB())
+	teamRepo := gormrepo.NewTeamRepository(a.db.DB())
+	teamUserRepo := gormrepo.NewTeamUserRepository(a.db.DB())
+	collectionRepo := gormrepo.NewCollectionRepository(a.db.DB())
+	collectionUserRepo := gormrepo.NewCollectionUserRepository(a.db.DB())
+	collectionTeamRepo := gormrepo.NewCollectionTeamRepository(a.db.DB())
+	_ = gormrepo.NewOrganizationItemRepository(a.db.DB())    // TODO: Use in OrganizationItemService
+	_ = gormrepo.NewItemShareRepository(a.db.DB())           // TODO: Use in SharingService
+
 	// NOTE: Legacy repos removed - all item types now use ItemRepository with type field
 
 	// Initialize logger adapter for services
@@ -130,6 +141,11 @@ func (a *App) Run(ctx context.Context) error {
 	// Modern flexible items service (handles all item types)
 	itemService := service.NewItemService(itemRepo, serviceLogger)
 
+	// Organization services
+	organizationService := service.NewOrganizationService(orgRepo, orgUserRepo, userRepo, serviceLogger)
+	teamService := service.NewTeamService(teamRepo, teamUserRepo, orgUserRepo, orgRepo, serviceLogger)
+	collectionService := service.NewCollectionService(collectionRepo, collectionUserRepo, collectionTeamRepo, orgUserRepo, teamRepo, orgRepo, serviceLogger)
+
 	// Initialize handlers
 	activityHandler := httpHandler.NewActivityHandler(userActivityService)
 	authHandler := httpHandler.NewAuthHandler(authService, verificationService, userActivityService, emailSender)
@@ -140,6 +156,11 @@ func (a *App) Run(ctx context.Context) error {
 	itemHandler := httpHandler.NewItemHandler(itemService)
 	excludedDomainHandler := httpHandler.NewExcludedDomainHandler(excludedDomainService)
 	folderHandler := httpHandler.NewFolderHandler(folderService)
+
+	// Organization handlers
+	organizationHandler := httpHandler.NewOrganizationHandler(organizationService)
+	teamHandler := httpHandler.NewTeamHandler(teamService)
+	collectionHandler := httpHandler.NewCollectionHandler(collectionService)
 
 	// Setup router
 	router := SetupRouter(
@@ -152,6 +173,9 @@ func (a *App) Run(ctx context.Context) error {
 		folderHandler,
 		userHandler,
 		invitationHandler,
+		organizationHandler,
+		teamHandler,
+		collectionHandler,
 	)
 
 	// Create server
