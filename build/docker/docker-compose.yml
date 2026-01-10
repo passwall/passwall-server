@@ -11,12 +11,12 @@ services:
     volumes:
       - ./postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 5s
       timeout: 5s
       retries: 5
       start_period: 5s
-  
+
   passwall-server:
     container_name: passwall-server
     image: passwall/passwall-server:latest
@@ -38,5 +38,5 @@ services:
     ports:
       - 3625:3625
     volumes:
-      - ./config.yml:/app/config/config.yml
+      - ./config.yml:/app/config.yml
       - ./passwall-server.log:/app/passwall-server.log

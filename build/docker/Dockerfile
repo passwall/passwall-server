@@ -8,15 +8,12 @@ RUN go mod download
 
 COPY ./cmd ./cmd
 COPY ./internal ./internal
-COPY ./model ./model
 COPY ./pkg ./pkg
 COPY ./public ./public
 
 RUN mkdir store
 
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -a -ldflags '-s -w -extldflags "-static"' ./cmd/passwall-server
-
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -a -ldflags '-s -w -extldflags "-static"' ./cmd/passwall-cli
 
 FROM alpine:latest
 
@@ -29,5 +26,3 @@ ENTRYPOINT ["/app/passwall-server"]
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
 COPY --from=builder /app/passwall-server /app/passwall-server
-
-COPY --from=builder /app/passwall-cli /app/passwall-cli
