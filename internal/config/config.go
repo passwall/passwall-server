@@ -16,6 +16,7 @@ type Config struct {
 	Server   ServerConfig   `mapstructure:"server"`
 	Database DatabaseConfig `mapstructure:"database"`
 	Email    EmailConfig    `mapstructure:"email"`
+	Stripe   StripeConfig   `mapstructure:"stripe"`
 }
 
 // ServerConfig contains server-related configuration
@@ -64,6 +65,41 @@ type EmailConfig struct {
 	GmailClientID     string `mapstructure:"gmail_client_id"`     // Gmail OAuth2 Client ID
 	GmailClientSecret string `mapstructure:"gmail_client_secret"` // Gmail OAuth2 Client Secret
 	GmailRefreshToken string `mapstructure:"gmail_refresh_token"` // Gmail OAuth2 Refresh Token
+}
+
+// StripeConfig contains Stripe payment configuration
+type StripeConfig struct {
+	SecretKey      string `mapstructure:"secret_key"`       // Stripe Secret Key (sk_test_... or sk_live_...)
+	WebhookSecret  string `mapstructure:"webhook_secret"`   // Webhook signing secret
+	PublishableKey string `mapstructure:"publishable_key"`  // Publishable key for frontend
+	
+	// Plan definitions
+	Plans []PlanConfig `mapstructure:"plans"`
+}
+
+// PlanConfig defines a subscription plan
+type PlanConfig struct {
+	Code           string         `mapstructure:"code"`            // Plan code (e.g., "personal-monthly")
+	Name           string         `mapstructure:"name"`            // Display name (e.g., "Premium")
+	BillingCycle   string         `mapstructure:"billing_cycle"`   // "monthly" or "yearly"
+	PriceCents     int            `mapstructure:"price_cents"`     // Price in cents
+	Currency       string         `mapstructure:"currency"`        // Currency code (e.g., "USD")
+	TrialDays      int            `mapstructure:"trial_days"`      // Trial period in days
+	MaxUsers       *int           `mapstructure:"max_users"`       // Max users (nil = unlimited)
+	MaxCollections *int           `mapstructure:"max_collections"` // Max collections (nil = unlimited)
+	MaxItems       *int           `mapstructure:"max_items"`       // Max items (nil = unlimited)
+	StripePriceID  string         `mapstructure:"stripe_price_id"` // Stripe Price ID
+	Features       PlanFeatures   `mapstructure:"features"`        // Feature flags
+}
+
+// PlanFeatures defines feature availability for a plan
+type PlanFeatures struct {
+	Sharing         bool `mapstructure:"sharing"`          // Item sharing enabled
+	Teams           bool `mapstructure:"teams"`            // Team management enabled
+	Audit           bool `mapstructure:"audit"`            // Audit logs enabled
+	SSO             bool `mapstructure:"sso"`              // Single Sign-On enabled
+	APIAccess       bool `mapstructure:"api_access"`       // API access enabled
+	PrioritySupport bool `mapstructure:"priority_support"` // Priority support enabled
 }
 
 // LoaderOptions contains options for loading configuration
@@ -276,13 +312,4 @@ func generateSecureKey() string {
 		return "add-your-key-to-here"
 	}
 	return base64.StdEncoding.EncodeToString(key)
-}
-
-// Init initializes configuration (backwards compatibility)
-// Deprecated: Use Load() instead
-func Init(configFilePath string) (*Config, error) {
-	return Load(LoaderOptions{
-		ConfigFile: configFilePath,
-		EnvPrefix:  "PW",
-	})
 }

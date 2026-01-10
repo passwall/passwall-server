@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/passwall/passwall-server/internal/config"
@@ -16,11 +17,9 @@ import (
 
 // gmailSender implements email sending via Gmail API
 type gmailSender struct {
-	config          *config.EmailConfig
-	frontendURL     string
-	logger          Logger
-	service         *gmail.Service
-	templateManager *TemplateManager
+	config  *config.EmailConfig
+	logger  Logger
+	service *gmail.Service
 }
 
 // newGmailSender creates a new Gmail API email sender
@@ -45,16 +44,9 @@ func newGmailSender(cfg Config) (Sender, error) {
 		return nil, fmt.Errorf("gmail_refresh_token is required for Gmail API - see logs for setup instructions")
 	}
 
-	templateManager, err := NewTemplateManager()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create template manager: %w", err)
-	}
-
 	sender := &gmailSender{
-		config:          cfg.EmailConfig,
-		frontendURL:     cfg.FrontendURL,
-		logger:          cfg.Logger,
-		templateManager: templateManager,
+		config: cfg.EmailConfig,
+		logger: cfg.Logger,
 	}
 
 	// Initialize Gmail API service
@@ -95,60 +87,73 @@ func (s *gmailSender) initService(ctx context.Context) error {
 	return nil
 }
 
-// SendVerificationEmail sends a verification email via Gmail API
-func (s *gmailSender) SendVerificationEmail(ctx context.Context, to, name, code string) error {
-	// Build template data
-	data, err := BuildVerificationEmail(s.frontendURL, to, name, code)
-	if err != nil {
-		return fmt.Errorf("failed to build email data: %w", err)
+// Send sends an email via Gmail API
+func (s *gmailSender) Send(ctx context.Context, message *EmailMessage) error {
+	if message == nil {
+		return fmt.Errorf("email message is required")
 	}
 
-	// Render template
-	htmlBody, err := s.templateManager.Render(TemplateVerification, data)
+	if message.To == "" {
+		return fmt.Errorf("recipient (To) is required")
+	}
+
+	if message.Subject == "" {
+		return fmt.Errorf("subject is required")
+	}
+
+	if message.Body == "" {
+		return fmt.Errorf("body is required")
+	}
+
+	// Set timeout
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	// Get sender information
+	fromEmail := message.From
+	if fromEmail == "" {
+		fromEmail = s.config.FromEmail
+		if fromEmail == "" {
+			fromEmail = s.config.Username
+		}
+	}
+
+	if fromEmail == "" {
+		return fmt.Errorf("sender email (From) is required")
+	}
+
+	fromName := s.config.FromName
+	if fromName == "" {
+		fromName = "Passwall"
+	}
+
+	// Build BCC list (message BCC + config BCC)
+	bccList := make([]string, 0)
+	bccList = append(bccList, message.BCC...)
+	if s.config.BCC != "" {
+		bccList = append(bccList, s.config.BCC)
+	}
+
+	// Build email message
+	gmailMessage, err := s.buildMessage(fromEmail, fromName, message, bccList)
 	if err != nil {
-		return fmt.Errorf("failed to render template: %w", err)
+		return fmt.Errorf("failed to build message: %w", err)
 	}
 
 	// Send email
-	subject := "Verify Your Passwall Account"
-	if err := s.sendEmail(ctx, to, subject, htmlBody); err != nil {
-		s.logger.Error("failed to send verification email via Gmail API",
-			"to", to,
-			"error", err)
-		return err
-	}
-
-	s.logger.Info("verification email sent successfully via Gmail API", "to", to)
-	return nil
-}
-
-// SendInvitationEmail sends an invitation email via Gmail API
-func (s *gmailSender) SendInvitationEmail(ctx context.Context, to, inviterName, code, role string) error {
-	// Build template data
-	data, err := BuildInvitationEmail(s.frontendURL, to, inviterName, code, role)
+	_, err = s.service.Users.Messages.Send("me", gmailMessage).Context(ctx).Do()
 	if err != nil {
-		return fmt.Errorf("failed to build invitation email: %w", err)
-	}
-
-	// Render template
-	htmlBody, err := s.templateManager.Render(TemplateInvitation, data)
-	if err != nil {
-		return fmt.Errorf("failed to render invitation template: %w", err)
-	}
-
-	// Send email
-	subject := "You're Invited to Join Passwall!"
-	if err := s.sendEmail(ctx, to, subject, htmlBody); err != nil {
-		s.logger.Error("failed to send invitation email via Gmail API",
-			"to", to,
+		s.logger.Error("failed to send email via Gmail API",
+			"to", message.To,
+			"subject", message.Subject,
 			"error", err)
-		return err
+		return fmt.Errorf("Gmail API SendEmail failed: %w", err)
 	}
 
-	s.logger.Info("invitation email sent successfully via Gmail API",
-		"to", to,
-		"inviter", inviterName,
-		"role", role)
+	s.logger.Info("email sent successfully via Gmail API",
+		"to", message.To,
+		"subject", message.Subject)
+
 	return nil
 }
 
@@ -163,41 +168,8 @@ func (s *gmailSender) Close() error {
 	return nil
 }
 
-// sendEmail sends an email via Gmail API
-func (s *gmailSender) sendEmail(ctx context.Context, to, subject, htmlBody string) error {
-	// Set timeout
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	// Get sender information
-	fromEmail := s.config.FromEmail
-	if fromEmail == "" {
-		fromEmail = s.config.Username
-	}
-
-	fromName := s.config.FromName
-	if fromName == "" {
-		fromName = "Passwall"
-	}
-
-	// Build email message
-	message, err := s.buildMessage(fromEmail, fromName, to, subject, htmlBody)
-	if err != nil {
-		return fmt.Errorf("failed to build message: %w", err)
-	}
-
-	// Send email
-	_, err = s.service.Users.Messages.Send("me", message).Context(ctx).Do()
-	if err != nil {
-		return fmt.Errorf("Gmail API SendEmail failed: %w", err)
-	}
-
-	s.logger.Debug("Gmail API email sent successfully", "to", to)
-	return nil
-}
-
 // buildMessage builds a Gmail API message in RFC 2822 format
-func (s *gmailSender) buildMessage(fromEmail, fromName, to, subject, htmlBody string) (*gmail.Message, error) {
+func (s *gmailSender) buildMessage(fromEmail, fromName string, message *EmailMessage, bccList []string) (*gmail.Message, error) {
 	var buf bytes.Buffer
 
 	// Construct from address
@@ -205,14 +177,19 @@ func (s *gmailSender) buildMessage(fromEmail, fromName, to, subject, htmlBody st
 
 	// Build RFC 2822 email headers
 	buf.WriteString(fmt.Sprintf("From: %s\r\n", fromAddress))
-	buf.WriteString(fmt.Sprintf("To: %s\r\n", to))
+	buf.WriteString(fmt.Sprintf("To: %s\r\n", message.To))
 
-	// Add BCC if configured
-	if s.config.BCC != "" {
-		buf.WriteString(fmt.Sprintf("Bcc: %s\r\n", s.config.BCC))
+	// Add CC if present
+	if len(message.CC) > 0 {
+		buf.WriteString(fmt.Sprintf("Cc: %s\r\n", strings.Join(message.CC, ", ")))
 	}
 
-	buf.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
+	// Add BCC if present
+	if len(bccList) > 0 {
+		buf.WriteString(fmt.Sprintf("Bcc: %s\r\n", strings.Join(bccList, ", ")))
+	}
+
+	buf.WriteString(fmt.Sprintf("Subject: %s\r\n", message.Subject))
 	buf.WriteString("MIME-Version: 1.0\r\n")
 	buf.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
 	buf.WriteString("Content-Transfer-Encoding: base64\r\n")
@@ -220,7 +197,7 @@ func (s *gmailSender) buildMessage(fromEmail, fromName, to, subject, htmlBody st
 	buf.WriteString("\r\n")
 
 	// Encode body in base64
-	encodedBody := base64.StdEncoding.EncodeToString([]byte(htmlBody))
+	encodedBody := base64.StdEncoding.EncodeToString([]byte(message.Body))
 	buf.WriteString(encodedBody)
 
 	// Encode entire message in base64url

@@ -25,6 +25,10 @@ func SetupRouter(
 	organizationHandler *httpHandler.OrganizationHandler,
 	teamHandler *httpHandler.TeamHandler,
 	collectionHandler *httpHandler.CollectionHandler,
+	organizationItemHandler *httpHandler.OrganizationItemHandler,
+	paymentHandler *httpHandler.PaymentHandler,
+	webhookHandler *httpHandler.WebhookHandler,
+	supportHandler *httpHandler.SupportHandler,
 ) *gin.Engine {
 	// Create router without default middleware
 	router := gin.New()
@@ -41,6 +45,9 @@ func SetupRouter(
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
+
+	// Stripe webhook endpoint (no auth - verified by Stripe signature)
+	router.POST("/webhooks/stripe", webhookHandler.HandleStripeWebhook)
 
 	// Rate limiters for auth endpoints
 	// SignIn/SignUp: 5 requests per minute per IP (prevents brute force)
@@ -96,6 +103,9 @@ func SetupRouter(
 		// Auth protected routes
 		apiGroup.POST("/signout", authHandler.SignOut)
 
+		// Support endpoint (authenticated users only)
+		apiGroup.POST("/support", supportHandler.SendSupportEmail)
+
 		// Modern Items API (unified endpoint for all types)
 		apiGroup.POST("/items", itemHandler.Create)
 		apiGroup.GET("/items", itemHandler.List)
@@ -141,9 +151,24 @@ func SetupRouter(
 			usersGroup.PUT("/:id", userHandler.Update)
 			usersGroup.DELETE("/:id", userHandler.Delete)
 			usersGroup.GET("/:id/activities", activityHandler.GetUserActivities)
+			
+			// Ownership management for user deletion
+			usersGroup.GET("/:id/ownership-check", userHandler.CheckOwnership)
+			usersGroup.POST("/:id/transfer-ownership", userHandler.TransferOwnership)
+			usersGroup.POST("/:id/delete-with-organizations", userHandler.DeleteWithOrganizations)
 		}
 
-		// Invite - Any authenticated user (role selection for admins only)
+		// Invitations - Any authenticated user
+		invitationsGroup := apiGroup.Group("/invitations")
+		{
+			invitationsGroup.POST("", invitationHandler.Invite)           // Create invitation (old /invite endpoint)
+			invitationsGroup.GET("/pending", invitationHandler.GetPending) // Get my pending invitations
+			invitationsGroup.GET("/sent", invitationHandler.GetSent)       // Get invitations I sent
+			invitationsGroup.POST("/:id/accept", invitationHandler.Accept) // Accept invitation
+			invitationsGroup.POST("/:id/decline", invitationHandler.Decline) // Decline invitation
+		}
+		
+		// Legacy endpoint (backward compatibility)
 		apiGroup.POST("/invite", invitationHandler.Invite)
 
 		// Activity management routes - Admin only
@@ -179,6 +204,13 @@ func SetupRouter(
 			// Collections nested under organization
 			orgsGroup.POST("/:id/collections", collectionHandler.Create)
 			orgsGroup.GET("/:id/collections", collectionHandler.List)
+
+			// Payment & Billing routes
+			orgsGroup.POST("/:id/checkout", paymentHandler.CreateCheckoutSession)
+			orgsGroup.GET("/:id/billing", paymentHandler.GetBillingInfo)
+			orgsGroup.POST("/:id/subscription/cancel", paymentHandler.CancelSubscription)
+			orgsGroup.POST("/:id/subscription/reactivate", paymentHandler.ReactivateSubscription)
+			orgsGroup.POST("/:id/subscription/sync", paymentHandler.SyncSubscription)
 		}
 
 		// Invitation acceptance (not nested)
@@ -214,7 +246,21 @@ func SetupRouter(
 			collectionsGroup.PUT("/:id/teams/:teamId", collectionHandler.GrantTeamAccess)
 			collectionsGroup.DELETE("/:id/teams/:teamId", collectionHandler.RevokeTeamAccess)
 			collectionsGroup.GET("/:id/teams", collectionHandler.GetTeamAccess)
+			
+			// Collection items (shared vault) - use :id not :collectionId
+			collectionsGroup.GET("/:id/items", organizationItemHandler.ListByCollection)
 		}
+
+		// Organization Items (direct access)
+		orgItemsGroup := apiGroup.Group("/org-items")
+		{
+			orgItemsGroup.GET("/:id", organizationItemHandler.GetByID)
+			orgItemsGroup.PUT("/:id", organizationItemHandler.Update)
+			orgItemsGroup.DELETE("/:id", organizationItemHandler.Delete)
+		}
+
+		// Create organization item (under organization)
+		orgsGroup.POST("/:id/items", organizationItemHandler.Create)
 	}
 
 	return router

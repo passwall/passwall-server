@@ -357,3 +357,97 @@ func (h *UserHandler) StoreRSAKeys(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "RSA keys stored successfully"})
 }
+
+// CheckOwnership checks if user is sole owner of any organizations
+func (h *UserHandler) CheckOwnership(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID, ok := GetUintParam(c, "id")
+	if !ok {
+		return
+	}
+
+	// Verify requester is admin or the user themselves
+	currentUserID := GetCurrentUserID(c)
+	currentRole, _ := c.Get(constants.ContextKeyUserRole)
+	if currentUserID != userID && currentRole != constants.RoleAdmin {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+
+	result, err := h.service.CheckOwnership(ctx, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check ownership"})
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// TransferOwnership transfers organization ownership to another user
+func (h *UserHandler) TransferOwnership(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID, ok := GetUintParam(c, "id")
+	if !ok {
+		return
+	}
+
+	// Verify requester is admin or the user themselves
+	currentUserID := GetCurrentUserID(c)
+	currentRole, _ := c.Get(constants.ContextKeyUserRole)
+	if currentUserID != userID && currentRole != constants.RoleAdmin {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+
+	var req domain.TransferOwnershipRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
+		return
+	}
+
+	// Set user ID from URL param
+	req.UserID = userID
+
+	if err := h.service.TransferOwnership(ctx, &req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "ownership transferred successfully"})
+}
+
+// DeleteWithOrganizations deletes user along with their sole-owner organizations
+func (h *UserHandler) DeleteWithOrganizations(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID, ok := GetUintParam(c, "id")
+	if !ok {
+		return
+	}
+
+	// Only admins can delete users
+	currentRole, _ := c.Get(constants.ContextKeyUserRole)
+	if currentRole != constants.RoleAdmin {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+
+	var req domain.DeleteWithOrganizationsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
+		return
+	}
+
+	// Get user to extract schema
+	user, err := h.service.GetByID(ctx, userID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	if err := h.service.DeleteWithOrganizations(ctx, userID, req.OrganizationIDs, user.Schema); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "user and organizations deleted successfully"})
+}

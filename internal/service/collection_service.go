@@ -15,7 +15,10 @@ type collectionService struct {
 	orgUserRepo        repository.OrganizationUserRepository
 	teamRepo           repository.TeamRepository
 	orgRepo            repository.OrganizationRepository
-	logger             Logger
+	subRepo            interface {
+		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
+	}
+	logger Logger
 }
 
 // NewCollectionService creates a new collection service
@@ -26,6 +29,9 @@ func NewCollectionService(
 	orgUserRepo repository.OrganizationUserRepository,
 	teamRepo repository.TeamRepository,
 	orgRepo repository.OrganizationRepository,
+	subRepo interface {
+		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
+	},
 	logger Logger,
 ) CollectionService {
 	return &collectionService{
@@ -35,6 +41,7 @@ func NewCollectionService(
 		orgUserRepo:        orgUserRepo,
 		teamRepo:           teamRepo,
 		orgRepo:            orgRepo,
+		subRepo:            subRepo,
 		logger:             logger,
 	}
 }
@@ -51,18 +58,19 @@ func (s *collectionService) Create(ctx context.Context, orgID uint, userID uint,
 	}
 
 	// Check organization collection limit
-	org, err := s.orgRepo.GetByID(ctx, orgID)
-	if err != nil {
-		return nil, fmt.Errorf("organization not found: %w", err)
-	}
-
 	collectionCount, err := s.orgRepo.GetCollectionCount(ctx, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get collection count: %w", err)
 	}
 
-	if collectionCount >= org.MaxCollections {
-		return nil, fmt.Errorf("organization has reached max collections limit (%d)", org.MaxCollections)
+	// Get plan limits from subscription
+	maxCollections, err := s.getMaxCollections(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get plan limits: %w", err)
+	}
+
+	if collectionCount >= maxCollections {
+		return nil, fmt.Errorf("organization has reached max collections limit (%d)", maxCollections)
 	}
 
 	// Check if collection name already exists
@@ -103,6 +111,19 @@ func (s *collectionService) GetByID(ctx context.Context, id uint, userID uint) (
 
 	if !hasAccess {
 		return nil, repository.ErrForbidden
+	}
+
+	// Fetch stats
+	if itemCount, err := s.collectionRepo.GetItemCount(ctx, collection.ID); err == nil {
+		collection.ItemCount = &itemCount
+	}
+	
+	if userCount, err := s.collectionRepo.GetUserCount(ctx, collection.ID); err == nil {
+		collection.UserCount = &userCount
+	}
+	
+	if teamCount, err := s.collectionRepo.GetTeamCount(ctx, collection.ID); err == nil {
+		collection.TeamCount = &teamCount
 	}
 
 	return collection, nil
@@ -501,3 +522,20 @@ func (s *collectionService) checkCollectionManagePermission(ctx context.Context,
 	return false, nil
 }
 
+// getMaxCollections returns max collections limit from subscription plan
+func (s *collectionService) getMaxCollections(ctx context.Context, orgID uint) (int, error) {
+	sub, err := s.subRepo.GetByOrganizationID(ctx, orgID)
+	if err != nil {
+		s.logger.Error("failed to get subscription for org", "org_id", orgID, "error", err)
+		// Default to free plan limit if subscription not found
+		return 2, nil
+	}
+
+	// Check if plan has max collections limit
+	if sub.Plan.MaxCollections != nil {
+		return *sub.Plan.MaxCollections, nil
+	}
+
+	// Unlimited collections (business/enterprise)
+	return 999999, nil
+}

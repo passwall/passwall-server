@@ -13,7 +13,8 @@ type SignUpRequest struct {
 	MasterPasswordHash string     `json:"master_password_hash" validate:"required"` // HKDF(masterKey, info="auth")
 	ProtectedUserKey   string     `json:"protected_user_key" validate:"required"`   // EncString: "2.iv|ct|mac"
 	KdfConfig          *KdfConfig `json:"kdf_config" validate:"required"`
-	KdfSalt            string     `json:"kdf_salt" validate:"required"` // hex-encoded random salt from client
+	KdfSalt            string     `json:"kdf_salt" validate:"required"`      // hex-encoded random salt from client
+	EncryptedOrgKey    string     `json:"encrypted_org_key" validate:"required"` // Organization key encrypted with User Key
 }
 
 // Validate validates the signup request
@@ -32,6 +33,9 @@ func (r *SignUpRequest) Validate() error {
 	}
 	if r.KdfSalt == "" {
 		return ErrValidation{Field: "kdf_salt", Message: "KDF salt is required"}
+	}
+	if r.EncryptedOrgKey == "" {
+		return ErrValidation{Field: "encrypted_org_key", Message: "encrypted organization key is required"}
 	}
 
 	// Validate KDF config

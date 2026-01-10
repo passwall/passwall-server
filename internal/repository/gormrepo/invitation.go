@@ -53,6 +53,46 @@ func (r *invitationRepository) GetByCode(ctx context.Context, code string) (*dom
 	return &invitation, nil
 }
 
+func (r *invitationRepository) GetByID(ctx context.Context, id uint) (*domain.Invitation, error) {
+	var invitation domain.Invitation
+	err := r.db.WithContext(ctx).First(&invitation, id).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, repository.ErrNotFound
+		}
+		return nil, err
+	}
+	return &invitation, nil
+}
+
+func (r *invitationRepository) GetAllByEmail(ctx context.Context, email string) ([]*domain.Invitation, error) {
+	var invitations []*domain.Invitation
+	err := r.db.WithContext(ctx).
+		Where("email = ? AND used_at IS NULL AND expires_at > ?", email, time.Now()).
+		Order("created_at DESC").
+		Find(&invitations).Error
+	if err != nil {
+		return nil, err
+	}
+	return invitations, nil
+}
+
+func (r *invitationRepository) GetByCreator(ctx context.Context, createdBy uint) ([]*domain.Invitation, error) {
+	var invitations []*domain.Invitation
+	err := r.db.WithContext(ctx).
+		Where("created_by = ? AND expires_at > ?", createdBy, time.Now()).
+		Order("created_at DESC").
+		Find(&invitations).Error
+	if err != nil {
+		return nil, err
+	}
+	return invitations, nil
+}
+
+func (r *invitationRepository) Update(ctx context.Context, invitation *domain.Invitation) error {
+	return r.db.WithContext(ctx).Save(invitation).Error
+}
+
 func (r *invitationRepository) Delete(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Delete(&domain.Invitation{}, id).Error
 }

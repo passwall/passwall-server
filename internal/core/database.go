@@ -7,6 +7,7 @@ import (
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/pkg/database"
 	"github.com/passwall/passwall-server/pkg/database/postgres"
+	"github.com/passwall/passwall-server/pkg/logger"
 )
 
 // InitDatabase initializes database connection using the database package
@@ -34,20 +35,47 @@ func InitDatabase(cfg *config.Config) (database.Database, error) {
 }
 
 // AutoMigrate runs database migrations
+// This creates all tables from scratch with their FINAL structure
+// For production updates of existing databases, use SQL migration files in /migrations/
 func AutoMigrate(db database.Database) error {
-	_ = db.AutoMigrate(
-		// Core tables
+	// Create Item table first (used by personal vault)
+	if err := db.AutoMigrate(&domain.Item{}); err != nil {
+		return fmt.Errorf("failed to migrate Item: %w", err)
+	}
+
+	// Core auth & user tables
+	if err := db.AutoMigrate(
 		&domain.Role{},
 		&domain.Permission{},
 		&domain.User{},
 		&domain.Token{},
 		&domain.VerificationCode{},
 		&domain.UserActivity{},
+	); err != nil {
+		return fmt.Errorf("failed to migrate core auth tables: %w", err)
+	}
+
+	// User-related tables
+	if err := db.AutoMigrate(
 		&domain.ExcludedDomain{},
 		&domain.Folder{},
 		&domain.Invitation{},
-		
-		// Organization tables
+	); err != nil {
+		return fmt.Errorf("failed to migrate user-related tables: %w", err)
+	}
+
+	// SaaS subscription tables (NEW - Phase 1)
+	if err := db.AutoMigrate(
+		&domain.Plan{},
+		&domain.Subscription{},
+		&domain.WebhookEvent{},
+		// Note: Invoices are fetched directly from Stripe (no DB table needed)
+	); err != nil {
+		return fmt.Errorf("failed to migrate subscription tables: %w", err)
+	}
+
+	// Organization tables
+	if err := db.AutoMigrate(
 		&domain.Organization{},
 		&domain.OrganizationUser{},
 		&domain.Team{},
@@ -57,7 +85,10 @@ func AutoMigrate(db database.Database) error {
 		&domain.CollectionTeam{},
 		&domain.OrganizationItem{},
 		&domain.ItemShare{},
-	)
+	); err != nil {
+		return fmt.Errorf("failed to migrate organization tables: %w", err)
+	}
 
+	logger.Infof("✓ Database schema migrated successfully")
 	return nil
 }

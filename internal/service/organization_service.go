@@ -10,10 +10,15 @@ import (
 )
 
 type organizationService struct {
-	orgRepo     repository.OrganizationRepository
-	orgUserRepo repository.OrganizationUserRepository
-	userRepo    repository.UserRepository
-	logger      Logger
+	orgRepo           repository.OrganizationRepository
+	orgUserRepo       repository.OrganizationUserRepository
+	userRepo          repository.UserRepository
+	paymentService    PaymentService
+	invitationService InvitationService
+	subRepo           interface {
+		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
+	}
+	logger Logger
 }
 
 // NewOrganizationService creates a new organization service
@@ -21,13 +26,21 @@ func NewOrganizationService(
 	orgRepo repository.OrganizationRepository,
 	orgUserRepo repository.OrganizationUserRepository,
 	userRepo repository.UserRepository,
+	paymentService PaymentService,
+	invitationService InvitationService,
+	subRepo interface {
+		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
+	},
 	logger Logger,
 ) OrganizationService {
 	return &organizationService{
-		orgRepo:     orgRepo,
-		orgUserRepo: orgUserRepo,
-		userRepo:    userRepo,
-		logger:      logger,
+		orgRepo:           orgRepo,
+		orgUserRepo:       orgUserRepo,
+		userRepo:          userRepo,
+		paymentService:    paymentService,
+		invitationService: invitationService,
+		subRepo:           subRepo,
+		logger:            logger,
 	}
 }
 
@@ -37,33 +50,35 @@ func (s *organizationService) Create(ctx context.Context, userID uint, req *doma
 	if req.Plan == "" {
 		plan = domain.PlanFree
 	}
-	if plan != domain.PlanFree && plan != domain.PlanBusiness && plan != domain.PlanEnterprise {
+	
+	// Valid organization plans (Premium does NOT use organizations)
+	validPlans := []domain.OrganizationPlan{
+		domain.PlanFree,
+		domain.PlanFamily,
+		domain.PlanTeam,
+		domain.PlanBusiness,
+		domain.PlanEnterprise,
+	}
+	
+	isValid := false
+	for _, validPlan := range validPlans {
+		if plan == validPlan {
+			isValid = true
+			break
+		}
+	}
+	if !isValid {
 		return nil, fmt.Errorf("invalid plan: %s", req.Plan)
 	}
 
-	// Set plan limits
-	var maxUsers, maxCollections int
-	switch plan {
-	case domain.PlanFree:
-		maxUsers = 2
-		maxCollections = 2
-	case domain.PlanBusiness:
-		maxUsers = 999
-		maxCollections = 999
-	case domain.PlanEnterprise:
-		maxUsers = 9999
-		maxCollections = 9999
-	}
-
-	// Create organization
+	// Create organization (plan limits will be set via subscription)
 	org := &domain.Organization{
 		Name:            req.Name,
 		BillingEmail:    req.BillingEmail,
-		Plan:            plan,
-		MaxUsers:        maxUsers,
-		MaxCollections:  maxCollections,
 		EncryptedOrgKey: req.EncryptedOrgKey,
 		IsActive:        true,
+		// Note: Plan limits come from subscriptions table
+		// A free subscription will be created automatically during seeding
 	}
 
 	if err := s.orgRepo.Create(ctx, org); err != nil {
@@ -96,15 +111,32 @@ func (s *organizationService) Create(ctx context.Context, userID uint, req *doma
 }
 
 func (s *organizationService) GetByID(ctx context.Context, id uint, userID uint) (*domain.Organization, error) {
-	// Check if user is member of organization
-	if err := s.checkMembership(ctx, id, userID); err != nil {
-		return nil, err
+	// Get user's membership (contains their encrypted org key copy)
+	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, id, userID)
+	if err != nil {
+		return nil, repository.ErrForbidden
 	}
 
 	org, err := s.orgRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get organization: %w", err)
 	}
+
+	// Fetch stats
+	if memberCount, err := s.orgRepo.GetMemberCount(ctx, org.ID); err == nil {
+		org.MemberCount = &memberCount
+	}
+	
+	if teamCount, err := s.orgRepo.GetTeamCount(ctx, org.ID); err == nil {
+		org.TeamCount = &teamCount
+	}
+	
+	if collectionCount, err := s.orgRepo.GetCollectionCount(ctx, org.ID); err == nil {
+		org.CollectionCount = &collectionCount
+	}
+
+	// Set user's encrypted org key copy (each user has their own)
+	org.EncryptedOrgKey = orgUser.EncryptedOrgKey
 
 	return org, nil
 }
@@ -114,6 +146,24 @@ func (s *organizationService) List(ctx context.Context, userID uint) ([]*domain.
 	if err != nil {
 		s.logger.Error("failed to list organizations", "user_id", userID, "error", err)
 		return nil, fmt.Errorf("failed to list organizations: %w", err)
+	}
+
+	// Fetch stats for each organization
+	for _, org := range orgs {
+		// Get member count
+		if memberCount, err := s.orgRepo.GetMemberCount(ctx, org.ID); err == nil {
+			org.MemberCount = &memberCount
+		}
+		
+		// Get team count
+		if teamCount, err := s.orgRepo.GetTeamCount(ctx, org.ID); err == nil {
+			org.TeamCount = &teamCount
+		}
+		
+		// Get collection count
+		if collectionCount, err := s.orgRepo.GetCollectionCount(ctx, org.ID); err == nil {
+			org.CollectionCount = &collectionCount
+		}
 	}
 
 	return orgs, nil
@@ -158,6 +208,12 @@ func (s *organizationService) Delete(ctx context.Context, id uint, userID uint) 
 		return repository.ErrForbidden
 	}
 
+	// Get organization to check for active subscription
+	// Cancel active subscription before deleting organization
+	// Note: Subscription cancellation is now handled by SubscriptionService
+	// The subscription will be soft-deleted along with the organization
+	s.logger.Info("deleting organization", "org_id", id)
+
 	if err := s.orgRepo.Delete(ctx, id); err != nil {
 		s.logger.Error("failed to delete organization", "org_id", id, "error", err)
 		return fmt.Errorf("failed to delete organization: %w", err)
@@ -174,26 +230,60 @@ func (s *organizationService) InviteUser(ctx context.Context, orgID uint, invite
 	}
 
 	// Check organization limits
-	org, err := s.orgRepo.GetByID(ctx, orgID)
-	if err != nil {
-		return nil, fmt.Errorf("organization not found: %w", err)
-	}
-
 	memberCount, err := s.orgRepo.GetMemberCount(ctx, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get member count: %w", err)
 	}
 
-	if memberCount >= org.MaxUsers {
-		return nil, fmt.Errorf("organization has reached max users limit (%d)", org.MaxUsers)
+	// Get plan limits from subscription
+	maxUsers, err := s.getMaxUsers(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get plan limits: %w", err)
+	}
+
+	if memberCount >= maxUsers {
+		return nil, fmt.Errorf("organization has reached max users limit (%d)", maxUsers)
 	}
 
 	// Get invitee user by email
 	invitee, err := s.userRepo.GetByEmail(ctx, req.Email)
+	
+	// CASE 1: User is not registered yet
 	if err != nil {
-		return nil, fmt.Errorf("user not found: %w", err)
+		// User not found - create pending invitation
+		inviter, err := s.userRepo.GetByID(ctx, inviterUserID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get inviter info: %w", err)
+		}
+
+		orgRoleStr := string(req.Role)
+		accessAll := req.AccessAll
+		
+		// Create invitation with organization info
+		invitationReq := &domain.CreateInvitationRequest{
+			Email:           req.Email,
+			RoleID:          2, // Member role for platform access
+			OrganizationID:  &orgID,
+			OrgRole:         &orgRoleStr,
+			EncryptedOrgKey: &req.EncryptedOrgKey,
+			AccessAll:       &accessAll,
+		}
+
+		_, err = s.invitationService.CreateInvitation(ctx, invitationReq, inviterUserID, inviter.Name)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create invitation: %w", err)
+		}
+
+		s.logger.Info("pending invitation created for non-registered user", 
+			"org_id", orgID, 
+			"email", req.Email, 
+			"org_role", req.Role)
+
+		// Return nil (no org user created yet - will be created after signup)
+		return nil, nil
 	}
 
+	// CASE 2: User is registered
 	// Check if user is already a member
 	existing, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, invitee.ID)
 	if err == nil && existing != nil {
@@ -219,7 +309,7 @@ func (s *organizationService) InviteUser(ctx context.Context, orgID uint, invite
 
 	s.logger.Info("user invited to organization", "org_id", orgID, "invitee_email", req.Email, "role", req.Role)
 
-	// TODO: Send invitation email
+	// TODO: Send invitation email to registered user
 
 	return orgUser, nil
 }
@@ -325,6 +415,39 @@ func (s *organizationService) AcceptInvitation(ctx context.Context, orgUserID ui
 	return nil
 }
 
+func (s *organizationService) AddExistingMember(ctx context.Context, orgUser *domain.OrganizationUser) error {
+	// Check if user is already a member
+	existing, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgUser.OrganizationID, orgUser.UserID)
+	if err == nil && existing != nil {
+		return fmt.Errorf("user is already a member of this organization")
+	}
+
+	// Set timestamps
+	now := time.Now()
+	if orgUser.InvitedAt == nil {
+		orgUser.InvitedAt = &now
+	}
+	if orgUser.AcceptedAt == nil {
+		orgUser.AcceptedAt = &now
+	}
+
+	// Create organization user membership
+	if err := s.orgUserRepo.Create(ctx, orgUser); err != nil {
+		s.logger.Error("failed to add existing member", 
+			"org_id", orgUser.OrganizationID, 
+			"user_id", orgUser.UserID, 
+			"error", err)
+		return fmt.Errorf("failed to add member: %w", err)
+	}
+
+	s.logger.Info("existing member added to organization", 
+		"org_id", orgUser.OrganizationID, 
+		"user_id", orgUser.UserID,
+		"role", orgUser.Role)
+	
+	return nil
+}
+
 // Helper methods for permission checking
 
 func (s *organizationService) checkMembership(ctx context.Context, orgID, userID uint) error {
@@ -336,6 +459,25 @@ func (s *organizationService) checkMembership(ctx context.Context, orgID, userID
 		return err
 	}
 	return nil
+}
+
+// GetMembership retrieves a user's membership in an organization
+func (s *organizationService) GetMembership(ctx context.Context, userID uint, orgID uint) (*domain.OrganizationUser, error) {
+	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	if err != nil {
+		return nil, err
+	}
+	return orgUser, nil
+}
+
+// GetMemberCount returns the number of members in an organization
+func (s *organizationService) GetMemberCount(ctx context.Context, orgID uint) (int, error) {
+	return s.orgRepo.GetMemberCount(ctx, orgID)
+}
+
+// GetCollectionCount returns the number of collections in an organization
+func (s *organizationService) GetCollectionCount(ctx context.Context, orgID uint) (int, error) {
+	return s.orgRepo.GetCollectionCount(ctx, orgID)
 }
 
 func (s *organizationService) checkPermission(ctx context.Context, orgID, userID uint, requireAdmin bool) error {
@@ -354,3 +496,21 @@ func (s *organizationService) checkPermission(ctx context.Context, orgID, userID
 	return nil
 }
 
+
+// getMaxUsers returns max users limit from subscription plan
+func (s *organizationService) getMaxUsers(ctx context.Context, orgID uint) (int, error) {
+	sub, err := s.subRepo.GetByOrganizationID(ctx, orgID)
+	if err != nil {
+		s.logger.Error("failed to get subscription for org", "org_id", orgID, "error", err)
+		// Default to free plan limit if subscription not found
+		return 1, nil
+	}
+
+	// Check if plan has max users limit
+	if sub.Plan.MaxUsers != nil {
+		return *sub.Plan.MaxUsers, nil
+	}
+
+	// Unlimited users (business/enterprise)
+	return 999999, nil
+}

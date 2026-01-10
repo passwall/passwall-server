@@ -16,13 +16,21 @@ const (
 	ProviderGmailAPI Provider = "gmail-api"
 )
 
-// Sender defines the interface for sending emails
-type Sender interface {
-	// SendVerificationEmail sends a verification email with code
-	SendVerificationEmail(ctx context.Context, to, name, code string) error
+// EmailMessage represents an email to be sent
+type EmailMessage struct {
+	To      string   // Primary recipient
+	From    string   // Sender email address
+	Subject string   // Email subject
+	Body    string   // HTML body content
+	CC      []string // Carbon copy recipients (optional)
+	BCC     []string // Blind carbon copy recipients (optional)
+}
 
-	// SendInvitationEmail sends an invitation email to a new user
-	SendInvitationEmail(ctx context.Context, to, inviterName, code, role string) error
+// Sender defines the interface for sending emails
+// Email clients should only know how to send, not what to send
+type Sender interface {
+	// Send sends an email message
+	Send(ctx context.Context, message *EmailMessage) error
 
 	// Provider returns the current provider being used
 	Provider() Provider

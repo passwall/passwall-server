@@ -15,10 +15,8 @@ import (
 
 // smtpSender implements email sending via SMTP
 type smtpSender struct {
-	config          *config.EmailConfig
-	frontendURL     string
-	logger          Logger
-	templateManager *TemplateManager
+	config *config.EmailConfig
+	logger Logger
 }
 
 // newSMTPSender creates a new SMTP email sender
@@ -27,16 +25,9 @@ func newSMTPSender(cfg Config) (Sender, error) {
 		return nil, fmt.Errorf("invalid SMTP config: %w", err)
 	}
 
-	templateManager, err := NewTemplateManager()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create template manager: %w", err)
-	}
-
 	sender := &smtpSender{
-		config:          cfg.EmailConfig,
-		frontendURL:     cfg.FrontendURL,
-		logger:          cfg.Logger,
-		templateManager: templateManager,
+		config: cfg.EmailConfig,
+		logger: cfg.Logger,
 	}
 
 	cfg.Logger.Info("SMTP email sender initialized",
@@ -46,79 +37,35 @@ func newSMTPSender(cfg Config) (Sender, error) {
 	return sender, nil
 }
 
-// SendVerificationEmail sends a verification email via SMTP
-func (s *smtpSender) SendVerificationEmail(ctx context.Context, to, name, code string) error {
-	// Build template data
-	data, err := BuildVerificationEmail(s.frontendURL, to, name, code)
-	if err != nil {
-		return fmt.Errorf("failed to build email data: %w", err)
+// Send sends an email via SMTP
+func (s *smtpSender) Send(ctx context.Context, message *EmailMessage) error {
+	if message == nil {
+		return fmt.Errorf("email message is required")
 	}
 
-	// Render template
-	htmlBody, err := s.templateManager.Render(TemplateVerification, data)
-	if err != nil {
-		return fmt.Errorf("failed to render template: %w", err)
+	if message.To == "" {
+		return fmt.Errorf("recipient (To) is required")
 	}
 
-	// Send email
-	subject := "Verify Your Passwall Account"
-	if err := s.sendEmail(ctx, to, subject, htmlBody); err != nil {
-		s.logger.Error("failed to send verification email via SMTP",
-			"to", to,
-			"error", err)
-		return err
+	if message.Subject == "" {
+		return fmt.Errorf("subject is required")
 	}
 
-	s.logger.Info("verification email sent successfully via SMTP", "to", to)
-	return nil
-}
-
-// SendInvitationEmail sends an invitation email via SMTP
-func (s *smtpSender) SendInvitationEmail(ctx context.Context, to, inviterName, code, role string) error {
-	// Build template data
-	data, err := BuildInvitationEmail(s.frontendURL, to, inviterName, code, role)
-	if err != nil {
-		return fmt.Errorf("failed to build invitation email: %w", err)
+	if message.Body == "" {
+		return fmt.Errorf("body is required")
 	}
 
-	// Render template
-	htmlBody, err := s.templateManager.Render(TemplateInvitation, data)
-	if err != nil {
-		return fmt.Errorf("failed to render invitation template: %w", err)
-	}
-
-	// Send email
-	subject := "You're Invited to Join Passwall!"
-	if err := s.sendEmail(ctx, to, subject, htmlBody); err != nil {
-		s.logger.Error("failed to send invitation email via SMTP",
-			"to", to,
-			"error", err)
-		return err
-	}
-
-	s.logger.Info("invitation email sent successfully via SMTP",
-		"to", to,
-		"inviter", inviterName,
-		"role", role)
-	return nil
-}
-
-// Provider returns the provider type
-func (s *smtpSender) Provider() Provider {
-	return ProviderSMTP
-}
-
-// Close closes the SMTP sender
-func (s *smtpSender) Close() error {
-	// SMTP doesn't maintain persistent connections
-	return nil
-}
-
-// sendEmail sends an email via SMTP
-func (s *smtpSender) sendEmail(ctx context.Context, to, subject, htmlBody string) error {
-	from := s.config.FromEmail
+	// Determine sender email
+	from := message.From
 	if from == "" {
-		from = s.config.Username
+		from = s.config.FromEmail
+		if from == "" {
+			from = s.config.Username
+		}
+	}
+
+	if from == "" {
+		return fmt.Errorf("sender email (From) is required")
 	}
 
 	fromName := s.config.FromName
@@ -126,20 +73,22 @@ func (s *smtpSender) sendEmail(ctx context.Context, to, subject, htmlBody string
 		fromName = "Passwall"
 	}
 
-	// Build message
-	msg := s.buildMessage(from, fromName, to, subject, htmlBody)
+	// Build recipients list (To + CC + BCC + config BCC)
+	recipients := []string{message.To}
+	recipients = append(recipients, message.CC...)
+	recipients = append(recipients, message.BCC...)
+	if s.config.BCC != "" {
+		recipients = append(recipients, s.config.BCC)
+	}
+
+	// Build SMTP message
+	msg := s.buildMessage(from, fromName, message)
 
 	// SMTP authentication
 	auth := smtp.PlainAuth("", s.config.Username, s.config.Password, s.config.Host)
 
 	// Server address
 	addr := fmt.Sprintf("%s:%s", s.config.Host, s.config.Port)
-
-	// Recipients list (To + BCC)
-	recipients := []string{to}
-	if s.config.BCC != "" {
-		recipients = append(recipients, s.config.BCC)
-	}
 
 	// Retry with exponential backoff
 	maxRetries := 3
@@ -162,6 +111,9 @@ func (s *smtpSender) sendEmail(ctx context.Context, to, subject, htmlBody string
 		}
 
 		if err == nil {
+			s.logger.Info("email sent successfully via SMTP",
+				"to", message.To,
+				"subject", message.Subject)
 			return nil
 		}
 
@@ -182,8 +134,25 @@ func (s *smtpSender) sendEmail(ctx context.Context, to, subject, htmlBody string
 		}
 	}
 
+	s.logger.Error("failed to send email via SMTP",
+		"to", message.To,
+		"subject", message.Subject,
+		"error", lastErr)
+
 	return fmt.Errorf("SMTP send failed after %d attempts: %w", maxRetries, lastErr)
 }
+
+// Provider returns the provider type
+func (s *smtpSender) Provider() Provider {
+	return ProviderSMTP
+}
+
+// Close closes the SMTP sender
+func (s *smtpSender) Close() error {
+	// SMTP doesn't maintain persistent connections
+	return nil
+}
+
 
 // sendWithTLS sends email with TLS support
 func (s *smtpSender) sendWithTLS(addr string, auth smtp.Auth, from string, recipients []string, msg []byte) error {
@@ -304,19 +273,29 @@ func (s *smtpSender) sendViaClient(conn net.Conn, auth smtp.Auth, from string, r
 }
 
 // buildMessage builds the email message with headers
-func (s *smtpSender) buildMessage(from, fromName, to, subject, htmlBody string) []byte {
+func (s *smtpSender) buildMessage(from, fromName string, message *EmailMessage) []byte {
 	var buf bytes.Buffer
 
 	// Headers
 	buf.WriteString(fmt.Sprintf("From: %s <%s>\r\n", fromName, from))
-	buf.WriteString(fmt.Sprintf("To: %s\r\n", to))
+	buf.WriteString(fmt.Sprintf("To: %s\r\n", message.To))
 
-	// Add BCC if configured
-	if s.config.BCC != "" {
-		buf.WriteString(fmt.Sprintf("Bcc: %s\r\n", s.config.BCC))
+	// Add CC if present
+	if len(message.CC) > 0 {
+		buf.WriteString(fmt.Sprintf("Cc: %s\r\n", strings.Join(message.CC, ", ")))
 	}
 
-	buf.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
+	// Add BCC if present (including config BCC)
+	bccList := make([]string, 0)
+	bccList = append(bccList, message.BCC...)
+	if s.config.BCC != "" {
+		bccList = append(bccList, s.config.BCC)
+	}
+	if len(bccList) > 0 {
+		buf.WriteString(fmt.Sprintf("Bcc: %s\r\n", strings.Join(bccList, ", ")))
+	}
+
+	buf.WriteString(fmt.Sprintf("Subject: %s\r\n", message.Subject))
 	buf.WriteString("MIME-Version: 1.0\r\n")
 	buf.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
 	buf.WriteString("Content-Transfer-Encoding: 8bit\r\n")
@@ -324,7 +303,7 @@ func (s *smtpSender) buildMessage(from, fromName, to, subject, htmlBody string) 
 	buf.WriteString("\r\n")
 
 	// Body
-	buf.WriteString(strings.TrimSpace(htmlBody))
+	buf.WriteString(strings.TrimSpace(message.Body))
 
 	return buf.Bytes()
 }

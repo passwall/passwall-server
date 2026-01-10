@@ -17,14 +17,15 @@ const (
 
 // TemplateData holds data for email templates
 type TemplateData struct {
-	Name            string
-	Code            string
-	ExpiryTime      string
-	Year            int
-	VerificationURL string
-	InviterName     string
-	Role            string
-	InvitationURL   string
+	Name             string
+	Code             string
+	ExpiryTime       string
+	Year             int
+	VerificationURL  string
+	InviterName      string
+	Role             string
+	InvitationURL    string
+	OrganizationName string // For org invitations
 }
 
 // TemplateManager handles email template rendering
@@ -204,6 +205,25 @@ func BuildInvitationEmail(frontendURL, to, inviterName, code, role string) (*Tem
 	}, nil
 }
 
+// BuildInvitationEmailWithOrg builds an invitation email with organization info
+func BuildInvitationEmailWithOrg(frontendURL, to, inviterName, code, role, orgName string) (*TemplateData, error) {
+	if frontendURL == "" {
+		return nil, fmt.Errorf("frontend URL is required for invitation emails")
+	}
+
+	invitationURL := fmt.Sprintf("%s/sign-up?email=%s&invitation=%s", frontendURL, to, code)
+
+	return &TemplateData{
+		InviterName:      inviterName,
+		Code:             code,
+		Role:             role,
+		ExpiryTime:       "7 days",
+		Year:             time.Now().Year(),
+		InvitationURL:    invitationURL,
+		OrganizationName: orgName,
+	}, nil
+}
+
 // invitationEmailTemplate is the HTML template for invitation emails
 const invitationEmailTemplate = `<!DOCTYPE html>
 <html lang="en">
@@ -233,10 +253,10 @@ const invitationEmailTemplate = `<!DOCTYPE html>
                                 🎉 You're Invited!
                             </h2>
                             <p style="margin: 0 0 20px; font-size: 16px; line-height: 1.6; color: #4a5568;">
-                                <strong>{{.InviterName}}</strong> has invited you to join their Passwall team as a <strong>{{.Role}}</strong>.
+                                <strong>{{.InviterName}}</strong> has invited you to join{{if .OrganizationName}} <strong>{{.OrganizationName}}</strong>{{else}} their Passwall team{{end}} as a <strong>{{.Role}}</strong>.
                             </p>
                             <p style="margin: 0 0 20px; font-size: 16px; line-height: 1.6; color: #4a5568;">
-                                Passwall is a secure password manager that helps teams collaborate safely. Accept this invitation to get started!
+                                Passwall is a secure password manager that helps teams collaborate safely.{{if .OrganizationName}} Sign up to join the organization and start collaborating!{{else}} Accept this invitation to get started!{{end}}
                             </p>
                             
                             <!-- Join Button -->

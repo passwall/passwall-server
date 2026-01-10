@@ -13,15 +13,24 @@ import (
 )
 
 type userService struct {
-	repo   repository.UserRepository
-	logger Logger
+	repo        repository.UserRepository
+	orgRepo     repository.OrganizationRepository
+	orgUserRepo repository.OrganizationUserRepository
+	logger      Logger
 }
 
 // NewUserService creates a new user service
-func NewUserService(repo repository.UserRepository, logger Logger) UserService {
+func NewUserService(
+	repo repository.UserRepository,
+	orgRepo repository.OrganizationRepository,
+	orgUserRepo repository.OrganizationUserRepository,
+	logger Logger,
+) UserService {
 	return &userService{
-		repo:   repo,
-		logger: logger,
+		repo:        repo,
+		orgRepo:     orgRepo,
+		orgUserRepo: orgUserRepo,
+		logger:      logger,
 	}
 }
 
@@ -173,4 +182,150 @@ func (s *userService) Delete(ctx context.Context, id uint, schema string) error 
 
 func (s *userService) ChangeMasterPassword(ctx context.Context, req *domain.ChangeMasterPasswordRequest) error {
 	return errors.New("use AuthService.ChangeMasterPassword for zero-knowledge encryption")
+}
+
+// CheckOwnership checks if user is sole owner of any organizations
+func (s *userService) CheckOwnership(ctx context.Context, userID uint) (*domain.OwnershipCheckResult, error) {
+	s.logger.Debug("checking ownership for user", "user_id", userID)
+
+	// Get all organizations where user is a member
+	orgUsers, err := s.orgUserRepo.ListByUser(ctx, userID)
+	if err != nil {
+		s.logger.Error("failed to get user's organizations", "user_id", userID, "error", err)
+		return nil, err
+	}
+
+	result := &domain.OwnershipCheckResult{
+		IsSoleOwner:   false,
+		Organizations: []domain.SoleOwnerOrganization{},
+	}
+
+	for _, orgUser := range orgUsers {
+		// Only check organizations where user is owner
+		if orgUser.Role != domain.OrgRoleOwner {
+			continue
+		}
+
+		// Get organization details
+		org, err := s.orgRepo.GetByID(ctx, orgUser.OrganizationID)
+		if err != nil {
+			s.logger.Error("failed to get organization", "org_id", orgUser.OrganizationID, "error", err)
+			continue
+		}
+
+		// Count total owners in this organization
+		allOrgUsers, err := s.orgUserRepo.ListByOrganization(ctx, orgUser.OrganizationID)
+		if err != nil {
+			s.logger.Error("failed to get organization users", "org_id", orgUser.OrganizationID, "error", err)
+			continue
+		}
+
+		ownerCount := 0
+		totalMembers := len(allOrgUsers)
+		for _, ou := range allOrgUsers {
+			if ou.Role == domain.OrgRoleOwner {
+				ownerCount++
+			}
+		}
+
+		// If this user is the sole owner
+		if ownerCount == 1 {
+			result.IsSoleOwner = true
+			result.Organizations = append(result.Organizations, domain.SoleOwnerOrganization{
+				ID:          org.ID,
+				Name:        org.Name,
+				MemberCount: totalMembers,
+				CanTransfer: totalMembers > 1, // Can transfer if there are other members
+			})
+		}
+	}
+
+	s.logger.Info("ownership check completed", "user_id", userID, "is_sole_owner", result.IsSoleOwner, "org_count", len(result.Organizations))
+	return result, nil
+}
+
+// TransferOwnership transfers organization ownership to another user
+func (s *userService) TransferOwnership(ctx context.Context, req *domain.TransferOwnershipRequest) error {
+	s.logger.Debug("transferring ownership", "user_id", req.UserID, "org_id", req.OrganizationID, "new_owner_id", req.NewOwnerUserID)
+
+	// Get current owner's org membership
+	currentOrgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, req.OrganizationID, req.UserID)
+	if err != nil {
+		s.logger.Error("failed to get current owner's membership", "error", err)
+		return fmt.Errorf("current user is not a member of this organization")
+	}
+
+	// Verify current user is owner
+	if currentOrgUser.Role != domain.OrgRoleOwner {
+		return fmt.Errorf("current user is not an owner of this organization")
+	}
+
+	// Get new owner's org membership
+	newOrgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, req.OrganizationID, req.NewOwnerUserID)
+	if err != nil {
+		s.logger.Error("failed to get new owner's membership", "error", err)
+		return fmt.Errorf("new owner is not a member of this organization")
+	}
+
+	// Update roles: demote current owner to admin, promote new user to owner
+	currentOrgUser.Role = domain.OrgRoleAdmin
+	if err := s.orgUserRepo.Update(ctx, currentOrgUser); err != nil {
+		s.logger.Error("failed to demote current owner", "error", err)
+		return fmt.Errorf("failed to transfer ownership: %w", err)
+	}
+
+	newOrgUser.Role = domain.OrgRoleOwner
+	if err := s.orgUserRepo.Update(ctx, newOrgUser); err != nil {
+		// Rollback: restore current owner's role
+		currentOrgUser.Role = domain.OrgRoleOwner
+		_ = s.orgUserRepo.Update(ctx, currentOrgUser)
+		
+		s.logger.Error("failed to promote new owner", "error", err)
+		return fmt.Errorf("failed to transfer ownership: %w", err)
+	}
+
+	s.logger.Info("ownership transferred successfully", "org_id", req.OrganizationID, "from_user", req.UserID, "to_user", req.NewOwnerUserID)
+	return nil
+}
+
+// DeleteWithOrganizations deletes user along with specified organizations
+func (s *userService) DeleteWithOrganizations(ctx context.Context, userID uint, organizationIDs []uint, schema string) error {
+	s.logger.Debug("deleting user with organizations", "user_id", userID, "org_ids", organizationIDs)
+
+	// Verify user is sole owner of all specified organizations
+	ownershipCheck, err := s.CheckOwnership(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to check ownership: %w", err)
+	}
+
+	// Verify all specified orgs are in the sole owner list
+	for _, orgID := range organizationIDs {
+		found := false
+		for _, org := range ownershipCheck.Organizations {
+			if org.ID == orgID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("user is not sole owner of organization %d", orgID)
+		}
+	}
+
+	// Delete all specified organizations
+	for _, orgID := range organizationIDs {
+		if err := s.orgRepo.Delete(ctx, orgID); err != nil {
+			s.logger.Error("failed to delete organization", "org_id", orgID, "error", err)
+			return fmt.Errorf("failed to delete organization %d: %w", orgID, err)
+		}
+		s.logger.Info("organization deleted", "org_id", orgID)
+	}
+
+	// Now delete the user (organization_users records will be cascade deleted)
+	if err := s.Delete(ctx, userID, schema); err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+
+	s.logger.Info("user and organizations deleted successfully", "user_id", userID, "deleted_org_count", len(organizationIDs))
+	return nil
 }

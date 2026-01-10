@@ -7,6 +7,7 @@ import (
 
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
+	"github.com/passwall/passwall-server/pkg/constants"
 	uuid "github.com/satori/go.uuid"
 )
 
@@ -144,12 +145,16 @@ func (s *itemService) GetBySupportID(ctx context.Context, schema string, support
 }
 
 func (s *itemService) List(ctx context.Context, schema string, filter repository.ItemFilter) (*ItemListResponse, error) {
-	// Set defaults
+	// Validate and set pagination defaults
+	// This is the SINGLE SOURCE OF TRUTH for pagination logic
 	if filter.Page <= 0 {
 		filter.Page = 1
 	}
-	if filter.PerPage <= 0 || filter.PerPage > 100 {
-		filter.PerPage = 50
+	if filter.PerPage <= 0 {
+		filter.PerPage = constants.DefaultPageSize
+	}
+	if filter.PerPage > constants.MaxPageSize {
+		filter.PerPage = constants.MaxPageSize
 	}
 
 	// Fetch from repository

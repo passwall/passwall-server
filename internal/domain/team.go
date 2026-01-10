@@ -13,7 +13,7 @@ type Team struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 
-	OrganizationID uint `json:"organization_id" gorm:"not null;index"`
+	OrganizationID uint `json:"organization_id" gorm:"not null;index;constraint:OnDelete:CASCADE"`
 
 	// Team details
 	Name        string `json:"name" gorm:"type:varchar(255);not null"`
@@ -40,8 +40,8 @@ type TeamUser struct {
 	ID        uint      `gorm:"primary_key" json:"id"`
 	CreatedAt time.Time `json:"created_at"`
 
-	TeamID             uint `json:"team_id" gorm:"not null;index"`
-	OrganizationUserID uint `json:"organization_user_id" gorm:"not null;index"`
+	TeamID             uint `json:"team_id" gorm:"not null;index;constraint:OnDelete:CASCADE"`
+	OrganizationUserID uint `json:"organization_user_id" gorm:"not null;index;constraint:OnDelete:CASCADE"`
 
 	// Role in team
 	IsManager bool `json:"is_manager" gorm:"default:false"`

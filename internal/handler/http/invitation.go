@@ -12,18 +12,21 @@ import (
 )
 
 type InvitationHandler struct {
-	invitationService service.InvitationService
-	userService       service.UserService
+	invitationService  service.InvitationService
+	userService        service.UserService
+	organizationService service.OrganizationService
 }
 
 // NewInvitationHandler creates a new invitation handler
 func NewInvitationHandler(
 	invitationService service.InvitationService,
 	userService service.UserService,
+	organizationService service.OrganizationService,
 ) *InvitationHandler {
 	return &InvitationHandler{
-		invitationService: invitationService,
-		userService:       userService,
+		invitationService:  invitationService,
+		userService:        userService,
+		organizationService: organizationService,
 	}
 }
 
@@ -101,4 +104,164 @@ func (h *InvitationHandler) Invite(c *gin.Context) {
 		"expires_at": invitation.ExpiresAt,
 		"note":       "Invitation email sent",
 	})
+}
+
+// GetPending godoc
+// @Summary Get pending invitations
+// @Description Get all pending invitations for current user
+// @Tags invitations
+// @Produce json
+// @Success 200 {array} domain.Invitation
+// @Failure 401 {object} map[string]string
+// @Router /invitations/pending [get]
+func (h *InvitationHandler) GetPending(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := GetCurrentUserID(c)
+
+	user, err := h.userService.GetByID(ctx, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user info"})
+		return
+	}
+
+	invitations, err := h.invitationService.GetPendingInvitations(ctx, user.Email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get pending invitations"})
+		return
+	}
+
+	c.JSON(http.StatusOK, invitations)
+}
+
+// GetSent godoc
+// @Summary Get sent invitations
+// @Description Get all invitations sent by current user
+// @Tags invitations
+// @Produce json
+// @Success 200 {array} domain.Invitation
+// @Failure 401 {object} map[string]string
+// @Router /invitations/sent [get]
+func (h *InvitationHandler) GetSent(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := GetCurrentUserID(c)
+
+	invitations, err := h.invitationService.GetSentInvitations(ctx, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get sent invitations"})
+		return
+	}
+
+	c.JSON(http.StatusOK, invitations)
+}
+
+// Accept godoc
+// @Summary Accept invitation
+// @Description Accept a pending invitation
+// @Tags invitations
+// @Produce json
+// @Param id path int true "Invitation ID"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Router /invitations/{id}/accept [post]
+func (h *InvitationHandler) Accept(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := GetCurrentUserID(c)
+
+	invitationID, ok := GetUintParam(c, "id")
+	if !ok {
+		return
+	}
+
+	// Find the specific invitation
+	var targetInvitation *domain.Invitation
+	user, err := h.userService.GetByID(ctx, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user info"})
+		return
+	}
+
+	allInvitations, err := h.invitationService.GetPendingInvitations(ctx, user.Email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get invitations"})
+		return
+	}
+	for _, inv := range allInvitations {
+		if inv.ID == invitationID {
+			targetInvitation = inv
+			break
+		}
+	}
+
+	if targetInvitation == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "invitation not found"})
+		return
+	}
+
+	// Accept invitation
+	if err := h.invitationService.AcceptInvitation(ctx, invitationID, userID); err != nil {
+		if errors.Is(err, repository.ErrForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to accept invitation", "details": err.Error()})
+		return
+	}
+
+	// If this is an organization invitation, add user to org
+	if targetInvitation.OrganizationID != nil && targetInvitation.OrgRole != nil && targetInvitation.EncryptedOrgKey != nil {
+		orgUser := &domain.OrganizationUser{
+			OrganizationID:  *targetInvitation.OrganizationID,
+			UserID:          userID,
+			Role:            domain.OrganizationRole(*targetInvitation.OrgRole),
+			EncryptedOrgKey: *targetInvitation.EncryptedOrgKey,
+			AccessAll:       targetInvitation.AccessAll,
+			Status:          domain.OrgUserStatusAccepted,
+		}
+
+		// Use organization service to add user (this is a simplified approach)
+		// In production, you might want a dedicated method in org service
+		if err := h.organizationService.AddExistingMember(ctx, orgUser); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to join organization", "details": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message":         "invitation accepted and joined organization",
+			"organization_id": *targetInvitation.OrganizationID,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "invitation accepted"})
+}
+
+// Decline godoc
+// @Summary Decline invitation
+// @Description Decline a pending invitation
+// @Tags invitations
+// @Produce json
+// @Param id path int true "Invitation ID"
+// @Success 200 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Router /invitations/{id}/decline [post]
+func (h *InvitationHandler) Decline(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := GetCurrentUserID(c)
+
+	invitationID, ok := GetUintParam(c, "id")
+	if !ok {
+		return
+	}
+
+	if err := h.invitationService.DeclineInvitation(ctx, invitationID, userID); err != nil {
+		if errors.Is(err, repository.ErrForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to decline invitation", "details": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "invitation declined"})
 }

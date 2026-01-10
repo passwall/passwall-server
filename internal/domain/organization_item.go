@@ -19,8 +19,8 @@ type OrganizationItem struct {
 	DeletedAt *time.Time `json:"deleted_at,omitempty" gorm:"index"`
 
 	// Organization and collection
-	OrganizationID uint  `json:"organization_id" gorm:"not null;index"`
-	CollectionID   *uint `json:"collection_id,omitempty" gorm:"index"` // NULL means org-wide item
+	OrganizationID uint  `json:"organization_id" gorm:"not null;index;constraint:OnDelete:CASCADE"`
+	CollectionID   *uint `json:"collection_id,omitempty" gorm:"index;constraint:OnDelete:SET NULL"` // NULL means org-wide item
 
 	// Sync
 	Revision    int64 `json:"revision" gorm:"not null;default:0"`
@@ -192,11 +192,11 @@ type ItemShare struct {
 	ItemUUID   uuid.UUID `json:"item_uuid" gorm:"type:uuid;not null;index"`
 	UserSchema string    `json:"user_schema" gorm:"type:varchar(255);not null"` // Owner's schema
 
-	OwnerID uint `json:"owner_id" gorm:"not null;index"`
+	OwnerID uint `json:"owner_id" gorm:"not null;index;constraint:OnDelete:CASCADE"`
 
 	// Share target (either user or team)
-	SharedWithUserID *uint `json:"shared_with_user_id,omitempty" gorm:"index"`
-	SharedWithTeamID *uint `json:"shared_with_team_id,omitempty" gorm:"index"`
+	SharedWithUserID *uint `json:"shared_with_user_id,omitempty" gorm:"index;constraint:OnDelete:CASCADE"`
+	SharedWithTeamID *uint `json:"shared_with_team_id,omitempty" gorm:"index;constraint:OnDelete:CASCADE"`
 
 	// Permissions
 	CanView      bool `json:"can_view" gorm:"default:true"`

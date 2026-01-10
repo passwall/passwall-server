@@ -3,9 +3,11 @@ package gormrepo
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
+	"github.com/passwall/passwall-server/pkg/database"
 	"gorm.io/gorm"
 )
 
@@ -87,32 +89,46 @@ func (r *folderRepository) Update(ctx context.Context, folder *domain.Folder, us
 	return nil
 }
 
-func (r *folderRepository) Delete(ctx context.Context, id uint, userID uint) error {
-	// Check if folder has items
-	var itemCount int64
-	if err := r.db.WithContext(ctx).
-		Model(&domain.Item{}).
-		Where("folder_id = ? AND deleted_at IS NULL", id).
-		Count(&itemCount).Error; err != nil {
-		return err
-	}
+func (r *folderRepository) Delete(ctx context.Context, schema string, id uint, userID uint) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Validate and set schema
+		if err := database.ValidateSchemaName(schema); err != nil {
+			return err
+		}
+		safeSchema := database.SanitizeIdentifier(schema)
+		if err := tx.Exec(fmt.Sprintf("SET LOCAL search_path TO %s", safeSchema)).Error; err != nil {
+			return err
+		}
 
-	if itemCount > 0 {
-		return errors.New("cannot delete folder: contains items")
-	}
+		// Check if folder has items
+		var itemCount int64
+		if err := tx.Model(&domain.Item{}).
+			Where("folder_id = ? AND deleted_at IS NULL", id).
+			Count(&itemCount).Error; err != nil {
+			return err
+		}
 
-	// Delete folder
-	result := r.db.WithContext(ctx).
-		Where("id = ? AND user_id = ?", id, userID).
-		Delete(&domain.Folder{})
+		if itemCount > 0 {
+			return errors.New("cannot delete folder: contains items")
+		}
 
-	if result.Error != nil {
-		return result.Error
-	}
+		// Reset to public schema for folder table
+		if err := tx.Exec("SET LOCAL search_path TO public").Error; err != nil {
+			return err
+		}
 
-	if result.RowsAffected == 0 {
-		return repository.ErrNotFound
-	}
+		// Delete folder
+		result := tx.Where("id = ? AND user_id = ?", id, userID).
+			Delete(&domain.Folder{})
 
-	return nil
+		if result.Error != nil {
+			return result.Error
+		}
+
+		if result.RowsAffected == 0 {
+			return repository.ErrNotFound
+		}
+
+		return nil
+	})
 }

@@ -16,12 +16,10 @@ import (
 
 // sesSender implements email sending via AWS SES
 type sesSender struct {
-	config          *config.EmailConfig
-	frontendURL     string
-	logger          Logger
-	client          *sesv2.Client
-	templateManager *TemplateManager
-	region          string
+	config *config.EmailConfig
+	logger Logger
+	client *sesv2.Client
+	region string
 }
 
 // newSESSender creates a new AWS SES email sender
@@ -30,16 +28,9 @@ func newSESSender(cfg Config) (Sender, error) {
 		return nil, fmt.Errorf("invalid AWS SES config: %w", err)
 	}
 
-	templateManager, err := NewTemplateManager()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create template manager: %w", err)
-	}
-
 	sender := &sesSender{
-		config:          cfg.EmailConfig,
-		frontendURL:     cfg.FrontendURL,
-		logger:          cfg.Logger,
-		templateManager: templateManager,
+		config: cfg.EmailConfig,
+		logger: cfg.Logger,
 	}
 
 	// Initialize AWS SES client
@@ -97,60 +88,104 @@ func (s *sesSender) initClient(ctx context.Context) error {
 	return nil
 }
 
-// SendVerificationEmail sends a verification email via AWS SES
-func (s *sesSender) SendVerificationEmail(ctx context.Context, to, name, code string) error {
-	// Build template data
-	data, err := BuildVerificationEmail(s.frontendURL, to, name, code)
-	if err != nil {
-		return fmt.Errorf("failed to build email data: %w", err)
+// Send sends an email via AWS SES
+func (s *sesSender) Send(ctx context.Context, message *EmailMessage) error {
+	if message == nil {
+		return fmt.Errorf("email message is required")
 	}
 
-	// Render template
-	htmlBody, err := s.templateManager.Render(TemplateVerification, data)
-	if err != nil {
-		return fmt.Errorf("failed to render template: %w", err)
+	if message.To == "" {
+		return fmt.Errorf("recipient (To) is required")
+	}
+
+	if message.Subject == "" {
+		return fmt.Errorf("subject is required")
+	}
+
+	if message.Body == "" {
+		return fmt.Errorf("body is required")
+	}
+
+	// Set timeout
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	// Get sender information
+	fromEmail := message.From
+	if fromEmail == "" {
+		fromEmail = s.config.FromEmail
+		if fromEmail == "" {
+			fromEmail = s.config.Username
+		}
+	}
+
+	if fromEmail == "" {
+		return fmt.Errorf("sender email (From) is required")
+	}
+
+	fromName := s.config.FromName
+	if fromName == "" {
+		fromName = "Passwall"
+	}
+
+	// Construct from address
+	fromAddress := fmt.Sprintf("%s <%s>", fromName, fromEmail)
+
+	// Build destination with To, CC, BCC
+	destination := &types.Destination{
+		ToAddresses: []string{message.To},
+	}
+
+	// Add CC if present
+	if len(message.CC) > 0 {
+		destination.CcAddresses = message.CC
+	}
+
+	// Build BCC list (message BCC + config BCC)
+	bccList := make([]string, 0)
+	bccList = append(bccList, message.BCC...)
+	if s.config.BCC != "" {
+		bccList = append(bccList, s.config.BCC)
+	}
+	if len(bccList) > 0 {
+		destination.BccAddresses = bccList
+	}
+
+	// Build SES input
+	input := &sesv2.SendEmailInput{
+		FromEmailAddress: aws.String(fromAddress),
+		Destination:      destination,
+		Content: &types.EmailContent{
+			Simple: &types.Message{
+				Subject: &types.Content{
+					Data:    aws.String(message.Subject),
+					Charset: aws.String("UTF-8"),
+				},
+				Body: &types.Body{
+					Html: &types.Content{
+						Data:    aws.String(message.Body),
+						Charset: aws.String("UTF-8"),
+					},
+				},
+			},
+		},
 	}
 
 	// Send email
-	subject := "Verify Your Passwall Account"
-	if err := s.sendEmail(ctx, to, subject, htmlBody); err != nil {
-		s.logger.Error("failed to send verification email via AWS SES",
-			"to", to,
-			"error", err)
-		return err
-	}
-
-	s.logger.Info("verification email sent successfully via AWS SES", "to", to)
-	return nil
-}
-
-// SendInvitationEmail sends an invitation email via AWS SES
-func (s *sesSender) SendInvitationEmail(ctx context.Context, to, inviterName, code, role string) error {
-	// Build template data
-	data, err := BuildInvitationEmail(s.frontendURL, to, inviterName, code, role)
+	result, err := s.client.SendEmail(ctx, input)
 	if err != nil {
-		return fmt.Errorf("failed to build invitation email: %w", err)
-	}
-
-	// Render template
-	htmlBody, err := s.templateManager.Render(TemplateInvitation, data)
-	if err != nil {
-		return fmt.Errorf("failed to render invitation template: %w", err)
-	}
-
-	// Send email
-	subject := "You're Invited to Join Passwall!"
-	if err := s.sendEmail(ctx, to, subject, htmlBody); err != nil {
-		s.logger.Error("failed to send invitation email via AWS SES",
-			"to", to,
+		s.logger.Error("failed to send email via AWS SES",
+			"to", message.To,
+			"subject", message.Subject,
 			"error", err)
-		return err
+		return fmt.Errorf("AWS SES SendEmail failed: %w", err)
 	}
 
-	s.logger.Info("invitation email sent successfully via AWS SES",
-		"to", to,
-		"inviter", inviterName,
-		"role", role)
+	s.logger.Info("email sent successfully via AWS SES",
+		"messageId", aws.ToString(result.MessageId),
+		"to", message.To,
+		"subject", message.Subject)
+
 	return nil
 }
 
@@ -165,63 +200,3 @@ func (s *sesSender) Close() error {
 	return nil
 }
 
-// sendEmail sends an email via AWS SES
-func (s *sesSender) sendEmail(ctx context.Context, to, subject, htmlBody string) error {
-	// Set timeout
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	// Get sender information
-	fromEmail := s.config.FromEmail
-	if fromEmail == "" {
-		fromEmail = s.config.Username
-	}
-
-	fromName := s.config.FromName
-	if fromName == "" {
-		fromName = "Passwall"
-	}
-
-	// Construct from address
-	fromAddress := fmt.Sprintf("%s <%s>", fromName, fromEmail)
-
-	// Build destination with BCC if configured
-	destination := &types.Destination{
-		ToAddresses: []string{to},
-	}
-	if s.config.BCC != "" {
-		destination.BccAddresses = []string{s.config.BCC}
-	}
-
-	// Build SES input
-	input := &sesv2.SendEmailInput{
-		FromEmailAddress: aws.String(fromAddress),
-		Destination:      destination,
-		Content: &types.EmailContent{
-			Simple: &types.Message{
-				Subject: &types.Content{
-					Data:    aws.String(subject),
-					Charset: aws.String("UTF-8"),
-				},
-				Body: &types.Body{
-					Html: &types.Content{
-						Data:    aws.String(htmlBody),
-						Charset: aws.String("UTF-8"),
-					},
-				},
-			},
-		},
-	}
-
-	// Send email
-	result, err := s.client.SendEmail(ctx, input)
-	if err != nil {
-		return fmt.Errorf("AWS SES SendEmail failed: %w", err)
-	}
-
-	s.logger.Debug("AWS SES email sent",
-		"messageId", aws.ToString(result.MessageId),
-		"to", to)
-
-	return nil
-}

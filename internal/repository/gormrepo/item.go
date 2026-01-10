@@ -167,16 +167,10 @@ func (r *itemRepository) FindAll(ctx context.Context, schema string, filter repo
 			return err
 		}
 
-		// Pagination
-		if filter.Page <= 0 {
-			filter.Page = 1
-		}
-		if filter.PerPage <= 0 || filter.PerPage > 100 {
-			filter.PerPage = 50
-		}
-
-		offset := (filter.Page - 1) * filter.PerPage
-		query = query.Offset(offset).Limit(filter.PerPage)
+	// Pagination
+	// Note: Validation is done at service layer, repository just applies the values
+	offset := (filter.Page - 1) * filter.PerPage
+	query = query.Offset(offset).Limit(filter.PerPage)
 
 		// Order by
 		query = query.Order("created_at DESC")

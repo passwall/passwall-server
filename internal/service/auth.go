@@ -34,8 +34,13 @@ type authService struct {
 	userRepo         repository.UserRepository
 	tokenRepo        repository.TokenRepository
 	verificationRepo repository.VerificationRepository
+	folderRepo       repository.FolderRepository
+	orgRepo          repository.OrganizationRepository
+	orgUserRepo      repository.OrganizationUserRepository
+	invitationRepo   repository.InvitationRepository
 	activityService  UserActivityService
 	emailSender      email.Sender
+	emailBuilder     *email.EmailBuilder
 	config           *AuthConfig
 	logger           Logger
 }
@@ -45,8 +50,13 @@ func NewAuthService(
 	userRepo repository.UserRepository,
 	tokenRepo repository.TokenRepository,
 	verificationRepo repository.VerificationRepository,
+	folderRepo repository.FolderRepository,
+	orgRepo repository.OrganizationRepository,
+	orgUserRepo repository.OrganizationUserRepository,
+	invitationRepo repository.InvitationRepository,
 	activityService UserActivityService,
 	emailSender email.Sender,
+	emailBuilder *email.EmailBuilder,
 	config *AuthConfig,
 	logger Logger,
 ) AuthService {
@@ -54,8 +64,13 @@ func NewAuthService(
 		userRepo:         userRepo,
 		tokenRepo:        tokenRepo,
 		verificationRepo: verificationRepo,
+		folderRepo:       folderRepo,
+		orgRepo:          orgRepo,
+		orgUserRepo:      orgUserRepo,
+		invitationRepo:   invitationRepo,
 		activityService:  activityService,
 		emailSender:      emailSender,
+		emailBuilder:     emailBuilder,
 		config:           config,
 		logger:           logger,
 	}
@@ -122,6 +137,21 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
+	// Create default folders for new user
+	if err := s.createDefaultFolders(ctx, user.ID); err != nil {
+		s.logger.Error("failed to create default folders", "user_id", user.ID, "error", err)
+		// Don't fail signup if folder creation fails
+	}
+
+	// Create personal organization for new user
+	if err := s.createPersonalOrganization(ctx, user, req.EncryptedOrgKey); err != nil {
+		s.logger.Error("failed to create personal organization", "user_id", user.ID, "error", err)
+		// Don't fail signup if organization creation fails
+	}
+
+	// Note: Organization invitations remain pending - user will see them after sign-in
+	// and can accept/decline them manually
+
 	// Generate verification code
 	code, err := generateRandomVerificationCode(6)
 	if err != nil {
@@ -144,7 +174,16 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 	// Send verification email (async)
 	go func() {
 		emailCtx := context.Background()
-		if err := s.emailSender.SendVerificationEmail(emailCtx, req.Email, req.Name, code); err != nil {
+		
+		// Build verification email message
+		message, err := s.emailBuilder.BuildVerificationEmail(req.Email, req.Name, code)
+		if err != nil {
+			s.logger.Error("failed to build verification email", "email", req.Email, "error", err)
+			return
+		}
+		
+		// Send email
+		if err := s.emailSender.Send(emailCtx, message); err != nil {
 			s.logger.Error("failed to send verification email", "email", req.Email, "error", err)
 		}
 	}()
@@ -535,6 +574,130 @@ func (s *authService) ChangeMasterPassword(ctx context.Context, req *domain.Chan
 
 func generateSchema(email string) string {
 	return "user_" + uuid.NewV5(uuid.NamespaceURL, email).String()[:8]
+}
+
+// createDefaultFolders creates default folders for a new user
+func (s *authService) createDefaultFolders(ctx context.Context, userID uint) error {
+	for _, folderName := range constants.DefaultFolders {
+		folder := &domain.Folder{
+			UUID:   uuid.NewV4(),
+			UserID: userID,
+			Name:   folderName,
+		}
+
+		if err := s.folderRepo.Create(ctx, folder); err != nil {
+			s.logger.Error("failed to create default folder", "folder", folderName, "user_id", userID, "error", err)
+			// Continue creating other folders even if one fails
+			continue
+		}
+	}
+
+	s.logger.Info("created default folders", "user_id", userID, "count", len(constants.DefaultFolders))
+	return nil
+}
+
+// createPersonalOrganization creates a personal organization for a new user
+func (s *authService) createPersonalOrganization(ctx context.Context, user *domain.User, encryptedOrgKey string) error {
+	// Create personal organization
+	// Note: Plan limits will be set via free subscription (created automatically during seeding)
+	org := &domain.Organization{
+		Name:            fmt.Sprintf("%s's Workspace", user.Name),
+		BillingEmail:    user.Email,
+		EncryptedOrgKey: encryptedOrgKey, // Organization key encrypted with User Key
+		IsActive:        true,
+	}
+
+	if err := s.orgRepo.Create(ctx, org); err != nil {
+		return fmt.Errorf("failed to create organization: %w", err)
+	}
+
+	// Add user as owner
+	now := time.Now()
+	orgUser := &domain.OrganizationUser{
+		OrganizationID:  org.ID,
+		UserID:          user.ID,
+		Role:            domain.OrgRoleOwner,
+		EncryptedOrgKey: encryptedOrgKey, // User's copy of org key
+		AccessAll:       true,
+		Status:          domain.OrgUserStatusConfirmed,
+		InvitedAt:       &now,
+		AcceptedAt:      &now,
+	}
+
+	if err := s.orgUserRepo.Create(ctx, orgUser); err != nil {
+		// Try to delete the organization if we can't add the user
+		_ = s.orgRepo.Delete(ctx, org.ID)
+		return fmt.Errorf("failed to add user to organization: %w", err)
+	}
+
+	s.logger.Info("created personal organization",
+		"user_id", user.ID,
+		"org_id", org.ID,
+		"org_name", org.Name)
+
+	return nil
+}
+
+// processPendingOrgInvitations checks for pending organization invitations and adds user to organizations
+func (s *authService) processPendingOrgInvitations(ctx context.Context, user *domain.User) error {
+	// Check if there's a pending invitation for this email
+	invitation, err := s.invitationRepo.GetByEmail(ctx, user.Email)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			// No pending invitation - this is normal
+			return nil
+		}
+		return fmt.Errorf("failed to check pending invitations: %w", err)
+	}
+
+	// Check if invitation has organization info
+	if invitation.OrganizationID == nil || invitation.OrgRole == nil || invitation.EncryptedOrgKey == nil {
+		// This is a regular platform invitation, not an org invitation
+		s.logger.Info("invitation found but no org info", "invitation_id", invitation.ID)
+		return nil
+	}
+
+	// Check if user is already in the organization
+	existing, err := s.orgUserRepo.GetByOrgAndUser(ctx, *invitation.OrganizationID, user.ID)
+	if err == nil && existing != nil {
+		s.logger.Info("user already in organization", "org_id", *invitation.OrganizationID, "user_id", user.ID)
+		// Mark invitation as used
+		now := time.Now()
+		invitation.UsedAt = &now
+		_ = s.invitationRepo.Delete(ctx, invitation.ID)
+		return nil
+	}
+
+	// Add user to organization
+	now := time.Now()
+	orgUser := &domain.OrganizationUser{
+		OrganizationID:  *invitation.OrganizationID,
+		UserID:          user.ID,
+		Role:            domain.OrganizationRole(*invitation.OrgRole),
+		EncryptedOrgKey: *invitation.EncryptedOrgKey,
+		AccessAll:       invitation.AccessAll,
+		Status:          domain.OrgUserStatusAccepted, // Auto-accepted since they signed up via invitation
+		InvitedAt:       &invitation.CreatedAt,
+		AcceptedAt:      &now,
+	}
+
+	if err := s.orgUserRepo.Create(ctx, orgUser); err != nil {
+		return fmt.Errorf("failed to add user to organization: %w", err)
+	}
+
+	// Mark invitation as used and delete
+	invitation.UsedAt = &now
+	if err := s.invitationRepo.Delete(ctx, invitation.ID); err != nil {
+		s.logger.Error("failed to delete used invitation", "invitation_id", invitation.ID, "error", err)
+		// Don't fail - user is already added to org
+	}
+
+	s.logger.Info("user auto-joined organization from pending invitation",
+		"user_id", user.ID,
+		"org_id", *invitation.OrganizationID,
+		"org_role", *invitation.OrgRole)
+
+	return nil
 }
 
 // ValidateSchema validates that a schema exists in the database

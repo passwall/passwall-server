@@ -16,6 +16,7 @@ import (
 	"github.com/passwall/passwall-server/pkg/constants"
 	"github.com/passwall/passwall-server/pkg/database"
 	"github.com/passwall/passwall-server/pkg/logger"
+	stripeClient "github.com/passwall/passwall-server/pkg/stripe"
 )
 
 // App represents the application
@@ -45,16 +46,14 @@ func New(ctx context.Context) (*App, error) {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
-	// Auto migrate
+	// Auto migrate - creates all tables with their final structure
 	if err := AutoMigrate(db); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
-	// Seed roles and permissions (using application context)
-	if err := gormrepo.SeedRolesAndPermissions(ctx, db.DB()); err != nil {
-		fmt.Printf("Note: roles and permissions might already exist: %v\n", err)
-	} else {
-		fmt.Println("✓ Roles and permissions seeded successfully")
+	// Seed database - idempotent, safe to run multiple times
+	if err := SeedDatabase(ctx, db, cfg); err != nil {
+		return nil, fmt.Errorf("failed to seed database: %w", err)
 	}
 
 	return &App{
@@ -99,8 +98,8 @@ func (a *App) Run(ctx context.Context) error {
 	collectionRepo := gormrepo.NewCollectionRepository(a.db.DB())
 	collectionUserRepo := gormrepo.NewCollectionUserRepository(a.db.DB())
 	collectionTeamRepo := gormrepo.NewCollectionTeamRepository(a.db.DB())
-	_ = gormrepo.NewOrganizationItemRepository(a.db.DB())    // TODO: Use in OrganizationItemService
-	_ = gormrepo.NewItemShareRepository(a.db.DB())           // TODO: Use in SharingService
+	// Item share repo (for future: direct user-to-user sharing)
+	_ = gormrepo.NewItemShareRepository(a.db.DB()) // TODO: Use in SharingService
 
 	// NOTE: Legacy repos removed - all item types now use ItemRepository with type field
 
@@ -122,6 +121,15 @@ func (a *App) Run(ctx context.Context) error {
 	// Store email sender for cleanup
 	a.emailSender = emailSender
 
+	// Initialize email builder for preparing email messages
+	emailBuilder, err := email.NewEmailBuilder(
+		a.config.Server.FrontendURL,
+		a.config.Email.FromEmail,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to initialize email builder: %w", err)
+	}
+
 	// Initialize services
 	authConfig := &service.AuthConfig{
 		JWTSecret:            a.config.Server.Secret,
@@ -134,23 +142,44 @@ func (a *App) Run(ctx context.Context) error {
 	excludedDomainService := service.NewExcludedDomainService(excludedDomainRepo, serviceLogger)
 	folderService := service.NewFolderService(folderRepo, serviceLogger)
 	verificationService := service.NewVerificationService(verificationRepo, userRepo, serviceLogger)
-	authService := service.NewAuthService(userRepo, tokenRepo, verificationRepo, userActivityService, emailSender, authConfig, serviceLogger)
-	userService := service.NewUserService(userRepo, serviceLogger)
-	invitationService := service.NewInvitationService(invitationRepo, userRepo, emailSender, serviceLogger)
+	authService := service.NewAuthService(userRepo, tokenRepo, verificationRepo, folderRepo, orgRepo, orgUserRepo, invitationRepo, userActivityService, emailSender, emailBuilder, authConfig, serviceLogger)
+	userService := service.NewUserService(userRepo, orgRepo, orgUserRepo, serviceLogger)
+	invitationService := service.NewInvitationService(invitationRepo, userRepo, orgRepo, emailSender, emailBuilder, serviceLogger)
 
 	// Modern flexible items service (handles all item types)
 	itemService := service.NewItemService(itemRepo, serviceLogger)
 
-	// Organization services
-	organizationService := service.NewOrganizationService(orgRepo, orgUserRepo, userRepo, serviceLogger)
+	// Initialize subscription repos first
+	subscriptionRepo := gormrepo.NewSubscriptionRepository(a.db.DB())
+	planRepo := gormrepo.NewPlanRepository(a.db.DB())
+
+	// Initialize Stripe client
+	stripeClientInstance := stripeClient.NewClient(a.config.Stripe.SecretKey, a.config.Stripe.WebhookSecret)
+
+	// Create a placeholder payment service for organizationService (will be updated later)
+	var paymentService service.PaymentService
+
+	// Organization service
+	organizationService := service.NewOrganizationService(orgRepo, orgUserRepo, userRepo, paymentService, invitationService, subscriptionRepo, serviceLogger)
+
+	// Subscription service (needs organizationService, stripe client, email service optional, logger)
+	subscriptionService := service.NewSubscriptionService(subscriptionRepo, planRepo, organizationService, nil, stripeClientInstance, serviceLogger)
+
+	// Now create the real payment service with subscriptionService
+	paymentService = service.NewPaymentService(stripeClientInstance, orgRepo, orgUserRepo, subscriptionService, planRepo, userActivityService, a.config, serviceLogger)
+
 	teamService := service.NewTeamService(teamRepo, teamUserRepo, orgUserRepo, orgRepo, serviceLogger)
-	collectionService := service.NewCollectionService(collectionRepo, collectionUserRepo, collectionTeamRepo, orgUserRepo, teamRepo, orgRepo, serviceLogger)
+	collectionService := service.NewCollectionService(collectionRepo, collectionUserRepo, collectionTeamRepo, orgUserRepo, teamRepo, orgRepo, subscriptionRepo, serviceLogger)
+
+	// Organization items service (shared vault)
+	orgItemRepo := gormrepo.NewOrganizationItemRepository(a.db.DB())
+	organizationItemService := service.NewOrganizationItemService(orgItemRepo, collectionRepo, orgUserRepo, serviceLogger)
 
 	// Initialize handlers
 	activityHandler := httpHandler.NewActivityHandler(userActivityService)
-	authHandler := httpHandler.NewAuthHandler(authService, verificationService, userActivityService, emailSender)
+	authHandler := httpHandler.NewAuthHandler(authService, verificationService, userActivityService, emailSender, emailBuilder)
 	userHandler := httpHandler.NewUserHandler(userService)
-	invitationHandler := httpHandler.NewInvitationHandler(invitationService, userService)
+	invitationHandler := httpHandler.NewInvitationHandler(invitationService, userService, organizationService)
 
 	// Modern handlers (all item types use ItemHandler now)
 	itemHandler := httpHandler.NewItemHandler(itemService)
@@ -161,6 +190,14 @@ func (a *App) Run(ctx context.Context) error {
 	organizationHandler := httpHandler.NewOrganizationHandler(organizationService)
 	teamHandler := httpHandler.NewTeamHandler(teamService)
 	collectionHandler := httpHandler.NewCollectionHandler(collectionService)
+	organizationItemHandler := httpHandler.NewOrganizationItemHandler(organizationItemService)
+
+	// Payment handlers
+	paymentHandler := httpHandler.NewPaymentHandler(paymentService, subscriptionService)
+	webhookHandler := httpHandler.NewWebhookHandler(paymentService)
+
+	// Support handler
+	supportHandler := httpHandler.NewSupportHandler(emailSender, serviceLogger)
 
 	// Setup router
 	router := SetupRouter(
@@ -176,6 +213,10 @@ func (a *App) Run(ctx context.Context) error {
 		organizationHandler,
 		teamHandler,
 		collectionHandler,
+		organizationItemHandler,
+		paymentHandler,
+		webhookHandler,
+		supportHandler,
 	)
 
 	// Create server
@@ -201,8 +242,7 @@ func (a *App) Run(ctx context.Context) error {
 	// Start server in a goroutine
 	serverErrChan := make(chan error, 1)
 	go func() {
-		logger.Infof("Server starting on %s", addr)
-		fmt.Printf("🚀 Passwall Server is starting at %s in '%s' mode\n", addr, a.config.Server.Env)
+		logger.Infof("🚀 Passwall Server is starting at %s in '%s' mode", addr, a.config.Server.Env)
 
 		if err := a.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Errorf("Server failed: %v", err)

@@ -88,8 +88,8 @@ func (s *folderService) Update(ctx context.Context, id uint, userID uint, req *d
 	return folder, nil
 }
 
-func (s *folderService) Delete(ctx context.Context, id uint, userID uint) error {
-	if err := s.repo.Delete(ctx, id, userID); err != nil {
+func (s *folderService) Delete(ctx context.Context, schema string, id uint, userID uint) error {
+	if err := s.repo.Delete(ctx, schema, id, userID); err != nil {
 		if err.Error() == "cannot delete folder: contains items" {
 			return fmt.Errorf("cannot delete folder: contains items")
 		}

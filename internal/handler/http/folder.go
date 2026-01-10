@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/service"
+	"github.com/passwall/passwall-server/pkg/database"
 )
 
 type FolderHandler struct {
@@ -107,6 +108,9 @@ func (h *FolderHandler) Update(c *gin.Context) {
 // Delete removes a folder
 // DELETE /api/folders/:id
 func (h *FolderHandler) Delete(c *gin.Context) {
+	ctx := c.Request.Context()
+	schema := database.GetSchema(ctx)
+	
 	userID, err := GetUserID(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
@@ -120,7 +124,7 @@ func (h *FolderHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.Delete(c.Request.Context(), uint(id), userID); err != nil {
+	if err := h.service.Delete(ctx, schema, uint(id), userID); err != nil {
 		if err.Error() == "folder not found" {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 			return

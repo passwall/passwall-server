@@ -25,5 +25,5 @@ type FolderRepository interface {
 
 	// Delete removes a folder by ID (only if it belongs to the user)
 	// Returns error if folder contains items
-	Delete(ctx context.Context, id uint, userID uint) error
+	Delete(ctx context.Context, schema string, id uint, userID uint) error
 }

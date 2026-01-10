@@ -17,6 +17,12 @@ type Invitation struct {
 	CreatedBy uint       `json:"created_by" gorm:"not null"` // Admin user ID
 	ExpiresAt time.Time  `json:"expires_at" gorm:"not null"`
 	UsedAt    *time.Time `json:"used_at,omitempty"`
+
+	// Organization invitation fields (optional)
+	OrganizationID  *uint   `json:"organization_id,omitempty" gorm:"index"`
+	OrgRole         *string `json:"org_role,omitempty" gorm:"type:varchar(50)"`
+	EncryptedOrgKey *string `json:"encrypted_org_key,omitempty" gorm:"type:text"`
+	AccessAll       bool    `json:"access_all" gorm:"default:false"`
 }
 
 // TableName specifies the table name for Invitation
@@ -39,6 +45,12 @@ type CreateInvitationRequest struct {
 	Email       string  `json:"email" validate:"required,email"`
 	RoleID      uint    `json:"role_id" validate:"required"`
 	Description *string `json:"description,omitempty"` // Optional personal note
+
+	// Organization invitation fields (optional)
+	OrganizationID  *uint   `json:"organization_id,omitempty"`
+	OrgRole         *string `json:"org_role,omitempty"`
+	EncryptedOrgKey *string `json:"encrypted_org_key,omitempty"`
+	AccessAll       *bool   `json:"access_all,omitempty"`
 }
 
 // Validate validates the invitation request

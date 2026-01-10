@@ -31,6 +31,11 @@ func (a *Adapter) Info(msg string, keysAndValues ...interface{}) {
 	}
 }
 
+// Infof logs a formatted info message (Printf-style)
+func (a *Adapter) Infof(format string, args ...interface{}) {
+	Infof(format, args...)
+}
+
 func (a *Adapter) Warn(msg string, keysAndValues ...interface{}) {
 	if len(keysAndValues) > 0 {
 		formatted := formatKeyValues(keysAndValues...)

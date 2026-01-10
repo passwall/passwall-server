@@ -161,11 +161,14 @@ func TestGenerateSecureKey(t *testing.T) {
 	assert.Regexp(t, "^[A-Za-z0-9+/]+=*$", key2)
 }
 
-func TestInit_BackwardsCompatibility(t *testing.T) {
+func TestLoad_BackwardsCompatibility(t *testing.T) {
 	tempDir := t.TempDir()
 	configFile := filepath.Join(tempDir, "config.yml")
 
-	cfg, err := Init(configFile)
+	cfg, err := Load(LoaderOptions{
+		ConfigFile: configFile,
+		EnvPrefix:  "PW",
+	})
 
 	require.NoError(t, err)
 	assert.NotNil(t, cfg)

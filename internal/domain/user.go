@@ -96,3 +96,29 @@ func (u *User) HasPermission(permission string) bool {
 	}
 	return false
 }
+
+// OwnershipCheckResult represents organizations where user is sole owner
+type OwnershipCheckResult struct {
+	IsSoleOwner   bool                     `json:"is_sole_owner"`
+	Organizations []SoleOwnerOrganization  `json:"organizations"`
+}
+
+// SoleOwnerOrganization represents an organization where user is the sole owner
+type SoleOwnerOrganization struct {
+	ID           uint   `json:"id"`
+	Name         string `json:"name"`
+	MemberCount  int    `json:"member_count"`
+	CanTransfer  bool   `json:"can_transfer"` // True if there are other members to transfer to
+}
+
+// TransferOwnershipRequest represents a request to transfer organization ownership
+type TransferOwnershipRequest struct {
+	UserID         uint `json:"user_id" binding:"required"`
+	OrganizationID uint `json:"organization_id" binding:"required"`
+	NewOwnerUserID uint `json:"new_owner_user_id" binding:"required"`
+}
+
+// DeleteWithOrganizationsRequest represents a request to delete user with their organizations
+type DeleteWithOrganizationsRequest struct {
+	OrganizationIDs []uint `json:"organization_ids" binding:"required"`
+}

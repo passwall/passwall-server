@@ -18,6 +18,7 @@ type AuthHandler struct {
 	verificationService service.VerificationService
 	activityService     service.UserActivityService
 	emailSender         email.Sender
+	emailBuilder        *email.EmailBuilder
 }
 
 // NewAuthHandler creates a new auth handler
@@ -26,12 +27,14 @@ func NewAuthHandler(
 	verificationService service.VerificationService,
 	activityService service.UserActivityService,
 	emailSender email.Sender,
+	emailBuilder *email.EmailBuilder,
 ) *AuthHandler {
 	return &AuthHandler{
 		authService:         authService,
 		verificationService: verificationService,
 		activityService:     activityService,
 		emailSender:         emailSender,
+		emailBuilder:        emailBuilder,
 	}
 }
 
@@ -327,7 +330,16 @@ func (h *AuthHandler) ResendVerificationCode(c *gin.Context) {
 	// Send new verification email
 	go func() {
 		emailCtx := context.Background()
-		if err := h.emailSender.SendVerificationEmail(emailCtx, req.Email, "", code); err != nil {
+		
+		// Build verification email message
+		message, err := h.emailBuilder.BuildVerificationEmail(req.Email, "", code)
+		if err != nil {
+			// Log error but don't fail the request
+			return
+		}
+		
+		// Send email
+		if err := h.emailSender.Send(emailCtx, message); err != nil {
 			// Log error but don't fail the request
 		}
 	}()

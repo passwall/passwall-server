@@ -14,7 +14,7 @@ type Collection struct {
 	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"deleted_at,omitempty" gorm:"index"`
 
-	OrganizationID uint `json:"organization_id" gorm:"not null;index"`
+	OrganizationID uint `json:"organization_id" gorm:"not null;index;constraint:OnDelete:CASCADE"`
 
 	// Collection details
 	Name        string `json:"name" gorm:"type:varchar(255);not null"`
@@ -25,6 +25,11 @@ type Collection struct {
 
 	// External ID for LDAP/AD sync
 	ExternalID *string `json:"external_id,omitempty" gorm:"type:varchar(255);index"`
+
+	// Stats (runtime calculated, not stored in DB)
+	ItemCount *int `json:"item_count,omitempty" gorm:"-"`
+	UserCount *int `json:"user_count,omitempty" gorm:"-"`
+	TeamCount *int `json:"team_count,omitempty" gorm:"-"`
 
 	// Associations
 	Organization *Organization      `json:"organization,omitempty" gorm:"foreignKey:OrganizationID"`
@@ -44,8 +49,8 @@ type CollectionUser struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 
-	CollectionID       uint `json:"collection_id" gorm:"not null;index"`
-	OrganizationUserID uint `json:"organization_user_id" gorm:"not null;index"`
+	CollectionID       uint `json:"collection_id" gorm:"not null;index;constraint:OnDelete:CASCADE"`
+	OrganizationUserID uint `json:"organization_user_id" gorm:"not null;index;constraint:OnDelete:CASCADE"`
 
 	// Permissions
 	CanRead      bool `json:"can_read" gorm:"default:true"`
@@ -69,8 +74,8 @@ type CollectionTeam struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 
-	CollectionID uint `json:"collection_id" gorm:"not null;index"`
-	TeamID       uint `json:"team_id" gorm:"not null;index"`
+	CollectionID uint `json:"collection_id" gorm:"not null;index;constraint:OnDelete:CASCADE"`
+	TeamID       uint `json:"team_id" gorm:"not null;index;constraint:OnDelete:CASCADE"`
 
 	// Permissions
 	CanRead       bool `json:"can_read" gorm:"default:true"`
@@ -173,6 +178,9 @@ func ToCollectionDTO(c *Collection) *CollectionDTO {
 		ExternalID:     c.ExternalID,
 		CreatedAt:      c.CreatedAt,
 		UpdatedAt:      c.UpdatedAt,
+		ItemCount:      c.ItemCount,
+		UserCount:      c.UserCount,
+		TeamCount:      c.TeamCount,
 	}
 }
 
