@@ -67,9 +67,10 @@ func TestConfig_Validate(t *testing.T) {
 			name: "valid config",
 			config: &Config{
 				Server: ServerConfig{
-					Port:       "3625",
-					Passphrase: "valid-passphrase",
-					Secret:     "valid-secret",
+					Port:        "3625",
+					Passphrase:  "valid-passphrase",
+					Secret:      "valid-secret",
+					FrontendURL: "http://localhost:5173",
 				},
 				Database: DatabaseConfig{
 					Host:     "localhost",
@@ -99,9 +100,10 @@ func TestConfig_Validate(t *testing.T) {
 			name: "invalid passphrase",
 			config: &Config{
 				Server: ServerConfig{
-					Port:       "3625",
-					Passphrase: "add-your-key-to-here",
-					Secret:     "valid-secret",
+					Port:        "3625",
+					Passphrase:  "add-your-key-to-here",
+					Secret:      "valid-secret",
+					FrontendURL: "http://localhost:5173",
 				},
 				Database: DatabaseConfig{
 					Host:     "localhost",
@@ -116,9 +118,10 @@ func TestConfig_Validate(t *testing.T) {
 			name: "missing database host",
 			config: &Config{
 				Server: ServerConfig{
-					Port:       "3625",
-					Passphrase: "valid-passphrase",
-					Secret:     "valid-secret",
+					Port:        "3625",
+					Passphrase:  "valid-passphrase",
+					Secret:      "valid-secret",
+					FrontendURL: "http://localhost:5173",
 				},
 				Database: DatabaseConfig{
 					Name:     "passwall",
