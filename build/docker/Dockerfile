@@ -19,7 +19,10 @@ FROM alpine:latest
 
 WORKDIR /app
 
-# ENV PW_DIR=/app/store
+# Create placeholder files BEFORE volume mounts
+# This prevents Docker from creating them as directories
+RUN touch /app/config.yml && \
+    touch /app/passwall-server.log
 
 ENTRYPOINT ["/app/passwall-server"]
 
