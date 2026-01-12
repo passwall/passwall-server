@@ -17,6 +17,7 @@ func SetupRouter(
 	authService service.AuthService,
 	authHandler *httpHandler.AuthHandler,
 	activityHandler *httpHandler.ActivityHandler,
+	organizationActivityHandler *httpHandler.OrganizationActivityHandler,
 	itemHandler *httpHandler.ItemHandler,
 	excludedDomainHandler *httpHandler.ExcludedDomainHandler,
 	folderHandler *httpHandler.FolderHandler,
@@ -190,6 +191,9 @@ func SetupRouter(
 			orgsGroup.GET("/:id", organizationHandler.GetByID)
 			orgsGroup.PUT("/:id", organizationHandler.Update)
 			orgsGroup.DELETE("/:id", organizationHandler.Delete)
+
+			// Organization activities (visible to org members)
+			orgsGroup.GET("/:id/activities", organizationActivityHandler.ListOrganizationActivities)
 
 			// Member management (nested under organization)
 			orgsGroup.POST("/:id/members", organizationHandler.InviteUser)

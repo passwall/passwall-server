@@ -57,6 +57,8 @@ type AuthResponse struct {
 	AccessToken      string       `json:"access_token"`
 	RefreshToken     string       `json:"refresh_token"`
 	Type             string       `json:"type"` // "Bearer"
+	AccessTokenExpiresAt  int64   `json:"access_token_expires_at,omitempty"`  // unix seconds
+	RefreshTokenExpiresAt int64   `json:"refresh_token_expires_at,omitempty"` // unix seconds
 	ProtectedUserKey string       `json:"protected_user_key"`
 	KdfConfig        *KdfConfig   `json:"kdf_config"`
 	User             *UserAuthDTO `json:"user"`
@@ -66,6 +68,8 @@ type AuthResponse struct {
 type TokenDetails struct {
 	AccessToken   string    `json:"access_token"`
 	RefreshToken  string    `json:"refresh_token"`
+	AccessTokenExpiresAt  int64 `json:"access_token_expires_at,omitempty"`  // unix seconds
+	RefreshTokenExpiresAt int64 `json:"refresh_token_expires_at,omitempty"` // unix seconds
 	AtExpiresTime time.Time `json:"-"`
 	RtExpiresTime time.Time `json:"-"`
 	AtUUID        uuid.UUID `json:"-"`

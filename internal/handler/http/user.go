@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -12,11 +13,15 @@ import (
 )
 
 type UserHandler struct {
-	service service.UserService
+	service        service.UserService
+	activityLogger *service.ActivityLogger
 }
 
-func NewUserHandler(service service.UserService) *UserHandler {
-	return &UserHandler{service: service}
+func NewUserHandler(userService service.UserService, activityService service.UserActivityService) *UserHandler {
+	return &UserHandler{
+		service:        userService,
+		activityLogger: service.NewActivityLogger(activityService),
+	}
 }
 
 func (h *UserHandler) List(c *gin.Context) {
@@ -55,6 +60,24 @@ func (h *UserHandler) Create(c *gin.Context) {
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user", "details": err.Error()})
 		return
+	}
+
+	// Audit log (admin action) - never log secrets (hashes/keys)
+	if actorID, actorErr := GetUserID(c); actorErr == nil && h.activityLogger != nil {
+		ipAddress := GetIPAddress(c)
+		userAgent := GetUserAgent(c)
+		targetRoleID := constants.RoleIDMember
+		if req.RoleID != nil {
+			targetRoleID = *req.RoleID
+		}
+
+		go func() {
+			h.activityLogger.LogActivity(context.Background(), actorID, domain.ActivityTypeAdminUserCreated, ipAddress, userAgent, service.ActivityDetails{
+				service.ActivityFieldUserID:    user.ID,
+				service.ActivityFieldUserEmail: user.Email,
+				service.ActivityFieldRole:      targetRoleID,
+			})
+		}()
 	}
 
 	// Get created user with role data
@@ -120,6 +143,12 @@ func (h *UserHandler) Update(c *gin.Context) {
 		return
 	}
 
+	// Capture old values for audit diff
+	oldName := existingUser.Name
+	oldEmail := existingUser.Email
+	oldRoleID := existingUser.RoleID
+	oldLanguage := existingUser.Language
+
 	// Apply updates
 	req.ApplyTo(existingUser)
 
@@ -127,6 +156,37 @@ func (h *UserHandler) Update(c *gin.Context) {
 	if err := h.service.Update(ctx, id, existingUser); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user"})
 		return
+	}
+
+	// Audit log (admin action)
+	if actorID, actorErr := GetUserID(c); actorErr == nil && h.activityLogger != nil {
+		ipAddress := GetIPAddress(c)
+		userAgent := GetUserAgent(c)
+		details := service.ActivityDetails{
+			service.ActivityFieldUserID:    id,
+			service.ActivityFieldUserEmail: existingUser.Email,
+		}
+
+		if oldName != existingUser.Name {
+			details["old_name"] = oldName
+			details["new_name"] = existingUser.Name
+		}
+		if oldEmail != existingUser.Email {
+			details["old_email"] = oldEmail
+			details["new_email"] = existingUser.Email
+		}
+		if oldRoleID != existingUser.RoleID {
+			details[service.ActivityFieldOldRole] = oldRoleID
+			details[service.ActivityFieldNewRole] = existingUser.RoleID
+		}
+		if oldLanguage != existingUser.Language {
+			details["old_language"] = oldLanguage
+			details["new_language"] = existingUser.Language
+		}
+
+		go func() {
+			h.activityLogger.LogActivity(context.Background(), actorID, domain.ActivityTypeAdminUserUpdated, ipAddress, userAgent, details)
+		}()
 	}
 
 	// Get updated user with fresh role data
@@ -157,6 +217,19 @@ func (h *UserHandler) Delete(c *gin.Context) {
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch user"})
 		return
+	}
+
+	// Audit log (admin action) - before deletion
+	if actorID, actorErr := GetUserID(c); actorErr == nil && h.activityLogger != nil {
+		ipAddress := GetIPAddress(c)
+		userAgent := GetUserAgent(c)
+		go func() {
+			h.activityLogger.LogActivity(context.Background(), actorID, domain.ActivityTypeAdminUserDeleted, ipAddress, userAgent, service.ActivityDetails{
+				service.ActivityFieldUserID:    id,
+				service.ActivityFieldUserEmail: user.Email,
+				service.ActivityFieldRole:      user.RoleID,
+			})
+		}()
 	}
 
 	if err := h.service.Delete(ctx, id, user.Schema); err != nil {

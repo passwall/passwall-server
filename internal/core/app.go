@@ -177,8 +177,9 @@ func (a *App) Run(ctx context.Context) error {
 
 	// Initialize handlers
 	activityHandler := httpHandler.NewActivityHandler(userActivityService)
+	organizationActivityHandler := httpHandler.NewOrganizationActivityHandler(userActivityService, orgUserRepo)
 	authHandler := httpHandler.NewAuthHandler(authService, verificationService, userActivityService, emailSender, emailBuilder)
-	userHandler := httpHandler.NewUserHandler(userService)
+	userHandler := httpHandler.NewUserHandler(userService, userActivityService)
 	invitationHandler := httpHandler.NewInvitationHandler(invitationService, userService, organizationService)
 
 	// Modern handlers (all item types use ItemHandler now)
@@ -190,7 +191,7 @@ func (a *App) Run(ctx context.Context) error {
 	organizationHandler := httpHandler.NewOrganizationHandler(organizationService)
 	teamHandler := httpHandler.NewTeamHandler(teamService)
 	collectionHandler := httpHandler.NewCollectionHandler(collectionService)
-	organizationItemHandler := httpHandler.NewOrganizationItemHandler(organizationItemService)
+	organizationItemHandler := httpHandler.NewOrganizationItemHandler(organizationItemService, userActivityService)
 
 	// Payment handlers
 	paymentHandler := httpHandler.NewPaymentHandler(paymentService, subscriptionService)
@@ -205,6 +206,7 @@ func (a *App) Run(ctx context.Context) error {
 		authService,
 		authHandler,
 		activityHandler,
+		organizationActivityHandler,
 		itemHandler,
 		excludedDomainHandler,
 		folderHandler,

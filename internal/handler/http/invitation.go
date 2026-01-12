@@ -254,6 +254,40 @@ func (h *InvitationHandler) Decline(c *gin.Context) {
 		return
 	}
 
+	// Find the specific invitation (needed to clean up org membership invites)
+	var targetInvitation *domain.Invitation
+	user, err := h.userService.GetByID(ctx, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user info"})
+		return
+	}
+
+	allInvitations, err := h.invitationService.GetPendingInvitations(ctx, user.Email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get invitations"})
+		return
+	}
+	for _, inv := range allInvitations {
+		if inv.ID == invitationID {
+			targetInvitation = inv
+			break
+		}
+	}
+
+	if targetInvitation == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "invitation not found"})
+		return
+	}
+
+	// If this is an organization invitation and there is a pending org membership record,
+	// remove it so the org doesn't keep a stale "invited" member.
+	if targetInvitation.OrganizationID != nil {
+		if err := h.organizationService.DeclineInvitationForUser(ctx, *targetInvitation.OrganizationID, userID); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "failed to decline organization invitation", "details": err.Error()})
+			return
+		}
+	}
+
 	if err := h.invitationService.DeclineInvitation(ctx, invitationID, userID); err != nil {
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})

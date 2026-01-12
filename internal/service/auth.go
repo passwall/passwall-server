@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"strconv"
@@ -14,6 +15,7 @@ import (
 	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/pkg/constants"
 	"github.com/passwall/passwall-server/pkg/database"
+	"github.com/passwall/passwall-server/pkg/hash"
 	uuid "github.com/satori/go.uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -288,6 +290,8 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 		AccessToken:      tokenDetails.AccessToken,
 		RefreshToken:     tokenDetails.RefreshToken,
 		Type:             "Bearer",
+		AccessTokenExpiresAt:  tokenDetails.AccessTokenExpiresAt,
+		RefreshTokenExpiresAt: tokenDetails.RefreshTokenExpiresAt,
 		ProtectedUserKey: user.ProtectedUserKey, // Encrypted, client will decrypt
 		KdfConfig:        user.GetKdfConfig(),
 		User: &domain.UserAuthDTO{
@@ -315,10 +319,34 @@ func (s *authService) RefreshToken(ctx context.Context, refreshToken string) (*d
 		return nil, ErrUnauthorized
 	}
 
+	// SECURITY: Require token UUID and verify token is currently active (prevents replay after rotation)
+	tokenUUID, _ := claims["uuid"].(string)
+	if tokenUUID == "" {
+		return nil, ErrUnauthorized
+	}
+
 	// Get user UUID from claims
 	userUUIDStr, ok := claims["user_uuid"].(string)
 	if !ok {
 		return nil, ErrUnauthorized
+	}
+
+	// SECURITY: Check token presence + expiry in DB (revocation) and validate token hash matches.
+	dbToken, err := s.tokenRepo.GetByUUID(ctx, tokenUUID)
+	if err != nil {
+		return nil, ErrExpiredToken
+	}
+	if dbToken.IsExpired() {
+		_ = s.tokenRepo.DeleteByUUID(ctx, tokenUUID)
+		return nil, ErrExpiredToken
+	}
+	// TokenRepository stores SHA-256 hash of the token string.
+	expectedHash := dbToken.Token
+	actualHash := hash.SHA256(refreshToken)
+	if subtle.ConstantTimeCompare([]byte(expectedHash), []byte(actualHash)) != 1 {
+		// Token doesn't match stored hash -> treat as invalid/revoked
+		_ = s.tokenRepo.DeleteByUUID(ctx, tokenUUID)
+		return nil, ErrExpiredToken
 	}
 
 	// Get user
@@ -380,6 +408,15 @@ func (s *authService) ValidateToken(ctx context.Context, tokenString string) (*d
 		return nil, ErrExpiredToken
 	}
 
+	// SECURITY: Validate token hash matches DB (TokenRepository stores SHA-256 of token string).
+	// This prevents accepting any token with a valid UUID/exp unless it matches the currently active token value.
+	expectedHash := dbToken.Token
+	actualHash := hash.SHA256(tokenString)
+	if subtle.ConstantTimeCompare([]byte(expectedHash), []byte(actualHash)) != 1 {
+		_ = s.tokenRepo.DeleteByUUID(ctx, tokenUUID)
+		return nil, ErrExpiredToken
+	}
+
 	// Get user to get user ID, email, schema, and role
 	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
@@ -426,6 +463,7 @@ func (s *authService) createToken(user *domain.User) (*domain.TokenDetails, erro
 		return nil, err
 	}
 	td.AccessToken = accessToken
+	td.AccessTokenExpiresAt = td.AtExpiresTime.Unix()
 
 	// Create refresh token
 	rtClaims := jwt.MapClaims{
@@ -440,6 +478,7 @@ func (s *authService) createToken(user *domain.User) (*domain.TokenDetails, erro
 		return nil, err
 	}
 	td.RefreshToken = refreshToken
+	td.RefreshTokenExpiresAt = td.RtExpiresTime.Unix()
 
 	return td, nil
 }
@@ -641,7 +680,7 @@ func (s *authService) createPersonalOrganization(ctx context.Context, user *doma
 // processPendingOrgInvitations checks for pending organization invitations and adds user to organizations
 func (s *authService) processPendingOrgInvitations(ctx context.Context, user *domain.User) error {
 	// Check if there's a pending invitation for this email
-	invitation, err := s.invitationRepo.GetByEmail(ctx, user.Email)
+	invitations, err := s.invitationRepo.GetAllByEmail(ctx, user.Email)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			// No pending invitation - this is normal
@@ -650,10 +689,19 @@ func (s *authService) processPendingOrgInvitations(ctx context.Context, user *do
 		return fmt.Errorf("failed to check pending invitations: %w", err)
 	}
 
-	// Check if invitation has organization info
-	if invitation.OrganizationID == nil || invitation.OrgRole == nil || invitation.EncryptedOrgKey == nil {
-		// This is a regular platform invitation, not an org invitation
-		s.logger.Info("invitation found but no org info", "invitation_id", invitation.ID)
+	// Find the first org invitation (if any). We keep this simple to avoid surprising
+	// auto-joins across multiple orgs; can be extended later.
+	var invitation *domain.Invitation
+	for _, inv := range invitations {
+		if inv == nil {
+			continue
+		}
+		if inv.OrganizationID != nil && inv.OrgRole != nil && inv.EncryptedOrgKey != nil {
+			invitation = inv
+			break
+		}
+	}
+	if invitation == nil {
 		return nil
 	}
 

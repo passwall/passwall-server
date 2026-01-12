@@ -192,30 +192,30 @@ func (s *organizationItemService) Update(ctx context.Context, id, userID uint, r
 	return item, nil
 }
 
-func (s *organizationItemService) Delete(ctx context.Context, id, userID uint) error {
+func (s *organizationItemService) Delete(ctx context.Context, id, userID uint) (*domain.OrganizationItem, error) {
 	// Get item
 	item, err := s.itemRepo.GetByID(ctx, id)
 	if err != nil {
-		return fmt.Errorf("item not found: %w", err)
+		return nil, fmt.Errorf("item not found: %w", err)
 	}
 
 	// Check access
 	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, item.OrganizationID, userID)
 	if err != nil {
-		return repository.ErrForbidden
+		return nil, repository.ErrForbidden
 	}
 
 	// Only admins or creator can delete
 	if !orgUser.IsAdmin() && item.CreatedByUserID != userID {
-		return repository.ErrForbidden
+		return nil, repository.ErrForbidden
 	}
 
 	if err := s.itemRepo.SoftDelete(ctx, id); err != nil {
 		s.logger.Error("failed to delete organization item", "item_id", id, "error", err)
-		return fmt.Errorf("failed to delete item: %w", err)
+		return nil, fmt.Errorf("failed to delete item: %w", err)
 	}
 
 	s.logger.Info("organization item deleted", "item_id", id, "user_id", userID)
-	return nil
+	return item, nil
 }
 

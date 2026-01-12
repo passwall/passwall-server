@@ -19,6 +19,11 @@ const (
 	ActivityTypeItemUpdated    ActivityType = "item_updated"
 	ActivityTypeItemDeleted    ActivityType = "item_deleted"
 	ActivityTypeFailedSignIn   ActivityType = "failed_signin"
+
+	// Admin / Audit activities (admin-only visibility in UI)
+	ActivityTypeAdminUserCreated ActivityType = "admin_user_created"
+	ActivityTypeAdminUserUpdated ActivityType = "admin_user_updated"
+	ActivityTypeAdminUserDeleted ActivityType = "admin_user_deleted"
 	
 	// Billing & Subscription Activities
 	ActivityTypeCheckoutCreated           ActivityType = "checkout_created"
@@ -51,6 +56,7 @@ func (UserActivity) TableName() string {
 // UserActivityDTO for API responses
 type UserActivityDTO struct {
 	ID           uint         `json:"id"`
+	UserID       uint         `json:"user_id"`
 	ActivityType ActivityType `json:"activity_type"`
 	IPAddress    string       `json:"ip_address"`
 	UserAgent    string       `json:"user_agent"`
@@ -75,6 +81,7 @@ func ToUserActivityDTO(activity *UserActivity) *UserActivityDTO {
 
 	return &UserActivityDTO{
 		ID:           activity.ID,
+		UserID:       activity.UserID,
 		ActivityType: activity.ActivityType,
 		IPAddress:    activity.IPAddress,
 		UserAgent:    activity.UserAgent,

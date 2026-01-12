@@ -15,6 +15,7 @@ type UserActivityService interface {
 	GetUserActivities(ctx context.Context, userID uint, limit int) ([]*domain.UserActivity, error)
 	GetLastSignIn(ctx context.Context, userID uint) (*domain.UserActivity, error)
 	ListActivities(ctx context.Context, filter repository.ActivityFilter) ([]*domain.UserActivity, int64, error)
+	ListActivitiesByUserIDs(ctx context.Context, userIDs []uint, limit int, offset int) ([]*domain.UserActivity, error)
 	CleanupOldActivities(ctx context.Context, olderThan time.Duration) (int64, error)
 }
 
@@ -68,6 +69,10 @@ func (s *userActivityService) GetLastSignIn(ctx context.Context, userID uint) (*
 
 func (s *userActivityService) ListActivities(ctx context.Context, filter repository.ActivityFilter) ([]*domain.UserActivity, int64, error) {
 	return s.repo.List(ctx, filter)
+}
+
+func (s *userActivityService) ListActivitiesByUserIDs(ctx context.Context, userIDs []uint, limit int, offset int) ([]*domain.UserActivity, error) {
+	return s.repo.ListByUserIDs(ctx, userIDs, limit, offset)
 }
 
 func (s *userActivityService) CleanupOldActivities(ctx context.Context, olderThan time.Duration) (int64, error) {

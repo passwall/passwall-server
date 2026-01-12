@@ -11,7 +11,9 @@ type Invitation struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 
-	Email     string     `json:"email" gorm:"type:varchar(255);uniqueIndex;not null"`
+	// NOTE: Email is NOT unique because a user can have multiple invitations
+	// (e.g. multiple organization invites). Code remains unique.
+	Email     string     `json:"email" gorm:"type:varchar(255);index;not null"`
 	Code      string     `json:"code" gorm:"type:varchar(64);uniqueIndex;not null"`
 	RoleID    uint       `json:"role_id" gorm:"not null"`
 	CreatedBy uint       `json:"created_by" gorm:"not null"` // Admin user ID

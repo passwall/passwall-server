@@ -25,8 +25,11 @@ type ItemFilter struct {
 	FolderID   *uint
 	Tags       []string
 	Search     string
-	AutoFill   *bool
-	AutoLogin  *bool
-	Page       int
-	PerPage    int
+	// URIHints filters by metadata.uri_hint (domain only, no paths).
+	// If multiple are provided, the result matches ANY of them.
+	URIHints  []string
+	AutoFill  *bool
+	AutoLogin *bool
+	Page      int
+	PerPage   int
 }

@@ -290,6 +290,27 @@ func (s *organizationService) InviteUser(ctx context.Context, orgID uint, invite
 		return nil, fmt.Errorf("user is already a member of this organization")
 	}
 
+	// Create an invitation record as well (unified invitation management + email).
+	// This enables a single "Invitations" area to manage both platform and org invites.
+	inviter, err := s.userRepo.GetByID(ctx, inviterUserID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get inviter info: %w", err)
+	}
+
+	orgRoleStr := string(req.Role)
+	accessAll := req.AccessAll
+	invitationReq := &domain.CreateInvitationRequest{
+		Email:           req.Email,
+		RoleID:          2, // Member role for platform access (invitee already exists, but keep consistent)
+		OrganizationID:  &orgID,
+		OrgRole:         &orgRoleStr,
+		EncryptedOrgKey: &req.EncryptedOrgKey,
+		AccessAll:       &accessAll,
+	}
+	if _, err := s.invitationService.CreateInvitation(ctx, invitationReq, inviterUserID, inviter.Name); err != nil {
+		return nil, fmt.Errorf("failed to create invitation: %w", err)
+	}
+
 	// Create organization user (invitation)
 	now := time.Now()
 	orgUser := &domain.OrganizationUser{
@@ -308,8 +329,7 @@ func (s *organizationService) InviteUser(ctx context.Context, orgID uint, invite
 	}
 
 	s.logger.Info("user invited to organization", "org_id", orgID, "invitee_email", req.Email, "role", req.Role)
-
-	// TODO: Send invitation email to registered user
+	// Email is sent via InvitationService (above).
 
 	return orgUser, nil
 }
@@ -419,6 +439,24 @@ func (s *organizationService) AddExistingMember(ctx context.Context, orgUser *do
 	// Check if user is already a member
 	existing, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgUser.OrganizationID, orgUser.UserID)
 	if err == nil && existing != nil {
+		// If there's a pending org membership invitation, accept it instead of failing.
+		if existing.Status == domain.OrgUserStatusInvited {
+			now := time.Now()
+			existing.Status = domain.OrgUserStatusAccepted
+			existing.AcceptedAt = &now
+			// Keep the org role / access_all from the existing record to avoid privilege escalation
+			// from any client-controlled invitation metadata.
+			if err := s.orgUserRepo.Update(ctx, existing); err != nil {
+				return fmt.Errorf("failed to accept existing invitation: %w", err)
+			}
+
+			s.logger.Info("existing org invitation accepted",
+				"org_id", existing.OrganizationID,
+				"user_id", existing.UserID,
+				"role", existing.Role)
+			return nil
+		}
+
 		return fmt.Errorf("user is already a member of this organization")
 	}
 
@@ -445,6 +483,35 @@ func (s *organizationService) AddExistingMember(ctx context.Context, orgUser *do
 		"user_id", orgUser.UserID,
 		"role", orgUser.Role)
 	
+	return nil
+}
+
+// DeclineInvitationForUser removes a pending org membership invitation for the invitee.
+// This is used when the user declines an organization invitation via the unified invitations flow.
+func (s *organizationService) DeclineInvitationForUser(ctx context.Context, orgID uint, userID uint) error {
+	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	if err != nil {
+		// No org membership record exists (e.g. invite was only stored as an Invitation row)
+		if err == repository.ErrNotFound {
+			return nil
+		}
+		return err
+	}
+
+	// Only allow declining if it's still a pending invite
+	if orgUser.Status != domain.OrgUserStatusInvited {
+		return fmt.Errorf("invitation already processed")
+	}
+
+	if err := s.orgUserRepo.Delete(ctx, orgUser.ID); err != nil {
+		return fmt.Errorf("failed to decline org invitation: %w", err)
+	}
+
+	s.logger.Info("org invitation declined",
+		"org_id", orgID,
+		"user_id", userID,
+		"org_user_id", orgUser.ID)
+
 	return nil
 }
 

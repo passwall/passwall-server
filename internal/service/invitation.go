@@ -53,16 +53,37 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req *domain.Cr
 		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
-	// Check if user already exists
-	existingUser, err := s.userRepo.GetByEmail(ctx, req.Email)
-	if err == nil && existingUser != nil {
-		return nil, repository.ErrAlreadyExists
+	// Platform/site invitations are only for non-registered users.
+	// Organization invitations MAY target existing users.
+	if req.OrganizationID == nil {
+		existingUser, err := s.userRepo.GetByEmail(ctx, req.Email)
+		if err == nil && existingUser != nil {
+			return nil, repository.ErrAlreadyExists
+		}
 	}
 
-	// Check if there's already an active invitation
-	existingInvite, err := s.repo.GetByEmail(ctx, req.Email)
-	if err == nil && existingInvite != nil {
-		return nil, fmt.Errorf("active invitation already exists for this email")
+	// Check if there's already an active invitation for the same scope:
+	// - Platform invite: (email + organization_id IS NULL)
+	// - Org invite: (email + organization_id = orgID)
+	existingInvites, err := s.repo.GetAllByEmail(ctx, req.Email)
+	if err != nil && err != repository.ErrNotFound {
+		return nil, fmt.Errorf("failed to check existing invitations: %w", err)
+	}
+	for _, inv := range existingInvites {
+		// Only active invites are returned by GetAllByEmail, but keep defensively.
+		if inv == nil || inv.IsUsed() || inv.IsExpired() {
+			continue
+		}
+
+		// Platform scope collision
+		if req.OrganizationID == nil && inv.OrganizationID == nil {
+			return nil, fmt.Errorf("active invitation already exists for this email")
+		}
+
+		// Org scope collision
+		if req.OrganizationID != nil && inv.OrganizationID != nil && *req.OrganizationID == *inv.OrganizationID {
+			return nil, fmt.Errorf("active invitation already exists for this email")
+		}
 	}
 
 	// Generate invitation code (32 chars, URL-safe)

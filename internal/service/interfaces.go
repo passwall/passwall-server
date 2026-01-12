@@ -88,6 +88,7 @@ type OrganizationService interface {
 	RemoveMember(ctx context.Context, orgID, orgUserID uint, requestingUserID uint) error
 	AcceptInvitation(ctx context.Context, orgUserID uint, userID uint) error
 	AddExistingMember(ctx context.Context, orgUser *domain.OrganizationUser) error
+	DeclineInvitationForUser(ctx context.Context, orgID uint, userID uint) error
 	
 	// Statistics
 	GetMemberCount(ctx context.Context, orgID uint) (int, error)
@@ -133,7 +134,7 @@ type OrganizationItemService interface {
 	GetByID(ctx context.Context, id, userID uint) (*domain.OrganizationItem, error)
 	ListByCollection(ctx context.Context, collectionID, userID uint) ([]*domain.OrganizationItem, error)
 	Update(ctx context.Context, id, userID uint, req *UpdateOrgItemRequest) (*domain.OrganizationItem, error)
-	Delete(ctx context.Context, id, userID uint) error
+	Delete(ctx context.Context, id, userID uint) (*domain.OrganizationItem, error)
 }
 
 // PaymentService defines the business logic for Stripe payments

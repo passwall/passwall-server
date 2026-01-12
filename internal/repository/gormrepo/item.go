@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/passwall/passwall-server/internal/domain"
@@ -155,6 +156,23 @@ func (r *itemRepository) FindAll(ctx context.Context, schema string, filter repo
 			)
 		}
 
+		// Filter by uri_hint (domain only)
+		// Matches exact domain OR any subdomain of that domain.
+		if len(filter.URIHints) > 0 {
+			clauses := make([]string, 0, len(filter.URIHints))
+			args := make([]interface{}, 0, len(filter.URIHints)*2)
+			for _, hint := range filter.URIHints {
+				if hint == "" {
+					continue
+				}
+				clauses = append(clauses, "(metadata->>'uri_hint' = ? OR metadata->>'uri_hint' LIKE ?)")
+				args = append(args, hint, "%."+hint)
+			}
+			if len(clauses) > 0 {
+				query = query.Where(strings.Join(clauses, " OR "), args...)
+			}
+		}
+
 		// Filter by tags
 		if len(filter.Tags) > 0 {
 			for _, tag := range filter.Tags {
@@ -167,10 +185,10 @@ func (r *itemRepository) FindAll(ctx context.Context, schema string, filter repo
 			return err
 		}
 
-	// Pagination
-	// Note: Validation is done at service layer, repository just applies the values
-	offset := (filter.Page - 1) * filter.PerPage
-	query = query.Offset(offset).Limit(filter.PerPage)
+		// Pagination
+		// Note: Validation is done at service layer, repository just applies the values
+		offset := (filter.Page - 1) * filter.PerPage
+		query = query.Offset(offset).Limit(filter.PerPage)
 
 		// Order by
 		query = query.Order("created_at DESC")

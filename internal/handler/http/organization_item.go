@@ -3,6 +3,7 @@ package http
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/passwall/passwall-server/internal/domain"
@@ -12,10 +13,17 @@ import (
 
 type OrganizationItemHandler struct {
 	service service.OrganizationItemService
+	activityLogger *service.ActivityLogger
 }
 
-func NewOrganizationItemHandler(service service.OrganizationItemService) *OrganizationItemHandler {
-	return &OrganizationItemHandler{service: service}
+func NewOrganizationItemHandler(
+	svc service.OrganizationItemService,
+	activityService service.UserActivityService,
+) *OrganizationItemHandler {
+	return &OrganizationItemHandler{
+		service:        svc,
+		activityLogger: service.NewActivityLogger(activityService),
+	}
 }
 
 // Create godoc
@@ -56,6 +64,21 @@ func (h *OrganizationItemHandler) Create(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, domain.ToOrganizationItemDTO(item))
+
+	// Log activity (no secrets)
+	if h.activityLogger != nil {
+		ipAddress := c.ClientIP()
+		userAgent := c.GetHeader("User-Agent")
+		details := service.ActivityDetails{
+			service.ActivityFieldOrganizationID: orgID,
+			service.ActivityFieldItemID:         item.ID,
+			service.ActivityFieldItemType:       strconv.FormatInt(int64(item.ItemType), 10),
+		}
+		if item.CollectionID != nil {
+			details[service.ActivityFieldCollectionID] = *item.CollectionID
+		}
+		h.activityLogger.LogActivity(ctx, userID, domain.ActivityTypeItemCreated, ipAddress, userAgent, details)
+	}
 }
 
 // ListByCollection godoc
@@ -168,6 +191,21 @@ func (h *OrganizationItemHandler) Update(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, domain.ToOrganizationItemDTO(item))
+
+	// Log activity (no secrets)
+	if h.activityLogger != nil {
+		ipAddress := c.ClientIP()
+		userAgent := c.GetHeader("User-Agent")
+		details := service.ActivityDetails{
+			service.ActivityFieldOrganizationID: item.OrganizationID,
+			service.ActivityFieldItemID:         item.ID,
+			service.ActivityFieldItemType:       strconv.FormatInt(int64(item.ItemType), 10),
+		}
+		if item.CollectionID != nil {
+			details[service.ActivityFieldCollectionID] = *item.CollectionID
+		}
+		h.activityLogger.LogActivity(ctx, userID, domain.ActivityTypeItemUpdated, ipAddress, userAgent, details)
+	}
 }
 
 // Delete godoc
@@ -187,7 +225,7 @@ func (h *OrganizationItemHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	err := h.service.Delete(ctx, id, userID)
+	item, err := h.service.Delete(ctx, id, userID)
 	if err != nil {
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
@@ -198,5 +236,20 @@ func (h *OrganizationItemHandler) Delete(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
+
+	// Log activity (no secrets)
+	if h.activityLogger != nil && item != nil {
+		ipAddress := c.ClientIP()
+		userAgent := c.GetHeader("User-Agent")
+		details := service.ActivityDetails{
+			service.ActivityFieldOrganizationID: item.OrganizationID,
+			service.ActivityFieldItemID:         item.ID,
+			service.ActivityFieldItemType:       strconv.FormatInt(int64(item.ItemType), 10),
+		}
+		if item.CollectionID != nil {
+			details[service.ActivityFieldCollectionID] = *item.CollectionID
+		}
+		h.activityLogger.LogActivity(ctx, userID, domain.ActivityTypeItemDeleted, ipAddress, userAgent, details)
+	}
 }
 

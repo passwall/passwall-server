@@ -64,3 +64,6 @@ config.yml
 .vscode
 
 /dist/
+
+# Local Go build cache (should never be committed)
+.gocache/

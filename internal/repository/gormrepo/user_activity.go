@@ -97,6 +97,31 @@ func (r *userActivityRepository) List(ctx context.Context, filter repository.Act
 	return activities, total, nil
 }
 
+func (r *userActivityRepository) ListByUserIDs(ctx context.Context, userIDs []uint, limit int, offset int) ([]*domain.UserActivity, error) {
+	var activities []*domain.UserActivity
+
+	if len(userIDs) == 0 {
+		return activities, nil
+	}
+
+	query := r.db.WithContext(ctx).
+		Where("user_id IN ?", userIDs).
+		Order("created_at DESC")
+
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	if offset > 0 {
+		query = query.Offset(offset)
+	}
+
+	if err := query.Find(&activities).Error; err != nil {
+		return nil, err
+	}
+
+	return activities, nil
+}
+
 func (r *userActivityRepository) DeleteOldActivities(ctx context.Context, olderThan time.Duration) (int64, error) {
 	cutoffTime := time.Now().Add(-olderThan)
 

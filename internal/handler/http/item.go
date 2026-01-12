@@ -250,6 +250,29 @@ func parseItemFilter(c *gin.Context) repository.ItemFilter {
 	// Search
 	filter.Search = c.Query("search")
 
+	// URI hint (domain only)
+	// Supports both repeated params (?uri_hint=a&uri_hint=b) and comma-separated (?uri_hint=a,b)
+	rawHints := c.QueryArray("uri_hint")
+	// Fallback: some clients / frameworks send a single value where QueryArray may return empty.
+	if len(rawHints) == 0 {
+		if raw := c.Query("uri_hint"); raw != "" {
+			rawHints = []string{raw}
+		}
+	}
+	if len(rawHints) > 0 {
+		var hints []string
+		for _, raw := range rawHints {
+			for _, part := range strings.Split(raw, ",") {
+				hint := strings.TrimSpace(part)
+				if hint == "" {
+					continue
+				}
+				hints = append(hints, hint)
+			}
+		}
+		filter.URIHints = hints
+	}
+
 	// Pagination
 	if pageStr := c.Query("page"); pageStr != "" {
 		if pageVal, err := strconv.Atoi(pageStr); err == nil {
