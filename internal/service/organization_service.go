@@ -2,21 +2,32 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
+	uuid "github.com/satori/go.uuid"
+	"gorm.io/gorm"
 )
 
 type organizationService struct {
 	orgRepo           repository.OrganizationRepository
 	orgUserRepo       repository.OrganizationUserRepository
 	userRepo          repository.UserRepository
+	teamRepo          repository.TeamRepository
+	teamUserRepo      repository.TeamUserRepository
+	collectionRepo    repository.CollectionRepository
+	collectionTeamRepo repository.CollectionTeamRepository
 	paymentService    PaymentService
 	invitationService InvitationService
 	subRepo           interface {
+		Create(ctx context.Context, sub *domain.Subscription) error
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
+	}
+	planRepo interface {
+		GetByCode(ctx context.Context, code string) (*domain.Plan, error)
 	}
 	logger Logger
 }
@@ -26,10 +37,18 @@ func NewOrganizationService(
 	orgRepo repository.OrganizationRepository,
 	orgUserRepo repository.OrganizationUserRepository,
 	userRepo repository.UserRepository,
+	teamRepo repository.TeamRepository,
+	teamUserRepo repository.TeamUserRepository,
+	collectionRepo repository.CollectionRepository,
+	collectionTeamRepo repository.CollectionTeamRepository,
 	paymentService PaymentService,
 	invitationService InvitationService,
 	subRepo interface {
+		Create(ctx context.Context, sub *domain.Subscription) error
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
+	},
+	planRepo interface {
+		GetByCode(ctx context.Context, code string) (*domain.Plan, error)
 	},
 	logger Logger,
 ) OrganizationService {
@@ -37,48 +56,132 @@ func NewOrganizationService(
 		orgRepo:           orgRepo,
 		orgUserRepo:       orgUserRepo,
 		userRepo:          userRepo,
+		teamRepo:          teamRepo,
+		teamUserRepo:      teamUserRepo,
+		collectionRepo:    collectionRepo,
+		collectionTeamRepo: collectionTeamRepo,
 		paymentService:    paymentService,
 		invitationService: invitationService,
 		subRepo:           subRepo,
+		planRepo:          planRepo,
 		logger:            logger,
 	}
 }
 
-func (s *organizationService) Create(ctx context.Context, userID uint, req *domain.CreateOrganizationRequest) (*domain.Organization, error) {
-	// Validate plan
-	plan := domain.OrganizationPlan(req.Plan)
-	if req.Plan == "" {
-		plan = domain.PlanFree
+const (
+	defaultTeamName       = "All Members"
+	defaultTeamDesc       = "System default team (cannot be deleted)"
+	defaultCollectionName = "General"
+	defaultCollectionDesc = "System default collection (cannot be deleted)"
+)
+
+func (s *organizationService) ensureDefaultTeam(ctx context.Context, orgID uint) (*domain.Team, error) {
+	team, err := s.teamRepo.GetDefaultByOrganization(ctx, orgID)
+	if err == nil && team != nil {
+		return team, nil
 	}
-	
-	// Valid organization plans (Premium does NOT use organizations)
-	validPlans := []domain.OrganizationPlan{
-		domain.PlanFree,
-		domain.PlanFamily,
-		domain.PlanTeam,
-		domain.PlanBusiness,
-		domain.PlanEnterprise,
-	}
-	
-	isValid := false
-	for _, validPlan := range validPlans {
-		if plan == validPlan {
-			isValid = true
-			break
-		}
-	}
-	if !isValid {
-		return nil, fmt.Errorf("invalid plan: %s", req.Plan)
+	if err != nil && !errors.Is(err, repository.ErrNotFound) {
+		return nil, err
 	}
 
-	// Create organization (plan limits will be set via subscription)
+	team = &domain.Team{
+		OrganizationID:       orgID,
+		Name:                 defaultTeamName,
+		Description:          defaultTeamDesc,
+		AccessAllCollections: false,
+		IsDefault:            true,
+		ExternalID:           nil, // reserved for LDAP/AD sync
+	}
+
+	if err := s.teamRepo.Create(ctx, team); err != nil {
+		return nil, err
+	}
+
+	return team, nil
+}
+
+func (s *organizationService) ensureDefaultCollection(ctx context.Context, orgID uint) (*domain.Collection, error) {
+	col, err := s.collectionRepo.GetDefaultByOrganization(ctx, orgID)
+	if err == nil && col != nil {
+		return col, nil
+	}
+	if err != nil && !errors.Is(err, repository.ErrNotFound) {
+		return nil, err
+	}
+
+	col = &domain.Collection{
+		OrganizationID: orgID,
+		Name:           defaultCollectionName,
+		Description:    defaultCollectionDesc,
+		IsPrivate:      false,
+		IsDefault:      true,
+		ExternalID:     nil, // reserved for LDAP/AD sync
+	}
+
+	if err := s.collectionRepo.Create(ctx, col); err != nil {
+		return nil, err
+	}
+
+	return col, nil
+}
+
+func (s *organizationService) ensureDefaultCollectionTeamAccess(ctx context.Context, collectionID uint, teamID uint) error {
+	existing, err := s.collectionTeamRepo.GetByCollectionAndTeam(ctx, collectionID, teamID)
+	if err == nil && existing != nil {
+		return nil
+	}
+	if err != nil && !errors.Is(err, repository.ErrNotFound) {
+		return err
+	}
+
+	return s.collectionTeamRepo.Create(ctx, &domain.CollectionTeam{
+		CollectionID:  collectionID,
+		TeamID:        teamID,
+		CanRead:       true,
+		CanWrite:      false,
+		CanAdmin:      false,
+		HidePasswords: false,
+	})
+}
+
+func (s *organizationService) ensureOrgUserInDefaultTeam(ctx context.Context, orgID uint, orgUserID uint) error {
+	team, err := s.ensureDefaultTeam(ctx, orgID)
+	if err != nil {
+		return err
+	}
+
+	existing, err := s.teamUserRepo.GetByTeamAndOrgUser(ctx, team.ID, orgUserID)
+	if err == nil && existing != nil {
+		return nil
+	}
+	if err != nil && !errors.Is(err, repository.ErrNotFound) {
+		return err
+	}
+
+	return s.teamUserRepo.Create(ctx, &domain.TeamUser{
+		TeamID:             team.ID,
+		OrganizationUserID: orgUserID,
+		IsManager:          false,
+	})
+}
+
+func (s *organizationService) Create(ctx context.Context, userID uint, req *domain.CreateOrganizationRequest) (*domain.Organization, error) {
+	creator, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, repository.ErrForbidden
+	}
+	creatorEmail := creator.Email
+	creatorName := creator.Name
+
+	// Create organization (plan limits are derived from subscriptions + plans)
 	org := &domain.Organization{
 		Name:            req.Name,
 		BillingEmail:    req.BillingEmail,
 		EncryptedOrgKey: req.EncryptedOrgKey,
 		IsActive:        true,
-		// Note: Plan limits come from subscriptions table
-		// A free subscription will be created automatically during seeding
+		CreatedByUserID:    &userID,
+		CreatedByUserEmail: &creatorEmail,
+		CreatedByUserName:  &creatorName,
 	}
 
 	if err := s.orgRepo.Create(ctx, org); err != nil {
@@ -104,6 +207,60 @@ func (s *organizationService) Create(ctx context.Context, userID uint, req *doma
 		// Rollback: delete organization
 		_ = s.orgRepo.Delete(ctx, org.ID)
 		return nil, fmt.Errorf("failed to add owner: %w", err)
+	}
+
+	// Ensure system default Team + Collection exist (and owner is in default team).
+	// These defaults MUST NOT use ExternalID to keep future LDAP/AD sync safe.
+	defTeam, err := s.ensureDefaultTeam(ctx, org.ID)
+	if err != nil {
+		_ = s.orgRepo.Delete(ctx, org.ID)
+		return nil, fmt.Errorf("failed to ensure default team: %w", err)
+	}
+	defCol, err := s.ensureDefaultCollection(ctx, org.ID)
+	if err != nil {
+		_ = s.orgRepo.Delete(ctx, org.ID)
+		return nil, fmt.Errorf("failed to ensure default collection: %w", err)
+	}
+	if err := s.ensureDefaultCollectionTeamAccess(ctx, defCol.ID, defTeam.ID); err != nil {
+		_ = s.orgRepo.Delete(ctx, org.ID)
+		return nil, fmt.Errorf("failed to ensure default collection access: %w", err)
+	}
+	if err := s.ensureOrgUserInDefaultTeam(ctx, org.ID, orgUser.ID); err != nil {
+		_ = s.orgRepo.Delete(ctx, org.ID)
+		return nil, fmt.Errorf("failed to ensure default team membership: %w", err)
+	}
+
+	// Ensure every organization has a subscription row (source-of-truth invariant).
+	// New orgs created after initial seeding MUST get a default free subscription.
+	const freePlanCode = "free-monthly"
+	if _, err := s.subRepo.GetByOrganizationID(ctx, org.ID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			freePlan, err := s.planRepo.GetByCode(ctx, freePlanCode)
+			if err != nil || freePlan == nil {
+				// Rollback: delete organization
+				_ = s.orgRepo.Delete(ctx, org.ID)
+				return nil, fmt.Errorf("failed to load free plan (%s): %w", freePlanCode, err)
+			}
+
+			now := time.Now()
+			sub := &domain.Subscription{
+				UUID:           uuid.NewV4(),
+				OrganizationID: org.ID,
+				PlanID:         freePlan.ID,
+				State:          domain.SubStateActive,
+				StartedAt:      &now,
+			}
+
+			if err := s.subRepo.Create(ctx, sub); err != nil {
+				// Rollback: delete organization
+				_ = s.orgRepo.Delete(ctx, org.ID)
+				return nil, fmt.Errorf("failed to create default subscription: %w", err)
+			}
+		} else {
+			// Unexpected DB error reading subscription
+			_ = s.orgRepo.Delete(ctx, org.ID)
+			return nil, fmt.Errorf("failed to ensure default subscription: %w", err)
+		}
 	}
 
 	s.logger.Info("organization created", "org_id", org.ID, "owner_id", userID, "name", org.Name)
@@ -206,6 +363,16 @@ func (s *organizationService) Delete(ctx context.Context, id uint, userID uint) 
 
 	if !orgUser.IsOwner() {
 		return repository.ErrForbidden
+	}
+
+	// Default/personal organizations cannot be deleted by their owner.
+	// (They can still be deleted by admin user-deletion flows.)
+	org, err := s.orgRepo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if org.IsDefault {
+		return fmt.Errorf("cannot delete default organization")
 	}
 
 	// Get organization to check for active subscription
@@ -328,6 +495,17 @@ func (s *organizationService) InviteUser(ctx context.Context, orgID uint, invite
 		return nil, fmt.Errorf("failed to invite user: %w", err)
 	}
 
+	// Ensure invited user is in default team (prevents orphan memberships).
+	// Keep LDAP sync safe by never using ExternalID for defaults.
+	if err := s.ensureOrgUserInDefaultTeam(ctx, orgID, orgUser.ID); err != nil {
+		return nil, fmt.Errorf("failed to ensure default team membership: %w", err)
+	}
+	if defTeam, err := s.ensureDefaultTeam(ctx, orgID); err == nil && defTeam != nil {
+		if defCol, err := s.ensureDefaultCollection(ctx, orgID); err == nil && defCol != nil {
+			_ = s.ensureDefaultCollectionTeamAccess(ctx, defCol.ID, defTeam.ID)
+		}
+	}
+
 	s.logger.Info("user invited to organization", "org_id", orgID, "invitee_email", req.Email, "role", req.Role)
 	// Email is sent via InvitationService (above).
 
@@ -431,6 +609,11 @@ func (s *organizationService) AcceptInvitation(ctx context.Context, orgUserID ui
 		return fmt.Errorf("failed to accept invitation: %w", err)
 	}
 
+	// Ensure accepted user is in default team.
+	if err := s.ensureOrgUserInDefaultTeam(ctx, orgUser.OrganizationID, orgUser.ID); err != nil {
+		return fmt.Errorf("failed to ensure default team membership: %w", err)
+	}
+
 	s.logger.Info("invitation accepted", "org_id", orgUser.OrganizationID, "user_id", userID)
 	return nil
 }
@@ -476,6 +659,11 @@ func (s *organizationService) AddExistingMember(ctx context.Context, orgUser *do
 			"user_id", orgUser.UserID, 
 			"error", err)
 		return fmt.Errorf("failed to add member: %w", err)
+	}
+
+	// Ensure membership is not orphaned: add to default team.
+	if err := s.ensureOrgUserInDefaultTeam(ctx, orgUser.OrganizationID, orgUser.ID); err != nil {
+		return fmt.Errorf("failed to ensure default team membership: %w", err)
 	}
 
 	s.logger.Info("existing member added to organization", 
@@ -568,9 +756,10 @@ func (s *organizationService) checkPermission(ctx context.Context, orgID, userID
 func (s *organizationService) getMaxUsers(ctx context.Context, orgID uint) (int, error) {
 	sub, err := s.subRepo.GetByOrganizationID(ctx, orgID)
 	if err != nil {
-		s.logger.Error("failed to get subscription for org", "org_id", orgID, "error", err)
-		// Default to free plan limit if subscription not found
-		return 1, nil
+		return 0, fmt.Errorf("failed to get subscription for org %d: %w", orgID, err)
+	}
+	if sub.Plan == nil {
+		return 0, fmt.Errorf("subscription plan not loaded for org %d", orgID)
 	}
 
 	// Check if plan has max users limit

@@ -34,7 +34,7 @@ func (r *tokenRepository) GetByUUID(ctx context.Context, uuid string) (*domain.T
 	return &token, nil
 }
 
-func (r *tokenRepository) Create(ctx context.Context, userID int, tokenUUID uuid.UUID, token string, expiryTime time.Time) error {
+func (r *tokenRepository) Create(ctx context.Context, userID int, sessionUUID uuid.UUID, deviceID uuid.UUID, app string, kind string, tokenUUID uuid.UUID, token string, expiryTime time.Time) error {
 	// SECURITY: Hash the token before storing in database
 	// This prevents token theft if database is compromised
 	hashedToken := hash.SHA256(token)
@@ -42,6 +42,10 @@ func (r *tokenRepository) Create(ctx context.Context, userID int, tokenUUID uuid
 	t := &domain.Token{
 		UserID:     userID,
 		UUID:       tokenUUID,
+		SessionUUID: sessionUUID,
+		DeviceID:   deviceID,
+		App:        app,
+		Kind:       kind,
 		Token:      hashedToken,
 		ExpiryTime: expiryTime,
 	}
@@ -54,6 +58,10 @@ func (r *tokenRepository) Delete(ctx context.Context, userID int) error {
 
 func (r *tokenRepository) DeleteByUUID(ctx context.Context, uuid string) error {
 	return r.db.WithContext(ctx).Where("uuid = ?", uuid).Delete(&domain.Token{}).Error
+}
+
+func (r *tokenRepository) DeleteBySessionUUID(ctx context.Context, sessionUUID string) error {
+	return r.db.WithContext(ctx).Where("session_uuid = ?", sessionUUID).Delete(&domain.Token{}).Error
 }
 
 func (r *tokenRepository) DeleteExpired(ctx context.Context) (int64, error) {

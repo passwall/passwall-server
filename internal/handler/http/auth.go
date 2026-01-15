@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"net/http"
 
@@ -162,6 +163,29 @@ func (h *AuthHandler) ChangeMasterPassword(c *gin.Context) {
 		return
 	}
 
+	// SECURITY: This is an authenticated endpoint; always use the authenticated user.
+	// Ignore any client-provided email (prevents targeting other accounts).
+	if email, ok := c.Get(constants.ContextKeyEmail); ok {
+		if emailStr, ok := email.(string); ok {
+			req.Email = emailStr
+		}
+	}
+
+	// Basic request validation (avoid locking accounts with empty fields).
+	if req.OldMasterPasswordHash == "" || req.NewMasterPasswordHash == "" || req.NewProtectedUserKey == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing required fields"})
+		return
+	}
+
+	// Validate new KDF salt if provided (must be 32 bytes hex).
+	if req.NewKdfSalt != "" {
+		saltBytes, err := hex.DecodeString(req.NewKdfSalt)
+		if err != nil || len(saltBytes) != 32 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid new_kdf_salt"})
+			return
+		}
+	}
+
 	if err := h.authService.ChangeMasterPassword(ctx, &req); err != nil {
 		if errors.Is(err, service.ErrUnauthorized) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid current password"})
@@ -173,7 +197,7 @@ func (h *AuthHandler) ChangeMasterPassword(c *gin.Context) {
 
 	// Log password change activity
 	// User ID will be from authenticated context
-	if userID, exists := c.Get("user_id"); exists {
+	if userID, exists := c.Get(constants.ContextKeyUserID); exists {
 		go func() {
 			_ = h.activityService.LogActivity(context.Background(), &domain.CreateActivityRequest{
 				UserID:       userID.(uint),
@@ -220,14 +244,14 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 func (h *AuthHandler) SignOut(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	// Get user ID from context (set by auth middleware)
-	userID, exists := c.Get(constants.ContextKeyUserID)
+	// Get token UUID from context (set by auth middleware)
+	tokenUUID, exists := c.Get(constants.ContextKeyTokenUUID)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	if err := h.authService.SignOut(ctx, int(userID.(uint))); err != nil {
+	if err := h.authService.SignOut(ctx, tokenUUID.(string)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to sign out"})
 		return
 	}

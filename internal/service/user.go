@@ -171,6 +171,16 @@ func (s *userService) Delete(ctx context.Context, id uint, schema string) error 
 		return repository.ErrForbidden
 	}
 
+	// Prevent deleting a user that would leave organizations without an owner.
+	// Admins must first transfer ownership or delete the organization(s) via DeleteWithOrganizations.
+	ownershipCheck, err := s.CheckOwnership(ctx, id)
+	if err != nil {
+		return fmt.Errorf("failed to check organization ownership: %w", err)
+	}
+	if ownershipCheck != nil && ownershipCheck.IsSoleOwner {
+		return fmt.Errorf("user is the sole owner of one or more organizations; transfer ownership or delete the organization(s) first")
+	}
+
 	if err := s.repo.Delete(ctx, id, schema); err != nil {
 		s.logger.Error("failed to delete user", "id", id, "schema", schema, "error", err)
 		return err

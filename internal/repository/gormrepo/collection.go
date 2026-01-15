@@ -76,6 +76,22 @@ func (r *collectionRepository) GetByName(ctx context.Context, orgID uint, name s
 	return &collection, nil
 }
 
+func (r *collectionRepository) GetDefaultByOrganization(ctx context.Context, orgID uint) (*domain.Collection, error) {
+	var collection domain.Collection
+	err := r.db.WithContext(ctx).
+		Where("organization_id = ? AND is_default = true AND deleted_at IS NULL", orgID).
+		First(&collection).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, repository.ErrNotFound
+		}
+		return nil, err
+	}
+
+	return &collection, nil
+}
+
 func (r *collectionRepository) ListByOrganization(ctx context.Context, orgID uint) ([]*domain.Collection, error) {
 	var collections []*domain.Collection
 	err := r.db.WithContext(ctx).

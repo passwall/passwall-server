@@ -20,6 +20,9 @@ type Collection struct {
 	Name        string `json:"name" gorm:"type:varchar(255);not null"`
 	Description string `json:"description,omitempty" gorm:"type:text"`
 
+	// System defaults
+	IsDefault bool `json:"is_default" gorm:"not null;default:false"`
+
 	// Access control
 	IsPrivate bool `json:"is_private" gorm:"default:false"` // Only assigned users can access
 
@@ -102,6 +105,7 @@ type CollectionDTO struct {
 	Description    string    `json:"description,omitempty"`
 	IsPrivate      bool      `json:"is_private"`
 	ExternalID     *string   `json:"external_id,omitempty"`
+	IsDefault      bool      `json:"is_default"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 
@@ -176,6 +180,7 @@ func ToCollectionDTO(c *Collection) *CollectionDTO {
 		Description:    c.Description,
 		IsPrivate:      c.IsPrivate,
 		ExternalID:     c.ExternalID,
+		IsDefault:      c.IsDefault,
 		CreatedAt:      c.CreatedAt,
 		UpdatedAt:      c.UpdatedAt,
 		ItemCount:      c.ItemCount,

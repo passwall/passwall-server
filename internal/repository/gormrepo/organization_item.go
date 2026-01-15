@@ -187,6 +187,13 @@ func (r *organizationItemRepository) ListByCollection(ctx context.Context, colle
 	return items, nil
 }
 
+func (r *organizationItemRepository) MoveItemsToCollection(ctx context.Context, fromCollectionID uint, toCollectionID uint) error {
+	return r.db.WithContext(ctx).
+		Model(&domain.OrganizationItem{}).
+		Where("collection_id = ? AND deleted_at IS NULL", fromCollectionID).
+		Update("collection_id", toCollectionID).Error
+}
+
 func (r *organizationItemRepository) Update(ctx context.Context, item *domain.OrganizationItem) error {
 	// Clear associations
 	item.Organization = nil

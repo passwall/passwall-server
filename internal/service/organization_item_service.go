@@ -57,6 +57,27 @@ func (s *organizationItemService) Create(ctx context.Context, orgID, userID uint
 		return nil, repository.ErrForbidden
 	}
 
+	// Enforce "no orphan items": always place items in a collection.
+	// If client doesn't specify a collection, we use the org's default collection.
+	if req.CollectionID == nil {
+		def, err := s.collectionRepo.GetDefaultByOrganization(ctx, orgID)
+		if err != nil {
+			// Default collection is expected to exist (migration + org creation),
+			// but we keep this defensive for older orgs.
+			def = &domain.Collection{
+				OrganizationID: orgID,
+				Name:           "General",
+				Description:    "System default collection",
+				IsPrivate:      false,
+				IsDefault:      true,
+			}
+			if createErr := s.collectionRepo.Create(ctx, def); createErr != nil {
+				return nil, fmt.Errorf("failed to ensure default collection: %w", createErr)
+			}
+		}
+		req.CollectionID = &def.ID
+	}
+
 	// If collection specified, check access
 	if req.CollectionID != nil {
 		collection, err := s.collectionRepo.GetByID(ctx, *req.CollectionID)

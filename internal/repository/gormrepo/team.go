@@ -75,6 +75,22 @@ func (r *teamRepository) GetByName(ctx context.Context, orgID uint, name string)
 	return &team, nil
 }
 
+func (r *teamRepository) GetDefaultByOrganization(ctx context.Context, orgID uint) (*domain.Team, error) {
+	var team domain.Team
+	err := r.db.WithContext(ctx).
+		Where("organization_id = ? AND is_default = true", orgID).
+		First(&team).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, repository.ErrNotFound
+		}
+		return nil, err
+	}
+
+	return &team, nil
+}
+
 func (r *teamRepository) ListByOrganization(ctx context.Context, orgID uint) ([]*domain.Team, error) {
 	var teams []*domain.Team
 	err := r.db.WithContext(ctx).

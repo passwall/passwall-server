@@ -30,6 +30,9 @@ func SetupRouter(
 	paymentHandler *httpHandler.PaymentHandler,
 	webhookHandler *httpHandler.WebhookHandler,
 	supportHandler *httpHandler.SupportHandler,
+	plansHandler *httpHandler.PlansHandler,
+	adminSubscriptionsHandler *httpHandler.AdminSubscriptionsHandler,
+	adminBulkEmailHandler *httpHandler.AdminBulkEmailHandler,
 ) *gin.Engine {
 	// Create router without default middleware
 	router := gin.New()
@@ -57,6 +60,8 @@ func SetupRouter(
 	refreshRateLimiter := httpHandler.NewRateLimiter(6*time.Second, 10)
 	// Verification: 3 requests per 5 minutes per IP
 	verificationRateLimiter := httpHandler.NewRateLimiter(100*time.Second, 3)
+	// Password change: 3 requests per 5 minutes per IP (limits brute-force of old master password hash)
+	changePasswordRateLimiter := httpHandler.NewRateLimiter(100*time.Second, 3)
 
 	// Create reCAPTCHA middleware (optional - only applies if token is sent)
 	recaptchaMiddleware := httpHandler.OptionalRecaptchaMiddleware(
@@ -101,6 +106,10 @@ func SetupRouter(
 	apiGroup := router.Group("/api")
 	apiGroup.Use(httpHandler.AuthMiddleware(authService))
 	{
+		// Plans (authenticated)
+		apiGroup.GET("/plans", plansHandler.ListPlans)
+		apiGroup.GET("/plans/:code", plansHandler.GetPlan)
+
 		// Auth protected routes
 		apiGroup.POST("/signout", authHandler.SignOut)
 
@@ -133,7 +142,10 @@ func SetupRouter(
 
 		// User profile routes - any authenticated user
 		apiGroup.PUT("/users/me", userHandler.UpdateProfile)
-		apiGroup.POST("/users/change-master-password", authHandler.ChangeMasterPassword)
+		apiGroup.POST("/users/change-master-password",
+			httpHandler.RateLimitMiddleware(changePasswordRateLimiter),
+			authHandler.ChangeMasterPassword,
+		)
 		apiGroup.GET("/users/me/rsa-keys", userHandler.CheckRSAKeys)
 		apiGroup.POST("/users/me/rsa-keys", userHandler.StoreRSAKeys)
 		apiGroup.GET("/users/public-key", userHandler.GetPublicKey) // For org key wrapping
@@ -152,7 +164,7 @@ func SetupRouter(
 			usersGroup.PUT("/:id", userHandler.Update)
 			usersGroup.DELETE("/:id", userHandler.Delete)
 			usersGroup.GET("/:id/activities", activityHandler.GetUserActivities)
-			
+
 			// Ownership management for user deletion
 			usersGroup.GET("/:id/ownership-check", userHandler.CheckOwnership)
 			usersGroup.POST("/:id/transfer-ownership", userHandler.TransferOwnership)
@@ -162,13 +174,13 @@ func SetupRouter(
 		// Invitations - Any authenticated user
 		invitationsGroup := apiGroup.Group("/invitations")
 		{
-			invitationsGroup.POST("", invitationHandler.Invite)           // Create invitation (old /invite endpoint)
-			invitationsGroup.GET("/pending", invitationHandler.GetPending) // Get my pending invitations
-			invitationsGroup.GET("/sent", invitationHandler.GetSent)       // Get invitations I sent
-			invitationsGroup.POST("/:id/accept", invitationHandler.Accept) // Accept invitation
+			invitationsGroup.POST("", invitationHandler.Invite)              // Create invitation (old /invite endpoint)
+			invitationsGroup.GET("/pending", invitationHandler.GetPending)   // Get my pending invitations
+			invitationsGroup.GET("/sent", invitationHandler.GetSent)         // Get invitations I sent
+			invitationsGroup.POST("/:id/accept", invitationHandler.Accept)   // Accept invitation
 			invitationsGroup.POST("/:id/decline", invitationHandler.Decline) // Decline invitation
 		}
-		
+
 		// Legacy endpoint (backward compatibility)
 		apiGroup.POST("/invite", invitationHandler.Invite)
 
@@ -177,6 +189,18 @@ func SetupRouter(
 		adminActivitiesGroup.Use(httpHandler.RequireAdminMiddleware())
 		{
 			adminActivitiesGroup.GET("", activityHandler.ListActivities)
+		}
+
+		// Admin subscription management (Admin only)
+		adminGroup := apiGroup.Group("/admin")
+		adminGroup.Use(httpHandler.RequireAdminMiddleware())
+		{
+			adminGroup.GET("/organizations", adminSubscriptionsHandler.ListOrganizations)
+			adminGroup.GET("/subscriptions", adminSubscriptionsHandler.List)
+			adminGroup.POST("/organizations/:id/subscription/grant", adminSubscriptionsHandler.GrantManual)
+			adminGroup.POST("/organizations/:id/subscription/revoke", adminSubscriptionsHandler.RevokeManual)
+			adminGroup.POST("/bulk-email", adminBulkEmailHandler.CreateJob)
+			adminGroup.GET("/bulk-email/:jobId", adminBulkEmailHandler.GetJob)
 		}
 
 		// ============================================================
@@ -250,7 +274,7 @@ func SetupRouter(
 			collectionsGroup.PUT("/:id/teams/:teamId", collectionHandler.GrantTeamAccess)
 			collectionsGroup.DELETE("/:id/teams/:teamId", collectionHandler.RevokeTeamAccess)
 			collectionsGroup.GET("/:id/teams", collectionHandler.GetTeamAccess)
-			
+
 			// Collection items (shared vault) - use :id not :collectionId
 			collectionsGroup.GET("/:id/items", organizationItemHandler.ListByCollection)
 		}

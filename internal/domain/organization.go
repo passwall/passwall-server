@@ -6,38 +6,20 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
-// OrganizationPlan represents the subscription plan
+// OrganizationPlan represents the subscription plan "family" at the product level.
+//
+// NOTE: This is a presentation/UX concept. Source-of-truth entitlements MUST come
+// from subscriptions + plans.
 type OrganizationPlan string
 
 const (
-	PlanFree       OrganizationPlan = "free"       // 1 user only, test/individual
-	PlanPremium    OrganizationPlan = "premium"    // Individual premium user
-	PlanFamily     OrganizationPlan = "family"     // 6 users, 1 shared vault
-	PlanTeam       OrganizationPlan = "team"       // 6 users, 1 team vault (same as family, different branding)
-	PlanBusiness   OrganizationPlan = "business"   // Unlimited users, unlimited collections
-	PlanEnterprise OrganizationPlan = "enterprise" // Custom pricing, self-hosted option
+	PlanFree       OrganizationPlan = "free"
+	PlanPremium    OrganizationPlan = "premium" // Premium plan does NOT use organizations
+	PlanFamily     OrganizationPlan = "family"
+	PlanTeam       OrganizationPlan = "team"
+	PlanBusiness   OrganizationPlan = "business"
+	PlanEnterprise OrganizationPlan = "enterprise"
 )
-
-// BillingCycle represents billing period
-type BillingCycle string
-
-const (
-	BillingCycleMonthly BillingCycle = "monthly"
-	BillingCycleYearly  BillingCycle = "yearly"
-)
-
-// Note: Premium plan ($19/year) does NOT use organizations
-// Premium users have personal vault only (no sharing)
-
-// OrganizationWithPlan extends Organization with plan limits from subscription
-type OrganizationWithPlan struct {
-	Organization   *Organization
-	Plan           OrganizationPlan
-	MaxUsers       int
-	MaxCollections int
-	MaxItems       int
-	Subscription   *Subscription
-}
 
 // Organization represents a team/company organization
 type Organization struct {
@@ -49,6 +31,17 @@ type Organization struct {
 	// Organization info
 	Name         string `json:"name" gorm:"type:varchar(255);not null"`
 	BillingEmail string `json:"billing_email" gorm:"type:varchar(255);not null"`
+
+	// System defaults
+	// IsDefault marks the user's personal/default organization created at signup.
+	// Default organizations cannot be deleted by their owner (but can be deleted by admin flows).
+	IsDefault bool `json:"is_default" gorm:"not null;default:false"`
+
+	// Creator snapshot (denormalized).
+	// Users can be hard-deleted, so we keep immutable creator identity fields here.
+	CreatedByUserID    *uint   `json:"created_by_user_id,omitempty" gorm:"index"`
+	CreatedByUserEmail *string `json:"created_by_user_email,omitempty" gorm:"type:varchar(255)"`
+	CreatedByUserName  *string `json:"created_by_user_name,omitempty" gorm:"type:varchar(255)"`
 	
 	// Note: Plan limits are NOT stored here - they come from subscriptions + plans tables
 	// Use service methods to get plan limits via JOIN
@@ -81,7 +74,6 @@ type Organization struct {
 	Members      []OrganizationUser `json:"members,omitempty" gorm:"foreignKey:OrganizationID"`
 	Teams        []Team             `json:"teams,omitempty" gorm:"foreignKey:OrganizationID"`
 	Collections  []Collection       `json:"collections,omitempty" gorm:"foreignKey:OrganizationID"`
-	Subscription *Subscription      `json:"subscription,omitempty" gorm:"foreignKey:OrganizationID"`
 }
 
 // TableName specifies the table name
@@ -185,6 +177,10 @@ type OrganizationDTO struct {
 	UUID           uuid.UUID          `json:"uuid"`
 	Name           string             `json:"name"`
 	BillingEmail   string             `json:"billing_email"`
+	IsDefault      bool               `json:"is_default"`
+	CreatedByUserID    *uint   `json:"created_by_user_id,omitempty"`
+	CreatedByUserEmail *string `json:"created_by_user_email,omitempty"`
+	CreatedByUserName  *string `json:"created_by_user_name,omitempty"`
 	Plan           OrganizationPlan   `json:"plan"`
 	MaxUsers       int                `json:"max_users"`
 	MaxCollections int                `json:"max_collections"`
@@ -229,6 +225,51 @@ type CreateOrganizationRequest struct {
 	EncryptedOrgKey string `json:"encrypted_org_key" validate:"required"` // Owner's copy of org key
 }
 
+// ToOrganizationDTOWithSubscription converts Organization to DTO and derives plan/limits
+// from the provided subscription (source of truth).
+func ToOrganizationDTOWithSubscription(org *Organization, sub *Subscription) *OrganizationDTO {
+	dto := ToOrganizationDTO(org)
+	if dto == nil {
+		return nil
+	}
+
+	if sub == nil {
+		return dto
+	}
+
+	dto.Subscription = ToSubscriptionDTO(sub)
+
+	if sub.Plan == nil {
+		return dto
+	}
+
+	planCode := sub.Plan.Code
+
+	// Map plan code like "business-yearly" -> "business"
+	if idx := len(planCode) - len("-monthly"); idx > 0 && planCode[idx:] == "-monthly" {
+		dto.Plan = OrganizationPlan(planCode[:idx])
+	} else if idx := len(planCode) - len("-yearly"); idx > 0 && planCode[idx:] == "-yearly" {
+		dto.Plan = OrganizationPlan(planCode[:idx])
+	} else if planCode != "" {
+		dto.Plan = OrganizationPlan(planCode)
+	}
+
+	// Limits: nil means unlimited. UI treats 999 as unlimited.
+	if sub.Plan.MaxUsers != nil {
+		dto.MaxUsers = *sub.Plan.MaxUsers
+	} else {
+		dto.MaxUsers = 999
+	}
+
+	if sub.Plan.MaxCollections != nil {
+		dto.MaxCollections = *sub.Plan.MaxCollections
+	} else {
+		dto.MaxCollections = 999
+	}
+
+	return dto
+}
+
 // UpdateOrganizationRequest for API requests
 type UpdateOrganizationRequest struct {
 	Name         *string `json:"name,omitempty" validate:"omitempty,max=255"`
@@ -261,6 +302,10 @@ func ToOrganizationDTO(org *Organization) *OrganizationDTO {
 		UUID:            org.UUID,
 		Name:            org.Name,
 		BillingEmail:    org.BillingEmail,
+		IsDefault:       org.IsDefault,
+		CreatedByUserID:    org.CreatedByUserID,
+		CreatedByUserEmail: org.CreatedByUserEmail,
+		CreatedByUserName:  org.CreatedByUserName,
 		// Default to free plan - service layer should populate these from subscription
 		Plan:            PlanFree,
 		MaxUsers:        1,
@@ -275,26 +320,6 @@ func ToOrganizationDTO(org *Organization) *OrganizationDTO {
 		EncryptedOrgKey: org.EncryptedOrgKey, // User's copy (safe to send)
 	}
 
-	// Add subscription if loaded
-	if org.Subscription != nil {
-		dto.Subscription = ToSubscriptionDTO(org.Subscription)
-	}
-
-	return dto
-}
-
-// ToOrganizationDTOWithPlan converts OrganizationWithPlan to DTO with plan limits
-func ToOrganizationDTOWithPlan(orgWithPlan *OrganizationWithPlan) *OrganizationDTO {
-	if orgWithPlan == nil || orgWithPlan.Organization == nil {
-		return nil
-	}
-
-	dto := ToOrganizationDTO(orgWithPlan.Organization)
-	// Override plan limits with subscription data
-	dto.Plan = orgWithPlan.Plan
-	dto.MaxUsers = orgWithPlan.MaxUsers
-	dto.MaxCollections = orgWithPlan.MaxCollections
-	
 	return dto
 }
 

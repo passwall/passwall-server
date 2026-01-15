@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
@@ -59,8 +60,8 @@ func (r *organizationRepository) List(ctx context.Context, filter repository.Lis
 
 	query := r.db.WithContext(ctx).Model(&domain.Organization{})
 
-	// Count total (active organizations only)
-	if err := query.Where("is_active = ?", true).Count(&total).Error; err != nil {
+	// Count total
+	if err := query.Count(&total).Error; err != nil {
 		return nil, nil, err
 	}
 
@@ -133,8 +134,75 @@ func (r *organizationRepository) Update(ctx context.Context, org *domain.Organiz
 }
 
 func (r *organizationRepository) Delete(ctx context.Context, id uint) error {
-	// Hard delete - will cascade delete all related records
-	return r.db.WithContext(ctx).Unscoped().Delete(&domain.Organization{}, id).Error
+	// Purge organization data, but DO NOT delete organization row.
+	// We keep the org record to preserve billing/subscription history and auditability.
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Items first (may reference collections)
+		if err := tx.Unscoped().
+			Where("organization_id = ?", id).
+			Delete(&domain.OrganizationItem{}).Error; err != nil {
+			return err
+		}
+
+		// Invitations that reference the org (cleanup)
+		if err := tx.Where("organization_id = ?", id).
+			Delete(&domain.Invitation{}).Error; err != nil {
+			return err
+		}
+
+		// Collection access tables (be robust even if FKs aren't cascading in older schemas)
+		if err := tx.Exec(`
+DELETE FROM collection_users
+WHERE collection_id IN (SELECT id FROM collections WHERE organization_id = ?)
+`, id).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec(`
+DELETE FROM collection_teams
+WHERE collection_id IN (SELECT id FROM collections WHERE organization_id = ?)
+   OR team_id IN (SELECT id FROM teams WHERE organization_id = ?)
+`, id, id).Error; err != nil {
+			return err
+		}
+
+		// Team memberships (robust cleanup)
+		if err := tx.Exec(`
+DELETE FROM team_users
+WHERE team_id IN (SELECT id FROM teams WHERE organization_id = ?)
+   OR organization_user_id IN (SELECT id FROM organization_users WHERE organization_id = ?)
+`, id, id).Error; err != nil {
+			return err
+		}
+
+		// Delete teams & collections (hard)
+		if err := tx.Unscoped().
+			Where("organization_id = ?", id).
+			Delete(&domain.Team{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Unscoped().
+			Where("organization_id = ?", id).
+			Delete(&domain.Collection{}).Error; err != nil {
+			return err
+		}
+
+		// Remove org memberships (hard)
+		if err := tx.Unscoped().
+			Where("organization_id = ?", id).
+			Delete(&domain.OrganizationUser{}).Error; err != nil {
+			return err
+		}
+
+		// Mark organization as deleted/inactive (keep row)
+		now := time.Now()
+		return tx.Model(&domain.Organization{}).
+			Where("id = ?", id).
+			Updates(map[string]any{
+				"status":     domain.OrgStatusDeleted,
+				"is_active":  false,
+				"deleted_at": &now,
+			}).Error
+	})
 }
 
 func (r *organizationRepository) GetMemberCount(ctx context.Context, orgID uint) (int, error) {
@@ -154,7 +222,7 @@ func (r *organizationRepository) GetTeamCount(ctx context.Context, orgID uint) (
 	var count int64
 	err := r.db.WithContext(ctx).
 		Model(&domain.Team{}).
-		Where("organization_id = ?", orgID).
+		Where("organization_id = ? AND is_default = false", orgID).
 		Count(&count).Error
 
 	return int(count), err
@@ -164,9 +232,8 @@ func (r *organizationRepository) GetCollectionCount(ctx context.Context, orgID u
 	var count int64
 	err := r.db.WithContext(ctx).
 		Model(&domain.Collection{}).
-		Where("organization_id = ? AND deleted_at IS NULL", orgID).
+		Where("organization_id = ? AND deleted_at IS NULL AND is_default = false", orgID).
 		Count(&count).Error
 
 	return int(count), err
 }
-

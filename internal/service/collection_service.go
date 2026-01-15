@@ -15,6 +15,7 @@ type collectionService struct {
 	orgUserRepo        repository.OrganizationUserRepository
 	teamRepo           repository.TeamRepository
 	orgRepo            repository.OrganizationRepository
+	orgItemRepo        repository.OrganizationItemRepository
 	subRepo            interface {
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
 	}
@@ -29,6 +30,7 @@ func NewCollectionService(
 	orgUserRepo repository.OrganizationUserRepository,
 	teamRepo repository.TeamRepository,
 	orgRepo repository.OrganizationRepository,
+	orgItemRepo repository.OrganizationItemRepository,
 	subRepo interface {
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
 	},
@@ -41,6 +43,7 @@ func NewCollectionService(
 		orgUserRepo:        orgUserRepo,
 		teamRepo:           teamRepo,
 		orgRepo:            orgRepo,
+		orgItemRepo:        orgItemRepo,
 		subRepo:            subRepo,
 		logger:             logger,
 	}
@@ -213,6 +216,10 @@ func (s *collectionService) Delete(ctx context.Context, id uint, userID uint) er
 		return fmt.Errorf("collection not found: %w", err)
 	}
 
+	if collection.IsDefault {
+		return fmt.Errorf("cannot delete default collection")
+	}
+
 	// Only org admins can delete collections
 	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, collection.OrganizationID, userID)
 	if err != nil {
@@ -221,6 +228,16 @@ func (s *collectionService) Delete(ctx context.Context, id uint, userID uint) er
 
 	if !orgUser.IsAdmin() {
 		return repository.ErrForbidden
+	}
+
+	// Enforce "no orphan items": move items to default collection first.
+	def, err := s.collectionRepo.GetDefaultByOrganization(ctx, collection.OrganizationID)
+	if err != nil {
+		return fmt.Errorf("default collection not found")
+	}
+
+	if err := s.orgItemRepo.MoveItemsToCollection(ctx, id, def.ID); err != nil {
+		return fmt.Errorf("failed to move items to default collection: %w", err)
 	}
 
 	// Use soft delete
@@ -526,9 +543,10 @@ func (s *collectionService) checkCollectionManagePermission(ctx context.Context,
 func (s *collectionService) getMaxCollections(ctx context.Context, orgID uint) (int, error) {
 	sub, err := s.subRepo.GetByOrganizationID(ctx, orgID)
 	if err != nil {
-		s.logger.Error("failed to get subscription for org", "org_id", orgID, "error", err)
-		// Default to free plan limit if subscription not found
-		return 2, nil
+		return 0, fmt.Errorf("failed to get subscription for org %d: %w", orgID, err)
+	}
+	if sub.Plan == nil {
+		return 0, fmt.Errorf("subscription plan not loaded for org %d", orgID)
 	}
 
 	// Check if plan has max collections limit

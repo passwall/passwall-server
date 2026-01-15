@@ -19,6 +19,9 @@ type Team struct {
 	Name        string `json:"name" gorm:"type:varchar(255);not null"`
 	Description string `json:"description,omitempty" gorm:"type:text"`
 
+	// System defaults
+	IsDefault bool `json:"is_default" gorm:"not null;default:false"`
+
 	// Access control
 	AccessAllCollections bool `json:"access_all_collections" gorm:"default:false"`
 
@@ -65,6 +68,7 @@ type TeamDTO struct {
 	Description          string    `json:"description,omitempty"`
 	AccessAllCollections bool      `json:"access_all_collections"`
 	ExternalID           *string   `json:"external_id,omitempty"`
+	IsDefault            bool      `json:"is_default"`
 	CreatedAt            time.Time `json:"created_at"`
 	UpdatedAt            time.Time `json:"updated_at"`
 
@@ -124,6 +128,7 @@ func ToTeamDTO(team *Team) *TeamDTO {
 		Description:          team.Description,
 		AccessAllCollections: team.AccessAllCollections,
 		ExternalID:           team.ExternalID,
+		IsDefault:            team.IsDefault,
 		CreatedAt:            team.CreatedAt,
 		UpdatedAt:            team.UpdatedAt,
 	}

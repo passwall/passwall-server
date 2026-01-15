@@ -53,10 +53,11 @@ type UserRepository interface {
 
 // TokenRepository defines token data access methods
 type TokenRepository interface {
-	Create(ctx context.Context, userID int, tokenUUID uuid.UUID, token string, expiresAt time.Time) error
+	Create(ctx context.Context, userID int, sessionUUID uuid.UUID, deviceID uuid.UUID, app string, kind string, tokenUUID uuid.UUID, token string, expiresAt time.Time) error
 	GetByUUID(ctx context.Context, uuid string) (*domain.Token, error)
 	Delete(ctx context.Context, userID int) error
 	DeleteByUUID(ctx context.Context, uuid string) error
+	DeleteBySessionUUID(ctx context.Context, sessionUUID string) error
 	DeleteExpired(ctx context.Context) (int64, error)
 	Cleanup(ctx context.Context) error
 	Migrate() error
@@ -126,6 +127,7 @@ type TeamRepository interface {
 	GetByID(ctx context.Context, id uint) (*domain.Team, error)
 	GetByUUID(ctx context.Context, uuid string) (*domain.Team, error)
 	GetByName(ctx context.Context, orgID uint, name string) (*domain.Team, error)
+	GetDefaultByOrganization(ctx context.Context, orgID uint) (*domain.Team, error)
 	ListByOrganization(ctx context.Context, orgID uint) ([]*domain.Team, error)
 	Update(ctx context.Context, team *domain.Team) error
 	Delete(ctx context.Context, id uint) error
@@ -152,6 +154,7 @@ type CollectionRepository interface {
 	GetByID(ctx context.Context, id uint) (*domain.Collection, error)
 	GetByUUID(ctx context.Context, uuid string) (*domain.Collection, error)
 	GetByName(ctx context.Context, orgID uint, name string) (*domain.Collection, error)
+	GetDefaultByOrganization(ctx context.Context, orgID uint) (*domain.Collection, error)
 	ListByOrganization(ctx context.Context, orgID uint) ([]*domain.Collection, error)
 	ListForUser(ctx context.Context, orgID, userID uint) ([]*domain.Collection, error)
 	Update(ctx context.Context, collection *domain.Collection) error
@@ -211,6 +214,7 @@ type OrganizationItemRepository interface {
 	GetBySupportID(ctx context.Context, supportID int64) (*domain.OrganizationItem, error)
 	ListByOrganization(ctx context.Context, filter OrganizationItemFilter) ([]*domain.OrganizationItem, int64, error)
 	ListByCollection(ctx context.Context, collectionID uint) ([]*domain.OrganizationItem, error)
+	MoveItemsToCollection(ctx context.Context, fromCollectionID uint, toCollectionID uint) error
 	Update(ctx context.Context, item *domain.OrganizationItem) error
 	Delete(ctx context.Context, id uint) error
 	SoftDelete(ctx context.Context, id uint) error

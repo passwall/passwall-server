@@ -254,23 +254,30 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 		return nil, errors.New("email not verified")
 	}
 
-	// Delete old tokens
-	if err := s.tokenRepo.Delete(ctx, int(user.ID)); err != nil {
-		s.logger.Warn("failed to delete old tokens", "user_id", user.ID)
+	// Create JWT tokens
+	sessionUUID := uuid.NewV4()
+	deviceUUID := uuid.FromStringOrNil(creds.DeviceID)
+	if creds.DeviceID != "" && deviceUUID != uuid.Nil {
+		sessionUUID = deviceUUID
 	}
 
-	// Create JWT tokens
-	tokenDetails, err := s.createToken(user)
+	// Replace tokens for this client session (prevents orphan sessions after tab close).
+	// Note: sessionUUID is expected to be globally unique (UUIDv4); Vault uses per-email persisted UUID.
+	if creds.DeviceID != "" && deviceUUID != uuid.Nil {
+		_ = s.tokenRepo.DeleteBySessionUUID(ctx, sessionUUID.String())
+	}
+
+	tokenDetails, err := s.createToken(user, sessionUUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token: %w", err)
 	}
 
 	// Store tokens
-	if err := s.tokenRepo.Create(ctx, int(user.ID), tokenDetails.AtUUID, tokenDetails.AccessToken, tokenDetails.AtExpiresTime); err != nil {
+	if err := s.tokenRepo.Create(ctx, int(user.ID), tokenDetails.SessionUUID, deviceUUID, creds.App, "access", tokenDetails.AtUUID, tokenDetails.AccessToken, tokenDetails.AtExpiresTime); err != nil {
 		return nil, fmt.Errorf("failed to store access token: %w", err)
 	}
 
-	if err := s.tokenRepo.Create(ctx, int(user.ID), tokenDetails.RtUUID, tokenDetails.RefreshToken, tokenDetails.RtExpiresTime); err != nil {
+	if err := s.tokenRepo.Create(ctx, int(user.ID), tokenDetails.SessionUUID, deviceUUID, creds.App, "refresh", tokenDetails.RtUUID, tokenDetails.RefreshToken, tokenDetails.RtExpiresTime); err != nil {
 		return nil, fmt.Errorf("failed to store refresh token: %w", err)
 	}
 
@@ -325,6 +332,9 @@ func (s *authService) RefreshToken(ctx context.Context, refreshToken string) (*d
 		return nil, ErrUnauthorized
 	}
 
+	// Session UUID (for per-device rotation). May be missing for legacy tokens.
+	sessionUUID, _ := claims["sid"].(string)
+
 	// Get user UUID from claims
 	userUUIDStr, ok := claims["user_uuid"].(string)
 	if !ok {
@@ -355,23 +365,33 @@ func (s *authService) RefreshToken(ctx context.Context, refreshToken string) (*d
 		return nil, fmt.Errorf("user not found: %w", err)
 	}
 
-	// Delete old tokens
-	if err := s.tokenRepo.Delete(ctx, int(user.ID)); err != nil {
-		// Log error but continue
+	// Rotate only the current session (do not revoke other sessions like vault/extension).
+	if sessionUUID != "" {
+		_ = s.tokenRepo.DeleteBySessionUUID(ctx, sessionUUID)
+	} else {
+		// Legacy fallback: revoke only the presented refresh token.
+		_ = s.tokenRepo.DeleteByUUID(ctx, tokenUUID)
 	}
 
 	// Create new tokens
-	tokenDetails, err := s.createToken(user)
+	sid := uuid.NewV4()
+	if sessionUUID != "" {
+		sid = uuid.FromStringOrNil(sessionUUID)
+		if sid == uuid.Nil {
+			sid = uuid.NewV4()
+		}
+	}
+	tokenDetails, err := s.createToken(user, sid)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token: %w", err)
 	}
 
-	// Store new tokens
-	if err := s.tokenRepo.Create(ctx, int(user.ID), tokenDetails.AtUUID, tokenDetails.AccessToken, tokenDetails.AtExpiresTime); err != nil {
+	// Store new tokens (preserve device/app info from the validated refresh token row)
+	if err := s.tokenRepo.Create(ctx, int(user.ID), tokenDetails.SessionUUID, dbToken.DeviceID, dbToken.App, "access", tokenDetails.AtUUID, tokenDetails.AccessToken, tokenDetails.AtExpiresTime); err != nil {
 		return nil, fmt.Errorf("failed to store access token: %w", err)
 	}
 
-	if err := s.tokenRepo.Create(ctx, int(user.ID), tokenDetails.RtUUID, tokenDetails.RefreshToken, tokenDetails.RtExpiresTime); err != nil {
+	if err := s.tokenRepo.Create(ctx, int(user.ID), tokenDetails.SessionUUID, dbToken.DeviceID, dbToken.App, "refresh", tokenDetails.RtUUID, tokenDetails.RefreshToken, tokenDetails.RtExpiresTime); err != nil {
 		return nil, fmt.Errorf("failed to store refresh token: %w", err)
 	}
 
@@ -433,11 +453,21 @@ func (s *authService) ValidateToken(ctx context.Context, tokenString string) (*d
 	}, nil
 }
 
-func (s *authService) SignOut(ctx context.Context, userID int) error {
-	return s.tokenRepo.Delete(ctx, userID)
+func (s *authService) SignOut(ctx context.Context, tokenUUID string) error {
+	// Revoke only the current session (device).
+	dbToken, err := s.tokenRepo.GetByUUID(ctx, tokenUUID)
+	if err != nil {
+		// Already revoked or unknown token
+		return nil
+	}
+
+	if dbToken.SessionUUID != uuid.Nil {
+		return s.tokenRepo.DeleteBySessionUUID(ctx, dbToken.SessionUUID.String())
+	}
+	return s.tokenRepo.DeleteByUUID(ctx, tokenUUID)
 }
 
-func (s *authService) createToken(user *domain.User) (*domain.TokenDetails, error) {
+func (s *authService) createToken(user *domain.User, sessionUUID uuid.UUID) (*domain.TokenDetails, error) {
 	accessTokenDuration := resolveTokenExpireDuration(s.config.AccessTokenDuration)
 	refreshTokenDuration := resolveTokenExpireDuration(s.config.RefreshTokenDuration)
 
@@ -446,6 +476,7 @@ func (s *authService) createToken(user *domain.User) (*domain.TokenDetails, erro
 		RtExpiresTime: time.Now().Add(refreshTokenDuration),
 		AtUUID:        uuid.NewV4(),
 		RtUUID:        uuid.NewV4(),
+		SessionUUID:   sessionUUID,
 	}
 
 	// Create access token
@@ -455,6 +486,7 @@ func (s *authService) createToken(user *domain.User) (*domain.TokenDetails, erro
 		"role":       user.GetRoleName(),
 		"exp":        td.AtExpiresTime.Unix(),
 		"uuid":       td.AtUUID.String(),
+		"sid":        td.SessionUUID.String(),
 	}
 
 	at := jwt.NewWithClaims(jwt.SigningMethodHS256, atClaims)
@@ -470,6 +502,7 @@ func (s *authService) createToken(user *domain.User) (*domain.TokenDetails, erro
 		"user_uuid": user.UUID.String(),
 		"exp":       td.RtExpiresTime.Unix(),
 		"uuid":      td.RtUUID.String(),
+		"sid":       td.SessionUUID.String(),
 	}
 
 	rt := jwt.NewWithClaims(jwt.SigningMethodHS256, rtClaims)
@@ -556,7 +589,7 @@ func (s *authService) PreLogin(ctx context.Context, email string) (*domain.PreLo
 // ChangeMasterPassword changes user's master password
 // Zero-knowledge: Client re-wraps User Key with new Master Key
 func (s *authService) ChangeMasterPassword(ctx context.Context, req *domain.ChangeMasterPasswordRequest) error {
-	// Find user
+	// Find user (email must be set by authenticated handler)
 	user, err := s.userRepo.GetByEmail(ctx, req.Email)
 	if err != nil {
 		return ErrUnauthorized
@@ -565,7 +598,7 @@ func (s *authService) ChangeMasterPassword(ctx context.Context, req *domain.Chan
 	// Verify current password hash
 	if err := bcrypt.CompareHashAndPassword(
 		[]byte(user.MasterPasswordHash),
-		[]byte(req.CurrentPasswordHash),
+		[]byte(req.OldMasterPasswordHash),
 	); err != nil {
 		return ErrUnauthorized
 	}
@@ -592,6 +625,10 @@ func (s *authService) ChangeMasterPassword(ctx context.Context, req *domain.Chan
 		user.KdfIterations = req.NewKdfConfig.Iterations
 		user.KdfMemory = req.NewKdfConfig.Memory
 		user.KdfParallelism = req.NewKdfConfig.Parallelism
+	}
+	// Rotate KDF salt if provided (recommended on password change)
+	if req.NewKdfSalt != "" {
+		user.KdfSalt = req.NewKdfSalt
 	}
 
 	if err := s.userRepo.Update(ctx, user); err != nil {
@@ -639,11 +676,18 @@ func (s *authService) createDefaultFolders(ctx context.Context, userID uint) err
 func (s *authService) createPersonalOrganization(ctx context.Context, user *domain.User, encryptedOrgKey string) error {
 	// Create personal organization
 	// Note: Plan limits will be set via free subscription (created automatically during seeding)
+	creatorEmail := user.Email
+	creatorName := user.Name
+	creatorID := user.ID
 	org := &domain.Organization{
 		Name:            fmt.Sprintf("%s's Workspace", user.Name),
 		BillingEmail:    user.Email,
 		EncryptedOrgKey: encryptedOrgKey, // Organization key encrypted with User Key
 		IsActive:        true,
+		IsDefault:       true,
+		CreatedByUserID:    &creatorID,
+		CreatedByUserEmail: &creatorEmail,
+		CreatedByUserName:  &creatorName,
 	}
 
 	if err := s.orgRepo.Create(ctx, org); err != nil {

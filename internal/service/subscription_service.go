@@ -29,6 +29,7 @@ type SubscriptionService interface {
 
 type subscriptionService struct {
 	subRepo interface {
+		ExpireActiveByOrganizationID(ctx context.Context, orgID uint, endedAt time.Time) error
 		Create(ctx context.Context, sub *domain.Subscription) error
 		GetByID(ctx context.Context, id uint) (*domain.Subscription, error)
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
@@ -36,6 +37,7 @@ type subscriptionService struct {
 		Update(ctx context.Context, sub *domain.Subscription) error
 		ListPastDueExpired(ctx context.Context) ([]*domain.Subscription, error)
 		ListCanceledExpired(ctx context.Context) ([]*domain.Subscription, error)
+		ListManualExpired(ctx context.Context) ([]*domain.Subscription, error)
 	}
 	planRepo interface {
 		GetByCode(ctx context.Context, code string) (*domain.Plan, error)
@@ -56,6 +58,7 @@ type subscriptionService struct {
 // NewSubscriptionService creates a new subscription service
 func NewSubscriptionService(
 	subRepo interface {
+		ExpireActiveByOrganizationID(ctx context.Context, orgID uint, endedAt time.Time) error
 		Create(ctx context.Context, sub *domain.Subscription) error
 		GetByID(ctx context.Context, id uint) (*domain.Subscription, error)
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
@@ -63,6 +66,7 @@ func NewSubscriptionService(
 		Update(ctx context.Context, sub *domain.Subscription) error
 		ListPastDueExpired(ctx context.Context) ([]*domain.Subscription, error)
 		ListCanceledExpired(ctx context.Context) ([]*domain.Subscription, error)
+		ListManualExpired(ctx context.Context) ([]*domain.Subscription, error)
 	},
 	planRepo interface {
 		GetByCode(ctx context.Context, code string) (*domain.Plan, error)
@@ -88,6 +92,13 @@ func NewSubscriptionService(
 
 // Create creates a new subscription
 func (s *subscriptionService) Create(ctx context.Context, orgID uint, planCode string, stripeSubscriptionID string) (*domain.Subscription, error) {
+	// Idempotency for Stripe retries: if we already have this Stripe subscription, return it.
+	if stripeSubscriptionID != "" {
+		if existing, err := s.subRepo.GetByStripeSubscriptionID(ctx, stripeSubscriptionID); err == nil && existing != nil {
+			return existing, nil
+		}
+	}
+
 	plan, err := s.planRepo.GetByCode(ctx, planCode)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get plan: %w", err)
@@ -98,6 +109,15 @@ func (s *subscriptionService) Create(ctx context.Context, orgID uint, planCode s
 	}
 
 	now := time.Now()
+
+	// Hard invariant: prevent multiple active-like subscriptions per organization.
+	// We expire any existing active/trialing/past_due rows before creating the new one.
+	// (Old Stripe subscription should transition to canceled via webhook; this keeps DB consistent even if
+	// events arrive out-of-order.)
+	if err := s.subRepo.ExpireActiveByOrganizationID(ctx, orgID, now); err != nil {
+		return nil, fmt.Errorf("failed to expire existing active subscriptions: %w", err)
+	}
+
 	sub := &domain.Subscription{
 		UUID:                 uuid.NewV4(),
 		OrganizationID:       orgID,
@@ -438,6 +458,17 @@ func (s *subscriptionService) CheckExpiredSubscriptions(ctx context.Context) err
 	for _, sub := range canceledSubs {
 		if err := s.ExpireSubscription(ctx, sub.ID); err != nil {
 			// Log error but continue processing others
+			continue
+		}
+	}
+
+	// Find manual active/trialing subscriptions where end date passed
+	manualSubs, err := s.subRepo.ListManualExpired(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list manual expired subscriptions: %w", err)
+	}
+	for _, sub := range manualSubs {
+		if err := s.ExpireSubscription(ctx, sub.ID); err != nil {
 			continue
 		}
 	}

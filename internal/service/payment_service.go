@@ -465,7 +465,7 @@ func (s *paymentService) GetBillingInfo(ctx context.Context, orgID uint) (*domai
 	// Collection count would require collection repository
 	currentCollections := 0
 
-	// Convert org to DTO (with default free plan limits)
+	// Convert org to DTO (plan/limits derived from subscription when available)
 	orgDTO := domain.ToOrganizationDTO(org)
 
 	billingInfo := &domain.BillingInfo{
@@ -483,46 +483,10 @@ func (s *paymentService) GetBillingInfo(ctx context.Context, orgID uint) (*domai
 		return billingInfo, nil
 	}
 
-	// Convert subscription to DTO
-	subscriptionDTO := &domain.SubscriptionDTO{
-		ID:                   subscription.ID,
-		UUID:                 subscription.UUID,
-		OrganizationID:       subscription.OrganizationID,
-		State:                subscription.State,
-		StartedAt:            subscription.StartedAt,
-		RenewAt:              subscription.RenewAt,
-		CancelAt:             subscription.CancelAt,
-		EndedAt:              subscription.EndedAt,
-		GracePeriodEndsAt:    subscription.GracePeriodEndsAt,
-		TrialEndsAt:          subscription.TrialEndsAt,
-		StripeSubscriptionID: subscription.StripeSubscriptionID,
-		CreatedAt:            subscription.CreatedAt,
-		UpdatedAt:            subscription.UpdatedAt,
-	}
-
-	// Add Plan details if loaded
-	if subscription.Plan != nil {
-		subscriptionDTO.Plan = domain.ToPlanDTO(subscription.Plan)
-		
-		// Update organization DTO with plan limits from subscription
-		planCode := subscription.Plan.Code
-		if idx := len(planCode) - len("-monthly"); idx > 0 && planCode[idx:] == "-monthly" {
-			orgDTO.Plan = domain.OrganizationPlan(planCode[:idx])
-		} else if idx := len(planCode) - len("-yearly"); idx > 0 && planCode[idx:] == "-yearly" {
-			orgDTO.Plan = domain.OrganizationPlan(planCode[:idx])
-		} else {
-			orgDTO.Plan = domain.OrganizationPlan(planCode)
-		}
-		
-		if subscription.Plan.MaxUsers != nil {
-			orgDTO.MaxUsers = *subscription.Plan.MaxUsers
-		}
-		if subscription.Plan.MaxCollections != nil {
-			orgDTO.MaxCollections = *subscription.Plan.MaxCollections
-		}
-	}
-
-	billingInfo.Subscription = subscriptionDTO
+	// Single source of truth: derive org plan/limits from subscription+plan.
+	orgDTO = domain.ToOrganizationDTOWithSubscription(org, subscription)
+	billingInfo.Organization = orgDTO
+	billingInfo.Subscription = domain.ToSubscriptionDTO(subscription)
 
 	// Fetch invoices from Stripe if organization has Stripe customer ID
 	if org.StripeCustomerID != nil && *org.StripeCustomerID != "" {

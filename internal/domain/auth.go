@@ -50,6 +50,11 @@ func (r *SignUpRequest) Validate() error {
 type Credentials struct {
 	Email              string `json:"email" validate:"required,email"`
 	MasterPasswordHash string `json:"master_password_hash" validate:"required"`
+	// Optional device identifier to keep a stable session per app/device.
+	// Example: Vault can persist this in localStorage to avoid orphan sessions after tab close.
+	DeviceID string `json:"device_id,omitempty"`
+	// Optional app identifier (used with device_id). Expected: vault|extension|mobile|desktop
+	App string `json:"app,omitempty"`
 }
 
 // AuthResponse represents the authentication response
@@ -74,6 +79,7 @@ type TokenDetails struct {
 	RtExpiresTime time.Time `json:"-"`
 	AtUUID        uuid.UUID `json:"-"`
 	RtUUID        uuid.UUID `json:"-"`
+	SessionUUID   uuid.UUID `json:"-"`
 }
 
 // TokenClaims represents JWT token claims
@@ -114,11 +120,18 @@ type PreLoginResponse struct {
 
 // ChangeMasterPasswordRequest represents master password change request
 type ChangeMasterPasswordRequest struct {
-	Email                 string     `json:"email" validate:"required,email"`
-	CurrentPasswordHash   string     `json:"current_password_hash" validate:"required"`
+	// NOTE: This endpoint is authenticated (JWT). The server will use the
+	// authenticated user (context) and ignore any client-provided email.
+	Email string `json:"email,omitempty"`
+
+	OldMasterPasswordHash string `json:"old_master_password_hash" validate:"required"`
+
 	NewMasterPasswordHash string     `json:"new_master_password_hash" validate:"required"`
 	NewProtectedUserKey   string     `json:"new_protected_user_key" validate:"required"`
-	NewKdfConfig          *KdfConfig `json:"new_kdf_config,omitempty"` // Optional: change KDF settings
+
+	// Optional: rotate KDF settings and salt
+	NewKdfConfig *KdfConfig `json:"new_kdf_config,omitempty"`
+	NewKdfSalt   string     `json:"new_kdf_salt,omitempty"`
 }
 
 // ErrValidation represents a validation error

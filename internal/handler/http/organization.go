@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -12,10 +13,18 @@ import (
 
 type OrganizationHandler struct {
 	service service.OrganizationService
+	subRepo  interface {
+		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
+	}
 }
 
-func NewOrganizationHandler(service service.OrganizationService) *OrganizationHandler {
-	return &OrganizationHandler{service: service}
+func NewOrganizationHandler(
+	service service.OrganizationService,
+	subRepo interface {
+		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
+	},
+) *OrganizationHandler {
+	return &OrganizationHandler{service: service, subRepo: subRepo}
 }
 
 // Create godoc
@@ -45,7 +54,8 @@ func (h *OrganizationHandler) Create(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, domain.ToOrganizationDTO(org))
+	sub, _ := h.subRepo.GetByOrganizationID(ctx, org.ID)
+	c.JSON(http.StatusCreated, domain.ToOrganizationDTOWithSubscription(org, sub))
 }
 
 // List godoc
@@ -68,7 +78,8 @@ func (h *OrganizationHandler) List(c *gin.Context) {
 
 	dtos := make([]*domain.OrganizationDTO, len(orgs))
 	for i, org := range orgs {
-		dtos[i] = domain.ToOrganizationDTO(org)
+		sub, _ := h.subRepo.GetByOrganizationID(ctx, org.ID)
+		dtos[i] = domain.ToOrganizationDTOWithSubscription(org, sub)
 	}
 
 	c.JSON(http.StatusOK, dtos)
@@ -108,7 +119,8 @@ func (h *OrganizationHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, domain.ToOrganizationDTO(org))
+	sub, _ := h.subRepo.GetByOrganizationID(ctx, org.ID)
+	c.JSON(http.StatusOK, domain.ToOrganizationDTOWithSubscription(org, sub))
 }
 
 // Update godoc
@@ -153,7 +165,8 @@ func (h *OrganizationHandler) Update(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, domain.ToOrganizationDTO(org))
+	sub, _ := h.subRepo.GetByOrganizationID(ctx, org.ID)
+	c.JSON(http.StatusOK, domain.ToOrganizationDTOWithSubscription(org, sub))
 }
 
 // Delete godoc
@@ -185,7 +198,8 @@ func (h *OrganizationHandler) Delete(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "organization not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete organization"})
+		// Validation/business-rule errors (e.g. default org cannot be deleted)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 

@@ -139,6 +139,10 @@ func (s *teamService) Delete(ctx context.Context, id uint, userID uint) error {
 		return fmt.Errorf("team not found: %w", err)
 	}
 
+	if team.IsDefault {
+		return fmt.Errorf("cannot delete default team")
+	}
+
 	// Check if user can manage teams
 	if err := s.checkTeamManagePermission(ctx, team.OrganizationID, userID); err != nil {
 		return err

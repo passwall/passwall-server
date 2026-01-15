@@ -98,6 +98,7 @@ func (a *App) Run(ctx context.Context) error {
 	collectionRepo := gormrepo.NewCollectionRepository(a.db.DB())
 	collectionUserRepo := gormrepo.NewCollectionUserRepository(a.db.DB())
 	collectionTeamRepo := gormrepo.NewCollectionTeamRepository(a.db.DB())
+	orgItemRepo := gormrepo.NewOrganizationItemRepository(a.db.DB())
 	// Item share repo (for future: direct user-to-user sharing)
 	_ = gormrepo.NewItemShareRepository(a.db.DB()) // TODO: Use in SharingService
 
@@ -160,7 +161,20 @@ func (a *App) Run(ctx context.Context) error {
 	var paymentService service.PaymentService
 
 	// Organization service
-	organizationService := service.NewOrganizationService(orgRepo, orgUserRepo, userRepo, paymentService, invitationService, subscriptionRepo, serviceLogger)
+	organizationService := service.NewOrganizationService(
+		orgRepo,
+		orgUserRepo,
+		userRepo,
+		teamRepo,
+		teamUserRepo,
+		collectionRepo,
+		collectionTeamRepo,
+		paymentService,
+		invitationService,
+		subscriptionRepo,
+		planRepo,
+		serviceLogger,
+	)
 
 	// Subscription service (needs organizationService, stripe client, email service optional, logger)
 	subscriptionService := service.NewSubscriptionService(subscriptionRepo, planRepo, organizationService, nil, stripeClientInstance, serviceLogger)
@@ -169,10 +183,9 @@ func (a *App) Run(ctx context.Context) error {
 	paymentService = service.NewPaymentService(stripeClientInstance, orgRepo, orgUserRepo, subscriptionService, planRepo, userActivityService, a.config, serviceLogger)
 
 	teamService := service.NewTeamService(teamRepo, teamUserRepo, orgUserRepo, orgRepo, serviceLogger)
-	collectionService := service.NewCollectionService(collectionRepo, collectionUserRepo, collectionTeamRepo, orgUserRepo, teamRepo, orgRepo, subscriptionRepo, serviceLogger)
+	collectionService := service.NewCollectionService(collectionRepo, collectionUserRepo, collectionTeamRepo, orgUserRepo, teamRepo, orgRepo, orgItemRepo, subscriptionRepo, serviceLogger)
 
 	// Organization items service (shared vault)
-	orgItemRepo := gormrepo.NewOrganizationItemRepository(a.db.DB())
 	organizationItemService := service.NewOrganizationItemService(orgItemRepo, collectionRepo, orgUserRepo, serviceLogger)
 
 	// Initialize handlers
@@ -188,7 +201,7 @@ func (a *App) Run(ctx context.Context) error {
 	folderHandler := httpHandler.NewFolderHandler(folderService)
 
 	// Organization handlers
-	organizationHandler := httpHandler.NewOrganizationHandler(organizationService)
+	organizationHandler := httpHandler.NewOrganizationHandler(organizationService, subscriptionRepo)
 	teamHandler := httpHandler.NewTeamHandler(teamService)
 	collectionHandler := httpHandler.NewCollectionHandler(collectionService)
 	organizationItemHandler := httpHandler.NewOrganizationItemHandler(organizationItemService, userActivityService)
@@ -199,6 +212,19 @@ func (a *App) Run(ctx context.Context) error {
 
 	// Support handler
 	supportHandler := httpHandler.NewSupportHandler(emailSender, serviceLogger)
+
+	// Plans + Admin subscription management handlers
+	plansHandler := httpHandler.NewPlansHandler(planRepo, serviceLogger)
+	adminSubscriptionsHandler := httpHandler.NewAdminSubscriptionsHandler(
+		orgRepo,
+		orgUserRepo,
+		subscriptionRepo,
+		planRepo,
+		paymentService,
+		userActivityService,
+		serviceLogger,
+	)
+	adminBulkEmailHandler := httpHandler.NewAdminBulkEmailHandler(emailSender, serviceLogger)
 
 	// Setup router
 	router := SetupRouter(
@@ -219,6 +245,9 @@ func (a *App) Run(ctx context.Context) error {
 		paymentHandler,
 		webhookHandler,
 		supportHandler,
+		plansHandler,
+		adminSubscriptionsHandler,
+		adminBulkEmailHandler,
 	)
 
 	// Create server
