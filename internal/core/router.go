@@ -22,6 +22,8 @@ func SetupRouter(
 	excludedDomainHandler *httpHandler.ExcludedDomainHandler,
 	folderHandler *httpHandler.FolderHandler,
 	userHandler *httpHandler.UserHandler,
+	userNotificationPreferencesHandler *httpHandler.UserNotificationPreferencesHandler,
+	userAppearancePreferencesHandler *httpHandler.UserAppearancePreferencesHandler,
 	invitationHandler *httpHandler.InvitationHandler,
 	organizationHandler *httpHandler.OrganizationHandler,
 	teamHandler *httpHandler.TeamHandler,
@@ -32,7 +34,7 @@ func SetupRouter(
 	supportHandler *httpHandler.SupportHandler,
 	plansHandler *httpHandler.PlansHandler,
 	adminSubscriptionsHandler *httpHandler.AdminSubscriptionsHandler,
-	adminBulkEmailHandler *httpHandler.AdminBulkEmailHandler,
+	adminMailHandler *httpHandler.AdminMailHandler,
 ) *gin.Engine {
 	// Create router without default middleware
 	router := gin.New()
@@ -142,6 +144,10 @@ func SetupRouter(
 
 		// User profile routes - any authenticated user
 		apiGroup.PUT("/users/me", userHandler.UpdateProfile)
+		apiGroup.GET("/users/me/notification-preferences", userNotificationPreferencesHandler.Get)
+		apiGroup.PUT("/users/me/notification-preferences", userNotificationPreferencesHandler.Update)
+		apiGroup.GET("/users/me/appearance-preferences", userAppearancePreferencesHandler.Get)
+		apiGroup.PUT("/users/me/appearance-preferences", userAppearancePreferencesHandler.Update)
 		apiGroup.POST("/users/change-master-password",
 			httpHandler.RateLimitMiddleware(changePasswordRateLimiter),
 			authHandler.ChangeMasterPassword,
@@ -199,8 +205,13 @@ func SetupRouter(
 			adminGroup.GET("/subscriptions", adminSubscriptionsHandler.List)
 			adminGroup.POST("/organizations/:id/subscription/grant", adminSubscriptionsHandler.GrantManual)
 			adminGroup.POST("/organizations/:id/subscription/revoke", adminSubscriptionsHandler.RevokeManual)
-			adminGroup.POST("/bulk-email", adminBulkEmailHandler.CreateJob)
-			adminGroup.GET("/bulk-email/:jobId", adminBulkEmailHandler.GetJob)
+			// Mail (admin broadcast)
+			adminGroup.POST("/mail", adminMailHandler.CreateJob)
+			adminGroup.GET("/mail/:jobId", adminMailHandler.GetJob)
+
+			// Legacy endpoint (backward compatibility)
+			adminGroup.POST("/bulk-email", adminMailHandler.CreateJob)
+			adminGroup.GET("/bulk-email/:jobId", adminMailHandler.GetJob)
 		}
 
 		// ============================================================

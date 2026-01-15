@@ -51,6 +51,18 @@ type UserRepository interface {
 	MigrateUserSchema(schema string) error
 }
 
+// UserNotificationPreferencesRepository defines data access for user notification preferences.
+type UserNotificationPreferencesRepository interface {
+	GetByUserID(ctx context.Context, userID uint) (*domain.UserNotificationPreferences, error)
+	Upsert(ctx context.Context, prefs *domain.UserNotificationPreferences) error
+}
+
+// UserAppearancePreferencesRepository defines data access for user appearance preferences.
+type UserAppearancePreferencesRepository interface {
+	GetByUserID(ctx context.Context, userID uint) (*domain.UserAppearancePreferences, error)
+	Upsert(ctx context.Context, prefs *domain.UserAppearancePreferences) error
+}
+
 // TokenRepository defines token data access methods
 type TokenRepository interface {
 	Create(ctx context.Context, userID int, sessionUUID uuid.UUID, deviceID uuid.UUID, app string, kind string, tokenUUID uuid.UUID, token string, expiresAt time.Time) error

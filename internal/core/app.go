@@ -88,6 +88,8 @@ func (a *App) Run(ctx context.Context) error {
 	userActivityRepo := gormrepo.NewUserActivityRepository(a.db.DB())
 	excludedDomainRepo := gormrepo.NewExcludedDomainRepository(a.db.DB())
 	folderRepo := gormrepo.NewFolderRepository(a.db.DB())
+	userNotificationPreferencesRepo := gormrepo.NewUserNotificationPreferencesRepository(a.db.DB())
+	userAppearancePreferencesRepo := gormrepo.NewUserAppearancePreferencesRepository(a.db.DB())
 	invitationRepo := gormrepo.NewInvitationRepository(a.db.DB())
 
 	// Organization repos
@@ -145,6 +147,8 @@ func (a *App) Run(ctx context.Context) error {
 	verificationService := service.NewVerificationService(verificationRepo, userRepo, serviceLogger)
 	authService := service.NewAuthService(userRepo, tokenRepo, verificationRepo, folderRepo, orgRepo, orgUserRepo, invitationRepo, userActivityService, emailSender, emailBuilder, authConfig, serviceLogger)
 	userService := service.NewUserService(userRepo, orgRepo, orgUserRepo, serviceLogger)
+	userNotificationPreferencesService := service.NewUserNotificationPreferencesService(userNotificationPreferencesRepo, serviceLogger)
+	userAppearancePreferencesService := service.NewUserAppearancePreferencesService(userAppearancePreferencesRepo, serviceLogger)
 	invitationService := service.NewInvitationService(invitationRepo, userRepo, orgRepo, emailSender, emailBuilder, serviceLogger)
 
 	// Modern flexible items service (handles all item types)
@@ -193,6 +197,8 @@ func (a *App) Run(ctx context.Context) error {
 	organizationActivityHandler := httpHandler.NewOrganizationActivityHandler(userActivityService, orgUserRepo)
 	authHandler := httpHandler.NewAuthHandler(authService, verificationService, userActivityService, emailSender, emailBuilder)
 	userHandler := httpHandler.NewUserHandler(userService, userActivityService)
+	userNotificationPreferencesHandler := httpHandler.NewUserNotificationPreferencesHandler(userNotificationPreferencesService)
+	userAppearancePreferencesHandler := httpHandler.NewUserAppearancePreferencesHandler(userAppearancePreferencesService)
 	invitationHandler := httpHandler.NewInvitationHandler(invitationService, userService, organizationService)
 
 	// Modern handlers (all item types use ItemHandler now)
@@ -224,7 +230,7 @@ func (a *App) Run(ctx context.Context) error {
 		userActivityService,
 		serviceLogger,
 	)
-	adminBulkEmailHandler := httpHandler.NewAdminBulkEmailHandler(emailSender, serviceLogger)
+	adminMailHandler := httpHandler.NewAdminMailHandler(emailSender, userRepo, serviceLogger)
 
 	// Setup router
 	router := SetupRouter(
@@ -237,6 +243,8 @@ func (a *App) Run(ctx context.Context) error {
 		excludedDomainHandler,
 		folderHandler,
 		userHandler,
+		userNotificationPreferencesHandler,
+		userAppearancePreferencesHandler,
 		invitationHandler,
 		organizationHandler,
 		teamHandler,
@@ -247,7 +255,7 @@ func (a *App) Run(ctx context.Context) error {
 		supportHandler,
 		plansHandler,
 		adminSubscriptionsHandler,
-		adminBulkEmailHandler,
+		adminMailHandler,
 	)
 
 	// Create server

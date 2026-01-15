@@ -59,6 +59,8 @@ func AutoMigrate(db database.Database) error {
 	if err := db.AutoMigrate(
 		&domain.ExcludedDomain{},
 		&domain.Folder{},
+		&domain.UserNotificationPreferences{},
+		&domain.UserAppearancePreferences{},
 		&domain.Invitation{},
 	); err != nil {
 		return fmt.Errorf("failed to migrate user-related tables: %w", err)

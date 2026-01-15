@@ -49,6 +49,18 @@ type UserService interface {
 	DeleteWithOrganizations(ctx context.Context, userID uint, organizationIDs []uint, schema string) error
 }
 
+// UserNotificationPreferencesService defines business logic for notification preferences.
+type UserNotificationPreferencesService interface {
+	GetForUser(ctx context.Context, userID uint) (*domain.UserNotificationPreferences, error)
+	UpdateForUser(ctx context.Context, userID uint, req *domain.UpdateUserNotificationPreferencesRequest) (*domain.UserNotificationPreferences, error)
+}
+
+// UserAppearancePreferencesService defines business logic for appearance preferences.
+type UserAppearancePreferencesService interface {
+	GetForUser(ctx context.Context, userID uint) (*domain.UserAppearancePreferences, error)
+	UpdateForUser(ctx context.Context, userID uint, req *domain.UpdateUserAppearancePreferencesRequest) (*domain.UserAppearancePreferences, error)
+}
+
 // VerificationService defines the business logic for email verification
 type VerificationService interface {
 	GenerateCode(ctx context.Context, email string) (string, error)
