@@ -104,4 +104,3 @@ func (r *teamUserRepository) DeleteByTeamAndOrgUser(ctx context.Context, teamID,
 		Where("team_id = ? AND organization_user_id = ?", teamID, orgUserID).
 		Delete(&domain.TeamUser{}).Error
 }
-

@@ -24,17 +24,17 @@ const (
 	ActivityTypeAdminUserCreated ActivityType = "admin_user_created"
 	ActivityTypeAdminUserUpdated ActivityType = "admin_user_updated"
 	ActivityTypeAdminUserDeleted ActivityType = "admin_user_deleted"
-	
+
 	// Billing & Subscription Activities
-	ActivityTypeCheckoutCreated           ActivityType = "checkout_created"
-	ActivityTypeSubscriptionCreated       ActivityType = "subscription_created"
-	ActivityTypeSubscriptionUpdated       ActivityType = "subscription_updated"
-	ActivityTypeSubscriptionCanceled      ActivityType = "subscription_canceled"
-	ActivityTypeSubscriptionReactivated   ActivityType = "subscription_reactivated"
-	ActivityTypeInvoicePaid               ActivityType = "invoice_paid"
-	ActivityTypeInvoicePaymentFailed      ActivityType = "invoice_payment_failed"
-	ActivityTypeOrganizationUpgraded      ActivityType = "organization_upgraded"
-	ActivityTypeOrganizationDowngraded    ActivityType = "organization_downgraded"
+	ActivityTypeCheckoutCreated         ActivityType = "checkout_created"
+	ActivityTypeSubscriptionCreated     ActivityType = "subscription_created"
+	ActivityTypeSubscriptionUpdated     ActivityType = "subscription_updated"
+	ActivityTypeSubscriptionCanceled    ActivityType = "subscription_canceled"
+	ActivityTypeSubscriptionReactivated ActivityType = "subscription_reactivated"
+	ActivityTypeInvoicePaid             ActivityType = "invoice_paid"
+	ActivityTypeInvoicePaymentFailed    ActivityType = "invoice_payment_failed"
+	ActivityTypeOrganizationUpgraded    ActivityType = "organization_upgraded"
+	ActivityTypeOrganizationDowngraded  ActivityType = "organization_downgraded"
 )
 
 // UserActivity represents user activity log for audit trail

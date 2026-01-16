@@ -13,7 +13,7 @@ type SignUpRequest struct {
 	MasterPasswordHash string     `json:"master_password_hash" validate:"required"` // HKDF(masterKey, info="auth")
 	ProtectedUserKey   string     `json:"protected_user_key" validate:"required"`   // EncString: "2.iv|ct|mac"
 	KdfConfig          *KdfConfig `json:"kdf_config" validate:"required"`
-	KdfSalt            string     `json:"kdf_salt" validate:"required"`      // hex-encoded random salt from client
+	KdfSalt            string     `json:"kdf_salt" validate:"required"`          // hex-encoded random salt from client
 	EncryptedOrgKey    string     `json:"encrypted_org_key" validate:"required"` // Organization key encrypted with User Key
 }
 
@@ -59,27 +59,27 @@ type Credentials struct {
 
 // AuthResponse represents the authentication response
 type AuthResponse struct {
-	AccessToken      string       `json:"access_token"`
-	RefreshToken     string       `json:"refresh_token"`
-	Type             string       `json:"type"` // "Bearer"
-	AccessTokenExpiresAt  int64   `json:"access_token_expires_at,omitempty"`  // unix seconds
-	RefreshTokenExpiresAt int64   `json:"refresh_token_expires_at,omitempty"` // unix seconds
-	ProtectedUserKey string       `json:"protected_user_key"`
-	KdfConfig        *KdfConfig   `json:"kdf_config"`
-	User             *UserAuthDTO `json:"user"`
+	AccessToken           string       `json:"access_token"`
+	RefreshToken          string       `json:"refresh_token"`
+	Type                  string       `json:"type"`                               // "Bearer"
+	AccessTokenExpiresAt  int64        `json:"access_token_expires_at,omitempty"`  // unix seconds
+	RefreshTokenExpiresAt int64        `json:"refresh_token_expires_at,omitempty"` // unix seconds
+	ProtectedUserKey      string       `json:"protected_user_key"`
+	KdfConfig             *KdfConfig   `json:"kdf_config"`
+	User                  *UserAuthDTO `json:"user"`
 }
 
 // TokenDetails represents JWT token details
 type TokenDetails struct {
-	AccessToken   string    `json:"access_token"`
-	RefreshToken  string    `json:"refresh_token"`
-	AccessTokenExpiresAt  int64 `json:"access_token_expires_at,omitempty"`  // unix seconds
-	RefreshTokenExpiresAt int64 `json:"refresh_token_expires_at,omitempty"` // unix seconds
-	AtExpiresTime time.Time `json:"-"`
-	RtExpiresTime time.Time `json:"-"`
-	AtUUID        uuid.UUID `json:"-"`
-	RtUUID        uuid.UUID `json:"-"`
-	SessionUUID   uuid.UUID `json:"-"`
+	AccessToken           string    `json:"access_token"`
+	RefreshToken          string    `json:"refresh_token"`
+	AccessTokenExpiresAt  int64     `json:"access_token_expires_at,omitempty"`  // unix seconds
+	RefreshTokenExpiresAt int64     `json:"refresh_token_expires_at,omitempty"` // unix seconds
+	AtExpiresTime         time.Time `json:"-"`
+	RtExpiresTime         time.Time `json:"-"`
+	AtUUID                uuid.UUID `json:"-"`
+	RtUUID                uuid.UUID `json:"-"`
+	SessionUUID           uuid.UUID `json:"-"`
 }
 
 // TokenClaims represents JWT token claims
@@ -126,8 +126,8 @@ type ChangeMasterPasswordRequest struct {
 
 	OldMasterPasswordHash string `json:"old_master_password_hash" validate:"required"`
 
-	NewMasterPasswordHash string     `json:"new_master_password_hash" validate:"required"`
-	NewProtectedUserKey   string     `json:"new_protected_user_key" validate:"required"`
+	NewMasterPasswordHash string `json:"new_master_password_hash" validate:"required"`
+	NewProtectedUserKey   string `json:"new_protected_user_key" validate:"required"`
 
 	// Optional: rotate KDF settings and salt
 	NewKdfConfig *KdfConfig `json:"new_kdf_config,omitempty"`

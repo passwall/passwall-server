@@ -289,7 +289,7 @@ func (s *userService) TransferOwnership(ctx context.Context, req *domain.Transfe
 		// Rollback: restore current owner's role
 		currentOrgUser.Role = domain.OrgRoleOwner
 		_ = s.orgUserRepo.Update(ctx, currentOrgUser)
-		
+
 		s.logger.Error("failed to promote new owner", "error", err)
 		return fmt.Errorf("failed to transfer ownership: %w", err)
 	}

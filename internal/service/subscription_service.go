@@ -190,7 +190,7 @@ func (s *subscriptionService) Upgrade(ctx context.Context, orgID uint, planCode 
 
 	// Update subscription
 	sub.PlanID = newPlan.ID
-	
+
 	return s.subRepo.Update(ctx, sub)
 }
 
@@ -229,7 +229,7 @@ func (s *subscriptionService) Downgrade(ctx context.Context, orgID uint, planCod
 
 	// Schedule downgrade at end of billing period
 	sub.PlanID = newPlan.ID
-	
+
 	return s.subRepo.Update(ctx, sub)
 }
 
@@ -255,19 +255,19 @@ func (s *subscriptionService) Cancel(ctx context.Context, orgID uint) error {
 		return fmt.Errorf("stripe client not available")
 	}
 
-	s.logger.Infof("🔄 Canceling Stripe subscription at period end: %s (org_id=%d)", 
+	s.logger.Infof("🔄 Canceling Stripe subscription at period end: %s (org_id=%d)",
 		*sub.StripeSubscriptionID, orgID)
 
 	stripeSub, err := stripeClient.CancelSubscription(*sub.StripeSubscriptionID, true) // true = cancel at period end
 	if err != nil {
-		s.logger.Error("Failed to cancel Stripe subscription", 
-			"stripe_subscription_id", *sub.StripeSubscriptionID, 
-			"org_id", orgID, 
+		s.logger.Error("Failed to cancel Stripe subscription",
+			"stripe_subscription_id", *sub.StripeSubscriptionID,
+			"org_id", orgID,
 			"error", err)
 		return fmt.Errorf("failed to cancel Stripe subscription: %w", err)
 	}
 
-	s.logger.Infof("✅ Stripe subscription canceled successfully: %s (status=%s, cancel_at_period_end=true)", 
+	s.logger.Infof("✅ Stripe subscription canceled successfully: %s (status=%s, cancel_at_period_end=true)",
 		stripeSub.ID, stripeSub.Status)
 
 	// 3. Only update database AFTER Stripe success
@@ -275,13 +275,13 @@ func (s *subscriptionService) Cancel(ctx context.Context, orgID uint) error {
 	sub.CancelAt = &now
 	sub.State = domain.SubStateCanceled
 	// RenewAt will be used to determine when to expire
-	
-	s.logger.Infof("📝 Marking subscription as CANCELED at period end (org_id=%d, will_expire_at=%v)", 
+
+	s.logger.Infof("📝 Marking subscription as CANCELED at period end (org_id=%d, will_expire_at=%v)",
 		orgID, sub.RenewAt)
 
 	if err := s.subRepo.Update(ctx, sub); err != nil {
-		s.logger.Error("Failed to update subscription in database after Stripe cancel", 
-			"org_id", orgID, 
+		s.logger.Error("Failed to update subscription in database after Stripe cancel",
+			"org_id", orgID,
 			"error", err)
 		return fmt.Errorf("failed to update subscription in database: %w", err)
 	}
@@ -312,19 +312,19 @@ func (s *subscriptionService) Resume(ctx context.Context, orgID uint) error {
 		return fmt.Errorf("stripe client not available")
 	}
 
-	s.logger.Infof("🔄 Reactivating Stripe subscription: %s (org_id=%d)", 
+	s.logger.Infof("🔄 Reactivating Stripe subscription: %s (org_id=%d)",
 		*sub.StripeSubscriptionID, orgID)
 
 	stripeSub, err := stripeClient.ReactivateSubscription(*sub.StripeSubscriptionID)
 	if err != nil {
-		s.logger.Error("Failed to reactivate Stripe subscription", 
-			"stripe_subscription_id", *sub.StripeSubscriptionID, 
-			"org_id", orgID, 
+		s.logger.Error("Failed to reactivate Stripe subscription",
+			"stripe_subscription_id", *sub.StripeSubscriptionID,
+			"org_id", orgID,
 			"error", err)
 		return fmt.Errorf("failed to reactivate Stripe subscription: %w", err)
 	}
 
-	s.logger.Infof("✅ Stripe subscription reactivated successfully: %s (status=%s)", 
+	s.logger.Infof("✅ Stripe subscription reactivated successfully: %s (status=%s)",
 		stripeSub.ID, stripeSub.Status)
 
 	// 3. Only update database AFTER Stripe success
@@ -332,8 +332,8 @@ func (s *subscriptionService) Resume(ctx context.Context, orgID uint) error {
 	sub.CancelAt = nil
 
 	if err := s.subRepo.Update(ctx, sub); err != nil {
-		s.logger.Error("Failed to update subscription in database after Stripe reactivation", 
-			"org_id", orgID, 
+		s.logger.Error("Failed to update subscription in database after Stripe reactivation",
+			"org_id", orgID,
 			"error", err)
 		return fmt.Errorf("failed to update subscription in database: %w", err)
 	}
@@ -365,18 +365,18 @@ func (s *subscriptionService) HandlePaymentSuccess(ctx context.Context, stripeSu
 
 	// Transition state based on current state
 	now := time.Now()
-	
+
 	switch sub.State {
 	case domain.SubStateDraft, domain.SubStateTrialing:
 		// First payment succeeded - activate subscription
 		sub.State = domain.SubStateActive
 		sub.StartedAt = &now
-		
+
 	case domain.SubStatePastDue:
 		// Payment retry succeeded - restore to active
 		sub.State = domain.SubStateActive
 		sub.GracePeriodEndsAt = nil
-		
+
 	case domain.SubStateExpired:
 		// Reactivation payment succeeded
 		sub.State = domain.SubStateActive
@@ -483,7 +483,7 @@ func (s *subscriptionService) calculateNextRenewal(sub *domain.Subscription) tim
 	}
 
 	now := time.Now()
-	
+
 	switch sub.Plan.BillingCycle {
 	case domain.BillingCycleMonthly:
 		return now.AddDate(0, 1, 0)
@@ -493,4 +493,3 @@ func (s *subscriptionService) calculateNextRenewal(sub *domain.Subscription) tim
 		return now.AddDate(0, 1, 0)
 	}
 }
-

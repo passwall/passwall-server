@@ -104,4 +104,3 @@ func (r *webhookEventRepository) DeleteOld(ctx context.Context, olderThan time.D
 		Where("created_at < ? AND processed_at IS NOT NULL", cutoff).
 		Delete(&domain.WebhookEvent{}).Error
 }
-

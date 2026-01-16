@@ -88,8 +88,7 @@ func (a *App) Run(ctx context.Context) error {
 	userActivityRepo := gormrepo.NewUserActivityRepository(a.db.DB())
 	excludedDomainRepo := gormrepo.NewExcludedDomainRepository(a.db.DB())
 	folderRepo := gormrepo.NewFolderRepository(a.db.DB())
-	userNotificationPreferencesRepo := gormrepo.NewUserNotificationPreferencesRepository(a.db.DB())
-	userAppearancePreferencesRepo := gormrepo.NewUserAppearancePreferencesRepository(a.db.DB())
+	preferencesRepo := gormrepo.NewPreferencesRepository(a.db.DB())
 	invitationRepo := gormrepo.NewInvitationRepository(a.db.DB())
 
 	// Organization repos
@@ -144,11 +143,12 @@ func (a *App) Run(ctx context.Context) error {
 	userActivityService := service.NewUserActivityService(userActivityRepo, serviceLogger)
 	excludedDomainService := service.NewExcludedDomainService(excludedDomainRepo, serviceLogger)
 	folderService := service.NewFolderService(folderRepo, serviceLogger)
+	preferencesService := service.NewPreferencesService(preferencesRepo, serviceLogger)
 	verificationService := service.NewVerificationService(verificationRepo, userRepo, serviceLogger)
 	authService := service.NewAuthService(userRepo, tokenRepo, verificationRepo, folderRepo, orgRepo, orgUserRepo, invitationRepo, userActivityService, emailSender, emailBuilder, authConfig, serviceLogger)
 	userService := service.NewUserService(userRepo, orgRepo, orgUserRepo, serviceLogger)
-	userNotificationPreferencesService := service.NewUserNotificationPreferencesService(userNotificationPreferencesRepo, serviceLogger)
-	userAppearancePreferencesService := service.NewUserAppearancePreferencesService(userAppearancePreferencesRepo, serviceLogger)
+	userNotificationPreferencesService := service.NewUserNotificationPreferencesService(preferencesRepo, serviceLogger)
+	userAppearancePreferencesService := service.NewUserAppearancePreferencesService(preferencesRepo, serviceLogger)
 	invitationService := service.NewInvitationService(invitationRepo, userRepo, orgRepo, emailSender, emailBuilder, serviceLogger)
 
 	// Modern flexible items service (handles all item types)
@@ -199,6 +199,7 @@ func (a *App) Run(ctx context.Context) error {
 	userHandler := httpHandler.NewUserHandler(userService, userActivityService)
 	userNotificationPreferencesHandler := httpHandler.NewUserNotificationPreferencesHandler(userNotificationPreferencesService)
 	userAppearancePreferencesHandler := httpHandler.NewUserAppearancePreferencesHandler(userAppearancePreferencesService)
+	userPreferencesHandler := httpHandler.NewUserPreferencesHandler(preferencesService)
 	invitationHandler := httpHandler.NewInvitationHandler(invitationService, userService, organizationService)
 
 	// Modern handlers (all item types use ItemHandler now)
@@ -245,6 +246,7 @@ func (a *App) Run(ctx context.Context) error {
 		userHandler,
 		userNotificationPreferencesHandler,
 		userAppearancePreferencesHandler,
+		userPreferencesHandler,
 		invitationHandler,
 		organizationHandler,
 		teamHandler,

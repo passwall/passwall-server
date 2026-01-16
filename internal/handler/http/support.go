@@ -205,7 +205,6 @@ func (h *SupportHandler) sendSupportNotification(ctx context.Context, req *Suppo
 		Subject: subject,
 		Body:    body,
 	}
-	
+
 	return h.emailSender.Send(ctx, message)
 }
-

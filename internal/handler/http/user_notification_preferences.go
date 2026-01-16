@@ -57,4 +57,3 @@ func (h *UserNotificationPreferencesHandler) Update(c *gin.Context) {
 
 	c.JSON(http.StatusOK, domain.ToUserNotificationPreferencesDTO(prefs))
 }
-

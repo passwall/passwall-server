@@ -104,4 +104,3 @@ func (r *collectionUserRepository) DeleteByCollectionAndOrgUser(ctx context.Cont
 		Where("collection_id = ? AND organization_user_id = ?", collectionID, orgUserID).
 		Delete(&domain.CollectionUser{}).Error
 }
-

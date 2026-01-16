@@ -24,6 +24,7 @@ func SetupRouter(
 	userHandler *httpHandler.UserHandler,
 	userNotificationPreferencesHandler *httpHandler.UserNotificationPreferencesHandler,
 	userAppearancePreferencesHandler *httpHandler.UserAppearancePreferencesHandler,
+	userPreferencesHandler *httpHandler.UserPreferencesHandler,
 	invitationHandler *httpHandler.InvitationHandler,
 	organizationHandler *httpHandler.OrganizationHandler,
 	teamHandler *httpHandler.TeamHandler,
@@ -148,6 +149,8 @@ func SetupRouter(
 		apiGroup.PUT("/users/me/notification-preferences", userNotificationPreferencesHandler.Update)
 		apiGroup.GET("/users/me/appearance-preferences", userAppearancePreferencesHandler.Get)
 		apiGroup.PUT("/users/me/appearance-preferences", userAppearancePreferencesHandler.Update)
+		apiGroup.GET("/users/me/preferences", userPreferencesHandler.List)
+		apiGroup.PUT("/users/me/preferences", userPreferencesHandler.Upsert)
 		apiGroup.POST("/users/change-master-password",
 			httpHandler.RateLimitMiddleware(changePasswordRateLimiter),
 			authHandler.ChangeMasterPassword,

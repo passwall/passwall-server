@@ -101,4 +101,3 @@ func (r *collectionTeamRepository) DeleteByCollectionAndTeam(ctx context.Context
 		Where("collection_id = ? AND team_id = ?", collectionID, teamID).
 		Delete(&domain.CollectionTeam{}).Error
 }
-

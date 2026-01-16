@@ -45,4 +45,3 @@ type UpdateUserAppearancePreferencesRequest struct {
 	Theme *string `json:"theme"`
 	Font  *string `json:"font"`
 }
-

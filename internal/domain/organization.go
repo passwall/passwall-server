@@ -42,7 +42,7 @@ type Organization struct {
 	CreatedByUserID    *uint   `json:"created_by_user_id,omitempty" gorm:"index"`
 	CreatedByUserEmail *string `json:"created_by_user_email,omitempty" gorm:"type:varchar(255)"`
 	CreatedByUserName  *string `json:"created_by_user_name,omitempty" gorm:"type:varchar(255)"`
-	
+
 	// Note: Plan limits are NOT stored here - they come from subscriptions + plans tables
 	// Use service methods to get plan limits via JOIN
 
@@ -71,9 +71,9 @@ type Organization struct {
 	CollectionCount *int `json:"collection_count,omitempty" gorm:"-"`
 
 	// Associations (not loaded by default)
-	Members      []OrganizationUser `json:"members,omitempty" gorm:"foreignKey:OrganizationID"`
-	Teams        []Team             `json:"teams,omitempty" gorm:"foreignKey:OrganizationID"`
-	Collections  []Collection       `json:"collections,omitempty" gorm:"foreignKey:OrganizationID"`
+	Members     []OrganizationUser `json:"members,omitempty" gorm:"foreignKey:OrganizationID"`
+	Teams       []Team             `json:"teams,omitempty" gorm:"foreignKey:OrganizationID"`
+	Collections []Collection       `json:"collections,omitempty" gorm:"foreignKey:OrganizationID"`
 }
 
 // TableName specifies the table name
@@ -173,21 +173,21 @@ func (ou *OrganizationUser) CanManageCollections() bool {
 
 // OrganizationDTO for API responses
 type OrganizationDTO struct {
-	ID             uint               `json:"id"`
-	UUID           uuid.UUID          `json:"uuid"`
-	Name           string             `json:"name"`
-	BillingEmail   string             `json:"billing_email"`
-	IsDefault      bool               `json:"is_default"`
-	CreatedByUserID    *uint   `json:"created_by_user_id,omitempty"`
-	CreatedByUserEmail *string `json:"created_by_user_email,omitempty"`
-	CreatedByUserName  *string `json:"created_by_user_name,omitempty"`
-	Plan           OrganizationPlan   `json:"plan"`
-	MaxUsers       int                `json:"max_users"`
-	MaxCollections int                `json:"max_collections"`
-	Status         OrganizationStatus `json:"status"`
-	IsActive       bool               `json:"is_active"`
-	CreatedAt      time.Time          `json:"created_at"`
-	UpdatedAt      time.Time          `json:"updated_at"`
+	ID                 uint               `json:"id"`
+	UUID               uuid.UUID          `json:"uuid"`
+	Name               string             `json:"name"`
+	BillingEmail       string             `json:"billing_email"`
+	IsDefault          bool               `json:"is_default"`
+	CreatedByUserID    *uint              `json:"created_by_user_id,omitempty"`
+	CreatedByUserEmail *string            `json:"created_by_user_email,omitempty"`
+	CreatedByUserName  *string            `json:"created_by_user_name,omitempty"`
+	Plan               OrganizationPlan   `json:"plan"`
+	MaxUsers           int                `json:"max_users"`
+	MaxCollections     int                `json:"max_collections"`
+	Status             OrganizationStatus `json:"status"`
+	IsActive           bool               `json:"is_active"`
+	CreatedAt          time.Time          `json:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at"`
 
 	// Subscription (optional)
 	Subscription *SubscriptionDTO `json:"subscription,omitempty"`
@@ -298,11 +298,11 @@ func ToOrganizationDTO(org *Organization) *OrganizationDTO {
 	}
 
 	dto := &OrganizationDTO{
-		ID:              org.ID,
-		UUID:            org.UUID,
-		Name:            org.Name,
-		BillingEmail:    org.BillingEmail,
-		IsDefault:       org.IsDefault,
+		ID:                 org.ID,
+		UUID:               org.UUID,
+		Name:               org.Name,
+		BillingEmail:       org.BillingEmail,
+		IsDefault:          org.IsDefault,
 		CreatedByUserID:    org.CreatedByUserID,
 		CreatedByUserEmail: org.CreatedByUserEmail,
 		CreatedByUserName:  org.CreatedByUserName,
@@ -364,4 +364,3 @@ type BillingInfo struct {
 	// Invoices
 	Invoices []*InvoiceDTO `json:"invoices,omitempty"`
 }
-

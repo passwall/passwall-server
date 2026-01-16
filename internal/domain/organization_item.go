@@ -80,52 +80,52 @@ func (oi *OrganizationItem) FormatSupportID() string {
 
 // OrganizationItemDTO for API responses
 type OrganizationItemDTO struct {
-	ID                  uint         `json:"id"`
-	UUID                uuid.UUID    `json:"uuid"`
-	SupportID           int64        `json:"support_id"`
-	SupportIDFormatted  string       `json:"support_id_formatted"`
-	OrganizationID      uint         `json:"organization_id"`
-	CollectionID        *uint        `json:"collection_id,omitempty"`
-	ItemType            ItemType     `json:"item_type"`
-	Data                string       `json:"data"` // Still encrypted
-	Metadata            ItemMetadata `json:"metadata"`
-	IsFavorite          bool         `json:"is_favorite"`
-	FolderID            *uint        `json:"folder_id,omitempty"`
-	Reprompt            bool         `json:"reprompt"`
-	AutoFill            bool         `json:"auto_fill"`
-	AutoLogin           bool         `json:"auto_login"`
-	Revision            int64        `json:"revision"`
-	SyncVersion         int          `json:"sync_version"`
-	CreatedByUserID     uint         `json:"created_by_user_id"`
-	CreatedByUserEmail  string       `json:"created_by_user_email,omitempty"`
-	CreatedAt           time.Time    `json:"created_at"`
-	UpdatedAt           time.Time    `json:"updated_at"`
-	ArchivedAt          *time.Time   `json:"archived_at,omitempty"`
+	ID                 uint         `json:"id"`
+	UUID               uuid.UUID    `json:"uuid"`
+	SupportID          int64        `json:"support_id"`
+	SupportIDFormatted string       `json:"support_id_formatted"`
+	OrganizationID     uint         `json:"organization_id"`
+	CollectionID       *uint        `json:"collection_id,omitempty"`
+	ItemType           ItemType     `json:"item_type"`
+	Data               string       `json:"data"` // Still encrypted
+	Metadata           ItemMetadata `json:"metadata"`
+	IsFavorite         bool         `json:"is_favorite"`
+	FolderID           *uint        `json:"folder_id,omitempty"`
+	Reprompt           bool         `json:"reprompt"`
+	AutoFill           bool         `json:"auto_fill"`
+	AutoLogin          bool         `json:"auto_login"`
+	Revision           int64        `json:"revision"`
+	SyncVersion        int          `json:"sync_version"`
+	CreatedByUserID    uint         `json:"created_by_user_id"`
+	CreatedByUserEmail string       `json:"created_by_user_email,omitempty"`
+	CreatedAt          time.Time    `json:"created_at"`
+	UpdatedAt          time.Time    `json:"updated_at"`
+	ArchivedAt         *time.Time   `json:"archived_at,omitempty"`
 }
 
 // CreateOrganizationItemRequest for API requests
 type CreateOrganizationItemRequest struct {
-	CollectionID *uint           `json:"collection_id,omitempty"`
-	ItemType     ItemType        `json:"item_type" validate:"required"`
-	Data         string          `json:"data" validate:"required"` // Encrypted with Org Key
-	Metadata     ItemMetadata    `json:"metadata" validate:"required"`
-	IsFavorite   bool            `json:"is_favorite"`
-	FolderID     *uint           `json:"folder_id,omitempty"`
-	Reprompt     bool            `json:"reprompt"`
-	AutoFill     *bool           `json:"auto_fill,omitempty"`
-	AutoLogin    *bool           `json:"auto_login,omitempty"`
+	CollectionID *uint        `json:"collection_id,omitempty"`
+	ItemType     ItemType     `json:"item_type" validate:"required"`
+	Data         string       `json:"data" validate:"required"` // Encrypted with Org Key
+	Metadata     ItemMetadata `json:"metadata" validate:"required"`
+	IsFavorite   bool         `json:"is_favorite"`
+	FolderID     *uint        `json:"folder_id,omitempty"`
+	Reprompt     bool         `json:"reprompt"`
+	AutoFill     *bool        `json:"auto_fill,omitempty"`
+	AutoLogin    *bool        `json:"auto_login,omitempty"`
 }
 
 // UpdateOrganizationItemRequest for API requests
 type UpdateOrganizationItemRequest struct {
-	CollectionID *uint            `json:"collection_id,omitempty"`
-	Data         *string          `json:"data,omitempty"`
-	Metadata     *ItemMetadata    `json:"metadata,omitempty"`
-	IsFavorite   *bool            `json:"is_favorite,omitempty"`
-	FolderID     *uint            `json:"folder_id,omitempty"`
-	Reprompt     *bool            `json:"reprompt,omitempty"`
-	AutoFill     *bool            `json:"auto_fill,omitempty"`
-	AutoLogin    *bool            `json:"auto_login,omitempty"`
+	CollectionID *uint         `json:"collection_id,omitempty"`
+	Data         *string       `json:"data,omitempty"`
+	Metadata     *ItemMetadata `json:"metadata,omitempty"`
+	IsFavorite   *bool         `json:"is_favorite,omitempty"`
+	FolderID     *uint         `json:"folder_id,omitempty"`
+	Reprompt     *bool         `json:"reprompt,omitempty"`
+	AutoFill     *bool         `json:"auto_fill,omitempty"`
+	AutoLogin    *bool         `json:"auto_login,omitempty"`
 }
 
 // MoveItemToCollectionRequest for moving items between collections
@@ -260,4 +260,3 @@ type CreateItemShareRequest struct {
 
 // Note: ItemMetadata.Scan() and ItemMetadata.Value() are already defined in item.go
 // They are shared between Item and OrganizationItem
-

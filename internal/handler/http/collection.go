@@ -442,4 +442,3 @@ func (h *CollectionHandler) GetTeamAccess(c *gin.Context) {
 
 	c.JSON(http.StatusOK, dtos)
 }
-

@@ -84,11 +84,11 @@ func (s *organizationItemService) Create(ctx context.Context, orgID, userID uint
 		if err != nil {
 			return nil, fmt.Errorf("collection not found: %w", err)
 		}
-		
+
 		if collection.OrganizationID != orgID {
 			return nil, repository.ErrForbidden
 		}
-		
+
 		// Check collection access (simplified - admins and access_all users can create)
 		if !orgUser.IsAdmin() && !orgUser.AccessAll {
 			// TODO: Check collection_users for write permission
@@ -239,4 +239,3 @@ func (s *organizationItemService) Delete(ctx context.Context, id, userID uint) (
 	s.logger.Info("organization item deleted", "item_id", id, "user_id", userID)
 	return item, nil
 }
-

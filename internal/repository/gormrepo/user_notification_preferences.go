@@ -50,4 +50,3 @@ func (r *userNotificationPreferencesRepository) Upsert(ctx context.Context, pref
 		}),
 	}).Create(prefs).Error
 }
-

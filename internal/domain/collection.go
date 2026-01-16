@@ -56,9 +56,9 @@ type CollectionUser struct {
 	OrganizationUserID uint `json:"organization_user_id" gorm:"not null;index;constraint:OnDelete:CASCADE"`
 
 	// Permissions
-	CanRead      bool `json:"can_read" gorm:"default:true"`
-	CanWrite     bool `json:"can_write" gorm:"default:false"`
-	CanAdmin     bool `json:"can_admin" gorm:"default:false"`
+	CanRead       bool `json:"can_read" gorm:"default:true"`
+	CanWrite      bool `json:"can_write" gorm:"default:false"`
+	CanAdmin      bool `json:"can_admin" gorm:"default:false"`
 	HidePasswords bool `json:"hide_passwords" gorm:"default:false"` // Can view metadata but not passwords
 
 	// Associations
@@ -240,4 +240,3 @@ func ToCollectionTeamDTO(ct *CollectionTeam) *CollectionTeamDTO {
 
 	return dto
 }
-

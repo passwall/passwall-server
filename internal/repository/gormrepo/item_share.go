@@ -146,4 +146,3 @@ func (r *itemShareRepository) DeleteExpired(ctx context.Context) (int64, error) 
 
 	return result.RowsAffected, result.Error
 }
-

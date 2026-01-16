@@ -362,4 +362,3 @@ func (h *TeamHandler) RemoveMember(c *gin.Context) {
 
 	c.Status(http.StatusNoContent)
 }
-

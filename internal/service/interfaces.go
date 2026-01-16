@@ -42,7 +42,7 @@ type UserService interface {
 	Update(ctx context.Context, id uint, user *domain.User) error
 	Delete(ctx context.Context, id uint, schema string) error
 	ChangeMasterPassword(ctx context.Context, req *domain.ChangeMasterPasswordRequest) error
-	
+
 	// Ownership management
 	CheckOwnership(ctx context.Context, userID uint) (*domain.OwnershipCheckResult, error)
 	TransferOwnership(ctx context.Context, req *domain.TransferOwnershipRequest) error
@@ -93,7 +93,7 @@ type OrganizationService interface {
 	List(ctx context.Context, userID uint) ([]*domain.Organization, error)
 	Update(ctx context.Context, id uint, userID uint, req *domain.UpdateOrganizationRequest) (*domain.Organization, error)
 	Delete(ctx context.Context, id uint, userID uint) error
-	
+
 	// Member management
 	InviteUser(ctx context.Context, orgID uint, inviterUserID uint, req *domain.InviteUserToOrgRequest) (*domain.OrganizationUser, error)
 	GetMembers(ctx context.Context, orgID uint, requestingUserID uint) ([]*domain.OrganizationUser, error)
@@ -103,7 +103,7 @@ type OrganizationService interface {
 	AcceptInvitation(ctx context.Context, orgUserID uint, userID uint) error
 	AddExistingMember(ctx context.Context, orgUser *domain.OrganizationUser) error
 	DeclineInvitationForUser(ctx context.Context, orgID uint, userID uint) error
-	
+
 	// Statistics
 	GetMemberCount(ctx context.Context, orgID uint) (int, error)
 	GetCollectionCount(ctx context.Context, orgID uint) (int, error)
@@ -116,7 +116,7 @@ type TeamService interface {
 	ListByOrganization(ctx context.Context, orgID uint, userID uint) ([]*domain.Team, error)
 	Update(ctx context.Context, id uint, userID uint, req *domain.UpdateTeamRequest) (*domain.Team, error)
 	Delete(ctx context.Context, id uint, userID uint) error
-	
+
 	// Member management
 	AddMember(ctx context.Context, teamID uint, userID uint, req *domain.AddTeamUserRequest) error
 	GetMembers(ctx context.Context, teamID uint, userID uint) ([]*domain.TeamUser, error)
@@ -132,7 +132,7 @@ type CollectionService interface {
 	ListForUser(ctx context.Context, orgID uint, userID uint) ([]*domain.Collection, error)
 	Update(ctx context.Context, id uint, userID uint, req *domain.UpdateCollectionRequest) (*domain.Collection, error)
 	Delete(ctx context.Context, id uint, userID uint) error
-	
+
 	// Access management
 	GrantUserAccess(ctx context.Context, collectionID uint, orgUserID uint, requestingUserID uint, req *domain.GrantCollectionAccessRequest) error
 	GrantTeamAccess(ctx context.Context, collectionID uint, teamID uint, requestingUserID uint, req *domain.GrantCollectionAccessRequest) error
@@ -156,7 +156,7 @@ type PaymentService interface {
 	// Checkout & Subscriptions
 	CreateCheckoutSession(ctx context.Context, orgID, userID uint, plan, billingCycle, ipAddress, userAgent string) (string, error)
 	HandleWebhook(ctx context.Context, payload []byte, signature string) error
-	
+
 	// Subscription Management
 	GetBillingInfo(ctx context.Context, orgID uint) (*domain.BillingInfo, error)
 	SyncSubscription(ctx context.Context, orgID uint) error // Manually sync subscription from Stripe

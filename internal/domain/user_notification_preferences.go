@@ -53,4 +53,3 @@ type UpdateUserNotificationPreferencesRequest struct {
 	SocialEmails        *bool `json:"social_emails"`
 	SecurityEmails      *bool `json:"security_emails"`
 }
-

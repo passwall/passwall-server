@@ -69,27 +69,27 @@ type EmailConfig struct {
 
 // StripeConfig contains Stripe payment configuration
 type StripeConfig struct {
-	SecretKey      string `mapstructure:"secret_key"`       // Stripe Secret Key (sk_test_... or sk_live_...)
-	WebhookSecret  string `mapstructure:"webhook_secret"`   // Webhook signing secret
-	PublishableKey string `mapstructure:"publishable_key"`  // Publishable key for frontend
-	
+	SecretKey      string `mapstructure:"secret_key"`      // Stripe Secret Key (sk_test_... or sk_live_...)
+	WebhookSecret  string `mapstructure:"webhook_secret"`  // Webhook signing secret
+	PublishableKey string `mapstructure:"publishable_key"` // Publishable key for frontend
+
 	// Plan definitions
 	Plans []PlanConfig `mapstructure:"plans"`
 }
 
 // PlanConfig defines a subscription plan
 type PlanConfig struct {
-	Code           string         `mapstructure:"code"`            // Plan code (e.g., "personal-monthly")
-	Name           string         `mapstructure:"name"`            // Display name (e.g., "Premium")
-	BillingCycle   string         `mapstructure:"billing_cycle"`   // "monthly" or "yearly"
-	PriceCents     int            `mapstructure:"price_cents"`     // Price in cents
-	Currency       string         `mapstructure:"currency"`        // Currency code (e.g., "USD")
-	TrialDays      int            `mapstructure:"trial_days"`      // Trial period in days
-	MaxUsers       *int           `mapstructure:"max_users"`       // Max users (nil = unlimited)
-	MaxCollections *int           `mapstructure:"max_collections"` // Max collections (nil = unlimited)
-	MaxItems       *int           `mapstructure:"max_items"`       // Max items (nil = unlimited)
-	StripePriceID  string         `mapstructure:"stripe_price_id"` // Stripe Price ID
-	Features       PlanFeatures   `mapstructure:"features"`        // Feature flags
+	Code           string       `mapstructure:"code"`            // Plan code (e.g., "personal-monthly")
+	Name           string       `mapstructure:"name"`            // Display name (e.g., "Premium")
+	BillingCycle   string       `mapstructure:"billing_cycle"`   // "monthly" or "yearly"
+	PriceCents     int          `mapstructure:"price_cents"`     // Price in cents
+	Currency       string       `mapstructure:"currency"`        // Currency code (e.g., "USD")
+	TrialDays      int          `mapstructure:"trial_days"`      // Trial period in days
+	MaxUsers       *int         `mapstructure:"max_users"`       // Max users (nil = unlimited)
+	MaxCollections *int         `mapstructure:"max_collections"` // Max collections (nil = unlimited)
+	MaxItems       *int         `mapstructure:"max_items"`       // Max items (nil = unlimited)
+	StripePriceID  string       `mapstructure:"stripe_price_id"` // Stripe Price ID
+	Features       PlanFeatures `mapstructure:"features"`        // Feature flags
 }
 
 // PlanFeatures defines feature availability for a plan

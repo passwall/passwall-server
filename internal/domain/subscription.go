@@ -10,12 +10,12 @@ import (
 type SubscriptionState string
 
 const (
-	SubStateDraft     SubscriptionState = "draft"
-	SubStateTrialing  SubscriptionState = "trialing"
-	SubStateActive    SubscriptionState = "active"
-	SubStatePastDue   SubscriptionState = "past_due"
-	SubStateCanceled  SubscriptionState = "canceled"
-	SubStateExpired   SubscriptionState = "expired"
+	SubStateDraft    SubscriptionState = "draft"
+	SubStateTrialing SubscriptionState = "trialing"
+	SubStateActive   SubscriptionState = "active"
+	SubStatePastDue  SubscriptionState = "past_due"
+	SubStateCanceled SubscriptionState = "canceled"
+	SubStateExpired  SubscriptionState = "expired"
 )
 
 // String returns the string representation of SubscriptionState
@@ -83,17 +83,17 @@ func (s *Subscription) IsExpired() bool {
 // ShouldExpire checks if subscription should be expired (grace period ended or cancel period ended)
 func (s *Subscription) ShouldExpire() bool {
 	now := time.Now()
-	
+
 	// Past due with expired grace period
 	if s.State == SubStatePastDue && s.GracePeriodEndsAt != nil && now.After(*s.GracePeriodEndsAt) {
 		return true
 	}
-	
+
 	// Canceled with expired period end
 	if s.State == SubStateCanceled && s.RenewAt != nil && now.After(*s.RenewAt) {
 		return true
 	}
-	
+
 	return false
 }
 
@@ -159,4 +159,3 @@ func ToSubscriptionDTO(s *Subscription) *SubscriptionDTO {
 
 	return dto
 }
-

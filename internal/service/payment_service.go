@@ -69,7 +69,7 @@ func (s *paymentService) CreateCheckoutSession(ctx context.Context, orgID, userI
 	customerID := ""
 	if org.StripeCustomerID != nil && *org.StripeCustomerID != "" {
 		customerID = *org.StripeCustomerID
-		
+
 		// Verify customer exists
 		_, err := s.stripe.GetCustomer(customerID)
 		if err != nil {
@@ -128,7 +128,7 @@ func (s *paymentService) CreateCheckoutSession(ctx context.Context, orgID, userI
 // HandleWebhook handles Stripe webhook events
 func (s *paymentService) HandleWebhook(ctx context.Context, payload []byte, signature string) error {
 	s.logger.Info("🔔 Stripe webhook received", "payload_size", len(payload))
-	
+
 	// Verify webhook signature
 	event, err := s.stripe.ConstructWebhookEvent(payload, signature)
 	if err != nil {
@@ -253,7 +253,7 @@ func (s *paymentService) handleSubscriptionCreated(ctx context.Context, event st
 
 	// Note: We don't update organizations table anymore
 	// Plan limits are fetched from subscriptions + plans tables via JOIN
-	
+
 	s.logger.Info("✅ Subscription created successfully", "org_id", orgID, "subscription_id", subscription.ID, "status", sub.Status)
 	return nil
 }
@@ -296,7 +296,7 @@ func (s *paymentService) handleSubscriptionDeleted(ctx context.Context, event st
 	}
 
 	s.logger.Info("🗑️  Subscription deleted", "subscription_id", sub.ID, "customer_id", sub.Customer.ID, "status", sub.Status)
-	
+
 	// Subscription deletion is now handled by SubscriptionService
 	// This webhook is logged for audit purposes
 	return nil
@@ -317,7 +317,7 @@ func (s *paymentService) handlePaymentSucceeded(ctx context.Context, event strip
 
 	amount := float64(invoice.AmountPaid) / 100.0
 	currency := string(invoice.Currency)
-	s.logger.Info("💰 Payment succeeded", "invoice_id", invoice.ID, "subscription_id", invoice.Subscription.ID, 
+	s.logger.Info("💰 Payment succeeded", "invoice_id", invoice.ID, "subscription_id", invoice.Subscription.ID,
 		"amount", amount, "currency", currency, "customer_id", invoice.Customer.ID)
 
 	// Fetch full subscription data and update organization
@@ -347,7 +347,7 @@ func (s *paymentService) handlePaymentFailed(ctx context.Context, event stripe.E
 
 	amount := float64(invoice.AmountDue) / 100.0
 	currency := string(invoice.Currency)
-	s.logger.Warn("⚠️  Payment failed", "invoice_id", invoice.ID, "customer_id", invoice.Customer.ID, 
+	s.logger.Warn("⚠️  Payment failed", "invoice_id", invoice.ID, "customer_id", invoice.Customer.ID,
 		"amount", amount, "currency", currency, "attempt_count", invoice.AttemptCount)
 
 	// Payment failure handling is managed by SubscriptionService
@@ -367,9 +367,9 @@ func (s *paymentService) updateOrgFromSubscription(ctx context.Context, sub *str
 
 	var orgID uint
 	fmt.Sscanf(orgIDStr, "%d", &orgID)
-	
+
 	s.logger.Info("Updating organization from subscription data", "org_id", orgID, "subscription_id", sub.ID)
-	
+
 	err := s.updateOrgFromSubscriptionWithID(ctx, sub, orgID)
 	if err != nil {
 		s.logger.Error("Failed to update organization from subscription", "org_id", orgID, "subscription_id", sub.ID, "error", err)
@@ -436,13 +436,13 @@ func (s *paymentService) getOrganizationOwnerID(ctx context.Context, orgID uint)
 		s.logger.Error("failed to get organization members for activity logging", "org_id", orgID, "error", err)
 		return 0
 	}
-	
+
 	for _, member := range members {
 		if member.Role == domain.OrgRoleOwner {
 			return member.UserID
 		}
 	}
-	
+
 	s.logger.Warn("no owner found for organization", "org_id", orgID)
 	return 0
 }
@@ -503,19 +503,19 @@ func (s *paymentService) GetBillingInfo(ctx context.Context, orgID uint) (*domai
 			for _, inv := range stripeInvoices {
 				// Convert status to domain InvoiceStatus
 				status := domain.InvoiceStatus(inv.Status)
-				
+
 				// Convert timestamps to time.Time
 				issuedAt := time.Unix(inv.Created, 0)
-				
+
 				// Format amount for display
 				amountDisplay := fmt.Sprintf("$%.2f", float64(inv.AmountPaid)/100)
-				
+
 				invoiceDTO := &domain.InvoiceDTO{
-					Status:           status,
-					AmountCents:      int(inv.AmountPaid),
-					AmountDisplay:    amountDisplay,
-					Currency:         string(inv.Currency),
-					IssuedAt:         issuedAt,
+					Status:        status,
+					AmountCents:   int(inv.AmountPaid),
+					AmountDisplay: amountDisplay,
+					Currency:      string(inv.Currency),
+					IssuedAt:      issuedAt,
 				}
 
 				// Add optional fields
@@ -597,7 +597,7 @@ func (s *paymentService) SyncSubscription(ctx context.Context, orgID uint) error
 func (s *paymentService) getPriceID(plan, billingCycle string) (string, error) {
 	// Get price ID from config
 	planCode := fmt.Sprintf("%s-%s", plan, billingCycle)
-	
+
 	for _, configPlan := range s.config.Stripe.Plans {
 		if configPlan.Code == planCode {
 			if configPlan.StripePriceID == "" {
@@ -619,10 +619,9 @@ func (s *paymentService) mapPriceIDToPlan(priceID string) (string, domain.Billin
 			return plan.Code, domain.BillingCycle(plan.BillingCycle)
 		}
 	}
-	
+
 	// Fallback for unknown price IDs
 	{
 		return "", ""
 	}
 }
-

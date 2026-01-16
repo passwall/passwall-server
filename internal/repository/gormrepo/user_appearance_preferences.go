@@ -48,4 +48,3 @@ func (r *userAppearancePreferencesRepository) Upsert(ctx context.Context, prefs 
 		}),
 	}).Create(prefs).Error
 }
-

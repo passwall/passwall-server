@@ -354,14 +354,14 @@ func (h *AuthHandler) ResendVerificationCode(c *gin.Context) {
 	// Send new verification email
 	go func() {
 		emailCtx := context.Background()
-		
+
 		// Build verification email message
 		message, err := h.emailBuilder.BuildVerificationEmail(req.Email, "", code)
 		if err != nil {
 			// Log error but don't fail the request
 			return
 		}
-		
+
 		// Send email
 		if err := h.emailSender.Send(emailCtx, message); err != nil {
 			// Log error but don't fail the request

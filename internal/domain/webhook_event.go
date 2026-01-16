@@ -12,11 +12,11 @@ type WebhookEvent struct {
 	ID        uint      `gorm:"primary_key" json:"id"`
 	CreatedAt time.Time `json:"created_at"`
 
-	StripeEventID string          `json:"stripe_event_id" gorm:"type:varchar(255);uniqueIndex;not null"`
-	EventType     string          `json:"event_type" gorm:"type:varchar(100);not null"`
-	Payload       WebhookPayload  `json:"payload" gorm:"type:jsonb;not null"`
-	ProcessedAt   *time.Time      `json:"processed_at,omitempty"`
-	Error         *string         `json:"error,omitempty" gorm:"type:text"`
+	StripeEventID string         `json:"stripe_event_id" gorm:"type:varchar(255);uniqueIndex;not null"`
+	EventType     string         `json:"event_type" gorm:"type:varchar(100);not null"`
+	Payload       WebhookPayload `json:"payload" gorm:"type:jsonb;not null"`
+	ProcessedAt   *time.Time     `json:"processed_at,omitempty"`
+	Error         *string        `json:"error,omitempty" gorm:"type:text"`
 }
 
 // TableName specifies the table name
@@ -73,4 +73,3 @@ func (w *WebhookEvent) MarkFailed(err error) {
 	errStr := err.Error()
 	w.Error = &errStr
 }
-

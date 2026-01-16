@@ -153,4 +153,3 @@ func IsWritePermission(permission string) bool {
 
 	return false
 }
-

@@ -7,4 +7,3 @@ const (
 	BillingCycleMonthly BillingCycle = "monthly"
 	BillingCycleYearly  BillingCycle = "yearly"
 )
-

@@ -210,4 +210,3 @@ func (r *subscriptionRepository) ListTrialEnding(ctx context.Context, before tim
 		Find(&subs).Error
 	return subs, err
 }
-

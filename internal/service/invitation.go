@@ -114,7 +114,7 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req *domain.Cr
 	go func() {
 		emailCtx := context.Background()
 		roleName := getRoleName(req.RoleID)
-		
+
 		// Get organization name if this is an org invitation
 		orgName := ""
 		if req.OrganizationID != nil {
@@ -122,7 +122,7 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req *domain.Cr
 				orgName = org.Name
 			}
 		}
-		
+
 		// Build invitation email message
 		var message *email.EmailMessage
 		var err error
@@ -131,12 +131,12 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req *domain.Cr
 		} else {
 			message, err = s.emailBuilder.BuildInvitationEmail(req.Email, inviterName, code, roleName)
 		}
-		
+
 		if err != nil {
 			s.logger.Error("failed to build invitation email", "email", req.Email, "error", err)
 			return
 		}
-		
+
 		// Send email
 		if err := s.emailSender.Send(emailCtx, message); err != nil {
 			s.logger.Error("failed to send invitation email", "email", req.Email, "error", err)

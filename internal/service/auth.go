@@ -176,14 +176,14 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 	// Send verification email (async)
 	go func() {
 		emailCtx := context.Background()
-		
+
 		// Build verification email message
 		message, err := s.emailBuilder.BuildVerificationEmail(req.Email, req.Name, code)
 		if err != nil {
 			s.logger.Error("failed to build verification email", "email", req.Email, "error", err)
 			return
 		}
-		
+
 		// Send email
 		if err := s.emailSender.Send(emailCtx, message); err != nil {
 			s.logger.Error("failed to send verification email", "email", req.Email, "error", err)
@@ -294,13 +294,13 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 	// Return auth response with protected user key
 	// Client will decrypt User Key with their Master Key
 	return &domain.AuthResponse{
-		AccessToken:      tokenDetails.AccessToken,
-		RefreshToken:     tokenDetails.RefreshToken,
-		Type:             "Bearer",
+		AccessToken:           tokenDetails.AccessToken,
+		RefreshToken:          tokenDetails.RefreshToken,
+		Type:                  "Bearer",
 		AccessTokenExpiresAt:  tokenDetails.AccessTokenExpiresAt,
 		RefreshTokenExpiresAt: tokenDetails.RefreshTokenExpiresAt,
-		ProtectedUserKey: user.ProtectedUserKey, // Encrypted, client will decrypt
-		KdfConfig:        user.GetKdfConfig(),
+		ProtectedUserKey:      user.ProtectedUserKey, // Encrypted, client will decrypt
+		KdfConfig:             user.GetKdfConfig(),
 		User: &domain.UserAuthDTO{
 			ID:         user.ID,
 			UUID:       user.UUID.String(),
@@ -680,11 +680,11 @@ func (s *authService) createPersonalOrganization(ctx context.Context, user *doma
 	creatorName := user.Name
 	creatorID := user.ID
 	org := &domain.Organization{
-		Name:            fmt.Sprintf("%s's Workspace", user.Name),
-		BillingEmail:    user.Email,
-		EncryptedOrgKey: encryptedOrgKey, // Organization key encrypted with User Key
-		IsActive:        true,
-		IsDefault:       true,
+		Name:               fmt.Sprintf("%s's Workspace", user.Name),
+		BillingEmail:       user.Email,
+		EncryptedOrgKey:    encryptedOrgKey, // Organization key encrypted with User Key
+		IsActive:           true,
+		IsDefault:          true,
 		CreatedByUserID:    &creatorID,
 		CreatedByUserEmail: &creatorEmail,
 		CreatedByUserName:  &creatorName,

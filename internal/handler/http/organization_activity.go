@@ -176,4 +176,3 @@ func (h *OrganizationActivityHandler) ListOrganizationActivities(c *gin.Context)
 		"has_more":   hasMore,
 	})
 }
-

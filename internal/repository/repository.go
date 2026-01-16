@@ -63,6 +63,12 @@ type UserAppearancePreferencesRepository interface {
 	Upsert(ctx context.Context, prefs *domain.UserAppearancePreferences) error
 }
 
+// PreferencesRepository defines data access for generic preferences (user/org scoped).
+type PreferencesRepository interface {
+	ListByOwner(ctx context.Context, ownerType string, ownerID uint, section string) ([]*domain.Preference, error)
+	UpsertMany(ctx context.Context, prefs []*domain.Preference) error
+}
+
 // TokenRepository defines token data access methods
 type TokenRepository interface {
 	Create(ctx context.Context, userID int, sessionUUID uuid.UUID, deviceID uuid.UUID, app string, kind string, tokenUUID uuid.UUID, token string, expiresAt time.Time) error
@@ -110,7 +116,7 @@ type OrganizationRepository interface {
 	ListForUser(ctx context.Context, userID uint) ([]*domain.Organization, error)
 	Update(ctx context.Context, org *domain.Organization) error
 	Delete(ctx context.Context, id uint) error
-	
+
 	// Stats
 	GetMemberCount(ctx context.Context, orgID uint) (int, error)
 	GetTeamCount(ctx context.Context, orgID uint) (int, error)
@@ -127,7 +133,7 @@ type OrganizationUserRepository interface {
 	ListByUser(ctx context.Context, userID uint) ([]*domain.OrganizationUser, error)
 	Update(ctx context.Context, orgUser *domain.OrganizationUser) error
 	Delete(ctx context.Context, id uint) error
-	
+
 	// Invitations
 	CountInvited(ctx context.Context, orgID uint) (int, error)
 	ListPendingInvitations(ctx context.Context, userEmail string) ([]*domain.OrganizationUser, error)
@@ -143,7 +149,7 @@ type TeamRepository interface {
 	ListByOrganization(ctx context.Context, orgID uint) ([]*domain.Team, error)
 	Update(ctx context.Context, team *domain.Team) error
 	Delete(ctx context.Context, id uint) error
-	
+
 	// Stats
 	GetMemberCount(ctx context.Context, teamID uint) (int, error)
 }
@@ -172,7 +178,7 @@ type CollectionRepository interface {
 	Update(ctx context.Context, collection *domain.Collection) error
 	Delete(ctx context.Context, id uint) error
 	SoftDelete(ctx context.Context, id uint) error
-	
+
 	// Stats
 	GetItemCount(ctx context.Context, collectionID uint) (int, error)
 	GetUserCount(ctx context.Context, collectionID uint) (int, error)

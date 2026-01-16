@@ -195,4 +195,3 @@ func (s *featureService) GetFeatures(ctx context.Context, orgID uint) (*domain.P
 
 	return &sub.Plan.Features, nil
 }
-

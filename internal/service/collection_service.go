@@ -120,11 +120,11 @@ func (s *collectionService) GetByID(ctx context.Context, id uint, userID uint) (
 	if itemCount, err := s.collectionRepo.GetItemCount(ctx, collection.ID); err == nil {
 		collection.ItemCount = &itemCount
 	}
-	
+
 	if userCount, err := s.collectionRepo.GetUserCount(ctx, collection.ID); err == nil {
 		collection.UserCount = &userCount
 	}
-	
+
 	if teamCount, err := s.collectionRepo.GetTeamCount(ctx, collection.ID); err == nil {
 		collection.TeamCount = &teamCount
 	}

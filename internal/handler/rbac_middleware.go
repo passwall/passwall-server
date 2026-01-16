@@ -18,26 +18,26 @@ func RequireOrgPermission(permService service.PermissionService, permission stri
 			c.Abort()
 			return
 		}
-		
+
 		// Get organization ID from URL parameter
 		orgIDStr := c.Param("org_id")
 		if orgIDStr == "" {
 			orgIDStr = c.Param("id") // Fallback for /organizations/:id routes
 		}
-		
+
 		if orgIDStr == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Organization ID required"})
 			c.Abort()
 			return
 		}
-		
+
 		orgID, err := strconv.ParseUint(orgIDStr, 10, 32)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid organization ID"})
 			c.Abort()
 			return
 		}
-		
+
 		// Check permission
 		can, err := permService.Can(c.Request.Context(), userID.(uint), uint(orgID), permission)
 		if err != nil {
@@ -45,19 +45,19 @@ func RequireOrgPermission(permService service.PermissionService, permission stri
 			c.Abort()
 			return
 		}
-		
+
 		if !can {
 			c.JSON(http.StatusForbidden, gin.H{
-				"error": "Insufficient permissions",
+				"error":               "Insufficient permissions",
 				"required_permission": permission,
 			})
 			c.Abort()
 			return
 		}
-		
+
 		// Store organization ID in context for handlers to use
 		c.Set("orgID", uint(orgID))
-		
+
 		c.Next()
 	}
 }
@@ -72,26 +72,26 @@ func RequireOrgMembership(permService service.PermissionService) gin.HandlerFunc
 			c.Abort()
 			return
 		}
-		
+
 		// Get organization ID from URL parameter
 		orgIDStr := c.Param("org_id")
 		if orgIDStr == "" {
 			orgIDStr = c.Param("id")
 		}
-		
+
 		if orgIDStr == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Organization ID required"})
 			c.Abort()
 			return
 		}
-		
+
 		orgID, err := strconv.ParseUint(orgIDStr, 10, 32)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid organization ID"})
 			c.Abort()
 			return
 		}
-		
+
 		// Check if user has any role (even read-only)
 		role, err := permService.GetEffectiveRole(c.Request.Context(), userID.(uint), uint(orgID))
 		if err != nil {
@@ -99,11 +99,11 @@ func RequireOrgMembership(permService service.PermissionService) gin.HandlerFunc
 			c.Abort()
 			return
 		}
-		
+
 		// Store role and organization ID in context
 		c.Set("orgID", uint(orgID))
 		c.Set("orgRole", role)
-		
+
 		c.Next()
 	}
 }
@@ -125,4 +125,3 @@ func GetOrgIDFromContext(c *gin.Context) (uint, bool) {
 	}
 	return orgID.(uint), true
 }
-

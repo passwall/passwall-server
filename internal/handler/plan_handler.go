@@ -77,4 +77,3 @@ func (h *PlanHandler) GetPlan(c *gin.Context) {
 
 	c.JSON(http.StatusOK, domain.ToPlanDTO(plan))
 }
-

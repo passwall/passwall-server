@@ -9,34 +9,34 @@ import (
 
 // Activity detail field constants
 const (
-	ActivityFieldOrganizationID     = "organization_id"
-	ActivityFieldOrganizationName   = "organization_name"
-	ActivityFieldUserID             = "user_id"
-	ActivityFieldUserName           = "user_name"
-	ActivityFieldUserEmail          = "user_email"
-	ActivityFieldPlan               = "plan"
-	ActivityFieldOldPlan            = "old_plan"
-	ActivityFieldNewPlan            = "new_plan"
-	ActivityFieldBillingCycle       = "billing_cycle"
-	ActivityFieldSubscriptionID     = "subscription_id"
-	ActivityFieldSessionID          = "session_id"
-	ActivityFieldCustomerID         = "customer_id"
-	ActivityFieldInvoiceID          = "invoice_id"
-	ActivityFieldAmount             = "amount"
-	ActivityFieldCurrency           = "currency"
-	ActivityFieldStatus             = "status"
-	ActivityFieldCancelAtPeriodEnd  = "cancel_at_period_end"
-	ActivityFieldReason             = "reason"
-	ActivityFieldError              = "error"
-	ActivityFieldItemID             = "item_id"
-	ActivityFieldItemType           = "item_type"
-	ActivityFieldCollectionID       = "collection_id"
-	ActivityFieldCollectionName     = "collection_name"
-	ActivityFieldTeamID             = "team_id"
-	ActivityFieldTeamName           = "team_name"
-	ActivityFieldRole               = "role"
-	ActivityFieldOldRole            = "old_role"
-	ActivityFieldNewRole            = "new_role"
+	ActivityFieldOrganizationID    = "organization_id"
+	ActivityFieldOrganizationName  = "organization_name"
+	ActivityFieldUserID            = "user_id"
+	ActivityFieldUserName          = "user_name"
+	ActivityFieldUserEmail         = "user_email"
+	ActivityFieldPlan              = "plan"
+	ActivityFieldOldPlan           = "old_plan"
+	ActivityFieldNewPlan           = "new_plan"
+	ActivityFieldBillingCycle      = "billing_cycle"
+	ActivityFieldSubscriptionID    = "subscription_id"
+	ActivityFieldSessionID         = "session_id"
+	ActivityFieldCustomerID        = "customer_id"
+	ActivityFieldInvoiceID         = "invoice_id"
+	ActivityFieldAmount            = "amount"
+	ActivityFieldCurrency          = "currency"
+	ActivityFieldStatus            = "status"
+	ActivityFieldCancelAtPeriodEnd = "cancel_at_period_end"
+	ActivityFieldReason            = "reason"
+	ActivityFieldError             = "error"
+	ActivityFieldItemID            = "item_id"
+	ActivityFieldItemType          = "item_type"
+	ActivityFieldCollectionID      = "collection_id"
+	ActivityFieldCollectionName    = "collection_name"
+	ActivityFieldTeamID            = "team_id"
+	ActivityFieldTeamName          = "team_name"
+	ActivityFieldRole              = "role"
+	ActivityFieldOldRole           = "old_role"
+	ActivityFieldNewRole           = "new_role"
 )
 
 // ActivityLogger provides helper methods for logging user activities
@@ -257,8 +257,7 @@ func (l *ActivityLogger) LogCustomActivity(ctx context.Context, userID uint, act
 // LogError logs an error activity
 func (l *ActivityLogger) LogError(ctx context.Context, userID uint, ipAddress, userAgent string, operation string, err error) {
 	_ = l.LogActivity(ctx, userID, domain.ActivityTypeFailedSignIn, ipAddress, userAgent, ActivityDetails{
-		"operation":              operation,
-		ActivityFieldError:       err.Error(),
+		"operation":        operation,
+		ActivityFieldError: err.Error(),
 	})
 }
-

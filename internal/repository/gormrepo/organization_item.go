@@ -221,4 +221,3 @@ func (r *organizationItemRepository) SoftDelete(ctx context.Context, id uint) er
 func (r *organizationItemRepository) HardDelete(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Unscoped().Delete(&domain.OrganizationItem{}, id).Error
 }
-

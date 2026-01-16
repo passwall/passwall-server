@@ -147,4 +147,3 @@ func (r *organizationUserRepository) ListPendingInvitations(ctx context.Context,
 	}
 	return orgUsers, nil
 }
-

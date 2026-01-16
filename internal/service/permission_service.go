@@ -42,22 +42,22 @@ func (s *permissionService) GetEffectiveRole(ctx context.Context, userID uint, o
 	if err != nil {
 		return "", fmt.Errorf("failed to get membership: %w", err)
 	}
-	
+
 	if membership == nil {
 		return "", fmt.Errorf("user is not a member of organization")
 	}
-	
+
 	// Check subscription override
 	shouldOverride, err := s.CheckSubscriptionOverride(ctx, orgID)
 	if err != nil {
 		return "", fmt.Errorf("failed to check subscription: %w", err)
 	}
-	
+
 	// If subscription is expired, override to read-only
 	if shouldOverride {
 		return "read_only", nil
 	}
-	
+
 	return membership.Role, nil
 }
 
@@ -68,7 +68,7 @@ func (s *permissionService) Can(ctx context.Context, userID uint, orgID uint, pe
 	if err != nil {
 		return false, err
 	}
-	
+
 	// Check permission matrix
 	return domain.Can(role, permission), nil
 }
@@ -81,12 +81,12 @@ func (s *permissionService) CheckSubscriptionOverride(ctx context.Context, orgID
 		// If no subscription found, treat as free/expired
 		return true, nil
 	}
-	
+
 	// Check if subscription allows write operations
 	if !sub.CanWrite() {
 		return true, nil
 	}
-	
+
 	return false, nil
 }
 
@@ -97,7 +97,6 @@ func (s *permissionService) GetUserPermissions(ctx context.Context, userID uint,
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return domain.GetPermissions(role), nil
 }
-

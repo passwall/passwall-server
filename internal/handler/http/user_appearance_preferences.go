@@ -62,4 +62,3 @@ func (h *UserAppearancePreferencesHandler) Update(c *gin.Context) {
 
 	c.JSON(http.StatusOK, domain.ToUserAppearancePreferencesDTO(prefs))
 }
-

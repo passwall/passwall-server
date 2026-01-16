@@ -153,4 +153,3 @@ func ToPlanDTO(p *Plan) *PlanDTO {
 		UpdatedAt:      p.UpdatedAt,
 	}
 }
-

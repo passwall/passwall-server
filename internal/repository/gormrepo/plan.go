@@ -94,4 +94,3 @@ func (r *planRepository) ListByBillingCycle(ctx context.Context, cycle domain.Bi
 		Find(&plans).Error
 	return plans, err
 }
-

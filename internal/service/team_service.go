@@ -319,4 +319,3 @@ func (s *teamService) checkTeamMemberManagePermission(ctx context.Context, orgID
 
 	return repository.ErrForbidden
 }
-

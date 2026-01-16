@@ -8,13 +8,13 @@ import (
 )
 
 type PaymentHandler struct {
-	service           service.PaymentService
+	service             service.PaymentService
 	subscriptionService service.SubscriptionService
 }
 
 func NewPaymentHandler(service service.PaymentService, subscriptionService service.SubscriptionService) *PaymentHandler {
 	return &PaymentHandler{
-		service:           service,
+		service:             service,
 		subscriptionService: subscriptionService,
 	}
 }
@@ -216,4 +216,3 @@ type CreateCheckoutResponse struct {
 }
 
 // CancelSubscriptionRequest is no longer needed - we always cancel at period end
-

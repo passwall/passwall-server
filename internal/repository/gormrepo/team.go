@@ -126,4 +126,3 @@ func (r *teamRepository) GetMemberCount(ctx context.Context, teamID uint) (int, 
 
 	return int(count), err
 }
-

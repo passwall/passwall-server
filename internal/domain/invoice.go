@@ -23,8 +23,8 @@ func (i InvoiceStatus) String() string {
 // InvoiceDTO represents invoice data fetched from Stripe (no DB table)
 // Invoices are fetched directly from Stripe API, not stored in database
 type InvoiceDTO struct {
-	ID               uint          `json:"id,omitempty"`               // Not used (no DB)
-	UUID             string        `json:"uuid,omitempty"`             // Not used (no DB)
+	ID               uint          `json:"id,omitempty"`              // Not used (no DB)
+	UUID             string        `json:"uuid,omitempty"`            // Not used (no DB)
 	SubscriptionID   uint          `json:"subscription_id,omitempty"` // Not used (no DB)
 	Status           InvoiceStatus `json:"status"`
 	AmountCents      int           `json:"amount_cents"`
@@ -38,4 +38,3 @@ type InvoiceDTO struct {
 	HostedInvoiceURL *string       `json:"hosted_invoice_url,omitempty"`
 	CreatedAt        time.Time     `json:"created_at,omitempty"` // Not used (no DB)
 }
-

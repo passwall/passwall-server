@@ -199,4 +199,3 @@ func (s *sesSender) Close() error {
 	// AWS SDK v2 doesn't require explicit cleanup
 	return nil
 }
-

@@ -153,7 +153,6 @@ func (s *smtpSender) Close() error {
 	return nil
 }
 
-
 // sendWithTLS sends email with TLS support
 func (s *smtpSender) sendWithTLS(addr string, auth smtp.Auth, from string, recipients []string, msg []byte) error {
 	tlsConfig := &tls.Config{

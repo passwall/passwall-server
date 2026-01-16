@@ -69,4 +69,3 @@ func (w *SubscriptionWorker) processExpiredSubscriptions(ctx context.Context) {
 
 	w.logger.Info("subscription expiry check completed")
 }
-

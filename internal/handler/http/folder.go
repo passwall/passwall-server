@@ -110,7 +110,7 @@ func (h *FolderHandler) Update(c *gin.Context) {
 func (h *FolderHandler) Delete(c *gin.Context) {
 	ctx := c.Request.Context()
 	schema := database.GetSchema(ctx)
-	
+
 	userID, err := GetUserID(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})

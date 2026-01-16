@@ -12,7 +12,7 @@ import (
 )
 
 type OrganizationItemHandler struct {
-	service service.OrganizationItemService
+	service        service.OrganizationItemService
 	activityLogger *service.ActivityLogger
 }
 
@@ -252,4 +252,3 @@ func (h *OrganizationItemHandler) Delete(c *gin.Context) {
 		h.activityLogger.LogActivity(ctx, userID, domain.ActivityTypeItemDeleted, ipAddress, userAgent, details)
 	}
 }
-

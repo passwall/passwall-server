@@ -13,16 +13,16 @@ import (
 )
 
 type organizationService struct {
-	orgRepo           repository.OrganizationRepository
-	orgUserRepo       repository.OrganizationUserRepository
-	userRepo          repository.UserRepository
-	teamRepo          repository.TeamRepository
-	teamUserRepo      repository.TeamUserRepository
-	collectionRepo    repository.CollectionRepository
+	orgRepo            repository.OrganizationRepository
+	orgUserRepo        repository.OrganizationUserRepository
+	userRepo           repository.UserRepository
+	teamRepo           repository.TeamRepository
+	teamUserRepo       repository.TeamUserRepository
+	collectionRepo     repository.CollectionRepository
 	collectionTeamRepo repository.CollectionTeamRepository
-	paymentService    PaymentService
-	invitationService InvitationService
-	subRepo           interface {
+	paymentService     PaymentService
+	invitationService  InvitationService
+	subRepo            interface {
 		Create(ctx context.Context, sub *domain.Subscription) error
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
 	}
@@ -53,18 +53,18 @@ func NewOrganizationService(
 	logger Logger,
 ) OrganizationService {
 	return &organizationService{
-		orgRepo:           orgRepo,
-		orgUserRepo:       orgUserRepo,
-		userRepo:          userRepo,
-		teamRepo:          teamRepo,
-		teamUserRepo:      teamUserRepo,
-		collectionRepo:    collectionRepo,
+		orgRepo:            orgRepo,
+		orgUserRepo:        orgUserRepo,
+		userRepo:           userRepo,
+		teamRepo:           teamRepo,
+		teamUserRepo:       teamUserRepo,
+		collectionRepo:     collectionRepo,
 		collectionTeamRepo: collectionTeamRepo,
-		paymentService:    paymentService,
-		invitationService: invitationService,
-		subRepo:           subRepo,
-		planRepo:          planRepo,
-		logger:            logger,
+		paymentService:     paymentService,
+		invitationService:  invitationService,
+		subRepo:            subRepo,
+		planRepo:           planRepo,
+		logger:             logger,
 	}
 }
 
@@ -175,10 +175,10 @@ func (s *organizationService) Create(ctx context.Context, userID uint, req *doma
 
 	// Create organization (plan limits are derived from subscriptions + plans)
 	org := &domain.Organization{
-		Name:            req.Name,
-		BillingEmail:    req.BillingEmail,
-		EncryptedOrgKey: req.EncryptedOrgKey,
-		IsActive:        true,
+		Name:               req.Name,
+		BillingEmail:       req.BillingEmail,
+		EncryptedOrgKey:    req.EncryptedOrgKey,
+		IsActive:           true,
 		CreatedByUserID:    &userID,
 		CreatedByUserEmail: &creatorEmail,
 		CreatedByUserName:  &creatorName,
@@ -283,11 +283,11 @@ func (s *organizationService) GetByID(ctx context.Context, id uint, userID uint)
 	if memberCount, err := s.orgRepo.GetMemberCount(ctx, org.ID); err == nil {
 		org.MemberCount = &memberCount
 	}
-	
+
 	if teamCount, err := s.orgRepo.GetTeamCount(ctx, org.ID); err == nil {
 		org.TeamCount = &teamCount
 	}
-	
+
 	if collectionCount, err := s.orgRepo.GetCollectionCount(ctx, org.ID); err == nil {
 		org.CollectionCount = &collectionCount
 	}
@@ -311,12 +311,12 @@ func (s *organizationService) List(ctx context.Context, userID uint) ([]*domain.
 		if memberCount, err := s.orgRepo.GetMemberCount(ctx, org.ID); err == nil {
 			org.MemberCount = &memberCount
 		}
-		
+
 		// Get team count
 		if teamCount, err := s.orgRepo.GetTeamCount(ctx, org.ID); err == nil {
 			org.TeamCount = &teamCount
 		}
-		
+
 		// Get collection count
 		if collectionCount, err := s.orgRepo.GetCollectionCount(ctx, org.ID); err == nil {
 			org.CollectionCount = &collectionCount
@@ -414,7 +414,7 @@ func (s *organizationService) InviteUser(ctx context.Context, orgID uint, invite
 
 	// Get invitee user by email
 	invitee, err := s.userRepo.GetByEmail(ctx, req.Email)
-	
+
 	// CASE 1: User is not registered yet
 	if err != nil {
 		// User not found - create pending invitation
@@ -425,7 +425,7 @@ func (s *organizationService) InviteUser(ctx context.Context, orgID uint, invite
 
 		orgRoleStr := string(req.Role)
 		accessAll := req.AccessAll
-		
+
 		// Create invitation with organization info
 		invitationReq := &domain.CreateInvitationRequest{
 			Email:           req.Email,
@@ -441,9 +441,9 @@ func (s *organizationService) InviteUser(ctx context.Context, orgID uint, invite
 			return nil, fmt.Errorf("failed to create invitation: %w", err)
 		}
 
-		s.logger.Info("pending invitation created for non-registered user", 
-			"org_id", orgID, 
-			"email", req.Email, 
+		s.logger.Info("pending invitation created for non-registered user",
+			"org_id", orgID,
+			"email", req.Email,
 			"org_role", req.Role)
 
 		// Return nil (no org user created yet - will be created after signup)
@@ -654,9 +654,9 @@ func (s *organizationService) AddExistingMember(ctx context.Context, orgUser *do
 
 	// Create organization user membership
 	if err := s.orgUserRepo.Create(ctx, orgUser); err != nil {
-		s.logger.Error("failed to add existing member", 
-			"org_id", orgUser.OrganizationID, 
-			"user_id", orgUser.UserID, 
+		s.logger.Error("failed to add existing member",
+			"org_id", orgUser.OrganizationID,
+			"user_id", orgUser.UserID,
 			"error", err)
 		return fmt.Errorf("failed to add member: %w", err)
 	}
@@ -666,11 +666,11 @@ func (s *organizationService) AddExistingMember(ctx context.Context, orgUser *do
 		return fmt.Errorf("failed to ensure default team membership: %w", err)
 	}
 
-	s.logger.Info("existing member added to organization", 
-		"org_id", orgUser.OrganizationID, 
+	s.logger.Info("existing member added to organization",
+		"org_id", orgUser.OrganizationID,
 		"user_id", orgUser.UserID,
 		"role", orgUser.Role)
-	
+
 	return nil
 }
 
@@ -750,7 +750,6 @@ func (s *organizationService) checkPermission(ctx context.Context, orgID, userID
 
 	return nil
 }
-
 
 // getMaxUsers returns max users limit from subscription plan
 func (s *organizationService) getMaxUsers(ctx context.Context, orgID uint) (int, error) {

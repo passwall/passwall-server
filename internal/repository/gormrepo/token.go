@@ -40,14 +40,14 @@ func (r *tokenRepository) Create(ctx context.Context, userID int, sessionUUID uu
 	hashedToken := hash.SHA256(token)
 
 	t := &domain.Token{
-		UserID:     userID,
-		UUID:       tokenUUID,
+		UserID:      userID,
+		UUID:        tokenUUID,
 		SessionUUID: sessionUUID,
-		DeviceID:   deviceID,
-		App:        app,
-		Kind:       kind,
-		Token:      hashedToken,
-		ExpiryTime: expiryTime,
+		DeviceID:    deviceID,
+		App:         app,
+		Kind:        kind,
+		Token:       hashedToken,
+		ExpiryTime:  expiryTime,
 	}
 	return r.db.WithContext(ctx).Create(t).Error
 }

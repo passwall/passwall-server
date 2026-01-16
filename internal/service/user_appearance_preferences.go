@@ -17,34 +17,48 @@ const (
 var appearanceFontRe = regexp.MustCompile(`^[a-z0-9_-]{1,32}$`)
 
 type userAppearancePreferencesService struct {
-	repo   repository.UserAppearancePreferencesRepository
+	prefs  repository.PreferencesRepository
 	logger Logger
 }
 
 func NewUserAppearancePreferencesService(
-	repo repository.UserAppearancePreferencesRepository,
+	prefs repository.PreferencesRepository,
 	logger Logger,
 ) UserAppearancePreferencesService {
 	return &userAppearancePreferencesService{
-		repo:   repo,
+		prefs:  prefs,
 		logger: logger,
 	}
 }
 
 func (s *userAppearancePreferencesService) GetForUser(ctx context.Context, userID uint) (*domain.UserAppearancePreferences, error) {
-	prefs, err := s.repo.GetByUserID(ctx, userID)
+	out := &domain.UserAppearancePreferences{
+		UserID: userID,
+		Theme:  defaultAppearanceTheme,
+		Font:   defaultAppearanceFont,
+	}
+
+	rows, err := s.prefs.ListByOwner(ctx, PreferenceOwnerUser, userID, "appearance")
 	if err != nil {
-		if err == repository.ErrNotFound {
-			// Defaults for new users (not persisted until first update).
-			return &domain.UserAppearancePreferences{
-				UserID: userID,
-				Theme:  defaultAppearanceTheme,
-				Font:   defaultAppearanceFont,
-			}, nil
-		}
 		return nil, err
 	}
-	return prefs, nil
+	for _, p := range rows {
+		if p == nil || p.Type != "string" {
+			continue
+		}
+		switch p.Key {
+		case "theme":
+			if isValidTheme(p.Value) {
+				out.Theme = p.Value
+			}
+		case "font":
+			if appearanceFontRe.MatchString(p.Value) {
+				out.Font = p.Value
+			}
+		}
+	}
+
+	return out, nil
 }
 
 func (s *userAppearancePreferencesService) UpdateForUser(ctx context.Context, userID uint, req *domain.UpdateUserAppearancePreferencesRequest) (*domain.UserAppearancePreferences, error) {
@@ -57,12 +71,22 @@ func (s *userAppearancePreferencesService) UpdateForUser(ctx context.Context, us
 		return nil, err
 	}
 
+	updates := make([]*domain.Preference, 0, 2)
+
 	if req.Theme != nil {
 		theme := strings.TrimSpace(strings.ToLower(*req.Theme))
 		if !isValidTheme(theme) {
 			return nil, repository.ErrInvalidInput
 		}
 		current.Theme = theme
+		updates = append(updates, &domain.Preference{
+			OwnerType: PreferenceOwnerUser,
+			OwnerID:   userID,
+			Section:   "appearance",
+			Key:       "theme",
+			Type:      "string",
+			Value:     theme,
+		})
 	}
 
 	if req.Font != nil {
@@ -71,9 +95,17 @@ func (s *userAppearancePreferencesService) UpdateForUser(ctx context.Context, us
 			return nil, repository.ErrInvalidInput
 		}
 		current.Font = font
+		updates = append(updates, &domain.Preference{
+			OwnerType: PreferenceOwnerUser,
+			OwnerID:   userID,
+			Section:   "appearance",
+			Key:       "font",
+			Type:      "string",
+			Value:     font,
+		})
 	}
 
-	if err := s.repo.Upsert(ctx, current); err != nil {
+	if err := s.prefs.UpsertMany(ctx, updates); err != nil {
 		return nil, err
 	}
 
@@ -88,4 +120,3 @@ func isValidTheme(theme string) bool {
 		return false
 	}
 }
-

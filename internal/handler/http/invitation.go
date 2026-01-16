@@ -12,8 +12,8 @@ import (
 )
 
 type InvitationHandler struct {
-	invitationService  service.InvitationService
-	userService        service.UserService
+	invitationService   service.InvitationService
+	userService         service.UserService
 	organizationService service.OrganizationService
 }
 
@@ -24,8 +24,8 @@ func NewInvitationHandler(
 	organizationService service.OrganizationService,
 ) *InvitationHandler {
 	return &InvitationHandler{
-		invitationService:  invitationService,
-		userService:        userService,
+		invitationService:   invitationService,
+		userService:         userService,
 		organizationService: organizationService,
 	}
 }

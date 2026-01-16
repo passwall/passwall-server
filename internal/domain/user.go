@@ -50,8 +50,8 @@ type User struct {
 	KdfSalt        string  `json:"-" gorm:"type:varchar(64);not null"`            // hex-encoded 32 bytes, random per user
 
 	// RSA Keys for Organization Sharing (optional, generated when joining first org)
-	RSAPublicKey     *string `json:"rsa_public_key,omitempty" gorm:"type:text"`    // RSA-2048 public key (PEM format)
-	RSAPrivateKeyEnc *string `json:"-" gorm:"type:text"`                           // RSA private key encrypted with User Key (EncString)
+	RSAPublicKey     *string `json:"rsa_public_key,omitempty" gorm:"type:text"` // RSA-2048 public key (PEM format)
+	RSAPrivateKeyEnc *string `json:"-" gorm:"type:text"`                        // RSA private key encrypted with User Key (EncString)
 
 	// User metadata
 	RoleID       uint   `json:"role_id" gorm:"not null;default:2;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
@@ -99,16 +99,16 @@ func (u *User) HasPermission(permission string) bool {
 
 // OwnershipCheckResult represents organizations where user is sole owner
 type OwnershipCheckResult struct {
-	IsSoleOwner   bool                     `json:"is_sole_owner"`
-	Organizations []SoleOwnerOrganization  `json:"organizations"`
+	IsSoleOwner   bool                    `json:"is_sole_owner"`
+	Organizations []SoleOwnerOrganization `json:"organizations"`
 }
 
 // SoleOwnerOrganization represents an organization where user is the sole owner
 type SoleOwnerOrganization struct {
-	ID           uint   `json:"id"`
-	Name         string `json:"name"`
-	MemberCount  int    `json:"member_count"`
-	CanTransfer  bool   `json:"can_transfer"` // True if there are other members to transfer to
+	ID          uint   `json:"id"`
+	Name        string `json:"name"`
+	MemberCount int    `json:"member_count"`
+	CanTransfer bool   `json:"can_transfer"` // True if there are other members to transfer to
 }
 
 // TransferOwnershipRequest represents a request to transfer organization ownership

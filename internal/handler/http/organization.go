@@ -13,7 +13,7 @@ import (
 
 type OrganizationHandler struct {
 	service service.OrganizationService
-	subRepo  interface {
+	subRepo interface {
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
 	}
 }
@@ -396,4 +396,3 @@ func (h *OrganizationHandler) AcceptInvitation(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "invitation accepted successfully"})
 }
-

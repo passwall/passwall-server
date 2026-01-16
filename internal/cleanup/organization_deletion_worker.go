@@ -86,4 +86,3 @@ func (w *OrganizationDeletionWorker) processScheduledDeletions(ctx context.Conte
 
 	w.logger.Info("deletion check completed")
 }
-

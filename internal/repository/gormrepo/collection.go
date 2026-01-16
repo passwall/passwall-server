@@ -213,4 +213,3 @@ func (r *collectionRepository) GetTeamCount(ctx context.Context, collectionID ui
 
 	return int(count), err
 }
-

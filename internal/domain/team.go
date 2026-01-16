@@ -157,4 +157,3 @@ func ToTeamUserDTO(tu *TeamUser) *TeamUserDTO {
 
 	return dto
 }
-
