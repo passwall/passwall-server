@@ -19,6 +19,7 @@ func SetupRouter(
 	activityHandler *httpHandler.ActivityHandler,
 	organizationActivityHandler *httpHandler.OrganizationActivityHandler,
 	itemHandler *httpHandler.ItemHandler,
+	itemShareHandler *httpHandler.ItemShareHandler,
 	excludedDomainHandler *httpHandler.ExcludedDomainHandler,
 	folderHandler *httpHandler.FolderHandler,
 	userHandler *httpHandler.UserHandler,
@@ -126,6 +127,16 @@ func SetupRouter(
 		apiGroup.PUT("/items/:id", itemHandler.Update)
 		apiGroup.DELETE("/items/:id", itemHandler.Delete)
 
+		// Personal item sharing (zero-knowledge)
+		apiGroup.POST("/item-shares", itemShareHandler.Create)
+		apiGroup.GET("/item-shares", itemShareHandler.ListOwned)
+		apiGroup.GET("/item-shares/received", itemShareHandler.ListReceived)
+		apiGroup.GET("/item-shares/:uuid", itemShareHandler.GetByUUID)
+		apiGroup.PUT("/item-shares/:uuid/item", itemShareHandler.UpdateSharedItem)
+		apiGroup.PATCH("/item-shares/:uuid/permissions", itemShareHandler.UpdatePermissions)
+		apiGroup.POST("/item-shares/:uuid/re-share", itemShareHandler.ReShare)
+		apiGroup.DELETE("/item-shares/:id", itemShareHandler.Revoke)
+
 		// Excluded Domains API (for "Turn off Passwall for this site")
 		apiGroup.GET("/excluded-domains", excludedDomainHandler.List)
 		apiGroup.POST("/excluded-domains", excludedDomainHandler.Create)
@@ -156,6 +167,7 @@ func SetupRouter(
 			authHandler.ChangeMasterPassword,
 		)
 		apiGroup.GET("/users/me/rsa-keys", userHandler.CheckRSAKeys)
+		apiGroup.GET("/users/me/rsa-private-key", userHandler.GetRSAPrivateKeyEnc)
 		apiGroup.POST("/users/me/rsa-keys", userHandler.StoreRSAKeys)
 		apiGroup.GET("/users/public-key", userHandler.GetPublicKey) // For org key wrapping
 

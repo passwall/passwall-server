@@ -40,6 +40,7 @@ func NewItemService(repo repository.ItemRepository, logger Logger) ItemService {
 type CreateItemRequest struct {
 	ItemType   domain.ItemType     `json:"item_type" validate:"required"`
 	Data       string              `json:"data" validate:"required"`
+	ItemKeyEnc *string             `json:"item_key_enc,omitempty"`
 	Metadata   domain.ItemMetadata `json:"metadata" validate:"required"`
 	IsFavorite bool                `json:"is_favorite"`
 	FolderID   *uint               `json:"folder_id,omitempty"`
@@ -51,6 +52,7 @@ type CreateItemRequest struct {
 // UpdateItemRequest - Request to update an item
 type UpdateItemRequest struct {
 	Data       *string              `json:"data,omitempty"`
+	ItemKeyEnc *string              `json:"item_key_enc,omitempty"`
 	Metadata   *domain.ItemMetadata `json:"metadata,omitempty"`
 	IsFavorite *bool                `json:"is_favorite,omitempty"`
 	FolderID   *uint                `json:"folder_id,omitempty"`
@@ -94,6 +96,7 @@ func (s *itemService) Create(ctx context.Context, schema string, req *CreateItem
 		UUID:       uuid.NewV4(),
 		ItemType:   req.ItemType,
 		Data:       req.Data,
+		ItemKeyEnc: req.ItemKeyEnc,
 		Metadata:   req.Metadata,
 		IsFavorite: req.IsFavorite,
 		FolderID:   req.FolderID,
@@ -182,6 +185,9 @@ func (s *itemService) Update(ctx context.Context, schema string, id uint, req *U
 	// Update fields
 	if req.Data != nil {
 		item.Data = *req.Data
+	}
+	if req.ItemKeyEnc != nil {
+		item.ItemKeyEnc = req.ItemKeyEnc
 	}
 	if req.Metadata != nil {
 		if err := s.validateMetadata(*req.Metadata); err != nil {

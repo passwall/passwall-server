@@ -123,6 +123,35 @@ func (b *EmailBuilder) BuildInvitationWithOrgEmail(to, inviterName, code, role, 
 	}, nil
 }
 
+// BuildShareInviteEmail builds a share invite email for non-registered recipients
+func (b *EmailBuilder) BuildShareInviteEmail(to, inviterName, itemName string) (*EmailMessage, error) {
+	if to == "" {
+		return nil, fmt.Errorf("recipient email is required")
+	}
+
+	data, err := BuildShareInviteEmail(b.frontendURL, to, inviterName, itemName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build template data: %w", err)
+	}
+
+	htmlBody, err := b.templateManager.Render(TemplateShareInvite, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to render template: %w", err)
+	}
+
+	subject := "A secure password is shared with you"
+	if inviterName != "" {
+		subject = fmt.Sprintf("%s shared a password with you on Passwall", inviterName)
+	}
+
+	return &EmailMessage{
+		To:      to,
+		From:    b.defaultFrom,
+		Subject: subject,
+		Body:    htmlBody,
+	}, nil
+}
+
 // BuildCustomEmail builds a custom email with provided subject and body
 func (b *EmailBuilder) BuildCustomEmail(to, subject, htmlBody string) (*EmailMessage, error) {
 	if to == "" {

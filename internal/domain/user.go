@@ -59,6 +59,9 @@ type User struct {
 	IsVerified   bool   `json:"is_verified" gorm:"default:false"`
 	IsSystemUser bool   `json:"is_system_user" gorm:"default:false;index"` // System users (e.g., super admin) cannot be deleted
 	Language     string `json:"language" gorm:"type:varchar(10);default:'en'"`
+
+	// Stats (runtime calculated, not stored in DB)
+	ItemCount *int `json:"item_count,omitempty" gorm:"-"`
 }
 
 // TableName specifies the table name for User

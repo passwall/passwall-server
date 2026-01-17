@@ -151,6 +151,18 @@ type OrganizationItemService interface {
 	Delete(ctx context.Context, id, userID uint) (*domain.OrganizationItem, error)
 }
 
+// ItemShareService defines the business logic for personal item sharing
+type ItemShareService interface {
+	Create(ctx context.Context, ownerID uint, ownerSchema string, req *CreateItemShareRequest) (*ItemShareWithItem, error)
+	ListOwned(ctx context.Context, ownerID uint) ([]*ItemShareWithItem, error)
+	ListReceived(ctx context.Context, userID uint) ([]*ItemShareWithItem, error)
+	GetByUUID(ctx context.Context, userID uint, shareUUID string) (*ItemShareWithItem, error)
+	Revoke(ctx context.Context, ownerID uint, shareID uint) error
+	UpdateSharedItem(ctx context.Context, userID uint, shareUUID string, req *UpdateSharedItemRequest) (*domain.Item, error)
+	UpdatePermissions(ctx context.Context, ownerID uint, shareUUID string, req *UpdateItemSharePermissionsRequest) (*ItemShareWithItem, error)
+	ReShare(ctx context.Context, userID uint, shareUUID string, req *CreateItemShareRequest) (*ItemShareWithItem, error)
+}
+
 // PaymentService defines the business logic for Stripe payments
 type PaymentService interface {
 	// Checkout & Subscriptions

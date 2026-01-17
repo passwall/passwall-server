@@ -189,6 +189,7 @@ type adminOrganizationsItemDTO struct {
 	MemberCount     int                        `json:"member_count"`
 	TeamCount       int                        `json:"team_count"`
 	CollectionCount int                        `json:"collection_count"`
+	ItemCount       int                        `json:"item_count"`
 }
 
 type adminOrganizationsListResponse struct {
@@ -245,6 +246,26 @@ func (h *AdminSubscriptionsHandler) ListOrganizations(c *gin.Context) {
 				}
 			}
 		}
+		if owner != nil &&
+			org.CreatedByUserID == nil &&
+			org.CreatedByUserEmail == nil &&
+			org.CreatedByUserName == nil {
+			creatorID := owner.UserID
+			creatorEmail := owner.Email
+			creatorName := owner.Name
+			org.CreatedByUserID = &creatorID
+			org.CreatedByUserEmail = &creatorEmail
+			org.CreatedByUserName = &creatorName
+			if err := h.orgRepo.Update(ctx, org); err != nil {
+				h.logger.Debug(
+					"admin organizations: failed to backfill creator snapshot",
+					"org_id",
+					org.ID,
+					"error",
+					err,
+				)
+			}
+		}
 
 		// Subscription (best-effort) - used to derive plan/limits
 		var sub *domain.Subscription
@@ -256,6 +277,7 @@ func (h *AdminSubscriptionsHandler) ListOrganizations(c *gin.Context) {
 		memberCount := 0
 		teamCount := 0
 		collectionCount := 0
+		itemCount := 0
 
 		if cnt, err := h.orgRepo.GetMemberCount(ctx, org.ID); err == nil {
 			memberCount = cnt
@@ -269,6 +291,10 @@ func (h *AdminSubscriptionsHandler) ListOrganizations(c *gin.Context) {
 			collectionCount = cnt
 			org.CollectionCount = &collectionCount
 		}
+		if cnt, err := h.orgRepo.GetItemCount(ctx, org.ID); err == nil {
+			itemCount = cnt
+			org.ItemCount = &itemCount
+		}
 
 		orgDTO := domain.ToOrganizationDTOWithSubscription(org, sub)
 
@@ -278,6 +304,7 @@ func (h *AdminSubscriptionsHandler) ListOrganizations(c *gin.Context) {
 			MemberCount:     memberCount,
 			TeamCount:       teamCount,
 			CollectionCount: collectionCount,
+			ItemCount:       itemCount,
 		})
 	}
 

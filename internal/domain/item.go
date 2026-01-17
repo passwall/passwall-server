@@ -102,6 +102,8 @@ type Item struct {
 
 	ItemType ItemType     `json:"item_type" gorm:"not null"`
 	Data     string       `json:"data" gorm:"type:text;not null"` // Encrypted JSON
+	// Optional: encrypted item key (for per-item key envelope encryption)
+	ItemKeyEnc *string      `json:"item_key_enc,omitempty" gorm:"type:text"`
 	Metadata ItemMetadata `json:"metadata" gorm:"type:jsonb;not null"`
 
 	// User preferences

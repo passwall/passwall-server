@@ -69,6 +69,7 @@ type Organization struct {
 	MemberCount     *int `json:"member_count,omitempty" gorm:"-"`
 	TeamCount       *int `json:"team_count,omitempty" gorm:"-"`
 	CollectionCount *int `json:"collection_count,omitempty" gorm:"-"`
+	ItemCount       *int `json:"item_count,omitempty" gorm:"-"`
 
 	// Associations (not loaded by default)
 	Members     []OrganizationUser `json:"members,omitempty" gorm:"foreignKey:OrganizationID"`
@@ -196,6 +197,7 @@ type OrganizationDTO struct {
 	MemberCount     *int `json:"member_count,omitempty"`
 	TeamCount       *int `json:"team_count,omitempty"`
 	CollectionCount *int `json:"collection_count,omitempty"`
+	ItemCount       *int `json:"item_count,omitempty"`
 
 	// Encrypted org key (safe to send - user's own copy, encrypted with their User Key)
 	EncryptedOrgKey string `json:"encrypted_org_key,omitempty"`
@@ -317,6 +319,7 @@ func ToOrganizationDTO(org *Organization) *OrganizationDTO {
 		MemberCount:     org.MemberCount,
 		TeamCount:       org.TeamCount,
 		CollectionCount: org.CollectionCount,
+		ItemCount:       org.ItemCount,
 		EncryptedOrgKey: org.EncryptedOrgKey, // User's copy (safe to send)
 	}
 

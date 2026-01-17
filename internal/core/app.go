@@ -100,15 +100,13 @@ func (a *App) Run(ctx context.Context) error {
 	collectionUserRepo := gormrepo.NewCollectionUserRepository(a.db.DB())
 	collectionTeamRepo := gormrepo.NewCollectionTeamRepository(a.db.DB())
 	orgItemRepo := gormrepo.NewOrganizationItemRepository(a.db.DB())
-	// Item share repo (for future: direct user-to-user sharing)
-	_ = gormrepo.NewItemShareRepository(a.db.DB()) // TODO: Use in SharingService
+	// Item share repo (personal sharing)
+	itemShareRepo := gormrepo.NewItemShareRepository(a.db.DB())
 
 	// NOTE: Legacy repos removed - all item types now use ItemRepository with type field
 
 	// Initialize logger adapter for services
 	serviceLogger := logger.NewAdapter()
-
-	// NOTE: Legacy encryption service removed - modern items use client-side encryption only
 
 	// Initialize email sender
 	emailSender, err := email.NewSender(email.Config{
@@ -153,6 +151,14 @@ func (a *App) Run(ctx context.Context) error {
 
 	// Modern flexible items service (handles all item types)
 	itemService := service.NewItemService(itemRepo, serviceLogger)
+	itemShareService := service.NewItemShareService(
+		itemShareRepo,
+		itemRepo,
+		userRepo,
+		emailSender,
+		emailBuilder,
+		serviceLogger,
+	)
 
 	// Initialize subscription repos first
 	subscriptionRepo := gormrepo.NewSubscriptionRepository(a.db.DB())
@@ -204,6 +210,7 @@ func (a *App) Run(ctx context.Context) error {
 
 	// Modern handlers (all item types use ItemHandler now)
 	itemHandler := httpHandler.NewItemHandler(itemService)
+	itemShareHandler := httpHandler.NewItemShareHandler(itemShareService)
 	excludedDomainHandler := httpHandler.NewExcludedDomainHandler(excludedDomainService)
 	folderHandler := httpHandler.NewFolderHandler(folderService)
 
@@ -241,6 +248,7 @@ func (a *App) Run(ctx context.Context) error {
 		activityHandler,
 		organizationActivityHandler,
 		itemHandler,
+		itemShareHandler,
 		excludedDomainHandler,
 		folderHandler,
 		userHandler,

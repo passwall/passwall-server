@@ -54,6 +54,20 @@ func (s *userService) List(ctx context.Context) ([]*domain.User, error) {
 		s.logger.Error("failed to list users", "error", err)
 		return nil, err
 	}
+
+	for _, user := range users {
+		if user == nil || user.Schema == "" {
+			continue
+		}
+
+		count, err := s.repo.GetItemCount(ctx, user.Schema)
+		if err != nil {
+			s.logger.Debug("failed to get user item count", "user_id", user.ID, "error", err)
+			continue
+		}
+		user.ItemCount = &count
+	}
+
 	s.logger.Debug("users listed", "count", len(users))
 	return users, nil
 }

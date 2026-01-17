@@ -202,7 +202,6 @@ type ItemShare struct {
 	CanView      bool `json:"can_view" gorm:"default:true"`
 	CanEdit      bool `json:"can_edit" gorm:"default:false"`
 	CanShare     bool `json:"can_share" gorm:"default:false"` // Can re-share to others
-	HidePassword bool `json:"hide_password" gorm:"default:false"`
 
 	// Encrypted item key wrapped for recipient
 	EncryptedKey string `json:"-" gorm:"type:text;not null"`
@@ -240,7 +239,6 @@ type ItemShareDTO struct {
 	CanView          bool       `json:"can_view"`
 	CanEdit          bool       `json:"can_edit"`
 	CanShare         bool       `json:"can_share"`
-	HidePassword     bool       `json:"hide_password"`
 	ExpiresAt        *time.Time `json:"expires_at,omitempty"`
 	CreatedAt        time.Time  `json:"created_at"`
 }
@@ -253,7 +251,6 @@ type CreateItemShareRequest struct {
 	CanView          bool       `json:"can_view"`
 	CanEdit          bool       `json:"can_edit"`
 	CanShare         bool       `json:"can_share"`
-	HidePassword     bool       `json:"hide_password"`
 	EncryptedKey     string     `json:"encrypted_key" validate:"required"` // Item key wrapped for recipient
 	ExpiresAt        *time.Time `json:"expires_at,omitempty"`
 }

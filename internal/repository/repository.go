@@ -43,6 +43,7 @@ type UserRepository interface {
 	GetByEmail(ctx context.Context, email string) (*domain.User, error)
 	GetBySchema(ctx context.Context, schema string) (*domain.User, error)
 	List(ctx context.Context, filter ListFilter) ([]*domain.User, *ListResult, error)
+	GetItemCount(ctx context.Context, schema string) (int, error)
 	Create(ctx context.Context, user *domain.User) error
 	Update(ctx context.Context, user *domain.User) error
 	Delete(ctx context.Context, id uint, schema string) error
@@ -121,6 +122,7 @@ type OrganizationRepository interface {
 	GetMemberCount(ctx context.Context, orgID uint) (int, error)
 	GetTeamCount(ctx context.Context, orgID uint) (int, error)
 	GetCollectionCount(ctx context.Context, orgID uint) (int, error)
+	GetItemCount(ctx context.Context, orgID uint) (int, error)
 }
 
 // OrganizationUserRepository defines organization user data access methods

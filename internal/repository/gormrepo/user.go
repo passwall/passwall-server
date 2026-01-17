@@ -130,6 +130,21 @@ func (r *userRepository) List(ctx context.Context, filter repository.ListFilter)
 	return users, result, nil
 }
 
+func (r *userRepository) GetItemCount(ctx context.Context, schema string) (int, error) {
+	qualifiedTable, err := database.BuildQualifiedTableName(schema, "items")
+	if err != nil {
+		return 0, err
+	}
+
+	var count int64
+	query := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE deleted_at IS NULL", qualifiedTable)
+	if err := r.db.WithContext(ctx).Raw(query).Scan(&count).Error; err != nil {
+		return 0, err
+	}
+
+	return int(count), nil
+}
+
 func (r *userRepository) Create(ctx context.Context, user *domain.User) error {
 	return r.db.WithContext(ctx).Create(user).Error
 }

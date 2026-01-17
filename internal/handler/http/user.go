@@ -392,6 +392,34 @@ func (h *UserHandler) CheckRSAKeys(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"has_rsa_keys": hasKeys})
 }
 
+// GetRSAPrivateKeyEnc returns the encrypted RSA private key for current user
+// @Summary Get RSA private key (encrypted)
+// @Description Returns user's RSA private key encrypted with User Key
+// @Tags users
+// @Produce json
+// @Success 200 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /users/me/rsa-private-key [get]
+func (h *UserHandler) GetRSAPrivateKeyEnc(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := GetCurrentUserID(c)
+
+	user, err := h.service.GetByID(ctx, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user"})
+		return
+	}
+
+	if user.RSAPrivateKeyEnc == nil || *user.RSAPrivateKeyEnc == "" {
+		c.JSON(http.StatusNotFound, gin.H{"error": "rsa private key not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"rsa_private_key_enc": *user.RSAPrivateKeyEnc,
+	})
+}
+
 // StoreRSAKeys godoc
 // @Summary Store user's RSA keys
 // @Description Store user's RSA key pair (generated client-side)

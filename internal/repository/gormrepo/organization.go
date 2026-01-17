@@ -237,3 +237,13 @@ func (r *organizationRepository) GetCollectionCount(ctx context.Context, orgID u
 
 	return int(count), err
 }
+
+func (r *organizationRepository) GetItemCount(ctx context.Context, orgID uint) (int, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&domain.OrganizationItem{}).
+		Where("organization_id = ? AND deleted_at IS NULL", orgID).
+		Count(&count).Error
+
+	return int(count), err
+}

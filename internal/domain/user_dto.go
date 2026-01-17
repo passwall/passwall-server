@@ -21,6 +21,7 @@ type UserDTO struct {
 	IsVerified    bool      `json:"is_verified"`
 	IsSystemUser  bool      `json:"is_system_user"` // System users cannot be deleted
 	Language      string    `json:"language"`
+	ItemCount     *int      `json:"item_count,omitempty"`
 	KdfType       KdfType   `json:"kdf_type"`
 	KdfIterations int       `json:"kdf_iterations"`
 }
@@ -43,6 +44,7 @@ func ToUserDTO(user *User) *UserDTO {
 		IsVerified:    user.IsVerified,
 		IsSystemUser:  user.IsSystemUser,
 		Language:      user.Language,
+		ItemCount:     user.ItemCount,
 		KdfType:       user.KdfType,
 		KdfIterations: user.KdfIterations,
 	}
