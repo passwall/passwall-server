@@ -152,6 +152,35 @@ func (b *EmailBuilder) BuildShareInviteEmail(to, inviterName, itemName string) (
 	}, nil
 }
 
+// BuildShareNotificationEmail builds a share notification email for existing users
+func (b *EmailBuilder) BuildShareNotificationEmail(to, inviterName, itemName string) (*EmailMessage, error) {
+	if to == "" {
+		return nil, fmt.Errorf("recipient email is required")
+	}
+
+	data, err := BuildShareNoticeEmail(b.frontendURL, to, inviterName, itemName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build template data: %w", err)
+	}
+
+	htmlBody, err := b.templateManager.Render(TemplateShareNotice, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to render template: %w", err)
+	}
+
+	subject := "A secure item was shared with you"
+	if inviterName != "" {
+		subject = fmt.Sprintf("%s shared an item with you on Passwall", inviterName)
+	}
+
+	return &EmailMessage{
+		To:      to,
+		From:    b.defaultFrom,
+		Subject: subject,
+		Body:    htmlBody,
+	}, nil
+}
+
 // BuildCustomEmail builds a custom email with provided subject and body
 func (b *EmailBuilder) BuildCustomEmail(to, subject, htmlBody string) (*EmailMessage, error) {
 	if to == "" {

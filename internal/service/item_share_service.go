@@ -103,6 +103,7 @@ func (s *itemShareService) createShareInternal(
 	req *CreateItemShareRequest,
 ) (*ItemShareWithItem, error) {
 	sharedWithUserID := req.SharedWithUserID
+	var sharedWithUser *domain.User
 	if sharedWithUserID == nil && req.SharedWithEmail != "" {
 		user, err := s.userRepo.GetByEmail(ctx, req.SharedWithEmail)
 		if err != nil || user == nil {
@@ -131,10 +132,15 @@ func (s *itemShareService) createShareInternal(
 			return nil, ErrShareInviteSent
 		}
 		sharedWithUserID = &user.ID
+		sharedWithUser = user
 	}
 	if sharedWithUserID != nil {
-		if _, err := s.userRepo.GetByID(ctx, *sharedWithUserID); err != nil {
-			return nil, repository.ErrNotFound
+		if sharedWithUser == nil {
+			user, err := s.userRepo.GetByID(ctx, *sharedWithUserID)
+			if err != nil || user == nil {
+				return nil, repository.ErrNotFound
+			}
+			sharedWithUser = user
 		}
 		if *sharedWithUserID == ownerID {
 			return nil, repository.ErrInvalidInput
@@ -182,7 +188,42 @@ func (s *itemShareService) createShareInternal(
 		return nil, fmt.Errorf("failed to create item share: %w", err)
 	}
 
+	if sharedWithUser != nil && s.emailSender != nil && s.emailBuilder != nil {
+		go s.sendShareNotificationEmail(ownerID, sharedWithUser, item)
+	}
+
 	return &ItemShareWithItem{Share: share, Item: item}, nil
+}
+
+func (s *itemShareService) sendShareNotificationEmail(ownerID uint, recipient *domain.User, item *domain.Item) {
+	if recipient == nil || recipient.Email == "" {
+		return
+	}
+
+	owner, err := s.userRepo.GetByID(context.Background(), ownerID)
+	if err != nil || owner == nil {
+		s.logger.Warn("failed to load share owner for notification email", "error", err)
+		return
+	}
+
+	itemName := item.Metadata.Name
+	if strings.TrimSpace(itemName) == "" {
+		itemName = "Shared item"
+	}
+
+	message, buildErr := s.emailBuilder.BuildShareNotificationEmail(
+		recipient.Email,
+		owner.Name,
+		itemName,
+	)
+	if buildErr != nil {
+		s.logger.Error("failed to build share notification email", "error", buildErr)
+		return
+	}
+
+	if sendErr := s.emailSender.Send(context.Background(), message); sendErr != nil {
+		s.logger.Error("failed to send share notification email", "error", sendErr)
+	}
 }
 
 func (s *itemShareService) ListOwned(ctx context.Context, ownerID uint) ([]*ItemShareWithItem, error) {

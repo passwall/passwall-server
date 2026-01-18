@@ -14,6 +14,7 @@ const (
 	TemplateVerification TemplateType = "verification"
 	TemplateInvitation   TemplateType = "invitation"
 	TemplateShareInvite  TemplateType = "share-invite"
+	TemplateShareNotice  TemplateType = "share-notice"
 )
 
 // TemplateData holds data for email templates
@@ -30,6 +31,7 @@ type TemplateData struct {
 	ShareItemName    string
 	ShareInviterName string
 	ShareSignupURL   string
+	ShareSignInURL   string
 	ShareRecipient   string
 }
 
@@ -64,6 +66,13 @@ func NewTemplateManager() (*TemplateManager, error) {
 		return nil, fmt.Errorf("failed to parse share invite template: %w", err)
 	}
 	tm.templates[TemplateShareInvite] = shareInviteTmpl
+
+	// Parse share notice template
+	shareNoticeTmpl, err := template.New("share-notice").Parse(shareNoticeEmailTemplate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse share notice template: %w", err)
+	}
+	tm.templates[TemplateShareNotice] = shareNoticeTmpl
 
 	return tm, nil
 }
@@ -256,6 +265,26 @@ func BuildShareInviteEmail(frontendURL, to, inviterName, itemName string) (*Temp
 	}, nil
 }
 
+// BuildShareNoticeEmail builds a share notification email (for registered recipients)
+func BuildShareNoticeEmail(frontendURL, to, inviterName, itemName string) (*TemplateData, error) {
+	if frontendURL == "" {
+		return nil, fmt.Errorf("frontend URL is required for share notification emails")
+	}
+	if to == "" {
+		return nil, fmt.Errorf("recipient email is required")
+	}
+
+	signInURL := fmt.Sprintf("%s/sign-in?redirect=/shares", frontendURL)
+
+	return &TemplateData{
+		ShareInviterName: inviterName,
+		ShareItemName:    itemName,
+		ShareSignInURL:   signInURL,
+		ShareRecipient:   to,
+		Year:             time.Now().Year(),
+	}, nil
+}
+
 // invitationEmailTemplate is the HTML template for invitation emails
 const invitationEmailTemplate = `<!DOCTYPE html>
 <html lang="en">
@@ -398,6 +427,79 @@ const shareInviteEmailTemplate = `<!DOCTYPE html>
                             <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; margin: 20px 0; border-radius: 4px;">
                                 <p style="margin: 0; font-size: 14px; color: #92400e;">
                                     <strong>⚠️ Note:</strong> Once you sign up, ask {{.ShareInviterName}} to re-share the item.
+                                </p>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 30px 40px; background-color: #f7fafc; border-top: 1px solid #e0e0e0; border-radius: 0 0 8px 8px;">
+                            <p style="margin: 0 0 10px; font-size: 14px; color: #718096; text-align: center;">
+                                This is an automated message, please do not reply.
+                            </p>
+                            <p style="margin: 0; font-size: 12px; color: #a0aec0; text-align: center;">
+                                © {{.Year}} Passwall. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>`
+
+// shareNoticeEmailTemplate is the HTML template for share notifications (existing users)
+const shareNoticeEmailTemplate = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>You've Got a Secure Share</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 40px 20px;">
+        <tr>
+            <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <tr>
+                        <td style="padding: 40px 40px 20px; text-align: center; border-bottom: 1px solid #e0e0e0;">
+                            <h1 style="margin: 0; font-size: 32px; font-weight: 700; color: #1a1a1a;">
+                                <span style="color: #3b82f6;">Pass</span>wall
+                            </h1>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 40px;">
+                            <h2 style="margin: 0 0 20px; font-size: 24px; font-weight: 600; color: #1a1a1a;">
+                                🔐 A secure item was shared with you
+                            </h2>
+                            <p style="margin: 0 0 16px; font-size: 16px; line-height: 1.6; color: #4a5568;">
+                                <strong>{{.ShareInviterName}}</strong> shared a secure item with you on Passwall.
+                            </p>
+                            <p style="margin: 0 0 16px; font-size: 16px; line-height: 1.6; color: #4a5568;">
+                                Item: <strong>{{.ShareItemName}}</strong>
+                            </p>
+                            <p style="margin: 0 0 20px; font-size: 16px; line-height: 1.6; color: #4a5568;">
+                                Sign in to view and manage your secure shares.
+                            </p>
+                            <table width="100%" cellpadding="0" cellspacing="0" style="margin: 24px 0;">
+                                <tr>
+                                    <td align="center">
+                                        <a href="{{.ShareSignInURL}}" style="display: inline-block; padding: 14px 32px; background-color: #3b82f6; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">
+                                            Sign in to view
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+                            <p style="margin: 0 0 10px; font-size: 14px; line-height: 1.6; color: #718096; text-align: center;">
+                                Or copy and paste this link into your browser:
+                            </p>
+                            <p style="margin: 0 0 20px; font-size: 13px; line-height: 1.6; color: #3b82f6; text-align: center; word-break: break-all;">
+                                {{.ShareSignInURL}}
+                            </p>
+                            <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; margin: 20px 0; border-radius: 4px;">
+                                <p style="margin: 0; font-size: 14px; color: #92400e;">
+                                    <strong>⚠️ Note:</strong> If you were not expecting this share, you can safely ignore this email.
                                 </p>
                             </div>
                         </td>
