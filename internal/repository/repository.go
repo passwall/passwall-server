@@ -252,5 +252,6 @@ type ItemShareRepository interface {
 	ListSharedWithTeam(ctx context.Context, teamID uint) ([]*domain.ItemShare, error)
 	Update(ctx context.Context, share *domain.ItemShare) error
 	Delete(ctx context.Context, id uint) error
+	DeleteBySharedWithUser(ctx context.Context, userID uint) error
 	DeleteExpired(ctx context.Context) (int64, error)
 }

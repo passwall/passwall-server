@@ -13,10 +13,11 @@ import (
 )
 
 type userService struct {
-	repo        repository.UserRepository
-	orgRepo     repository.OrganizationRepository
-	orgUserRepo repository.OrganizationUserRepository
-	logger      Logger
+	repo          repository.UserRepository
+	orgRepo       repository.OrganizationRepository
+	orgUserRepo   repository.OrganizationUserRepository
+	itemShareRepo repository.ItemShareRepository
+	logger        Logger
 }
 
 // NewUserService creates a new user service
@@ -24,13 +25,15 @@ func NewUserService(
 	repo repository.UserRepository,
 	orgRepo repository.OrganizationRepository,
 	orgUserRepo repository.OrganizationUserRepository,
+	itemShareRepo repository.ItemShareRepository,
 	logger Logger,
 ) UserService {
 	return &userService{
-		repo:        repo,
-		orgRepo:     orgRepo,
-		orgUserRepo: orgUserRepo,
-		logger:      logger,
+		repo:          repo,
+		orgRepo:       orgRepo,
+		orgUserRepo:   orgUserRepo,
+		itemShareRepo: itemShareRepo,
+		logger:        logger,
 	}
 }
 
@@ -193,6 +196,11 @@ func (s *userService) Delete(ctx context.Context, id uint, schema string) error 
 	}
 	if ownershipCheck != nil && ownershipCheck.IsSoleOwner {
 		return fmt.Errorf("user is the sole owner of one or more organizations; transfer ownership or delete the organization(s) first")
+	}
+
+	if err := s.itemShareRepo.DeleteBySharedWithUser(ctx, id); err != nil {
+		s.logger.Error("failed to delete item shares shared with user", "id", id, "error", err)
+		return err
 	}
 
 	if err := s.repo.Delete(ctx, id, schema); err != nil {

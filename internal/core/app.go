@@ -144,7 +144,7 @@ func (a *App) Run(ctx context.Context) error {
 	preferencesService := service.NewPreferencesService(preferencesRepo, serviceLogger)
 	verificationService := service.NewVerificationService(verificationRepo, userRepo, serviceLogger)
 	authService := service.NewAuthService(userRepo, tokenRepo, verificationRepo, folderRepo, orgRepo, orgUserRepo, invitationRepo, userActivityService, emailSender, emailBuilder, authConfig, serviceLogger)
-	userService := service.NewUserService(userRepo, orgRepo, orgUserRepo, serviceLogger)
+	userService := service.NewUserService(userRepo, orgRepo, orgUserRepo, itemShareRepo, serviceLogger)
 	userNotificationPreferencesService := service.NewUserNotificationPreferencesService(preferencesRepo, serviceLogger)
 	userAppearancePreferencesService := service.NewUserAppearancePreferencesService(preferencesRepo, serviceLogger)
 	invitationService := service.NewInvitationService(invitationRepo, userRepo, orgRepo, emailSender, emailBuilder, serviceLogger)

@@ -139,6 +139,12 @@ func (r *itemShareRepository) Delete(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Delete(&domain.ItemShare{}, id).Error
 }
 
+func (r *itemShareRepository) DeleteBySharedWithUser(ctx context.Context, userID uint) error {
+	return r.db.WithContext(ctx).
+		Where("shared_with_user_id = ?", userID).
+		Delete(&domain.ItemShare{}).Error
+}
+
 func (r *itemShareRepository) DeleteExpired(ctx context.Context) (int64, error) {
 	result := r.db.WithContext(ctx).
 		Where("expires_at IS NOT NULL AND expires_at <= ?", time.Now()).
