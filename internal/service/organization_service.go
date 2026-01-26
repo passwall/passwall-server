@@ -761,6 +761,12 @@ func (s *organizationService) getMaxUsers(ctx context.Context, orgID uint) (int,
 		return 0, fmt.Errorf("subscription plan not loaded for org %d", orgID)
 	}
 
+	// Seat-based plans: when seats_purchased is set, it becomes the effective user limit.
+	// This enables per-seat billing where Stripe quantity controls seats.
+	if sub.SeatsPurchased != nil && *sub.SeatsPurchased > 0 {
+		return *sub.SeatsPurchased, nil
+	}
+
 	// Check if plan has max users limit
 	if sub.Plan.MaxUsers != nil {
 		return *sub.Plan.MaxUsers, nil

@@ -166,10 +166,13 @@ type ItemShareService interface {
 // PaymentService defines the business logic for Stripe payments
 type PaymentService interface {
 	// Checkout & Subscriptions
-	CreateCheckoutSession(ctx context.Context, orgID, userID uint, plan, billingCycle, ipAddress, userAgent string) (string, error)
+	CreateCheckoutSession(ctx context.Context, orgID, userID uint, plan, billingCycle string, seats int, ipAddress, userAgent string) (string, error)
 	HandleWebhook(ctx context.Context, payload []byte, signature string) error
 
 	// Subscription Management
 	GetBillingInfo(ctx context.Context, orgID uint) (*domain.BillingInfo, error)
 	SyncSubscription(ctx context.Context, orgID uint) error // Manually sync subscription from Stripe
+
+	// Seat management (quantity-based subscriptions)
+	UpdateSubscriptionSeats(ctx context.Context, orgID, userID uint, seats int, ipAddress, userAgent string) error
 }

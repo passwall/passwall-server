@@ -4,28 +4,37 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/passwall/passwall-server/pkg/constants"
 	"github.com/sirupsen/logrus"
 )
 
 var logger = logrus.New()
+var httpLogger = logrus.New()
 
 const (
 	skipFrameCount    = 4
 	splitAfterPkgName = "github.com/passwall/"
 	logFileName       = "passwall-server.log"
+	httpLogFileName   = "passwall-http.log"
 )
 
 func init() {
-	logger.Out = getWriter()
+	logger.Out = getAppWriter()
 	logger.Level = logrus.InfoLevel
 	logger.Formatter = &formatter{}
 
 	logger.SetReportCaller(true)
+
+	httpLogger.Out = getHTTPWriter()
+	httpLogger.Level = logrus.InfoLevel
+	httpLogger.Formatter = &formatter{}
+	httpLogger.SetReportCaller(true)
 }
 
 // SetLogLevel sets log level
@@ -86,6 +95,48 @@ func newEntry() *logrus.Entry {
 	return entry
 }
 
+func newHTTPEntry() *logrus.Entry {
+	file, function, line := callerInfo(skipFrameCount, splitAfterPkgName)
+
+	entry := httpLogger.WithFields(logrus.Fields{})
+	entry.Data["file"] = file
+	entry.Data["line"] = line
+	entry.Data["function"] = function
+	return entry
+}
+
+// HTTPDebugf logs a message to the HTTP log.
+func HTTPDebugf(format string, args ...interface{}) {
+	if httpLogger.Level >= logrus.DebugLevel {
+		entry := newHTTPEntry()
+		entry.Debugf(format, args...)
+	}
+}
+
+// HTTPInfof logs a message to the HTTP log.
+func HTTPInfof(format string, args ...interface{}) {
+	if httpLogger.Level >= logrus.InfoLevel {
+		entry := newHTTPEntry()
+		entry.Infof(format, args...)
+	}
+}
+
+// HTTPWarnf logs a message to the HTTP log.
+func HTTPWarnf(format string, args ...interface{}) {
+	if httpLogger.Level >= logrus.WarnLevel {
+		entry := newHTTPEntry()
+		entry.Warnf(format, args...)
+	}
+}
+
+// HTTPErrorf logs a message to the HTTP log.
+func HTTPErrorf(format string, args ...interface{}) {
+	if httpLogger.Level >= logrus.ErrorLevel {
+		entry := newHTTPEntry()
+		entry.Errorf(format, args...)
+	}
+}
+
 // callerInfo grabs caller file, function and line number
 func callerInfo(skip int, pkgName string) (file, function string, line int) {
 
@@ -113,15 +164,65 @@ func trimPkgName(frameStr, splitStr string) string {
 	return frameStr
 }
 
-// getWriter returns io.Writer
-func getWriter() io.Writer {
-	file, err := os.OpenFile(logFileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+// getAppWriter returns io.Writer
+func getAppWriter() io.Writer {
+	// 1) Explicit override
+	logPath := strings.TrimSpace(os.Getenv(constants.LogPathEnv))
+	if logPath != "" {
+		if st, err := os.Stat(logPath); err == nil && st.IsDir() {
+			logPath = filepath.Join(logPath, logFileName)
+		}
+	} else {
+		// Default: next to the running executable (independent from cwd and PW_WORK_DIR).
+		exePath, err := os.Executable()
+		if err == nil && exePath != "" {
+			exeDir := filepath.Dir(exePath)
+			if exeDir != "" && exeDir != "." {
+				logPath = filepath.Join(exeDir, logFileName)
+			} else {
+				logPath = logFileName
+			}
+		} else {
+			logPath = logFileName
+		}
+	}
+
+	file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		logger.Errorf("Failed to open log file: %v", err)
 		return os.Stdout
 	} else {
 		return file
 	}
+}
+
+// getHTTPWriter returns io.Writer for HTTP logs
+func getHTTPWriter() io.Writer {
+	logPath := strings.TrimSpace(os.Getenv(constants.HTTPLogPathEnv))
+	if logPath != "" {
+		if st, err := os.Stat(logPath); err == nil && st.IsDir() {
+			logPath = filepath.Join(logPath, httpLogFileName)
+		}
+	} else {
+		exePath, err := os.Executable()
+		if err == nil && exePath != "" {
+			exeDir := filepath.Dir(exePath)
+			if exeDir != "" && exeDir != "." {
+				logPath = filepath.Join(exeDir, httpLogFileName)
+			} else {
+				logPath = httpLogFileName
+			}
+		} else {
+			logPath = httpLogFileName
+		}
+	}
+
+	file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		logger.Errorf("Failed to open http log file: %v", err)
+		return os.Stdout
+	}
+	return file
 }
 
 // Formatter implements logrus.Formatter interface.

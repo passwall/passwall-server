@@ -31,7 +31,7 @@ func GinLogger() gin.HandlerFunc {
 		}
 
 		// Log in our standard format (single line)
-		Infof("[GIN] %d | %13v | %15s | %-7s %s",
+		HTTPInfof("[GIN] %d | %13v | %15s | %-7s %s",
 			statusCode,
 			latency,
 			clientIP,
@@ -42,7 +42,7 @@ func GinLogger() gin.HandlerFunc {
 		// Log errors if any
 		if len(c.Errors) > 0 {
 			for _, e := range c.Errors {
-				Errorf("[GIN] Error: %v", e.Err)
+				HTTPErrorf("[GIN] Error: %v", e.Err)
 			}
 		}
 	}
@@ -53,7 +53,7 @@ func GinRecovery() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if err := recover(); err != nil {
-				Errorf("[GIN] Panic recovered: %v", err)
+				HTTPErrorf("[GIN] Panic recovered: %v", err)
 				c.AbortWithStatus(500)
 			}
 		}()
@@ -73,7 +73,7 @@ func (w *ginWriter) Write(p []byte) (n int, err error) {
 	}
 
 	// Use Infof directly to get proper file/func info
-	Infof("%s", msg)
+	HTTPInfof("%s", msg)
 	return len(p), nil
 }
 

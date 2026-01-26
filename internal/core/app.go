@@ -239,6 +239,7 @@ func (a *App) Run(ctx context.Context) error {
 		serviceLogger,
 	)
 	adminMailHandler := httpHandler.NewAdminMailHandler(emailSender, userRepo, serviceLogger)
+	adminLogsHandler := httpHandler.NewAdminLogsHandler()
 
 	// Setup router
 	router := SetupRouter(
@@ -266,6 +267,7 @@ func (a *App) Run(ctx context.Context) error {
 		plansHandler,
 		adminSubscriptionsHandler,
 		adminMailHandler,
+		adminLogsHandler,
 	)
 
 	// Create server

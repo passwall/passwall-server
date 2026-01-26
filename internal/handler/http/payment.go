@@ -66,6 +66,12 @@ func (h *PaymentHandler) CreateCheckoutSession(c *gin.Context) {
 		return
 	}
 
+	// Validate seats
+	if req.Seats <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid seats"})
+		return
+	}
+
 	// Get user ID for activity logging
 	userID, err := GetUserID(c)
 	if err != nil {
@@ -78,7 +84,7 @@ func (h *PaymentHandler) CreateCheckoutSession(c *gin.Context) {
 	userAgent := c.Request.UserAgent()
 
 	// Create checkout session
-	checkoutURL, err := h.service.CreateCheckoutSession(ctx, orgID, userID, req.Plan, req.BillingCycle, ipAddress, userAgent)
+	checkoutURL, err := h.service.CreateCheckoutSession(ctx, orgID, userID, req.Plan, req.BillingCycle, req.Seats, ipAddress, userAgent)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create checkout session", "details": err.Error()})
 		return
@@ -205,14 +211,72 @@ func (h *PaymentHandler) SyncSubscription(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Subscription synced successfully"})
 }
 
+// UpdateSubscriptionSeats godoc
+// @Summary Update subscription seats
+// @Description Increase/decrease seat quantity for an organization's active subscription (Stripe proration applies)
+// @Tags payments
+// @Accept json
+// @Produce json
+// @Param id path int true "Organization ID"
+// @Param request body UpdateSubscriptionSeatsRequest true "Seat update"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /organizations/{id}/subscription/seats [post]
+func (h *PaymentHandler) UpdateSubscriptionSeats(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	orgID, ok := GetUintParam(c, "id")
+	if !ok {
+		return
+	}
+
+	var req UpdateSubscriptionSeatsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
+		return
+	}
+	if req.Seats <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid seats"})
+		return
+	}
+
+	userID, err := GetUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	ipAddress := c.ClientIP()
+	userAgent := c.Request.UserAgent()
+
+	if err := h.service.UpdateSubscriptionSeats(ctx, orgID, userID, req.Seats, ipAddress, userAgent); err != nil {
+		// Keep error mapping simple for now
+		if err.Error() == "forbidden" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Subscription seats updated successfully"})
+}
+
 // Request/Response types
 type CreateCheckoutRequest struct {
 	Plan         string `json:"plan" binding:"required"`          // premium, family, team, business
 	BillingCycle string `json:"billing_cycle" binding:"required"` // monthly, yearly
+	Seats        int    `json:"seats" binding:"required"`         // seat count (quantity). Use 1 for non-seat plans.
 }
 
 type CreateCheckoutResponse struct {
 	URL string `json:"url"` // Stripe checkout URL
+}
+
+type UpdateSubscriptionSeatsRequest struct {
+	Seats int `json:"seats" binding:"required"`
 }
 
 // CancelSubscriptionRequest is no longer needed - we always cancel at period end

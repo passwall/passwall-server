@@ -81,7 +81,19 @@ func (s *featureService) CanInviteUser(ctx context.Context, orgID uint) (bool, e
 		return false, err
 	}
 
-	// Check max users limit
+	// Seat-based plans: if seats are set, enforce by seats.
+	if sub.SeatsPurchased != nil && *sub.SeatsPurchased > 0 {
+		currentUsers, err := s.orgService.GetMemberCount(ctx, orgID)
+		if err != nil {
+			return false, fmt.Errorf("failed to get member count: %w", err)
+		}
+		if currentUsers >= *sub.SeatsPurchased {
+			return false, ErrPlanLimitReached
+		}
+		return true, nil
+	}
+
+	// Non-seat-based plans: fall back to max_users limit if set
 	if sub.Plan.MaxUsers != nil {
 		currentUsers, err := s.orgService.GetMemberCount(ctx, orgID)
 		if err != nil {

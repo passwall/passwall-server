@@ -13,71 +13,123 @@ import (
 
 // SeedPlans creates subscription plans from config if they don't exist
 func SeedPlans(ctx context.Context, db *gorm.DB, planConfigs []config.PlanConfig) error {
-	// Check if plans already exist
-	var count int64
-	if err := db.WithContext(ctx).Model(&domain.Plan{}).Count(&count).Error; err != nil {
-		return fmt.Errorf("failed to check plans: %w", err)
-	}
-
-	// If plans exist, skip seeding
-	if count > 0 {
-		logger.Infof("✓ Plans already seeded (%d existing)", count)
-		return nil
-	}
-
 	// Validate plan configs
 	if len(planConfigs) == 0 {
 		return fmt.Errorf("no plan configurations provided in config file")
 	}
 
-	// Convert config plans to domain plans
-	plans := make([]domain.Plan, 0, len(planConfigs))
-	for _, pc := range planConfigs {
-		// Validate billing cycle
-		if pc.BillingCycle != "monthly" && pc.BillingCycle != "yearly" {
-			return fmt.Errorf("invalid billing_cycle for plan %s: %s (must be monthly or yearly)", pc.Code, pc.BillingCycle)
-		}
-
-		plan := domain.Plan{
-			UUID:           uuid.NewV4(),
-			Code:           pc.Code,
-			Name:           pc.Name,
-			BillingCycle:   domain.BillingCycle(pc.BillingCycle),
-			PriceCents:     pc.PriceCents,
-			Currency:       pc.Currency,
-			TrialDays:      pc.TrialDays,
-			MaxUsers:       pc.MaxUsers,
-			MaxCollections: pc.MaxCollections,
-			MaxItems:       pc.MaxItems,
-			Features: domain.PlanFeatures{
-				Items:           pc.MaxItems, // Same as MaxItems for backward compatibility
-				Sharing:         pc.Features.Sharing,
-				Teams:           pc.Features.Teams,
-				Audit:           pc.Features.Audit,
-				SSO:             pc.Features.SSO,
-				APIAccess:       pc.Features.APIAccess,
-				PrioritySupport: pc.Features.PrioritySupport,
-			},
-			IsActive: true,
-		}
-
-		// Set Stripe price ID if provided
-		if pc.StripePriceID != "" {
-			plan.StripePriceID = &pc.StripePriceID
-		}
-
-		plans = append(plans, plan)
+	// Load all existing plans once (we upsert by code)
+	var existingPlans []domain.Plan
+	if err := db.WithContext(ctx).Find(&existingPlans).Error; err != nil {
+		return fmt.Errorf("failed to load existing plans: %w", err)
 	}
+	existingByCode := make(map[string]*domain.Plan, len(existingPlans))
+	for i := range existingPlans {
+		p := &existingPlans[i]
+		existingByCode[p.Code] = p
+	}
+
+	configCodes := make(map[string]struct{}, len(planConfigs))
 
 	// Begin transaction
 	return db.Transaction(func(tx *gorm.DB) error {
-		for _, plan := range plans {
+		upserted := 0
+		created := 0
+		deactivated := 0
+
+		for _, pc := range planConfigs {
+			configCodes[pc.Code] = struct{}{}
+
+			// Validate billing cycle
+			if pc.BillingCycle != "monthly" && pc.BillingCycle != "yearly" {
+				return fmt.Errorf("invalid billing_cycle for plan %s: %s (must be monthly or yearly)", pc.Code, pc.BillingCycle)
+			}
+
+			if existing, ok := existingByCode[pc.Code]; ok && existing != nil {
+				// Update existing plan in place
+				existing.Name = pc.Name
+				existing.BillingCycle = domain.BillingCycle(pc.BillingCycle)
+				existing.PriceCents = pc.PriceCents
+				existing.Currency = pc.Currency
+				existing.TrialDays = pc.TrialDays
+				existing.MaxUsers = pc.MaxUsers
+				existing.MaxCollections = pc.MaxCollections
+				existing.MaxItems = pc.MaxItems
+				existing.Features = domain.PlanFeatures{
+					Items:           pc.MaxItems, // Same as MaxItems for backward compatibility
+					Sharing:         pc.Features.Sharing,
+					Teams:           pc.Features.Teams,
+					Audit:           pc.Features.Audit,
+					SSO:             pc.Features.SSO,
+					APIAccess:       pc.Features.APIAccess,
+					PrioritySupport: pc.Features.PrioritySupport,
+				}
+				existing.IsActive = true
+
+				if pc.StripePriceID != "" {
+					existing.StripePriceID = &pc.StripePriceID
+				} else {
+					existing.StripePriceID = nil
+				}
+
+				if err := tx.WithContext(ctx).Save(existing).Error; err != nil {
+					return fmt.Errorf("failed to update plan %s: %w", pc.Code, err)
+				}
+				upserted++
+				continue
+			}
+
+			// Create new plan
+			plan := domain.Plan{
+				UUID:           uuid.NewV4(),
+				Code:           pc.Code,
+				Name:           pc.Name,
+				BillingCycle:   domain.BillingCycle(pc.BillingCycle),
+				PriceCents:     pc.PriceCents,
+				Currency:       pc.Currency,
+				TrialDays:      pc.TrialDays,
+				MaxUsers:       pc.MaxUsers,
+				MaxCollections: pc.MaxCollections,
+				MaxItems:       pc.MaxItems,
+				Features: domain.PlanFeatures{
+					Items:           pc.MaxItems, // Same as MaxItems for backward compatibility
+					Sharing:         pc.Features.Sharing,
+					Teams:           pc.Features.Teams,
+					Audit:           pc.Features.Audit,
+					SSO:             pc.Features.SSO,
+					APIAccess:       pc.Features.APIAccess,
+					PrioritySupport: pc.Features.PrioritySupport,
+				},
+				IsActive: true,
+			}
+			if pc.StripePriceID != "" {
+				plan.StripePriceID = &pc.StripePriceID
+			}
+
 			if err := tx.WithContext(ctx).Create(&plan).Error; err != nil {
 				return fmt.Errorf("failed to create plan %s: %w", plan.Code, err)
 			}
+			created++
+			upserted++
 		}
 
-		logger.Infof("✓ Seeded %d subscription plans", len(plans))
+		// Deactivate plans that are not in config anymore (keeps history but hides from clients)
+		for i := range existingPlans {
+			p := &existingPlans[i]
+			if _, ok := configCodes[p.Code]; ok {
+				continue
+			}
+			if !p.IsActive {
+				continue
+			}
+			p.IsActive = false
+			if err := tx.WithContext(ctx).Save(p).Error; err != nil {
+				return fmt.Errorf("failed to deactivate plan %s: %w", p.Code, err)
+			}
+			deactivated++
+		}
+
+		logger.Infof("✓ Seeded subscription plans (upsert=%d, created=%d, deactivated=%d)", upserted, created, deactivated)
 		return nil
 	})
 }

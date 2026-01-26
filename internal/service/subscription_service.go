@@ -12,10 +12,11 @@ import (
 
 // SubscriptionService handles subscription operations
 type SubscriptionService interface {
-	Create(ctx context.Context, orgID uint, planCode string, stripeSubscriptionID string) (*domain.Subscription, error)
+	Create(ctx context.Context, orgID uint, planCode string, stripeSubscriptionID string, seatsPurchased *int) (*domain.Subscription, error)
 	GetByID(ctx context.Context, id uint) (*domain.Subscription, error)
 	GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
 	Update(ctx context.Context, sub *domain.Subscription) error
+	UpdateSeatsPurchasedByStripeSubscriptionID(ctx context.Context, stripeSubID string, seatsPurchased *int) error
 	Upgrade(ctx context.Context, orgID uint, planCode string) error
 	Downgrade(ctx context.Context, orgID uint, planCode string) error
 	Cancel(ctx context.Context, orgID uint) error
@@ -91,20 +92,31 @@ func NewSubscriptionService(
 }
 
 // Create creates a new subscription
-func (s *subscriptionService) Create(ctx context.Context, orgID uint, planCode string, stripeSubscriptionID string) (*domain.Subscription, error) {
+func (s *subscriptionService) Create(ctx context.Context, orgID uint, planCode string, stripeSubscriptionID string, seatsPurchased *int) (*domain.Subscription, error) {
+	s.logger.Info("subscription.create called",
+		"org_id", orgID,
+		"plan_code", planCode,
+		"stripe_subscription_id_set", stripeSubscriptionID != "",
+	)
 	// Idempotency for Stripe retries: if we already have this Stripe subscription, return it.
 	if stripeSubscriptionID != "" {
 		if existing, err := s.subRepo.GetByStripeSubscriptionID(ctx, stripeSubscriptionID); err == nil && existing != nil {
+			s.logger.Info("subscription.create idempotent hit",
+				"org_id", orgID,
+				"stripe_subscription_id", stripeSubscriptionID,
+			)
 			return existing, nil
 		}
 	}
 
 	plan, err := s.planRepo.GetByCode(ctx, planCode)
 	if err != nil {
+		s.logger.Error("subscription.create failed to get plan", "org_id", orgID, "plan_code", planCode, "error", err)
 		return nil, fmt.Errorf("failed to get plan: %w", err)
 	}
 
 	if !plan.IsActive {
+		s.logger.Warn("subscription.create inactive plan", "org_id", orgID, "plan_code", planCode)
 		return nil, fmt.Errorf("plan is not active")
 	}
 
@@ -115,6 +127,7 @@ func (s *subscriptionService) Create(ctx context.Context, orgID uint, planCode s
 	// (Old Stripe subscription should transition to canceled via webhook; this keeps DB consistent even if
 	// events arrive out-of-order.)
 	if err := s.subRepo.ExpireActiveByOrganizationID(ctx, orgID, now); err != nil {
+		s.logger.Error("subscription.create failed to expire existing", "org_id", orgID, "error", err)
 		return nil, fmt.Errorf("failed to expire existing active subscriptions: %w", err)
 	}
 
@@ -124,6 +137,7 @@ func (s *subscriptionService) Create(ctx context.Context, orgID uint, planCode s
 		PlanID:               plan.ID,
 		State:                domain.SubStateActive,
 		StripeSubscriptionID: &stripeSubscriptionID,
+		SeatsPurchased:       seatsPurchased,
 		StartedAt:            &now,
 	}
 
@@ -145,10 +159,37 @@ func (s *subscriptionService) Create(ctx context.Context, orgID uint, planCode s
 	}
 
 	if err := s.subRepo.Create(ctx, sub); err != nil {
+		s.logger.Error("subscription.create failed to persist", "org_id", orgID, "error", err)
 		return nil, fmt.Errorf("failed to create subscription: %w", err)
 	}
 
+	s.logger.Info("subscription.create ok",
+		"org_id", orgID,
+		"subscription_id", sub.ID,
+		"state", sub.State,
+	)
 	return sub, nil
+}
+
+func (s *subscriptionService) UpdateSeatsPurchasedByStripeSubscriptionID(ctx context.Context, stripeSubID string, seatsPurchased *int) error {
+	if stripeSubID == "" {
+		return fmt.Errorf("stripe subscription id required")
+	}
+	s.logger.Info("subscription.seats sync",
+		"stripe_subscription_id", stripeSubID,
+		"seats_set", seatsPurchased != nil,
+	)
+	sub, err := s.subRepo.GetByStripeSubscriptionID(ctx, stripeSubID)
+	if err != nil {
+		s.logger.Error("subscription.seats sync failed to load", "stripe_subscription_id", stripeSubID, "error", err)
+		return fmt.Errorf("failed to get subscription: %w", err)
+	}
+	sub.SeatsPurchased = seatsPurchased
+	if err := s.subRepo.Update(ctx, sub); err != nil {
+		s.logger.Error("subscription.seats sync failed to update", "stripe_subscription_id", stripeSubID, "error", err)
+		return fmt.Errorf("failed to update subscription seats: %w", err)
+	}
+	return nil
 }
 
 // GetByID retrieves a subscription by ID

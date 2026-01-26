@@ -37,6 +37,7 @@ func SetupRouter(
 	plansHandler *httpHandler.PlansHandler,
 	adminSubscriptionsHandler *httpHandler.AdminSubscriptionsHandler,
 	adminMailHandler *httpHandler.AdminMailHandler,
+	adminLogsHandler *httpHandler.AdminLogsHandler,
 ) *gin.Engine {
 	// Create router without default middleware
 	router := gin.New()
@@ -223,6 +224,10 @@ func SetupRouter(
 			// Mail (admin broadcast)
 			adminGroup.POST("/mail", adminMailHandler.CreateJob)
 			adminGroup.GET("/mail/:jobId", adminMailHandler.GetJob)
+			// Server logs (admin)
+			adminGroup.GET("/logs", adminLogsHandler.List)
+			adminGroup.GET("/logs/download", adminLogsHandler.Download)
+			adminGroup.GET("/logs/download-bundle", adminLogsHandler.DownloadBundle)
 
 			// Legacy endpoint (backward compatibility)
 			adminGroup.POST("/bulk-email", adminMailHandler.CreateJob)
@@ -262,6 +267,7 @@ func SetupRouter(
 			// Payment & Billing routes
 			orgsGroup.POST("/:id/checkout", paymentHandler.CreateCheckoutSession)
 			orgsGroup.GET("/:id/billing", paymentHandler.GetBillingInfo)
+			orgsGroup.POST("/:id/subscription/seats", paymentHandler.UpdateSubscriptionSeats)
 			orgsGroup.POST("/:id/subscription/cancel", paymentHandler.CancelSubscription)
 			orgsGroup.POST("/:id/subscription/reactivate", paymentHandler.ReactivateSubscription)
 			orgsGroup.POST("/:id/subscription/sync", paymentHandler.SyncSubscription)

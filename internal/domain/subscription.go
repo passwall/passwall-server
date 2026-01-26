@@ -45,6 +45,10 @@ type Subscription struct {
 	// Stripe integration
 	StripeSubscriptionID *string `json:"stripe_subscription_id,omitempty" gorm:"type:varchar(255);uniqueIndex"`
 
+	// Seat-based billing (quantity-based Stripe subscriptions)
+	// Null means "not seat-based / unknown". When set, it becomes the effective user limit.
+	SeatsPurchased *int `json:"seats_purchased,omitempty" gorm:"index"`
+
 	// Associations
 	Organization *Organization `json:"organization,omitempty" gorm:"foreignKey:OrganizationID"`
 	Plan         *Plan         `json:"plan,omitempty" gorm:"foreignKey:PlanID"`
@@ -111,6 +115,7 @@ type SubscriptionDTO struct {
 	GracePeriodEndsAt    *time.Time        `json:"grace_period_ends_at,omitempty"`
 	TrialEndsAt          *time.Time        `json:"trial_ends_at,omitempty"`
 	StripeSubscriptionID *string           `json:"stripe_subscription_id,omitempty"`
+	SeatsPurchased       *int              `json:"seats_purchased,omitempty"`
 	CreatedAt            time.Time         `json:"created_at"`
 	UpdatedAt            time.Time         `json:"updated_at"`
 }
@@ -148,6 +153,7 @@ func ToSubscriptionDTO(s *Subscription) *SubscriptionDTO {
 		GracePeriodEndsAt:    s.GracePeriodEndsAt,
 		TrialEndsAt:          s.TrialEndsAt,
 		StripeSubscriptionID: s.StripeSubscriptionID,
+		SeatsPurchased:       s.SeatsPurchased,
 		CreatedAt:            s.CreatedAt,
 		UpdatedAt:            s.UpdatedAt,
 	}

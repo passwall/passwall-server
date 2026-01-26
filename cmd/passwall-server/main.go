@@ -6,14 +6,17 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/passwall/passwall-server/internal/core"
 	"github.com/passwall/passwall-server/pkg/buildvars"
+	"github.com/passwall/passwall-server/pkg/constants"
 	"github.com/passwall/passwall-server/pkg/logger"
 )
 
 func main() {
+	applyWorkDir()
 	logStartupInfo()
 
 	// Create application context with signal handling
@@ -44,6 +47,21 @@ func main() {
 
 	logger.Infof("Application exited successfully")
 	fmt.Println("✅ Server stopped")
+}
+
+func applyWorkDir() {
+	workDir := strings.TrimSpace(os.Getenv(constants.WorkDirEnv))
+	if workDir == "" {
+		return
+	}
+
+	if err := os.MkdirAll(workDir, 0755); err != nil {
+		log.Fatalf("Failed to create work dir %q: %v", workDir, err)
+	}
+
+	if err := os.Chdir(workDir); err != nil {
+		log.Fatalf("Failed to change work dir to %q: %v", workDir, err)
+	}
 }
 
 func logStartupInfo() {

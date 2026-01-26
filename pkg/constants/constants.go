@@ -8,9 +8,12 @@ const (
 )
 
 const (
-	EnvPrefix = "PW"
-	EnvDev    = "dev"
-	EnvProd   = "prod"
+	EnvPrefix      = "PW"
+	EnvDev         = "dev"
+	EnvProd        = "prod"
+	WorkDirEnv     = "PW_WORK_DIR"
+	LogPathEnv     = "PW_LOG_PATH"
+	HTTPLogPathEnv = "PW_HTTP_LOG_PATH"
 )
 
 // Pagination constants

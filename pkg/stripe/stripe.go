@@ -2,7 +2,9 @@ package stripe
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/passwall/passwall-server/pkg/logger"
 	"github.com/stripe/stripe-go/v81"
 	"github.com/stripe/stripe-go/v81/checkout/session"
 	"github.com/stripe/stripe-go/v81/customer"
@@ -20,6 +22,14 @@ type Client struct {
 // NewClient creates a new Stripe client
 func NewClient(apiKey, webhookSecret string) *Client {
 	stripe.Key = apiKey
+	mode := "unknown"
+	switch {
+	case strings.HasPrefix(apiKey, "sk_test_"):
+		mode = "test"
+	case strings.HasPrefix(apiKey, "sk_live_"):
+		mode = "live"
+	}
+	logger.Infof("Stripe client initialized mode=%s webhook_secret_set=%t", mode, webhookSecret != "")
 	return &Client{
 		apiKey:        apiKey,
 		webhookSecret: webhookSecret,
@@ -36,6 +46,7 @@ type CreateCustomerParams struct {
 
 // CreateCustomer creates a new Stripe customer
 func (c *Client) CreateCustomer(params CreateCustomerParams) (*stripe.Customer, error) {
+	logger.Infof("stripe.CreateCustomer org_id=%s billing_email_set=%t", params.OrgID, params.BillingEmail != "")
 	customerParams := &stripe.CustomerParams{
 		Email: stripe.String(params.Email),
 		Name:  stripe.String(params.Name),
@@ -47,16 +58,20 @@ func (c *Client) CreateCustomer(params CreateCustomerParams) (*stripe.Customer, 
 
 	cust, err := customer.New(customerParams)
 	if err != nil {
+		logger.Errorf("stripe.CreateCustomer failed org_id=%s err=%v", params.OrgID, err)
 		return nil, fmt.Errorf("failed to create Stripe customer: %w", err)
 	}
 
+	logger.Infof("stripe.CreateCustomer ok org_id=%s customer_id=%s", params.OrgID, cust.ID)
 	return cust, nil
 }
 
 // GetCustomer retrieves a Stripe customer by ID
 func (c *Client) GetCustomer(customerID string) (*stripe.Customer, error) {
+	logger.Infof("stripe.GetCustomer customer_id=%s", customerID)
 	cust, err := customer.Get(customerID, nil)
 	if err != nil {
+		logger.Errorf("stripe.GetCustomer failed customer_id=%s err=%v", customerID, err)
 		return nil, fmt.Errorf("failed to get Stripe customer: %w", err)
 	}
 	return cust, nil
@@ -64,8 +79,10 @@ func (c *Client) GetCustomer(customerID string) (*stripe.Customer, error) {
 
 // UpdateCustomer updates a Stripe customer
 func (c *Client) UpdateCustomer(customerID string, params *stripe.CustomerParams) (*stripe.Customer, error) {
+	logger.Infof("stripe.UpdateCustomer customer_id=%s", customerID)
 	cust, err := customer.Update(customerID, params)
 	if err != nil {
+		logger.Errorf("stripe.UpdateCustomer failed customer_id=%s err=%v", customerID, err)
 		return nil, fmt.Errorf("failed to update Stripe customer: %w", err)
 	}
 	return cust, nil
@@ -75,6 +92,7 @@ func (c *Client) UpdateCustomer(customerID string, params *stripe.CustomerParams
 type CheckoutSessionParams struct {
 	CustomerID   string
 	PriceID      string
+	Quantity     int64
 	SuccessURL   string
 	CancelURL    string
 	OrgID        string
@@ -85,6 +103,14 @@ type CheckoutSessionParams struct {
 
 // CreateCheckoutSession creates a Stripe Checkout session
 func (c *Client) CreateCheckoutSession(params CheckoutSessionParams) (*stripe.CheckoutSession, error) {
+	quantity := params.Quantity
+	if quantity <= 0 {
+		quantity = 1
+	}
+
+	logger.Infof("stripe.CreateCheckoutSession org_id=%s customer_id=%s price_id=%s quantity=%d",
+		params.OrgID, params.CustomerID, params.PriceID, quantity,
+	)
 	checkoutParams := &stripe.CheckoutSessionParams{
 		Mode:       stripe.String(string(stripe.CheckoutSessionModeSubscription)),
 		Customer:   stripe.String(params.CustomerID),
@@ -93,7 +119,7 @@ func (c *Client) CreateCheckoutSession(params CheckoutSessionParams) (*stripe.Ch
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
 			{
 				Price:    stripe.String(params.PriceID),
-				Quantity: stripe.Int64(1),
+				Quantity: stripe.Int64(quantity),
 			},
 		},
 		SubscriptionData: &stripe.CheckoutSessionSubscriptionDataParams{
@@ -111,15 +137,20 @@ func (c *Client) CreateCheckoutSession(params CheckoutSessionParams) (*stripe.Ch
 	checkoutParams.AddMetadata("organization_name", params.OrgName)
 	checkoutParams.AddMetadata("plan", params.Plan)
 	checkoutParams.AddMetadata("billing_cycle", params.BillingCycle)
+	checkoutParams.AddMetadata("seats", fmt.Sprintf("%d", quantity))
 
 	// Allow promotion codes
 	checkoutParams.AllowPromotionCodes = stripe.Bool(true)
 
 	sess, err := session.New(checkoutParams)
 	if err != nil {
+		logger.Errorf("stripe.CreateCheckoutSession failed org_id=%s customer_id=%s price_id=%s err=%v",
+			params.OrgID, params.CustomerID, params.PriceID, err,
+		)
 		return nil, fmt.Errorf("failed to create checkout session: %w", err)
 	}
 
+	logger.Infof("stripe.CreateCheckoutSession ok org_id=%s session_id=%s", params.OrgID, sess.ID)
 	return sess, nil
 }
 
@@ -149,8 +180,10 @@ func (c *Client) CreateSubscription(customerID, priceID string, metadata map[str
 
 // GetSubscription retrieves a subscription by ID
 func (c *Client) GetSubscription(subscriptionID string) (*stripe.Subscription, error) {
+	logger.Infof("stripe.GetSubscription subscription_id=%s", subscriptionID)
 	sub, err := subscription.Get(subscriptionID, nil)
 	if err != nil {
+		logger.Errorf("stripe.GetSubscription failed subscription_id=%s err=%v", subscriptionID, err)
 		return nil, fmt.Errorf("failed to get subscription: %w", err)
 	}
 	return sub, nil
@@ -158,6 +191,7 @@ func (c *Client) GetSubscription(subscriptionID string) (*stripe.Subscription, e
 
 // ListCustomerSubscriptions lists all subscriptions for a customer
 func (c *Client) ListCustomerSubscriptions(customerID string) ([]*stripe.Subscription, error) {
+	logger.Infof("stripe.ListCustomerSubscriptions customer_id=%s", customerID)
 	params := &stripe.SubscriptionListParams{
 		Customer: stripe.String(customerID),
 	}
@@ -171,6 +205,7 @@ func (c *Client) ListCustomerSubscriptions(customerID string) ([]*stripe.Subscri
 	}
 
 	if err := iter.Err(); err != nil {
+		logger.Errorf("stripe.ListCustomerSubscriptions failed customer_id=%s err=%v", customerID, err)
 		return nil, fmt.Errorf("failed to list customer subscriptions: %w", err)
 	}
 
@@ -179,6 +214,7 @@ func (c *Client) ListCustomerSubscriptions(customerID string) ([]*stripe.Subscri
 
 // CancelSubscription cancels a subscription
 func (c *Client) CancelSubscription(subscriptionID string, cancelAtPeriodEnd bool) (*stripe.Subscription, error) {
+	logger.Infof("stripe.CancelSubscription subscription_id=%s cancel_at_period_end=%t", subscriptionID, cancelAtPeriodEnd)
 	if cancelAtPeriodEnd {
 		// Cancel at end of billing period
 		params := &stripe.SubscriptionParams{
@@ -186,6 +222,7 @@ func (c *Client) CancelSubscription(subscriptionID string, cancelAtPeriodEnd boo
 		}
 		sub, err := subscription.Update(subscriptionID, params)
 		if err != nil {
+			logger.Errorf("stripe.CancelSubscription failed subscription_id=%s err=%v", subscriptionID, err)
 			return nil, fmt.Errorf("failed to cancel subscription at period end: %w", err)
 		}
 		return sub, nil
@@ -194,6 +231,7 @@ func (c *Client) CancelSubscription(subscriptionID string, cancelAtPeriodEnd boo
 	// Cancel immediately
 	sub, err := subscription.Cancel(subscriptionID, nil)
 	if err != nil {
+		logger.Errorf("stripe.CancelSubscription failed subscription_id=%s err=%v", subscriptionID, err)
 		return nil, fmt.Errorf("failed to cancel subscription immediately: %w", err)
 	}
 	return sub, nil
@@ -201,18 +239,70 @@ func (c *Client) CancelSubscription(subscriptionID string, cancelAtPeriodEnd boo
 
 // ReactivateSubscription reactivates a subscription set to cancel
 func (c *Client) ReactivateSubscription(subscriptionID string) (*stripe.Subscription, error) {
+	logger.Infof("stripe.ReactivateSubscription subscription_id=%s", subscriptionID)
 	params := &stripe.SubscriptionParams{
 		CancelAtPeriodEnd: stripe.Bool(false),
 	}
 	sub, err := subscription.Update(subscriptionID, params)
 	if err != nil {
+		logger.Errorf("stripe.ReactivateSubscription failed subscription_id=%s err=%v", subscriptionID, err)
 		return nil, fmt.Errorf("failed to reactivate subscription: %w", err)
 	}
 	return sub, nil
 }
 
+// UpdateSubscriptionQuantity updates the quantity (seats) for the first subscription item.
+// This is used for seat-based (per-user) billing. Stripe will apply proration according
+// to your account settings and the subscription's collection method.
+func (c *Client) UpdateSubscriptionQuantity(subscriptionID string, quantity int64) (*stripe.Subscription, error) {
+	if subscriptionID == "" {
+		return nil, fmt.Errorf("subscriptionID is required")
+	}
+	if quantity <= 0 {
+		return nil, fmt.Errorf("quantity must be > 0")
+	}
+
+	logger.Infof("stripe.UpdateSubscriptionQuantity subscription_id=%s quantity=%d", subscriptionID, quantity)
+	// Fetch current subscription to get subscription item ID.
+	sub, err := subscription.Get(subscriptionID, nil)
+	if err != nil {
+		logger.Errorf("stripe.UpdateSubscriptionQuantity failed subscription_id=%s err=%v", subscriptionID, err)
+		return nil, fmt.Errorf("failed to get subscription: %w", err)
+	}
+	if sub == nil || len(sub.Items.Data) == 0 {
+		return nil, fmt.Errorf("subscription has no items to update")
+	}
+
+	itemID := sub.Items.Data[0].ID
+	if itemID == "" {
+		return nil, fmt.Errorf("subscription item id is empty")
+	}
+
+	params := &stripe.SubscriptionParams{
+		Items: []*stripe.SubscriptionItemsParams{
+			{
+				ID:       stripe.String(itemID),
+				Quantity: stripe.Int64(quantity),
+			},
+		},
+		// For seat increases we want Stripe to invoice & attempt payment immediately.
+		// See: https://docs.stripe.com/billing/subscriptions/prorations
+		ProrationBehavior: stripe.String("always_invoice"),
+	}
+
+	updated, err := subscription.Update(subscriptionID, params)
+	if err != nil {
+		logger.Errorf("stripe.UpdateSubscriptionQuantity failed subscription_id=%s err=%v", subscriptionID, err)
+		return nil, fmt.Errorf("failed to update subscription quantity: %w", err)
+	}
+
+	logger.Infof("stripe.UpdateSubscriptionQuantity ok subscription_id=%s", subscriptionID)
+	return updated, nil
+}
+
 // ConstructWebhookEvent constructs and verifies a webhook event
 func (c *Client) ConstructWebhookEvent(payload []byte, signature string) (stripe.Event, error) {
+	logger.Infof("stripe.ConstructWebhookEvent payload_size=%d signature_present=%t", len(payload), signature != "")
 	event, err := webhook.ConstructEventWithOptions(
 		payload,
 		signature,
@@ -222,6 +312,7 @@ func (c *Client) ConstructWebhookEvent(payload []byte, signature string) (stripe
 		},
 	)
 	if err != nil {
+		logger.Errorf("stripe.ConstructWebhookEvent failed err=%v", err)
 		return stripe.Event{}, fmt.Errorf("failed to verify webhook signature: %w", err)
 	}
 	return event, nil
@@ -237,6 +328,7 @@ func GetPriceFromSubscription(sub *stripe.Subscription) string {
 
 // ListInvoices lists invoices for a customer
 func (c *Client) ListInvoices(customerID string, limit int64) ([]*stripe.Invoice, error) {
+	logger.Infof("stripe.ListInvoices customer_id=%s limit=%d", customerID, limit)
 	params := &stripe.InvoiceListParams{
 		Customer: stripe.String(customerID),
 	}
@@ -250,6 +342,7 @@ func (c *Client) ListInvoices(customerID string, limit int64) ([]*stripe.Invoice
 	}
 
 	if err := iter.Err(); err != nil {
+		logger.Errorf("stripe.ListInvoices failed customer_id=%s err=%v", customerID, err)
 		return nil, fmt.Errorf("failed to list invoices: %w", err)
 	}
 

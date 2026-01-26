@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"io"
 	"net/http"
 
@@ -47,10 +48,14 @@ func (h *WebhookHandler) HandleStripeWebhook(c *gin.Context) {
 
 	// Process webhook
 	if err := h.paymentService.HandleWebhook(ctx, payload, signature); err != nil {
-		// Log the error for debugging
-		// Return 200 even on error to prevent Stripe retries (signature already verified)
-		// Only return error in response body for debugging
-		c.JSON(http.StatusOK, gin.H{"error": err.Error(), "received": false})
+		// Important:
+		// - Signature is verified inside HandleWebhook.
+		// - If processing fails (DB/Stripe transient), return 500 so Stripe can retry.
+		if errors.Is(err, service.ErrInvalidStripeWebhookSignature) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid Stripe signature", "received": false})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "received": false})
 		return
 	}
 
