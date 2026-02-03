@@ -162,6 +162,7 @@ func (a *App) Run(ctx context.Context) error {
 
 	// Initialize subscription repos first
 	subscriptionRepo := gormrepo.NewSubscriptionRepository(a.db.DB())
+	userSubscriptionRepo := gormrepo.NewUserSubscriptionRepository(a.db.DB())
 	planRepo := gormrepo.NewPlanRepository(a.db.DB())
 
 	// Initialize Stripe client
@@ -189,8 +190,14 @@ func (a *App) Run(ctx context.Context) error {
 	// Subscription service (needs organizationService, stripe client, email service optional, logger)
 	subscriptionService := service.NewSubscriptionService(subscriptionRepo, planRepo, organizationService, nil, stripeClientInstance, serviceLogger)
 
-	// Now create the real payment service with subscriptionService
-	paymentService = service.NewPaymentService(stripeClientInstance, orgRepo, orgUserRepo, subscriptionService, planRepo, userActivityService, a.config, serviceLogger)
+	// User-level subscription service (for personal Pro subscriptions)
+	userSubscriptionService := service.NewUserSubscriptionService(userSubscriptionRepo, planRepo, stripeClientInstance, serviceLogger)
+
+	// Payment service - handles both org and user subscriptions via webhooks
+	paymentService = service.NewPaymentService(stripeClientInstance, orgRepo, orgUserRepo, userRepo, subscriptionService, userSubscriptionService, planRepo, userActivityService, a.config, serviceLogger)
+
+	// User payment service (personal billing endpoints)
+	userPaymentService := service.NewUserPaymentService(stripeClientInstance, userRepo, userSubscriptionService, planRepo, userActivityService, a.config, serviceLogger)
 
 	teamService := service.NewTeamService(teamRepo, teamUserRepo, orgUserRepo, orgRepo, serviceLogger)
 	collectionService := service.NewCollectionService(collectionRepo, collectionUserRepo, collectionTeamRepo, orgUserRepo, teamRepo, orgRepo, orgItemRepo, subscriptionRepo, serviceLogger)
@@ -222,6 +229,7 @@ func (a *App) Run(ctx context.Context) error {
 
 	// Payment handlers
 	paymentHandler := httpHandler.NewPaymentHandler(paymentService, subscriptionService)
+	userPaymentHandler := httpHandler.NewUserPaymentHandler(userPaymentService)
 	webhookHandler := httpHandler.NewWebhookHandler(paymentService)
 
 	// Support handler
@@ -265,6 +273,7 @@ func (a *App) Run(ctx context.Context) error {
 		collectionHandler,
 		organizationItemHandler,
 		paymentHandler,
+		userPaymentHandler,
 		webhookHandler,
 		supportHandler,
 		plansHandler,

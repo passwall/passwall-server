@@ -32,6 +32,7 @@ func SetupRouter(
 	collectionHandler *httpHandler.CollectionHandler,
 	organizationItemHandler *httpHandler.OrganizationItemHandler,
 	paymentHandler *httpHandler.PaymentHandler,
+	userPaymentHandler *httpHandler.UserPaymentHandler,
 	webhookHandler *httpHandler.WebhookHandler,
 	supportHandler *httpHandler.SupportHandler,
 	plansHandler *httpHandler.PlansHandler,
@@ -124,6 +125,16 @@ func SetupRouter(
 		// Plans (authenticated)
 		apiGroup.GET("/plans", plansHandler.ListPlans)
 		apiGroup.GET("/plans/:code", plansHandler.GetPlan)
+
+		// User personal billing (Pro subscription)
+		userBillingGroup := apiGroup.Group("/user")
+		{
+			userBillingGroup.POST("/checkout", userPaymentHandler.CreateCheckoutSession)
+			userBillingGroup.GET("/billing", userPaymentHandler.GetBillingInfo)
+			userBillingGroup.POST("/subscription/cancel", userPaymentHandler.CancelSubscription)
+			userBillingGroup.POST("/subscription/reactivate", userPaymentHandler.ReactivateSubscription)
+			userBillingGroup.POST("/subscription/sync", userPaymentHandler.SyncSubscription)
+		}
 
 		// Auth protected routes
 		apiGroup.POST("/signout", authHandler.SignOut)

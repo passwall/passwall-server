@@ -60,6 +60,9 @@ type User struct {
 	IsSystemUser bool   `json:"is_system_user" gorm:"default:false;index"` // System users (e.g., super admin) cannot be deleted
 	Language     string `json:"language" gorm:"type:varchar(10);default:'en'"`
 
+	// Stripe integration for personal subscriptions
+	StripeCustomerID *string `json:"-" gorm:"type:varchar(255);index"` // Stripe customer ID for user-level billing
+
 	// Stats (runtime calculated, not stored in DB)
 	ItemCount *int `json:"item_count,omitempty" gorm:"-"`
 }

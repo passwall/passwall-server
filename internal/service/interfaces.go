@@ -163,7 +163,7 @@ type ItemShareService interface {
 	ReShare(ctx context.Context, userID uint, shareUUID string, req *CreateItemShareRequest) (*ItemShareWithItem, error)
 }
 
-// PaymentService defines the business logic for Stripe payments
+// PaymentService defines the business logic for Stripe payments (Organization level)
 type PaymentService interface {
 	// Checkout & Subscriptions
 	CreateCheckoutSession(ctx context.Context, orgID, userID uint, plan, billingCycle string, seats int, ipAddress, userAgent string) (string, error)
@@ -175,4 +175,16 @@ type PaymentService interface {
 
 	// Seat management (quantity-based subscriptions)
 	UpdateSubscriptionSeats(ctx context.Context, orgID, userID uint, seats int, ipAddress, userAgent string) error
+}
+
+// UserPaymentService defines the business logic for user-level Stripe payments (personal subscriptions)
+type UserPaymentService interface {
+	// Checkout & Subscriptions
+	CreateCheckoutSession(ctx context.Context, userID uint, plan, billingCycle string, ipAddress, userAgent string) (string, error)
+
+	// Subscription Management
+	GetBillingInfo(ctx context.Context, userID uint) (*domain.UserBillingInfo, error)
+	Cancel(ctx context.Context, userID uint) error
+	Resume(ctx context.Context, userID uint) error
+	SyncSubscription(ctx context.Context, userID uint) error
 }
