@@ -241,6 +241,9 @@ func (a *App) Run(ctx context.Context) error {
 	adminMailHandler := httpHandler.NewAdminMailHandler(emailSender, userRepo, serviceLogger)
 	adminLogsHandler := httpHandler.NewAdminLogsHandler()
 
+	// Icons handler (public favicon service with protection)
+	iconsHandler := httpHandler.NewIconsHandler(serviceLogger)
+
 	// Setup router
 	router := SetupRouter(
 		&a.config.Server,
@@ -268,6 +271,7 @@ func (a *App) Run(ctx context.Context) error {
 		adminSubscriptionsHandler,
 		adminMailHandler,
 		adminLogsHandler,
+		iconsHandler,
 	)
 
 	// Create server

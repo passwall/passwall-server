@@ -38,6 +38,7 @@ func SetupRouter(
 	adminSubscriptionsHandler *httpHandler.AdminSubscriptionsHandler,
 	adminMailHandler *httpHandler.AdminMailHandler,
 	adminLogsHandler *httpHandler.AdminLogsHandler,
+	iconsHandler *httpHandler.IconsHandler,
 ) *gin.Engine {
 	// Create router without default middleware
 	router := gin.New()
@@ -54,6 +55,15 @@ func SetupRouter(
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
+
+	// Icons endpoint (protected - only Passwall clients allowed)
+	// Rate limited: 60 requests per minute per IP (1 request per second, burst of 60)
+	iconRateLimiter := httpHandler.NewRateLimiter(1*time.Second, 60)
+	router.GET("/icons/:domain",
+		httpHandler.IconProtectionMiddleware(),
+		httpHandler.RateLimitMiddleware(iconRateLimiter),
+		iconsHandler.GetIcon,
+	)
 
 	// Stripe webhook endpoint (no auth - verified by Stripe signature)
 	router.POST("/webhooks/stripe", webhookHandler.HandleStripeWebhook)
@@ -228,6 +238,11 @@ func SetupRouter(
 			adminGroup.GET("/logs", adminLogsHandler.List)
 			adminGroup.GET("/logs/download", adminLogsHandler.Download)
 			adminGroup.GET("/logs/download-bundle", adminLogsHandler.DownloadBundle)
+
+			// Custom icons management (admin only)
+			adminGroup.GET("/icons", iconsHandler.ListCustomIcons)
+			adminGroup.POST("/icons/:domain", iconsHandler.UploadCustomIcon)
+			adminGroup.DELETE("/icons/:domain", iconsHandler.DeleteCustomIcon)
 
 			// Legacy endpoint (backward compatibility)
 			adminGroup.POST("/bulk-email", adminMailHandler.CreateJob)
