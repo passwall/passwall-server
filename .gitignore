@@ -67,3 +67,6 @@ config.yml
 
 # Local Go build cache (should never be committed)
 .gocache/
+
+# Icon cache (generated files)
+data/icons/
