@@ -99,7 +99,12 @@ type CheckoutSessionParams struct {
 	OrgName      string
 	Plan         string
 	BillingCycle string
+	TrialDays    int               // Trial period in days (0 = no trial)
+	Metadata     map[string]string // Additional metadata for user-level subscriptions
 }
+
+// StripeSubscription is a type alias for stripe.Subscription for external use
+type StripeSubscription = stripe.Subscription
 
 // CreateCheckoutSession creates a Stripe Checkout session
 func (c *Client) CreateCheckoutSession(params CheckoutSessionParams) (*stripe.CheckoutSession, error) {
@@ -111,6 +116,24 @@ func (c *Client) CreateCheckoutSession(params CheckoutSessionParams) (*stripe.Ch
 	logger.Infof("stripe.CreateCheckoutSession org_id=%s customer_id=%s price_id=%s quantity=%d",
 		params.OrgID, params.CustomerID, params.PriceID, quantity,
 	)
+
+	// Build subscription metadata
+	subscriptionMetadata := map[string]string{
+		"plan":          params.Plan,
+		"billing_cycle": params.BillingCycle,
+	}
+
+	// Add org metadata if this is an organization subscription
+	if params.OrgID != "" {
+		subscriptionMetadata["organization_id"] = params.OrgID
+		subscriptionMetadata["organization_name"] = params.OrgName
+	}
+
+	// Merge in any additional custom metadata (e.g., user_id for personal subscriptions)
+	for k, v := range params.Metadata {
+		subscriptionMetadata[k] = v
+	}
+
 	checkoutParams := &stripe.CheckoutSessionParams{
 		Mode:       stripe.String(string(stripe.CheckoutSessionModeSubscription)),
 		Customer:   stripe.String(params.CustomerID),
@@ -123,20 +146,19 @@ func (c *Client) CreateCheckoutSession(params CheckoutSessionParams) (*stripe.Ch
 			},
 		},
 		SubscriptionData: &stripe.CheckoutSessionSubscriptionDataParams{
-			Metadata: map[string]string{
-				"organization_id":   params.OrgID,
-				"organization_name": params.OrgName,
-				"plan":              params.Plan,
-				"billing_cycle":     params.BillingCycle,
-			},
+			Metadata: subscriptionMetadata,
 		},
 	}
 
+	// Add trial period if specified
+	if params.TrialDays > 0 {
+		checkoutParams.SubscriptionData.TrialPeriodDays = stripe.Int64(int64(params.TrialDays))
+	}
+
 	// Add metadata for tracking (for the checkout session itself)
-	checkoutParams.AddMetadata("organization_id", params.OrgID)
-	checkoutParams.AddMetadata("organization_name", params.OrgName)
-	checkoutParams.AddMetadata("plan", params.Plan)
-	checkoutParams.AddMetadata("billing_cycle", params.BillingCycle)
+	for k, v := range subscriptionMetadata {
+		checkoutParams.AddMetadata(k, v)
+	}
 	checkoutParams.AddMetadata("seats", fmt.Sprintf("%d", quantity))
 
 	// Allow promotion codes
