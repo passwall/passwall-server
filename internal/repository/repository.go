@@ -113,6 +113,7 @@ type OrganizationRepository interface {
 	Create(ctx context.Context, org *domain.Organization) error
 	GetByID(ctx context.Context, id uint) (*domain.Organization, error)
 	GetByUUID(ctx context.Context, uuid string) (*domain.Organization, error)
+	GetDefaultByOwnerID(ctx context.Context, ownerUserID uint) (*domain.Organization, error)
 	List(ctx context.Context, filter ListFilter) ([]*domain.Organization, *ListResult, error)
 	ListForUser(ctx context.Context, userID uint) ([]*domain.Organization, error)
 	Update(ctx context.Context, org *domain.Organization) error
@@ -254,19 +255,4 @@ type ItemShareRepository interface {
 	Delete(ctx context.Context, id uint) error
 	DeleteBySharedWithUser(ctx context.Context, userID uint) error
 	DeleteExpired(ctx context.Context) (int64, error)
-}
-
-// UserSubscriptionRepository defines user subscription data access methods
-type UserSubscriptionRepository interface {
-	Create(ctx context.Context, sub *domain.UserSubscription) error
-	GetByID(ctx context.Context, id uint) (*domain.UserSubscription, error)
-	GetByUUID(ctx context.Context, uuid string) (*domain.UserSubscription, error)
-	GetByUserID(ctx context.Context, userID uint) (*domain.UserSubscription, error)
-	GetByStripeSubscriptionID(ctx context.Context, stripeSubID string) (*domain.UserSubscription, error)
-	Update(ctx context.Context, sub *domain.UserSubscription) error
-	Delete(ctx context.Context, id uint) error
-	ExpireActiveByUserID(ctx context.Context, userID uint, endedAt time.Time) error
-	ListPastDueExpired(ctx context.Context) ([]*domain.UserSubscription, error)
-	ListCanceledExpired(ctx context.Context) ([]*domain.UserSubscription, error)
-	ListManualExpired(ctx context.Context) ([]*domain.UserSubscription, error)
 }

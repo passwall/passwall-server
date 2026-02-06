@@ -69,7 +69,6 @@ func AutoMigrate(db database.Database) error {
 	if err := db.AutoMigrate(
 		&domain.Plan{},
 		&domain.Subscription{},
-		&domain.UserSubscription{}, // User-level subscriptions (personal Pro plan)
 		&domain.WebhookEvent{},
 		// Note: Invoices are fetched directly from Stripe (no DB table needed)
 	); err != nil {

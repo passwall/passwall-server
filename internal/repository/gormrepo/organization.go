@@ -109,6 +109,32 @@ func (r *organizationRepository) List(ctx context.Context, filter repository.Lis
 	return orgs, result, nil
 }
 
+// GetDefaultByOwnerID returns the user's default (personal) organization where they are the owner.
+// Every user gets a default organization when they sign up (IsDefault=true).
+func (r *organizationRepository) GetDefaultByOwnerID(ctx context.Context, ownerUserID uint) (*domain.Organization, error) {
+	var org domain.Organization
+	err := r.db.WithContext(ctx).
+		Joins("JOIN organization_users ON organization_users.organization_id = organizations.id").
+		Where("organization_users.user_id = ?", ownerUserID).
+		Where("organization_users.role = ?", domain.OrgRoleOwner).
+		Where("organization_users.status IN ?", []domain.OrganizationUserStatus{
+			domain.OrgUserStatusAccepted,
+			domain.OrgUserStatusConfirmed,
+		}).
+		Where("organizations.is_default = ?", true).
+		Where("organizations.is_active = ?", true).
+		First(&org).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, repository.ErrNotFound
+		}
+		return nil, err
+	}
+
+	return &org, nil
+}
+
 func (r *organizationRepository) ListForUser(ctx context.Context, userID uint) ([]*domain.Organization, error) {
 	var orgs []*domain.Organization
 

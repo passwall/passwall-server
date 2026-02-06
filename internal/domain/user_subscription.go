@@ -134,9 +134,17 @@ type UserBillingInfo struct {
 	UserID       uint                 `json:"user_id"`
 	Email        string               `json:"email"`
 	Name         string               `json:"name"`
-	IsPro        bool                 `json:"is_pro"`         // true if user has active Pro subscription
+	IsPro        bool                 `json:"is_pro"` // true if user has active Pro subscription
 	Subscription *UserSubscriptionDTO `json:"subscription,omitempty"`
-	CurrentPlan  string               `json:"current_plan"`   // "free" or plan code like "pro-monthly"
+	CurrentPlan  string               `json:"current_plan"` // "free" or plan code like "pro-monthly"
 	CurrentItems int                  `json:"current_items"`
 	Invoices     []*InvoiceDTO        `json:"invoices,omitempty"`
+
+	// Payment provider information
+	Provider          PaymentProvider `json:"provider"`                     // "stripe", "revenuecat", "manual", "none"
+	Store             string          `json:"store,omitempty"`              // "APP_STORE", "PLAY_STORE", etc. (only for revenuecat)
+	StoreDisplayName  string          `json:"store_display_name,omitempty"` // "Apple App Store", "Google Play Store", etc.
+	ManagedExternally bool            `json:"managed_externally"`           // true if subscription can only be canceled from external store
+	CanCancel         bool            `json:"can_cancel"`                   // true if subscription can be canceled from our API
+	CanUpgrade        bool            `json:"can_upgrade"`                  // true if plan can be changed from our API
 }

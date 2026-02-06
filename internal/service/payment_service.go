@@ -19,13 +19,12 @@ import (
 var ErrInvalidStripeWebhookSignature = errors.New("invalid_stripe_webhook_signature")
 
 type paymentService struct {
-	stripe                  *stripeClient.Client
-	orgRepo                 repository.OrganizationRepository
-	orgUserRepo             repository.OrganizationUserRepository
-	userRepo                repository.UserRepository
-	subscriptionService     SubscriptionService
-	userSubscriptionService UserSubscriptionService
-	planRepo                interface {
+	stripe              *stripeClient.Client
+	orgRepo             repository.OrganizationRepository
+	orgUserRepo         repository.OrganizationUserRepository
+	userRepo            repository.UserRepository
+	subscriptionService SubscriptionService
+	planRepo            interface {
 		GetByCode(ctx context.Context, code string) (*domain.Plan, error)
 	}
 	activityLogger *ActivityLogger
@@ -40,7 +39,6 @@ func NewPaymentService(
 	orgUserRepo repository.OrganizationUserRepository,
 	userRepo repository.UserRepository,
 	subscriptionService SubscriptionService,
-	userSubscriptionService UserSubscriptionService,
 	planRepo interface {
 		GetByCode(ctx context.Context, code string) (*domain.Plan, error)
 	},
@@ -49,16 +47,15 @@ func NewPaymentService(
 	logger Logger,
 ) PaymentService {
 	return &paymentService{
-		stripe:                  stripe,
-		orgRepo:                 orgRepo,
-		orgUserRepo:             orgUserRepo,
-		userRepo:                userRepo,
-		subscriptionService:     subscriptionService,
-		userSubscriptionService: userSubscriptionService,
-		planRepo:                planRepo,
-		activityLogger:          NewActivityLogger(activityService),
-		config:                  config,
-		logger:                  logger,
+		stripe:              stripe,
+		orgRepo:             orgRepo,
+		orgUserRepo:         orgUserRepo,
+		userRepo:            userRepo,
+		subscriptionService: subscriptionService,
+		planRepo:            planRepo,
+		activityLogger:      NewActivityLogger(activityService),
+		config:              config,
+		logger:              logger,
 	}
 }
 
@@ -289,18 +286,11 @@ func (s *paymentService) handleCheckoutCompleted(ctx context.Context, event stri
 		return fmt.Errorf("failed to parse checkout session: %w", err)
 	}
 
-	// Check if this is a user-level (personal) subscription
-	userIDStr := session.Metadata["user_id"]
-	subType := session.Metadata["type"]
-	if userIDStr != "" && subType == "personal" {
-		return s.handleUserCheckoutCompleted(ctx, session)
-	}
-
-	// Otherwise, handle as organization subscription
+	// Handle as organization subscription
 	orgIDStr := session.Metadata["organization_id"]
 	if orgIDStr == "" {
-		s.logger.Error("Neither user_id nor organization_id found in checkout session metadata", "session_id", session.ID)
-		return fmt.Errorf("no valid identifier in metadata")
+		s.logger.Error("organization_id not found in checkout session metadata", "session_id", session.ID)
+		return fmt.Errorf("no organization_id in metadata")
 	}
 
 	var orgID uint
@@ -329,37 +319,7 @@ func (s *paymentService) handleCheckoutCompleted(ctx context.Context, event stri
 	return nil
 }
 
-// handleUserCheckoutCompleted handles checkout completion for personal subscriptions
-func (s *paymentService) handleUserCheckoutCompleted(ctx context.Context, session stripe.CheckoutSession) error {
-	userIDStr := session.Metadata["user_id"]
-	var userID uint
-	fmt.Sscanf(userIDStr, "%d", &userID)
-
-	s.logger.Info("Processing checkout for user (personal subscription)", "user_id", userID, "session_id", session.ID)
-
-	// Get user
-	user, err := s.userRepo.GetByID(ctx, userID)
-	if err != nil {
-		s.logger.Error("User not found", "user_id", userID, "error", err)
-		return fmt.Errorf("user not found: %w", err)
-	}
-
-	// Update user with Stripe customer ID
-	customerID := session.Customer.ID
-	user.StripeCustomerID = &customerID
-
-	if err := s.userRepo.Update(ctx, user); err != nil {
-		s.logger.Error("Failed to update user with Stripe customer ID", "user_id", userID, "customer_id", customerID, "error", err)
-		return fmt.Errorf("failed to update user: %w", err)
-	}
-
-	s.logger.Info("✅ User checkout completed successfully", "user_id", userID, "email", user.Email, "customer_id", customerID)
-
-	return nil
-}
-
 // handleSubscriptionCreated handles customer.subscription.created event
-// Supports both organization-level and user-level subscriptions
 func (s *paymentService) handleSubscriptionCreated(ctx context.Context, event stripe.Event) error {
 	var sub stripe.Subscription
 	if err := json.Unmarshal(event.Data.Raw, &sub); err != nil {
@@ -369,18 +329,11 @@ func (s *paymentService) handleSubscriptionCreated(ctx context.Context, event st
 
 	s.logger.Info("Creating new subscription", "subscription_id", sub.ID, "customer_id", sub.Customer.ID, "status", sub.Status)
 
-	// Check if this is a user-level (personal) subscription
-	userIDStr := sub.Metadata["user_id"]
-	subType := sub.Metadata["type"]
-	if userIDStr != "" && subType == "personal" {
-		return s.handleUserSubscriptionCreated(ctx, sub)
-	}
-
-	// Otherwise, handle as organization subscription
+	// Handle as organization subscription
 	orgIDStr := sub.Metadata["organization_id"]
 	if orgIDStr == "" {
-		s.logger.Error("Neither user_id nor organization_id found in subscription metadata", "subscription_id", sub.ID)
-		return fmt.Errorf("no valid identifier in metadata")
+		s.logger.Error("organization_id not found in subscription metadata", "subscription_id", sub.ID)
+		return fmt.Errorf("no organization_id in metadata")
 	}
 
 	var orgID uint
@@ -416,33 +369,6 @@ func (s *paymentService) handleSubscriptionCreated(ctx context.Context, event st
 	return nil
 }
 
-// handleUserSubscriptionCreated handles subscription creation for personal subscriptions
-func (s *paymentService) handleUserSubscriptionCreated(ctx context.Context, sub stripe.Subscription) error {
-	userIDStr := sub.Metadata["user_id"]
-	var userID uint
-	fmt.Sscanf(userIDStr, "%d", &userID)
-
-	s.logger.Info("Creating user subscription (personal)", "user_id", userID, "subscription_id", sub.ID, "status", sub.Status)
-
-	// Get plan from price ID
-	priceID := stripeClient.GetPriceFromSubscription(&sub)
-	planCode, _ := s.mapPriceIDToPlan(priceID)
-	if planCode == "" {
-		s.logger.Error("Unknown price ID in user subscription", "price_id", priceID, "subscription_id", sub.ID)
-		return fmt.Errorf("unknown price ID: %s", priceID)
-	}
-
-	// Create user subscription
-	userSub, err := s.userSubscriptionService.Create(ctx, userID, planCode, sub.ID)
-	if err != nil {
-		s.logger.Error("Failed to create user subscription in database", "user_id", userID, "subscription_id", sub.ID, "error", err)
-		return fmt.Errorf("failed to create user subscription: %w", err)
-	}
-
-	s.logger.Info("✅ User subscription created successfully", "user_id", userID, "subscription_id", userSub.ID, "status", sub.Status)
-	return nil
-}
-
 // handleSubscriptionUpdated handles customer.subscription.updated event
 func (s *paymentService) handleSubscriptionUpdated(ctx context.Context, event stripe.Event) error {
 	var sub stripe.Subscription
@@ -453,36 +379,19 @@ func (s *paymentService) handleSubscriptionUpdated(ctx context.Context, event st
 
 	s.logger.Info("Updating subscription", "subscription_id", sub.ID, "customer_id", sub.Customer.ID, "status", sub.Status)
 
-	// Try organization subscription first
-	orgSubErr := s.handleOrgSubscriptionUpdate(ctx, sub)
-	if orgSubErr == nil {
-		s.logger.Info("✅ Organization subscription updated successfully", "subscription_id", sub.ID, "status", sub.Status)
-		return nil
-	}
-
-	// If org subscription not found, try user subscription
-	if strings.Contains(orgSubErr.Error(), "record not found") {
-		userSubErr := s.handleUserSubscriptionUpdate(ctx, sub)
-		if userSubErr == nil {
-			s.logger.Info("✅ User subscription updated successfully", "subscription_id", sub.ID, "status", sub.Status)
-			return nil
-		}
-
-		// If user subscription also not found, log warning but don't fail
-		if strings.Contains(userSubErr.Error(), "record not found") {
-			s.logger.Warn("Subscription not found in either org or user subscriptions",
+	// Handle organization subscription update
+	if err := s.handleOrgSubscriptionUpdate(ctx, sub); err != nil {
+		if strings.Contains(err.Error(), "record not found") {
+			s.logger.Warn("Subscription not found for update",
 				"subscription_id", sub.ID, "status", sub.Status)
 			return nil
 		}
-
-		// User subscription found but update failed
-		s.logger.Error("Failed to handle user subscription update", "subscription_id", sub.ID, "error", userSubErr)
-		return userSubErr
+		s.logger.Error("Failed to handle subscription update", "subscription_id", sub.ID, "error", err)
+		return err
 	}
 
-	// Org subscription found but update failed
-	s.logger.Error("Failed to handle org subscription update", "subscription_id", sub.ID, "error", orgSubErr)
-	return orgSubErr
+	s.logger.Info("✅ Subscription updated successfully", "subscription_id", sub.ID, "status", sub.Status)
+	return nil
 }
 
 // handleOrgSubscriptionUpdate handles subscription update for organization subscriptions
@@ -508,18 +417,6 @@ func (s *paymentService) handleOrgSubscriptionUpdate(ctx context.Context, sub st
 		return s.subscriptionService.HandlePaymentSuccess(ctx, sub.ID)
 	} else if sub.Status == stripe.SubscriptionStatusPastDue {
 		return s.subscriptionService.HandlePaymentFailed(ctx, sub.ID)
-	}
-
-	return nil
-}
-
-// handleUserSubscriptionUpdate handles subscription update for user (personal) subscriptions
-func (s *paymentService) handleUserSubscriptionUpdate(ctx context.Context, sub stripe.Subscription) error {
-	// Handle payment success/failure through UserSubscriptionService
-	if sub.Status == stripe.SubscriptionStatusActive || sub.Status == stripe.SubscriptionStatusTrialing {
-		return s.userSubscriptionService.HandlePaymentSuccess(ctx, sub.ID)
-	} else if sub.Status == stripe.SubscriptionStatusPastDue {
-		return s.userSubscriptionService.HandlePaymentFailed(ctx, sub.ID)
 	}
 
 	return nil

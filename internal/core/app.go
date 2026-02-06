@@ -163,7 +163,6 @@ func (a *App) Run(ctx context.Context) error {
 
 	// Initialize subscription repos first
 	subscriptionRepo := gormrepo.NewSubscriptionRepository(a.db.DB())
-	userSubscriptionRepo := gormrepo.NewUserSubscriptionRepository(a.db.DB())
 	planRepo := gormrepo.NewPlanRepository(a.db.DB())
 
 	// Initialize Stripe client
@@ -191,17 +190,11 @@ func (a *App) Run(ctx context.Context) error {
 	// Subscription service (needs organizationService, stripe client, email service optional, logger)
 	subscriptionService := service.NewSubscriptionService(subscriptionRepo, planRepo, organizationService, nil, stripeClientInstance, serviceLogger)
 
-	// User-level subscription service (for personal Pro subscriptions)
-	userSubscriptionService := service.NewUserSubscriptionService(userSubscriptionRepo, planRepo, stripeClientInstance, serviceLogger)
+	// Payment service - handles org subscriptions via Stripe webhooks
+	paymentService = service.NewPaymentService(stripeClientInstance, orgRepo, orgUserRepo, userRepo, subscriptionService, planRepo, userActivityService, a.config, serviceLogger)
 
-	// Payment service - handles both org and user subscriptions via webhooks
-	paymentService = service.NewPaymentService(stripeClientInstance, orgRepo, orgUserRepo, userRepo, subscriptionService, userSubscriptionService, planRepo, userActivityService, a.config, serviceLogger)
-
-	// RevenueCat service - handles mobile in-app purchases via webhooks
-	revenueCatService := service.NewRevenueCatService(userRepo, userSubscriptionService, planRepo, userActivityService, a.config, serviceLogger)
-
-	// User payment service (personal billing endpoints)
-	userPaymentService := service.NewUserPaymentService(stripeClientInstance, userRepo, userSubscriptionService, planRepo, userActivityService, a.config, serviceLogger)
+	// RevenueCat service - handles mobile in-app purchases via webhooks (org-level subscriptions)
+	revenueCatService := service.NewRevenueCatService(userRepo, orgRepo, subscriptionService, planRepo, userActivityService, a.config, serviceLogger)
 
 	teamService := service.NewTeamService(teamRepo, teamUserRepo, orgUserRepo, orgRepo, serviceLogger)
 	collectionService := service.NewCollectionService(collectionRepo, collectionUserRepo, collectionTeamRepo, orgUserRepo, teamRepo, orgRepo, orgItemRepo, subscriptionRepo, serviceLogger)
@@ -234,8 +227,7 @@ func (a *App) Run(ctx context.Context) error {
 	organizationFolderHandler := httpHandler.NewOrganizationFolderHandler(organizationFolderService)
 
 	// Payment handlers
-	paymentHandler := httpHandler.NewPaymentHandler(paymentService, subscriptionService)
-	userPaymentHandler := httpHandler.NewUserPaymentHandler(userPaymentService)
+	paymentHandler := httpHandler.NewPaymentHandler(paymentService, subscriptionService, orgRepo)
 	webhookHandler := httpHandler.NewWebhookHandler(paymentService, revenueCatService)
 
 	// Support handler
@@ -280,7 +272,6 @@ func (a *App) Run(ctx context.Context) error {
 		organizationItemHandler,
 		organizationFolderHandler,
 		paymentHandler,
-		userPaymentHandler,
 		webhookHandler,
 		supportHandler,
 		plansHandler,

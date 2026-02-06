@@ -17,19 +17,22 @@ import (
 var (
 	ErrInvalidRevenueCatSignature = errors.New("invalid_revenuecat_webhook_signature")
 	ErrUserNotFoundForRevenueCat  = errors.New("user_not_found_for_revenuecat_event")
+	ErrDefaultOrgNotFound         = errors.New("default_organization_not_found_for_user")
 	ErrUnknownRevenueCatProduct   = errors.New("unknown_revenuecat_product")
 )
 
-// RevenueCatService handles RevenueCat webhook events for mobile subscriptions
+// RevenueCatService handles RevenueCat webhook events for mobile subscriptions.
+// Mobile Pro purchases create org-level subscriptions on the user's default organization.
 type RevenueCatService interface {
 	HandleWebhook(ctx context.Context, payload []byte, signature string) error
 }
 
 type revenueCatService struct {
-	client                  *revenuecat.Client
-	userRepo                repository.UserRepository
-	userSubscriptionService UserSubscriptionService
-	planRepo                interface {
+	client              *revenuecat.Client
+	userRepo            repository.UserRepository
+	orgRepo             repository.OrganizationRepository
+	subscriptionService SubscriptionService
+	planRepo            interface {
 		GetByCode(ctx context.Context, code string) (*domain.Plan, error)
 	}
 	activityLogger *ActivityLogger
@@ -40,7 +43,8 @@ type revenueCatService struct {
 // NewRevenueCatService creates a new RevenueCat service
 func NewRevenueCatService(
 	userRepo repository.UserRepository,
-	userSubscriptionService UserSubscriptionService,
+	orgRepo repository.OrganizationRepository,
+	subscriptionService SubscriptionService,
 	planRepo interface {
 		GetByCode(ctx context.Context, code string) (*domain.Plan, error)
 	},
@@ -57,13 +61,14 @@ func NewRevenueCatService(
 	}
 
 	return &revenueCatService{
-		client:                  client,
-		userRepo:                userRepo,
-		userSubscriptionService: userSubscriptionService,
-		planRepo:                planRepo,
-		activityLogger:          NewActivityLogger(activityService),
-		config:                  config,
-		logger:                  logger,
+		client:              client,
+		userRepo:            userRepo,
+		orgRepo:             orgRepo,
+		subscriptionService: subscriptionService,
+		planRepo:            planRepo,
+		activityLogger:      NewActivityLogger(activityService),
+		config:              config,
+		logger:              logger,
 	}
 }
 
@@ -157,10 +162,47 @@ func (s *revenueCatService) HandleWebhook(ctx context.Context, payload []byte, s
 	return nil
 }
 
-// handleInitialPurchase handles new subscription purchases
+// resolveUserAndOrg finds the user by app_user_id and their default (personal) organization.
+// All mobile subscriptions are applied to the user's default org.
+func (s *revenueCatService) resolveUserAndOrg(ctx context.Context, appUserID string) (*domain.User, *domain.Organization, error) {
+	// Validate UUID format
+	_, err := uuid.FromString(appUserID)
+	if err != nil {
+		s.logger.Error("Invalid app_user_id format (not a valid UUID)",
+			"app_user_id", appUserID,
+			"error", err,
+		)
+		return nil, nil, fmt.Errorf("%w: invalid UUID format", ErrUserNotFoundForRevenueCat)
+	}
+
+	// Find user by UUID
+	user, err := s.userRepo.GetByUUID(ctx, appUserID)
+	if err != nil {
+		s.logger.Error("User not found for RevenueCat app_user_id",
+			"app_user_id", appUserID,
+			"error", err,
+		)
+		return nil, nil, fmt.Errorf("%w: %s", ErrUserNotFoundForRevenueCat, appUserID)
+	}
+
+	// Find user's default (personal) organization
+	org, err := s.orgRepo.GetDefaultByOwnerID(ctx, user.ID)
+	if err != nil {
+		s.logger.Error("Default organization not found for user",
+			"user_id", user.ID,
+			"app_user_id", appUserID,
+			"error", err,
+		)
+		return nil, nil, fmt.Errorf("%w: user_id=%d", ErrDefaultOrgNotFound, user.ID)
+	}
+
+	return user, org, nil
+}
+
+// handleInitialPurchase handles new subscription purchases from mobile.
+// Creates an org-level subscription on the user's default organization.
 func (s *revenueCatService) handleInitialPurchase(ctx context.Context, event *revenuecat.Event) error {
-	// Find user by app_user_id (which is user.uuid in our system)
-	user, err := s.findUserByAppUserID(ctx, event.AppUserID)
+	user, org, err := s.resolveUserAndOrg(ctx, event.AppUserID)
 	if err != nil {
 		return err
 	}
@@ -171,6 +213,7 @@ func (s *revenueCatService) handleInitialPurchase(ctx context.Context, event *re
 		s.logger.Error("Unknown RevenueCat product",
 			"product_id", event.ProductID,
 			"user_id", user.ID,
+			"org_id", org.ID,
 		)
 		return fmt.Errorf("%w: %s", ErrUnknownRevenueCatProduct, event.ProductID)
 	}
@@ -179,18 +222,22 @@ func (s *revenueCatService) handleInitialPurchase(ctx context.Context, event *re
 	// Format: rc_{store}_{transaction_id}
 	rcSubscriptionID := fmt.Sprintf("rc_%s_%s", event.Store, event.GetTransactionID())
 
-	s.logger.Info("Creating subscription for RevenueCat purchase",
+	s.logger.Info("Creating org subscription for RevenueCat purchase",
 		"user_id", user.ID,
+		"org_id", org.ID,
+		"org_name", org.Name,
 		"plan_code", planCode,
 		"product_id", event.ProductID,
 		"rc_subscription_id", rcSubscriptionID,
 	)
 
-	// Create subscription using UserSubscriptionService
-	sub, err := s.userSubscriptionService.Create(ctx, user.ID, planCode, rcSubscriptionID)
+	// Create org-level subscription using SubscriptionService
+	// seatsPurchased is nil — mobile Pro is not seat-based
+	sub, err := s.subscriptionService.Create(ctx, org.ID, planCode, rcSubscriptionID, nil)
 	if err != nil {
-		s.logger.Error("Failed to create subscription for RevenueCat purchase",
+		s.logger.Error("Failed to create org subscription for RevenueCat purchase",
 			"user_id", user.ID,
+			"org_id", org.ID,
 			"error", err,
 		)
 		return fmt.Errorf("failed to create subscription: %w", err)
@@ -199,7 +246,7 @@ func (s *revenueCatService) handleInitialPurchase(ctx context.Context, event *re
 	// Update subscription with expiration date from RevenueCat
 	if expiration := event.GetExpirationTime(); expiration != nil {
 		sub.RenewAt = expiration
-		if err := s.userSubscriptionService.Update(ctx, sub); err != nil {
+		if err := s.subscriptionService.Update(ctx, sub); err != nil {
 			s.logger.Warn("Failed to update subscription expiration",
 				"subscription_id", sub.ID,
 				"error", err,
@@ -207,16 +254,18 @@ func (s *revenueCatService) handleInitialPurchase(ctx context.Context, event *re
 		}
 	}
 
-	s.logger.Info("✅ RevenueCat subscription created successfully",
+	s.logger.Info("✅ RevenueCat org subscription created successfully",
 		"user_id", user.ID,
+		"org_id", org.ID,
+		"org_name", org.Name,
 		"subscription_id", sub.ID,
 		"plan_code", planCode,
 		"store", event.Store,
 	)
 
-	// Log activity using existing method (org context is empty for personal subscriptions)
+	// Log activity
 	s.activityLogger.LogSubscriptionCreated(ctx, user.ID, "revenuecat", string(event.Store),
-		0, "", // orgID, orgName (empty for user subscriptions)
+		org.ID, org.Name,
 		rcSubscriptionID, planCode, string(event.PeriodType), string(event.Environment))
 
 	return nil
@@ -224,7 +273,7 @@ func (s *revenueCatService) handleInitialPurchase(ctx context.Context, event *re
 
 // handleRenewal handles subscription renewals
 func (s *revenueCatService) handleRenewal(ctx context.Context, event *revenuecat.Event) error {
-	user, err := s.findUserByAppUserID(ctx, event.AppUserID)
+	user, org, err := s.resolveUserAndOrg(ctx, event.AppUserID)
 	if err != nil {
 		return err
 	}
@@ -233,15 +282,17 @@ func (s *revenueCatService) handleRenewal(ctx context.Context, event *revenuecat
 
 	s.logger.Info("Processing subscription renewal",
 		"user_id", user.ID,
+		"org_id", org.ID,
 		"rc_subscription_id", rcSubscriptionID,
 	)
 
 	// Handle payment success (reactivates if past_due, updates state)
-	if err := s.userSubscriptionService.HandlePaymentSuccess(ctx, rcSubscriptionID); err != nil {
+	if err := s.subscriptionService.HandlePaymentSuccess(ctx, rcSubscriptionID); err != nil {
 		// If subscription not found, try to create it (late webhook scenario)
 		if isNotFoundError(err) {
 			s.logger.Warn("Subscription not found for renewal, creating new one",
 				"user_id", user.ID,
+				"org_id", org.ID,
 				"rc_subscription_id", rcSubscriptionID,
 			)
 			return s.handleInitialPurchase(ctx, event)
@@ -250,12 +301,12 @@ func (s *revenueCatService) handleRenewal(ctx context.Context, event *revenuecat
 	}
 
 	// Update renewal date
-	sub, err := s.userSubscriptionService.GetByUserID(ctx, user.ID)
+	sub, err := s.subscriptionService.GetByOrganizationID(ctx, org.ID)
 	if err == nil && sub != nil {
 		if expiration := event.GetExpirationTime(); expiration != nil {
 			sub.RenewAt = expiration
 			sub.GracePeriodEndsAt = nil // Clear grace period on successful renewal
-			if err := s.userSubscriptionService.Update(ctx, sub); err != nil {
+			if err := s.subscriptionService.Update(ctx, sub); err != nil {
 				s.logger.Warn("Failed to update renewal date",
 					"subscription_id", sub.ID,
 					"error", err,
@@ -266,6 +317,7 @@ func (s *revenueCatService) handleRenewal(ctx context.Context, event *revenuecat
 
 	s.logger.Info("✅ RevenueCat subscription renewed successfully",
 		"user_id", user.ID,
+		"org_id", org.ID,
 		"rc_subscription_id", rcSubscriptionID,
 	)
 
@@ -274,7 +326,7 @@ func (s *revenueCatService) handleRenewal(ctx context.Context, event *revenuecat
 
 // handleProductChange handles subscription plan changes
 func (s *revenueCatService) handleProductChange(ctx context.Context, event *revenuecat.Event) error {
-	user, err := s.findUserByAppUserID(ctx, event.AppUserID)
+	user, org, err := s.resolveUserAndOrg(ctx, event.AppUserID)
 	if err != nil {
 		return err
 	}
@@ -283,6 +335,7 @@ func (s *revenueCatService) handleProductChange(ctx context.Context, event *reve
 	if event.NewProductID == nil || *event.NewProductID == "" {
 		s.logger.Error("Missing new_product_id in product change event",
 			"user_id", user.ID,
+			"org_id", org.ID,
 		)
 		return fmt.Errorf("missing new_product_id in product change event")
 	}
@@ -297,8 +350,8 @@ func (s *revenueCatService) handleProductChange(ctx context.Context, event *reve
 		return fmt.Errorf("%w: %s", ErrUnknownRevenueCatProduct, *event.NewProductID)
 	}
 
-	// Get current subscription
-	sub, err := s.userSubscriptionService.GetByUserID(ctx, user.ID)
+	// Get current org subscription
+	sub, err := s.subscriptionService.GetByOrganizationID(ctx, org.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get subscription: %w", err)
 	}
@@ -315,12 +368,13 @@ func (s *revenueCatService) handleProductChange(ctx context.Context, event *reve
 		sub.RenewAt = expiration
 	}
 
-	if err := s.userSubscriptionService.Update(ctx, sub); err != nil {
+	if err := s.subscriptionService.Update(ctx, sub); err != nil {
 		return fmt.Errorf("failed to update subscription: %w", err)
 	}
 
 	s.logger.Info("✅ RevenueCat subscription plan changed",
 		"user_id", user.ID,
+		"org_id", org.ID,
 		"old_product_id", event.ProductID,
 		"new_product_id", event.NewProductID,
 		"new_plan_code", newPlanCode,
@@ -331,17 +385,17 @@ func (s *revenueCatService) handleProductChange(ctx context.Context, event *reve
 
 // handleCancellation handles subscription cancellations
 func (s *revenueCatService) handleCancellation(ctx context.Context, event *revenuecat.Event) error {
-	user, err := s.findUserByAppUserID(ctx, event.AppUserID)
+	user, org, err := s.resolveUserAndOrg(ctx, event.AppUserID)
 	if err != nil {
 		return err
 	}
 
-	sub, err := s.userSubscriptionService.GetByUserID(ctx, user.ID)
+	sub, err := s.subscriptionService.GetByOrganizationID(ctx, org.ID)
 	if err != nil {
-		// If subscription not found, log and return (idempotent)
 		if isNotFoundError(err) {
 			s.logger.Warn("Subscription not found for cancellation (already canceled?)",
 				"user_id", user.ID,
+				"org_id", org.ID,
 			)
 			return nil
 		}
@@ -358,12 +412,13 @@ func (s *revenueCatService) handleCancellation(ctx context.Context, event *reven
 		sub.RenewAt = expiration
 	}
 
-	if err := s.userSubscriptionService.Update(ctx, sub); err != nil {
+	if err := s.subscriptionService.Update(ctx, sub); err != nil {
 		return fmt.Errorf("failed to cancel subscription: %w", err)
 	}
 
 	s.logger.Info("✅ RevenueCat subscription canceled",
 		"user_id", user.ID,
+		"org_id", org.ID,
 		"subscription_id", sub.ID,
 		"cancel_reason", event.CancelReason,
 	)
@@ -373,12 +428,12 @@ func (s *revenueCatService) handleCancellation(ctx context.Context, event *reven
 
 // handleUncancellation handles subscription reactivations
 func (s *revenueCatService) handleUncancellation(ctx context.Context, event *revenuecat.Event) error {
-	user, err := s.findUserByAppUserID(ctx, event.AppUserID)
+	_, org, err := s.resolveUserAndOrg(ctx, event.AppUserID)
 	if err != nil {
 		return err
 	}
 
-	sub, err := s.userSubscriptionService.GetByUserID(ctx, user.ID)
+	sub, err := s.subscriptionService.GetByOrganizationID(ctx, org.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get subscription: %w", err)
 	}
@@ -391,12 +446,12 @@ func (s *revenueCatService) handleUncancellation(ctx context.Context, event *rev
 		sub.RenewAt = expiration
 	}
 
-	if err := s.userSubscriptionService.Update(ctx, sub); err != nil {
+	if err := s.subscriptionService.Update(ctx, sub); err != nil {
 		return fmt.Errorf("failed to reactivate subscription: %w", err)
 	}
 
 	s.logger.Info("✅ RevenueCat subscription uncanceled",
-		"user_id", user.ID,
+		"org_id", org.ID,
 		"subscription_id", sub.ID,
 	)
 
@@ -405,17 +460,17 @@ func (s *revenueCatService) handleUncancellation(ctx context.Context, event *rev
 
 // handleBillingIssue handles payment failures
 func (s *revenueCatService) handleBillingIssue(ctx context.Context, event *revenuecat.Event) error {
-	user, err := s.findUserByAppUserID(ctx, event.AppUserID)
+	user, org, err := s.resolveUserAndOrg(ctx, event.AppUserID)
 	if err != nil {
 		return err
 	}
 
-	sub, err := s.userSubscriptionService.GetByUserID(ctx, user.ID)
+	sub, err := s.subscriptionService.GetByOrganizationID(ctx, org.ID)
 	if err != nil {
-		// If subscription not found, log and return
 		if isNotFoundError(err) {
 			s.logger.Warn("Subscription not found for billing issue",
 				"user_id", user.ID,
+				"org_id", org.ID,
 			)
 			return nil
 		}
@@ -433,12 +488,13 @@ func (s *revenueCatService) handleBillingIssue(ctx context.Context, event *reven
 		sub.GracePeriodEndsAt = &gracePeriod
 	}
 
-	if err := s.userSubscriptionService.Update(ctx, sub); err != nil {
+	if err := s.subscriptionService.Update(ctx, sub); err != nil {
 		return fmt.Errorf("failed to update subscription: %w", err)
 	}
 
 	s.logger.Info("⚠️  RevenueCat billing issue recorded",
 		"user_id", user.ID,
+		"org_id", org.ID,
 		"subscription_id", sub.ID,
 		"grace_period_ends_at", sub.GracePeriodEndsAt,
 	)
@@ -448,17 +504,17 @@ func (s *revenueCatService) handleBillingIssue(ctx context.Context, event *reven
 
 // handleExpiration handles subscription expirations
 func (s *revenueCatService) handleExpiration(ctx context.Context, event *revenuecat.Event) error {
-	user, err := s.findUserByAppUserID(ctx, event.AppUserID)
+	user, org, err := s.resolveUserAndOrg(ctx, event.AppUserID)
 	if err != nil {
 		return err
 	}
 
-	sub, err := s.userSubscriptionService.GetByUserID(ctx, user.ID)
+	sub, err := s.subscriptionService.GetByOrganizationID(ctx, org.ID)
 	if err != nil {
-		// If subscription not found, log and return (idempotent)
 		if isNotFoundError(err) {
 			s.logger.Warn("Subscription not found for expiration (already expired?)",
 				"user_id", user.ID,
+				"org_id", org.ID,
 			)
 			return nil
 		}
@@ -466,12 +522,13 @@ func (s *revenueCatService) handleExpiration(ctx context.Context, event *revenue
 	}
 
 	// Expire the subscription
-	if err := s.userSubscriptionService.ExpireSubscription(ctx, sub.ID); err != nil {
+	if err := s.subscriptionService.ExpireSubscription(ctx, sub.ID); err != nil {
 		return fmt.Errorf("failed to expire subscription: %w", err)
 	}
 
 	s.logger.Info("⏰ RevenueCat subscription expired",
 		"user_id", user.ID,
+		"org_id", org.ID,
 		"subscription_id", sub.ID,
 	)
 
@@ -480,12 +537,12 @@ func (s *revenueCatService) handleExpiration(ctx context.Context, event *revenue
 
 // handleSubscriptionPaused handles subscription pauses (Android only)
 func (s *revenueCatService) handleSubscriptionPaused(ctx context.Context, event *revenuecat.Event) error {
-	user, err := s.findUserByAppUserID(ctx, event.AppUserID)
+	_, org, err := s.resolveUserAndOrg(ctx, event.AppUserID)
 	if err != nil {
 		return err
 	}
 
-	sub, err := s.userSubscriptionService.GetByUserID(ctx, user.ID)
+	sub, err := s.subscriptionService.GetByOrganizationID(ctx, org.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get subscription: %w", err)
 	}
@@ -497,16 +554,15 @@ func (s *revenueCatService) handleSubscriptionPaused(ctx context.Context, event 
 
 	// Track when it will auto-resume
 	if autoResume := event.GetAutoResumeTime(); autoResume != nil {
-		// Store auto-resume date in RenewAt for reference
 		sub.RenewAt = autoResume
 	}
 
-	if err := s.userSubscriptionService.Update(ctx, sub); err != nil {
+	if err := s.subscriptionService.Update(ctx, sub); err != nil {
 		return fmt.Errorf("failed to pause subscription: %w", err)
 	}
 
 	s.logger.Info("⏸️  RevenueCat subscription paused",
-		"user_id", user.ID,
+		"org_id", org.ID,
 		"subscription_id", sub.ID,
 		"auto_resume_at", event.GetAutoResumeTime(),
 	)
@@ -516,12 +572,12 @@ func (s *revenueCatService) handleSubscriptionPaused(ctx context.Context, event 
 
 // handleSubscriptionExtended handles subscription extensions (promotional)
 func (s *revenueCatService) handleSubscriptionExtended(ctx context.Context, event *revenuecat.Event) error {
-	user, err := s.findUserByAppUserID(ctx, event.AppUserID)
+	_, org, err := s.resolveUserAndOrg(ctx, event.AppUserID)
 	if err != nil {
 		return err
 	}
 
-	sub, err := s.userSubscriptionService.GetByUserID(ctx, user.ID)
+	sub, err := s.subscriptionService.GetByOrganizationID(ctx, org.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get subscription: %w", err)
 	}
@@ -540,42 +596,17 @@ func (s *revenueCatService) handleSubscriptionExtended(ctx context.Context, even
 		sub.EndedAt = nil
 	}
 
-	if err := s.userSubscriptionService.Update(ctx, sub); err != nil {
+	if err := s.subscriptionService.Update(ctx, sub); err != nil {
 		return fmt.Errorf("failed to extend subscription: %w", err)
 	}
 
 	s.logger.Info("📅 RevenueCat subscription extended",
-		"user_id", user.ID,
+		"org_id", org.ID,
 		"subscription_id", sub.ID,
 		"new_expiration", event.GetExpirationTime(),
 	)
 
 	return nil
-}
-
-// findUserByAppUserID finds a user by their RevenueCat app_user_id (which is user.uuid)
-func (s *revenueCatService) findUserByAppUserID(ctx context.Context, appUserID string) (*domain.User, error) {
-	// Validate UUID format
-	_, err := uuid.FromString(appUserID)
-	if err != nil {
-		s.logger.Error("Invalid app_user_id format (not a valid UUID)",
-			"app_user_id", appUserID,
-			"error", err,
-		)
-		return nil, fmt.Errorf("%w: invalid UUID format", ErrUserNotFoundForRevenueCat)
-	}
-
-	// Find user by UUID (repository takes string)
-	user, err := s.userRepo.GetByUUID(ctx, appUserID)
-	if err != nil {
-		s.logger.Error("User not found for RevenueCat app_user_id",
-			"app_user_id", appUserID,
-			"error", err,
-		)
-		return nil, fmt.Errorf("%w: %s", ErrUserNotFoundForRevenueCat, appUserID)
-	}
-
-	return user, nil
 }
 
 // isNotFoundError checks if an error is a "not found" error
