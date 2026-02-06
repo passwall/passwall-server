@@ -85,6 +85,7 @@ func AutoMigrate(db database.Database) error {
 		&domain.Collection{},
 		&domain.CollectionUser{},
 		&domain.CollectionTeam{},
+		&domain.OrganizationFolder{},
 		&domain.OrganizationItem{},
 		&domain.ItemShare{},
 	); err != nil {

@@ -18,6 +18,7 @@ type userPaymentService struct {
 	userSubscriptionService UserSubscriptionService
 	planRepo                interface {
 		GetByCode(ctx context.Context, code string) (*domain.Plan, error)
+		GetByID(ctx context.Context, id uint) (*domain.Plan, error)
 	}
 	activityLogger *ActivityLogger
 	config         *config.Config
@@ -31,6 +32,7 @@ func NewUserPaymentService(
 	userSubscriptionService UserSubscriptionService,
 	planRepo interface {
 		GetByCode(ctx context.Context, code string) (*domain.Plan, error)
+		GetByID(ctx context.Context, id uint) (*domain.Plan, error)
 	},
 	activityService UserActivityService,
 	config *config.Config,
@@ -160,6 +162,7 @@ func (s *userPaymentService) GetBillingInfo(ctx context.Context, userID uint) (*
 		UserID:       user.ID,
 		Email:        user.Email,
 		Name:         user.Name,
+		IsPro:        false,
 		CurrentPlan:  "free",
 		CurrentItems: itemCount,
 	}
@@ -173,6 +176,23 @@ func (s *userPaymentService) GetBillingInfo(ctx context.Context, userID uint) (*
 	}
 
 	if subscription != nil && subscription.Plan != nil {
+		// Subscription has plan loaded - continue
+	} else if subscription != nil && subscription.Plan == nil {
+		// Fallback: load plan by ID if preload failed or plan was not included
+		plan, err := s.planRepo.GetByID(ctx, subscription.PlanID)
+		if err != nil {
+			s.logger.Warn("Failed to load plan for subscription",
+				"user_id", userID,
+				"subscription_id", subscription.ID,
+				"plan_id", subscription.PlanID,
+				"error", err,
+			)
+		} else {
+			subscription.Plan = plan
+		}
+	}
+
+	if subscription != nil && subscription.Plan != nil {
 		// Only set plan code if subscription is active (active, trialing, past_due, or canceled but still in access period)
 		isActiveSubscription := subscription.State == domain.SubStateActive ||
 			subscription.State == domain.SubStateTrialing ||
@@ -181,13 +201,20 @@ func (s *userPaymentService) GetBillingInfo(ctx context.Context, userID uint) (*
 
 		if isActiveSubscription {
 			billingInfo.CurrentPlan = subscription.Plan.Code
+			// Check if it's a Pro plan (any plan that starts with "pro-")
+			billingInfo.IsPro = strings.HasPrefix(subscription.Plan.Code, "pro-")
 		}
 		// Always include subscription info so UI can show history/status
 		billingInfo.Subscription = domain.ToUserSubscriptionDTO(subscription)
 	}
 
-	// Fetch invoices from Stripe if user has Stripe customer ID
-	if user.StripeCustomerID != nil && *user.StripeCustomerID != "" {
+	// Fetch invoices from Stripe only for Stripe-backed subscriptions.
+	// RevenueCat/App Store/Google Play purchases do not have Stripe invoices.
+	isRevenueCatSubscription := subscription != nil &&
+		subscription.StripeSubscriptionID != nil &&
+		strings.HasPrefix(*subscription.StripeSubscriptionID, "rc_")
+
+	if !isRevenueCatSubscription && user.StripeCustomerID != nil && *user.StripeCustomerID != "" {
 		stripeInvoices, err := s.stripe.ListInvoices(*user.StripeCustomerID, 10)
 		if err != nil {
 			s.logger.Warn("Failed to fetch invoices from Stripe", "user_id", userID, "error", err)

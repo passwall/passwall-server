@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/passwall/passwall-server/internal/domain"
+	"github.com/passwall/passwall-server/internal/repository"
 )
 
 // Logger defines the logging interface
@@ -86,6 +87,14 @@ type FolderService interface {
 	Delete(ctx context.Context, schema string, id uint, userID uint) error
 }
 
+// OrganizationFolderService defines the business logic for organization folders
+type OrganizationFolderService interface {
+	ListByOrganization(ctx context.Context, orgID, userID uint) ([]*domain.OrganizationFolder, error)
+	Create(ctx context.Context, orgID, userID uint, req *domain.CreateOrganizationFolderRequest) (*domain.OrganizationFolder, error)
+	Update(ctx context.Context, orgID, userID, id uint, req *domain.UpdateOrganizationFolderRequest) (*domain.OrganizationFolder, error)
+	Delete(ctx context.Context, orgID, userID, id uint) error
+}
+
 // OrganizationService defines the business logic for organizations
 type OrganizationService interface {
 	Create(ctx context.Context, userID uint, req *domain.CreateOrganizationRequest) (*domain.Organization, error)
@@ -146,6 +155,7 @@ type CollectionService interface {
 type OrganizationItemService interface {
 	Create(ctx context.Context, orgID, userID uint, req *CreateOrgItemRequest) (*domain.OrganizationItem, error)
 	GetByID(ctx context.Context, id, userID uint) (*domain.OrganizationItem, error)
+	ListByOrganization(ctx context.Context, orgID, userID uint, filter repository.OrganizationItemFilter) ([]*domain.OrganizationItem, int64, error)
 	ListByCollection(ctx context.Context, collectionID, userID uint) ([]*domain.OrganizationItem, error)
 	Update(ctx context.Context, id, userID uint, req *UpdateOrgItemRequest) (*domain.OrganizationItem, error)
 	Delete(ctx context.Context, id, userID uint) (*domain.OrganizationItem, error)

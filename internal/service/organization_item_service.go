@@ -38,7 +38,10 @@ type CreateOrgItemRequest struct {
 	Data         string              `json:"data" validate:"required"` // Encrypted with Org Key
 	Metadata     domain.ItemMetadata `json:"metadata" validate:"required"`
 	IsFavorite   bool                `json:"is_favorite"`
+	FolderID     *uint               `json:"folder_id,omitempty"`
 	Reprompt     bool                `json:"reprompt"`
+	AutoFill     *bool               `json:"auto_fill,omitempty"`
+	AutoLogin    *bool               `json:"auto_login,omitempty"`
 }
 
 // UpdateOrgItemRequest for updating organization items
@@ -47,7 +50,10 @@ type UpdateOrgItemRequest struct {
 	Data         *string              `json:"data,omitempty"`
 	Metadata     *domain.ItemMetadata `json:"metadata,omitempty"`
 	IsFavorite   *bool                `json:"is_favorite,omitempty"`
+	FolderID     *uint                `json:"folder_id,omitempty"`
 	Reprompt     *bool                `json:"reprompt,omitempty"`
+	AutoFill     *bool                `json:"auto_fill,omitempty"`
+	AutoLogin    *bool                `json:"auto_login,omitempty"`
 }
 
 func (s *organizationItemService) Create(ctx context.Context, orgID, userID uint, req *CreateOrgItemRequest) (*domain.OrganizationItem, error) {
@@ -110,8 +116,15 @@ func (s *organizationItemService) Create(ctx context.Context, orgID, userID uint
 		Data:            req.Data, // Already encrypted with Org Key
 		Metadata:        req.Metadata,
 		IsFavorite:      req.IsFavorite,
+		FolderID:        req.FolderID,
 		Reprompt:        req.Reprompt,
 		CreatedByUserID: userID,
+	}
+	if req.AutoFill != nil {
+		item.AutoFill = *req.AutoFill
+	}
+	if req.AutoLogin != nil {
+		item.AutoLogin = *req.AutoLogin
 	}
 
 	if err := s.itemRepo.Create(ctx, item); err != nil {
@@ -138,6 +151,47 @@ func (s *organizationItemService) GetByID(ctx context.Context, id, userID uint) 
 	// TODO: Check collection access if item is in a collection
 
 	return item, nil
+}
+
+func (s *organizationItemService) ListByOrganization(ctx context.Context, orgID, userID uint, filter repository.OrganizationItemFilter) ([]*domain.OrganizationItem, int64, error) {
+	// Check if user is member of organization
+	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	if err != nil {
+		return nil, 0, repository.ErrForbidden
+	}
+
+	// Check access (simplified - admins and access_all can view)
+	if !orgUser.IsAdmin() && !orgUser.AccessAll {
+		// TODO: Check collection_users for read permission
+		return nil, 0, repository.ErrForbidden
+	}
+
+	// Validate collection belongs to org if provided
+	if filter.CollectionID != nil {
+		collection, err := s.collectionRepo.GetByID(ctx, *filter.CollectionID)
+		if err != nil {
+			return nil, 0, fmt.Errorf("collection not found: %w", err)
+		}
+		if collection.OrganizationID != orgID {
+			return nil, 0, repository.ErrForbidden
+		}
+	}
+
+	filter.OrganizationID = orgID
+	if filter.PerPage == 0 {
+		filter.PerPage = 1000
+	}
+	if filter.Page == 0 {
+		filter.Page = 1
+	}
+
+	items, total, err := s.itemRepo.ListByOrganization(ctx, filter)
+	if err != nil {
+		s.logger.Error("failed to list organization items", "org_id", orgID, "error", err)
+		return nil, 0, fmt.Errorf("failed to list items: %w", err)
+	}
+
+	return items, total, nil
 }
 
 func (s *organizationItemService) ListByCollection(ctx context.Context, collectionID, userID uint) ([]*domain.OrganizationItem, error) {
@@ -200,8 +254,17 @@ func (s *organizationItemService) Update(ctx context.Context, id, userID uint, r
 	if req.IsFavorite != nil {
 		item.IsFavorite = *req.IsFavorite
 	}
+	if req.FolderID != nil {
+		item.FolderID = req.FolderID
+	}
 	if req.Reprompt != nil {
 		item.Reprompt = *req.Reprompt
+	}
+	if req.AutoFill != nil {
+		item.AutoFill = *req.AutoFill
+	}
+	if req.AutoLogin != nil {
+		item.AutoLogin = *req.AutoLogin
 	}
 
 	if err := s.itemRepo.Update(ctx, item); err != nil {

@@ -134,8 +134,9 @@ type UserBillingInfo struct {
 	UserID       uint                 `json:"user_id"`
 	Email        string               `json:"email"`
 	Name         string               `json:"name"`
+	IsPro        bool                 `json:"is_pro"`         // true if user has active Pro subscription
 	Subscription *UserSubscriptionDTO `json:"subscription,omitempty"`
-	CurrentPlan  string               `json:"current_plan"` // "free" or plan code like "pro-monthly"
+	CurrentPlan  string               `json:"current_plan"`   // "free" or plan code like "pro-monthly"
 	CurrentItems int                  `json:"current_items"`
 	Invoices     []*InvoiceDTO        `json:"invoices,omitempty"`
 }

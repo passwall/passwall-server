@@ -13,10 +13,11 @@ import (
 
 // Config holds all application configuration
 type Config struct {
-	Server   ServerConfig   `mapstructure:"server"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Email    EmailConfig    `mapstructure:"email"`
-	Stripe   StripeConfig   `mapstructure:"stripe"`
+	Server     ServerConfig     `mapstructure:"server"`
+	Database   DatabaseConfig   `mapstructure:"database"`
+	Email      EmailConfig      `mapstructure:"email"`
+	Stripe     StripeConfig     `mapstructure:"stripe"`
+	RevenueCat RevenueCatConfig `mapstructure:"revenuecat"`
 }
 
 // ServerConfig contains server-related configuration
@@ -100,6 +101,19 @@ type PlanFeatures struct {
 	SSO             bool `mapstructure:"sso"`              // Single Sign-On enabled
 	APIAccess       bool `mapstructure:"api_access"`       // API access enabled
 	PrioritySupport bool `mapstructure:"priority_support"` // Priority support enabled
+}
+
+// RevenueCatConfig contains RevenueCat in-app purchase configuration
+type RevenueCatConfig struct {
+	WebhookSecret string                  `mapstructure:"webhook_secret"` // Webhook authorization header value
+	Products      []RevenueCatProductConfig `mapstructure:"products"`     // Product ID to plan mappings
+}
+
+// RevenueCatProductConfig maps a RevenueCat product ID to an internal plan
+type RevenueCatProductConfig struct {
+	ProductID    string `mapstructure:"product_id"`    // RevenueCat product ID (e.g., "passwall_pro_monthly")
+	PlanCode     string `mapstructure:"plan_code"`     // Internal plan code (e.g., "pro-monthly")
+	BillingCycle string `mapstructure:"billing_cycle"` // "monthly" or "yearly"
 }
 
 // LoaderOptions contains options for loading configuration
@@ -281,6 +295,9 @@ func bindEnvVariables(v *viper.Viper) {
 	v.BindEnv("email.gmail_client_id", "PW_EMAIL_GMAIL_CLIENT_ID", "GMAIL_CLIENT_ID")
 	v.BindEnv("email.gmail_client_secret", "PW_EMAIL_GMAIL_CLIENT_SECRET", "GMAIL_CLIENT_SECRET")
 	v.BindEnv("email.gmail_refresh_token", "PW_EMAIL_GMAIL_REFRESH_TOKEN", "GMAIL_REFRESH_TOKEN")
+
+	// RevenueCat bindings (for mobile in-app purchases)
+	v.BindEnv("revenuecat.webhook_secret", "PW_REVENUECAT_WEBHOOK_SECRET", "REVENUECAT_WEBHOOK_SECRET")
 }
 
 // createDefaultConfigFile creates a config file with default values

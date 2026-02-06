@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/passwall/passwall-server/internal/domain"
@@ -79,6 +80,75 @@ func (h *OrganizationItemHandler) Create(c *gin.Context) {
 		}
 		h.activityLogger.LogActivity(ctx, userID, domain.ActivityTypeItemCreated, ipAddress, userAgent, details)
 	}
+}
+
+// ListByOrganization godoc
+// @Summary List items in organization
+// @Description Get all items in an organization (optionally filtered)
+// @Tags organization-items
+// @Produce json
+// @Param id path int true "Organization ID"
+// @Param type query int false "Item type"
+// @Param collection_id query int false "Collection ID"
+// @Param folder_id query int false "Folder ID"
+// @Param search query string false "Search term"
+// @Success 200 {array} domain.OrganizationItemDTO
+// @Failure 403 {object} map[string]string
+// @Router /organizations/{id}/items [get]
+func (h *OrganizationItemHandler) ListByOrganization(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := GetCurrentUserID(c)
+
+	orgID, ok := GetUintParam(c, "id")
+	if !ok {
+		return
+	}
+
+	filter := repository.OrganizationItemFilter{
+		OrganizationID: orgID,
+	}
+
+	if typeStr := c.Query("type"); typeStr != "" {
+		if typeVal, err := strconv.ParseInt(typeStr, 10, 32); err == nil {
+			itemType := domain.ItemType(typeVal)
+			filter.ItemType = &itemType
+		}
+	}
+
+	if collectionStr := c.Query("collection_id"); collectionStr != "" {
+		if collectionVal, err := strconv.ParseUint(collectionStr, 10, 32); err == nil {
+			cid := uint(collectionVal)
+			filter.CollectionID = &cid
+		}
+	}
+
+	if folderStr := c.Query("folder_id"); folderStr != "" {
+		if folderVal, err := strconv.ParseUint(folderStr, 10, 32); err == nil {
+			fid := uint(folderVal)
+			filter.FolderID = &fid
+		}
+	}
+
+	if search := strings.TrimSpace(c.Query("search")); search != "" {
+		filter.Search = search
+	}
+
+	items, _, err := h.service.ListByOrganization(ctx, orgID, userID, filter)
+	if err != nil {
+		if errors.Is(err, repository.ErrForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list items"})
+		return
+	}
+
+	dtos := make([]*domain.OrganizationItemDTO, len(items))
+	for i, item := range items {
+		dtos[i] = domain.ToOrganizationItemDTO(item)
+	}
+
+	c.JSON(http.StatusOK, dtos)
 }
 
 // ListByCollection godoc

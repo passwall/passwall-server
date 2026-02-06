@@ -31,6 +31,7 @@ func SetupRouter(
 	teamHandler *httpHandler.TeamHandler,
 	collectionHandler *httpHandler.CollectionHandler,
 	organizationItemHandler *httpHandler.OrganizationItemHandler,
+	organizationFolderHandler *httpHandler.OrganizationFolderHandler,
 	paymentHandler *httpHandler.PaymentHandler,
 	userPaymentHandler *httpHandler.UserPaymentHandler,
 	webhookHandler *httpHandler.WebhookHandler,
@@ -68,6 +69,10 @@ func SetupRouter(
 
 	// Stripe webhook endpoint (no auth - verified by Stripe signature)
 	router.POST("/webhooks/stripe", webhookHandler.HandleStripeWebhook)
+
+	// RevenueCat webhook endpoint (no auth - verified by RevenueCat signature)
+	// Used for mobile in-app purchases (iOS App Store, Google Play Store)
+	router.POST("/webhooks/revenuecat", webhookHandler.HandleRevenueCatWebhook)
 
 	// Rate limiters for auth endpoints
 	// SignIn/SignUp: 5 requests per minute per IP (prevents brute force)
@@ -275,6 +280,15 @@ func SetupRouter(
 
 			// Organization activities (visible to org members)
 			orgsGroup.GET("/:id/activities", organizationActivityHandler.ListOrganizationActivities)
+
+			// Organization items
+			orgsGroup.GET("/:id/items", organizationItemHandler.ListByOrganization)
+
+			// Organization folders
+			orgsGroup.GET("/:id/folders", organizationFolderHandler.ListByOrganization)
+			orgsGroup.POST("/:id/folders", organizationFolderHandler.Create)
+			orgsGroup.PUT("/:id/folders/:folderId", organizationFolderHandler.Update)
+			orgsGroup.DELETE("/:id/folders/:folderId", organizationFolderHandler.Delete)
 
 			// Member management (nested under organization)
 			orgsGroup.POST("/:id/members", organizationHandler.InviteUser)

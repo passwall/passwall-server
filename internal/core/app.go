@@ -100,6 +100,7 @@ func (a *App) Run(ctx context.Context) error {
 	collectionUserRepo := gormrepo.NewCollectionUserRepository(a.db.DB())
 	collectionTeamRepo := gormrepo.NewCollectionTeamRepository(a.db.DB())
 	orgItemRepo := gormrepo.NewOrganizationItemRepository(a.db.DB())
+	orgFolderRepo := gormrepo.NewOrganizationFolderRepository(a.db.DB())
 	// Item share repo (personal sharing)
 	itemShareRepo := gormrepo.NewItemShareRepository(a.db.DB())
 
@@ -196,6 +197,9 @@ func (a *App) Run(ctx context.Context) error {
 	// Payment service - handles both org and user subscriptions via webhooks
 	paymentService = service.NewPaymentService(stripeClientInstance, orgRepo, orgUserRepo, userRepo, subscriptionService, userSubscriptionService, planRepo, userActivityService, a.config, serviceLogger)
 
+	// RevenueCat service - handles mobile in-app purchases via webhooks
+	revenueCatService := service.NewRevenueCatService(userRepo, userSubscriptionService, planRepo, userActivityService, a.config, serviceLogger)
+
 	// User payment service (personal billing endpoints)
 	userPaymentService := service.NewUserPaymentService(stripeClientInstance, userRepo, userSubscriptionService, planRepo, userActivityService, a.config, serviceLogger)
 
@@ -204,6 +208,7 @@ func (a *App) Run(ctx context.Context) error {
 
 	// Organization items service (shared vault)
 	organizationItemService := service.NewOrganizationItemService(orgItemRepo, collectionRepo, orgUserRepo, serviceLogger)
+	organizationFolderService := service.NewOrganizationFolderService(orgFolderRepo, orgItemRepo, orgUserRepo, serviceLogger)
 
 	// Initialize handlers
 	activityHandler := httpHandler.NewActivityHandler(userActivityService)
@@ -226,11 +231,12 @@ func (a *App) Run(ctx context.Context) error {
 	teamHandler := httpHandler.NewTeamHandler(teamService)
 	collectionHandler := httpHandler.NewCollectionHandler(collectionService)
 	organizationItemHandler := httpHandler.NewOrganizationItemHandler(organizationItemService, userActivityService)
+	organizationFolderHandler := httpHandler.NewOrganizationFolderHandler(organizationFolderService)
 
 	// Payment handlers
 	paymentHandler := httpHandler.NewPaymentHandler(paymentService, subscriptionService)
 	userPaymentHandler := httpHandler.NewUserPaymentHandler(userPaymentService)
-	webhookHandler := httpHandler.NewWebhookHandler(paymentService)
+	webhookHandler := httpHandler.NewWebhookHandler(paymentService, revenueCatService)
 
 	// Support handler
 	supportHandler := httpHandler.NewSupportHandler(emailSender, serviceLogger)
@@ -272,6 +278,7 @@ func (a *App) Run(ctx context.Context) error {
 		teamHandler,
 		collectionHandler,
 		organizationItemHandler,
+		organizationFolderHandler,
 		paymentHandler,
 		userPaymentHandler,
 		webhookHandler,
