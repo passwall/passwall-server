@@ -152,8 +152,11 @@ func (r *organizationItemRepository) ListByOrganization(ctx context.Context, fil
 	if filter.Page <= 0 {
 		filter.Page = 1
 	}
-	if filter.PerPage <= 0 || filter.PerPage > 100 {
+	if filter.PerPage <= 0 {
 		filter.PerPage = 50
+	}
+	if filter.PerPage > 5000 {
+		filter.PerPage = 5000
 	}
 
 	offset := (filter.Page - 1) * filter.PerPage

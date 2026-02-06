@@ -133,6 +133,18 @@ func (h *OrganizationItemHandler) ListByOrganization(c *gin.Context) {
 		filter.Search = search
 	}
 
+	if pageStr := c.Query("page"); pageStr != "" {
+		if pageVal, err := strconv.Atoi(pageStr); err == nil {
+			filter.Page = pageVal
+		}
+	}
+
+	if perPageStr := c.Query("per_page"); perPageStr != "" {
+		if perPageVal, err := strconv.Atoi(perPageStr); err == nil {
+			filter.PerPage = perPageVal
+		}
+	}
+
 	items, _, err := h.service.ListByOrganization(ctx, orgID, userID, filter)
 	if err != nil {
 		if errors.Is(err, repository.ErrForbidden) {

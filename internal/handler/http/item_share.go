@@ -10,7 +10,6 @@ import (
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/internal/service"
-	"github.com/passwall/passwall-server/pkg/database"
 )
 
 type ItemShareHandler struct {
@@ -57,7 +56,6 @@ type serviceItemMetadata struct {
 func (h *ItemShareHandler) Create(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := GetCurrentUserID(c)
-	schema := database.GetSchema(ctx)
 
 	var req createItemShareRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -70,7 +68,7 @@ func (h *ItemShareHandler) Create(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.Create(ctx, userID, schema, &service.CreateItemShareRequest{
+	result, err := h.service.Create(ctx, userID, &service.CreateItemShareRequest{
 		ItemUUID:         req.ItemUUID,
 		SharedWithUserID: req.SharedWithUserID,
 		SharedWithEmail:  req.SharedWithEmail,
@@ -355,16 +353,16 @@ func buildItemShareResponse(result *service.ItemShareWithItem, includeEncryptedK
 	item := result.Item
 
 	resp := gin.H{
-		"id":                 share.ID,
-		"uuid":               share.UUID,
-		"item_uuid":          share.ItemUUID,
-		"owner_id":           share.OwnerID,
+		"id":                  share.ID,
+		"uuid":                share.UUID,
+		"item_uuid":           share.ItemUUID,
+		"owner_id":            share.OwnerID,
 		"shared_with_user_id": share.SharedWithUserID,
-		"can_view":           share.CanView,
-		"can_edit":           share.CanEdit,
-		"can_share":          share.CanShare,
-		"expires_at":         share.ExpiresAt,
-		"created_at":         share.CreatedAt,
+		"can_view":            share.CanView,
+		"can_edit":            share.CanEdit,
+		"can_share":           share.CanShare,
+		"expires_at":          share.ExpiresAt,
+		"created_at":          share.CreatedAt,
 		"item": gin.H{
 			"id":                   item.ID,
 			"uuid":                 item.UUID,
@@ -372,7 +370,6 @@ func buildItemShareResponse(result *service.ItemShareWithItem, includeEncryptedK
 			"support_id_formatted": item.FormatSupportID(),
 			"item_type":            item.ItemType,
 			"data":                 item.Data,
-			"item_key_enc":         item.ItemKeyEnc,
 			"metadata":             item.Metadata,
 		},
 	}

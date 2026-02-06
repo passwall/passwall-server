@@ -16,7 +16,7 @@ import (
 // ErrShareInviteSent indicates a signup email was sent for non-registered recipient.
 var ErrShareInviteSent = errors.New("share invite email sent")
 
-// CreateItemShareRequest represents a request to share a personal item.
+// CreateItemShareRequest represents a request to share an organization item.
 type CreateItemShareRequest struct {
 	ItemUUID         string
 	SharedWithUserID *uint
@@ -43,15 +43,15 @@ type UpdateItemSharePermissionsRequest struct {
 	ClearExpiresAt bool
 }
 
-// ItemShareWithItem bundles share + item data for responses.
+// ItemShareWithItem bundles share + organization item data for responses.
 type ItemShareWithItem struct {
 	Share *domain.ItemShare
-	Item  *domain.Item
+	Item  *domain.OrganizationItem
 }
 
 type itemShareService struct {
 	shareRepo    repository.ItemShareRepository
-	itemRepo     repository.ItemRepository
+	orgItemRepo  repository.OrganizationItemRepository
 	userRepo     repository.UserRepository
 	emailSender  email.Sender
 	emailBuilder *email.EmailBuilder
@@ -60,7 +60,7 @@ type itemShareService struct {
 
 func NewItemShareService(
 	shareRepo repository.ItemShareRepository,
-	itemRepo repository.ItemRepository,
+	orgItemRepo repository.OrganizationItemRepository,
 	userRepo repository.UserRepository,
 	emailSender email.Sender,
 	emailBuilder *email.EmailBuilder,
@@ -68,7 +68,7 @@ func NewItemShareService(
 ) ItemShareService {
 	return &itemShareService{
 		shareRepo:    shareRepo,
-		itemRepo:     itemRepo,
+		orgItemRepo:  orgItemRepo,
 		userRepo:     userRepo,
 		emailSender:  emailSender,
 		emailBuilder: emailBuilder,
@@ -76,7 +76,7 @@ func NewItemShareService(
 	}
 }
 
-func (s *itemShareService) Create(ctx context.Context, ownerID uint, ownerSchema string, req *CreateItemShareRequest) (*ItemShareWithItem, error) {
+func (s *itemShareService) Create(ctx context.Context, ownerID uint, req *CreateItemShareRequest) (*ItemShareWithItem, error) {
 	if strings.TrimSpace(req.ItemUUID) == "" {
 		return nil, repository.ErrInvalidInput
 	}
@@ -87,19 +87,18 @@ func (s *itemShareService) Create(ctx context.Context, ownerID uint, ownerSchema
 		return nil, repository.ErrInvalidInput
 	}
 
-	item, err := s.itemRepo.FindByUUID(ctx, ownerSchema, req.ItemUUID)
+	item, err := s.orgItemRepo.GetByUUID(ctx, req.ItemUUID)
 	if err != nil {
 		return nil, err
 	}
 
-	return s.createShareInternal(ctx, ownerID, ownerSchema, item, req)
+	return s.createShareInternal(ctx, ownerID, item, req)
 }
 
 func (s *itemShareService) createShareInternal(
 	ctx context.Context,
 	ownerID uint,
-	ownerSchema string,
-	item *domain.Item,
+	item *domain.OrganizationItem,
 	req *CreateItemShareRequest,
 ) (*ItemShareWithItem, error) {
 	sharedWithUserID := req.SharedWithUserID
@@ -173,7 +172,7 @@ func (s *itemShareService) createShareInternal(
 	share := &domain.ItemShare{
 		UUID:             uuid.NewV4(),
 		ItemUUID:         item.UUID,
-		UserSchema:       ownerSchema,
+		OrganizationID:   item.OrganizationID,
 		OwnerID:          ownerID,
 		SharedWithUserID: sharedWithUserID,
 		CanView:          canView,
@@ -195,7 +194,7 @@ func (s *itemShareService) createShareInternal(
 	return &ItemShareWithItem{Share: share, Item: item}, nil
 }
 
-func (s *itemShareService) sendShareNotificationEmail(ownerID uint, recipient *domain.User, item *domain.Item) {
+func (s *itemShareService) sendShareNotificationEmail(ownerID uint, recipient *domain.User, item *domain.OrganizationItem) {
 	if recipient == nil || recipient.Email == "" {
 		return
 	}
@@ -234,7 +233,7 @@ func (s *itemShareService) ListOwned(ctx context.Context, ownerID uint) ([]*Item
 
 	results := make([]*ItemShareWithItem, 0, len(shares))
 	for _, share := range shares {
-		item, err := s.itemRepo.FindByUUID(ctx, share.UserSchema, share.ItemUUID.String())
+		item, err := s.orgItemRepo.GetByUUID(ctx, share.ItemUUID.String())
 		if err != nil {
 			if err == repository.ErrNotFound {
 				continue
@@ -258,7 +257,7 @@ func (s *itemShareService) ListReceived(ctx context.Context, userID uint) ([]*It
 		if share.IsExpired() {
 			continue
 		}
-		item, err := s.itemRepo.FindByUUID(ctx, share.UserSchema, share.ItemUUID.String())
+		item, err := s.orgItemRepo.GetByUUID(ctx, share.ItemUUID.String())
 		if err != nil {
 			if err == repository.ErrNotFound {
 				continue
@@ -285,7 +284,7 @@ func (s *itemShareService) GetByUUID(ctx context.Context, userID uint, shareUUID
 		}
 	}
 
-	item, err := s.itemRepo.FindByUUID(ctx, share.UserSchema, share.ItemUUID.String())
+	item, err := s.orgItemRepo.GetByUUID(ctx, share.ItemUUID.String())
 	if err != nil {
 		return nil, err
 	}
@@ -310,7 +309,7 @@ func (s *itemShareService) UpdateSharedItem(
 	userID uint,
 	shareUUID string,
 	req *UpdateSharedItemRequest,
-) (*domain.Item, error) {
+) (*domain.OrganizationItem, error) {
 	if strings.TrimSpace(shareUUID) == "" {
 		return nil, repository.ErrInvalidInput
 	}
@@ -335,7 +334,7 @@ func (s *itemShareService) UpdateSharedItem(
 		return nil, repository.ErrForbidden
 	}
 
-	item, err := s.itemRepo.FindByUUID(ctx, share.UserSchema, share.ItemUUID.String())
+	item, err := s.orgItemRepo.GetByUUID(ctx, share.ItemUUID.String())
 	if err != nil {
 		return nil, err
 	}
@@ -343,7 +342,7 @@ func (s *itemShareService) UpdateSharedItem(
 	item.Data = req.Data
 	item.Metadata = req.Metadata
 
-	if err := s.itemRepo.Update(ctx, share.UserSchema, item); err != nil {
+	if err := s.orgItemRepo.Update(ctx, item); err != nil {
 		return nil, err
 	}
 
@@ -374,12 +373,12 @@ func (s *itemShareService) ReShare(
 		return nil, repository.ErrForbidden
 	}
 
-	item, err := s.itemRepo.FindByUUID(ctx, share.UserSchema, share.ItemUUID.String())
+	item, err := s.orgItemRepo.GetByUUID(ctx, share.ItemUUID.String())
 	if err != nil {
 		return nil, err
 	}
 
-	return s.createShareInternal(ctx, share.OwnerID, share.UserSchema, item, req)
+	return s.createShareInternal(ctx, share.OwnerID, item, req)
 }
 
 func (s *itemShareService) UpdatePermissions(
@@ -424,7 +423,7 @@ func (s *itemShareService) UpdatePermissions(
 		return nil, err
 	}
 
-	item, err := s.itemRepo.FindByUUID(ctx, share.UserSchema, share.ItemUUID.String())
+	item, err := s.orgItemRepo.GetByUUID(ctx, share.ItemUUID.String())
 	if err != nil {
 		return nil, err
 	}

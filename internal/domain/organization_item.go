@@ -180,17 +180,16 @@ type SharePersonalItemRequest struct {
 	Data             string `json:"data" validate:"required"` // Re-encrypted with Org Key
 }
 
-// ItemShare represents a direct share of a personal item to another user/team
-// This is different from organization items - it's for ad-hoc sharing
+// ItemShare represents a direct share of an organization item to another user/team
 type ItemShare struct {
 	ID        uint      `gorm:"primary_key" json:"id"`
 	UUID      uuid.UUID `gorm:"type:uuid;not null" json:"uuid"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 
-	// Item reference (in owner's schema)
-	ItemUUID   uuid.UUID `json:"item_uuid" gorm:"type:uuid;not null;index"`
-	UserSchema string    `json:"user_schema" gorm:"type:varchar(255);not null"` // Owner's schema
+	// Item reference (organization item)
+	ItemUUID       uuid.UUID `json:"item_uuid" gorm:"type:uuid;not null;index"`
+	OrganizationID uint      `json:"organization_id" gorm:"not null;index"`
 
 	OwnerID uint `json:"owner_id" gorm:"not null;index;constraint:OnDelete:CASCADE"`
 
@@ -199,9 +198,9 @@ type ItemShare struct {
 	SharedWithTeamID *uint `json:"shared_with_team_id,omitempty" gorm:"index;constraint:OnDelete:CASCADE"`
 
 	// Permissions
-	CanView      bool `json:"can_view" gorm:"default:true"`
-	CanEdit      bool `json:"can_edit" gorm:"default:false"`
-	CanShare     bool `json:"can_share" gorm:"default:false"` // Can re-share to others
+	CanView  bool `json:"can_view" gorm:"default:true"`
+	CanEdit  bool `json:"can_edit" gorm:"default:false"`
+	CanShare bool `json:"can_share" gorm:"default:false"` // Can re-share to others
 
 	// Encrypted item key wrapped for recipient
 	EncryptedKey string `json:"-" gorm:"type:text;not null"`

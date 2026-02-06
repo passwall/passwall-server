@@ -154,7 +154,7 @@ func (a *App) Run(ctx context.Context) error {
 	itemService := service.NewItemService(itemRepo, serviceLogger)
 	itemShareService := service.NewItemShareService(
 		itemShareRepo,
-		itemRepo,
+		orgItemRepo,
 		userRepo,
 		emailSender,
 		emailBuilder,
