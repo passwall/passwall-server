@@ -113,10 +113,13 @@ func (r *organizationRepository) List(ctx context.Context, filter repository.Lis
 // Every user gets a default organization when they sign up (IsDefault=true).
 func (r *organizationRepository) GetDefaultByOwnerID(ctx context.Context, ownerUserID uint) (*domain.Organization, error) {
 	var org domain.Organization
+
+	// Default org is defined by organizations.is_default=true.
+	// Do NOT couple this to organization_users.role or organizations.created_by_user_id; both can be
+	// missing/legacy in migrated data.
 	err := r.db.WithContext(ctx).
 		Joins("JOIN organization_users ON organization_users.organization_id = organizations.id").
 		Where("organization_users.user_id = ?", ownerUserID).
-		Where("organization_users.role = ?", domain.OrgRoleOwner).
 		Where("organization_users.status IN ?", []domain.OrganizationUserStatus{
 			domain.OrgUserStatusAccepted,
 			domain.OrgUserStatusConfirmed,
@@ -160,6 +163,21 @@ func (r *organizationRepository) Update(ctx context.Context, org *domain.Organiz
 }
 
 func (r *organizationRepository) Delete(ctx context.Context, id uint) error {
+	// Personal Vault organizations are never deletable (by any flow).
+	var org domain.Organization
+	if err := r.db.WithContext(ctx).
+		Select("id", "is_personal").
+		Where("id = ?", id).
+		First(&org).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return repository.ErrNotFound
+		}
+		return err
+	}
+	if org.IsPersonal {
+		return repository.ErrForbidden
+	}
+
 	// Purge organization data, but DO NOT delete organization row.
 	// We keep the org record to preserve billing/subscription history and auditability.
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

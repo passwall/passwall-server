@@ -33,9 +33,13 @@ type Organization struct {
 	BillingEmail string `json:"billing_email" gorm:"type:varchar(255);not null"`
 
 	// System defaults
-	// IsDefault marks the user's personal/default organization created at signup.
-	// Default organizations cannot be deleted by their owner (but can be deleted by admin flows).
+	// IsDefault is a legacy concept kept for backward compatibility.
+	// Do not use it for default-org resolution; use users.default_organization_id instead.
 	IsDefault bool `json:"is_default" gorm:"not null;default:false"`
+
+	// Personal Vault model (new)
+	IsPersonal          bool  `json:"is_personal" gorm:"not null;default:false"`
+	PersonalOwnerUserID *uint `json:"personal_owner_user_id,omitempty" gorm:"index"`
 
 	// Creator snapshot (denormalized).
 	// Users can be hard-deleted, so we keep immutable creator identity fields here.

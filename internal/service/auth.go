@@ -90,6 +90,14 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 		return nil, repository.ErrAlreadyExists
 	}
 
+	// Create Personal Vault organization first so we can persist non-null org pointers on the user row.
+	// (DB enforces users.personal_organization_id/default_organization_id NOT NULL.)
+	org, err := s.createPersonalOrganization(ctx, req.Name, req.Email, req.EncryptedOrgKey)
+	if err != nil {
+		s.logger.Error("failed to create personal organization (pre-user)", "email", req.Email, "error", err)
+		return nil, fmt.Errorf("failed to create personal organization: %w", err)
+	}
+
 	// Hash the master password hash with bcrypt (defense in depth)
 	// Client sends: HKDF(masterKey, info="auth") (base64-encoded string)
 	// Server stores: bcrypt(HKDF(masterKey, info="auth"))
@@ -99,6 +107,11 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 	)
 	if err != nil {
 		s.logger.Error("failed to hash password", "error", err)
+		now := time.Now()
+		org.IsActive = false
+		org.Status = domain.OrgStatusDeleted
+		org.DeletedAt = &now
+		_ = s.orgRepo.Update(ctx, org)
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
@@ -112,6 +125,8 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 		MasterPasswordHash: string(hashedPassword),
 		ProtectedUserKey:   req.ProtectedUserKey, // EncString: "2.iv|ct|mac"
 		Schema:             schema,
+		PersonalOrganizationID: org.ID,
+		DefaultOrganizationID:  org.ID,
 		KdfType:            req.KdfConfig.Type,
 		KdfIterations:      req.KdfConfig.Iterations,
 		KdfMemory:          req.KdfConfig.Memory,
@@ -124,18 +139,33 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 	// Create schema
 	if err := s.userRepo.CreateSchema(schema); err != nil {
 		s.logger.Error("failed to create schema", "schema", schema, "error", err)
+		now := time.Now()
+		org.IsActive = false
+		org.Status = domain.OrgStatusDeleted
+		org.DeletedAt = &now
+		_ = s.orgRepo.Update(ctx, org)
 		return nil, fmt.Errorf("failed to create schema: %w", err)
 	}
 
 	// Migrate all tables in user schema
 	if err := s.userRepo.MigrateUserSchema(schema); err != nil {
 		s.logger.Error("failed to migrate user schema tables", "schema", schema, "error", err)
+		now := time.Now()
+		org.IsActive = false
+		org.Status = domain.OrgStatusDeleted
+		org.DeletedAt = &now
+		_ = s.orgRepo.Update(ctx, org)
 		return nil, fmt.Errorf("failed to migrate user schema: %w", err)
 	}
 
 	// Save user
 	if err := s.userRepo.Create(ctx, user); err != nil {
 		s.logger.Error("failed to create user", "email", req.Email, "error", err)
+		now := time.Now()
+		org.IsActive = false
+		org.Status = domain.OrgStatusDeleted
+		org.DeletedAt = &now
+		_ = s.orgRepo.Update(ctx, org)
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
@@ -145,10 +175,10 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 		// Don't fail signup if folder creation fails
 	}
 
-	// Create personal organization for new user
-	if err := s.createPersonalOrganization(ctx, user, req.EncryptedOrgKey); err != nil {
-		s.logger.Error("failed to create personal organization", "user_id", user.ID, "error", err)
-		// Don't fail signup if organization creation fails
+	// Finalize the Personal Vault: add membership and attach ownership metadata.
+	if err := s.attachUserToPersonalOrganization(ctx, user, org, req.EncryptedOrgKey); err != nil {
+		s.logger.Error("failed to attach user to personal organization", "user_id", user.ID, "org_id", org.ID, "error", err)
+		return nil, fmt.Errorf("failed to attach user to personal organization: %w", err)
 	}
 
 	// Note: Organization invitations remain pending - user will see them after sign-in
@@ -302,14 +332,16 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 		ProtectedUserKey:      user.ProtectedUserKey, // Encrypted, client will decrypt
 		KdfConfig:             user.GetKdfConfig(),
 		User: &domain.UserAuthDTO{
-			ID:         user.ID,
-			UUID:       user.UUID.String(),
-			Email:      user.Email,
-			Name:       user.Name,
-			Schema:     user.Schema,
-			Role:       user.GetRoleName(),
-			IsVerified: user.IsVerified,
-			Language:   user.Language,
+			ID:                   user.ID,
+			UUID:                 user.UUID.String(),
+			Email:                user.Email,
+			Name:                 user.Name,
+			Schema:               user.Schema,
+			Role:                 user.GetRoleName(),
+			IsVerified:           user.IsVerified,
+			Language:             user.Language,
+			PersonalOrganizationID: user.PersonalOrganizationID,
+			DefaultOrganizationID:  user.DefaultOrganizationID,
 		},
 	}, nil
 }
@@ -672,29 +704,38 @@ func (s *authService) createDefaultFolders(ctx context.Context, userID uint) err
 	return nil
 }
 
-// createPersonalOrganization creates a personal organization for a new user
-func (s *authService) createPersonalOrganization(ctx context.Context, user *domain.User, encryptedOrgKey string) error {
-	// Create personal organization
+// createPersonalOrganization creates a Personal Vault organization row (without user membership yet).
+// It must run before the user row is inserted because the DB enforces users.personal_organization_id/default_organization_id NOT NULL.
+func (s *authService) createPersonalOrganization(ctx context.Context, userName string, userEmail string, encryptedOrgKey string) (*domain.Organization, error) {
 	// Note: Plan limits will be set via free subscription (created automatically during seeding)
-	creatorEmail := user.Email
-	creatorName := user.Name
-	creatorID := user.ID
+	creatorEmail := userEmail
+	creatorName := userName
+
 	org := &domain.Organization{
-		Name:               fmt.Sprintf("%s's Workspace", user.Name),
-		BillingEmail:       user.Email,
-		EncryptedOrgKey:    encryptedOrgKey, // Organization key encrypted with User Key
-		IsActive:           true,
-		IsDefault:          true,
-		CreatedByUserID:    &creatorID,
+		Name:            "Personal Vault",
+		BillingEmail:    userEmail,
+		EncryptedOrgKey: encryptedOrgKey, // Organization key encrypted with User Key
+		IsActive:        true,
+		IsDefault:       false, // legacy; do not use
+		IsPersonal:      true,
+
+		// Creator snapshot (denormalized). Owner user id will be attached after user creation.
 		CreatedByUserEmail: &creatorEmail,
 		CreatedByUserName:  &creatorName,
 	}
 
 	if err := s.orgRepo.Create(ctx, org); err != nil {
-		return fmt.Errorf("failed to create organization: %w", err)
+		return nil, fmt.Errorf("failed to create organization: %w", err)
 	}
 
-	// Add user as owner
+	return org, nil
+}
+
+func (s *authService) attachUserToPersonalOrganization(ctx context.Context, user *domain.User, org *domain.Organization, encryptedOrgKey string) error {
+	creatorEmail := user.Email
+	creatorName := user.Name
+	creatorID := user.ID
+
 	now := time.Now()
 	orgUser := &domain.OrganizationUser{
 		OrganizationID:  org.ID,
@@ -708,12 +749,20 @@ func (s *authService) createPersonalOrganization(ctx context.Context, user *doma
 	}
 
 	if err := s.orgUserRepo.Create(ctx, orgUser); err != nil {
-		// Try to delete the organization if we can't add the user
-		_ = s.orgRepo.Delete(ctx, org.ID)
 		return fmt.Errorf("failed to add user to organization: %w", err)
 	}
 
-	s.logger.Info("created personal organization",
+	org.CreatedByUserID = &creatorID
+	org.CreatedByUserEmail = &creatorEmail
+	org.CreatedByUserName = &creatorName
+	org.PersonalOwnerUserID = &creatorID
+	org.IsPersonal = true
+
+	if err := s.orgRepo.Update(ctx, org); err != nil {
+		return fmt.Errorf("failed to finalize personal organization: %w", err)
+	}
+
+	s.logger.Info("created personal vault",
 		"user_id", user.ID,
 		"org_id", org.ID,
 		"org_name", org.Name)

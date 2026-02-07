@@ -65,6 +65,7 @@ type CreateUserByAdminRequest struct {
 	Email              string     `json:"email" validate:"required,email"`
 	MasterPasswordHash string     `json:"master_password_hash" validate:"required"` // HKDF(masterKey, info="auth")
 	ProtectedUserKey   string     `json:"protected_user_key" validate:"required"`   // EncString: "2.iv|ct|mac"
+	EncryptedOrgKey    string     `json:"encrypted_org_key" validate:"required"`    // Organization key encrypted with User Key
 	KdfConfig          *KdfConfig `json:"kdf_config" validate:"required"`
 	KdfSalt            string     `json:"kdf_salt" validate:"required"` // hex-encoded random salt
 	RoleID             *uint      `json:"role_id,omitempty"`
@@ -83,6 +84,9 @@ func (r *CreateUserByAdminRequest) Validate() error {
 	}
 	if r.ProtectedUserKey == "" {
 		return errors.New("protected user key is required")
+	}
+	if r.EncryptedOrgKey == "" {
+		return errors.New("encrypted org key is required")
 	}
 	if r.KdfConfig == nil {
 		return errors.New("KDF configuration is required")

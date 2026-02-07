@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
@@ -104,6 +105,23 @@ func (s *userService) CreateByAdmin(ctx context.Context, req *domain.CreateUserB
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
+	// Create Personal Vault organization first so we can satisfy NOT NULL org pointers on user.
+	creatorEmail := req.Email
+	creatorName := req.Name
+	org := &domain.Organization{
+		Name:            "Personal Vault",
+		BillingEmail:    req.Email,
+		EncryptedOrgKey: req.EncryptedOrgKey,
+		IsActive:        true,
+		IsDefault:       false, // legacy; do not use
+		IsPersonal:      true,
+		CreatedByUserEmail: &creatorEmail,
+		CreatedByUserName:  &creatorName,
+	}
+	if err := s.orgRepo.Create(ctx, org); err != nil {
+		return nil, fmt.Errorf("failed to create personal organization: %w", err)
+	}
+
 	schema := generateSchemaFromEmail(req.Email)
 
 	// Set role
@@ -120,6 +138,8 @@ func (s *userService) CreateByAdmin(ctx context.Context, req *domain.CreateUserB
 		MasterPasswordHash: string(hashedPassword),
 		ProtectedUserKey:   req.ProtectedUserKey, // EncString from admin
 		Schema:             schema,
+		PersonalOrganizationID: org.ID,
+		DefaultOrganizationID:  org.ID,
 		KdfType:            req.KdfConfig.Type,
 		KdfIterations:      req.KdfConfig.Iterations,
 		KdfMemory:          req.KdfConfig.Memory,
@@ -132,19 +152,58 @@ func (s *userService) CreateByAdmin(ctx context.Context, req *domain.CreateUserB
 	// Create schema
 	if err := s.repo.CreateSchema(schema); err != nil {
 		s.logger.Error("failed to create schema", "schema", schema, "error", err)
+		now := time.Now()
+		org.IsActive = false
+		org.Status = domain.OrgStatusDeleted
+		org.DeletedAt = &now
+		_ = s.orgRepo.Update(ctx, org)
 		return nil, fmt.Errorf("failed to create schema: %w", err)
 	}
 
 	// Migrate all tables in user schema
 	if err := s.repo.MigrateUserSchema(schema); err != nil {
 		s.logger.Error("failed to migrate user schema tables", "schema", schema, "error", err)
+		now := time.Now()
+		org.IsActive = false
+		org.Status = domain.OrgStatusDeleted
+		org.DeletedAt = &now
+		_ = s.orgRepo.Update(ctx, org)
 		return nil, fmt.Errorf("failed to migrate user schema: %w", err)
 	}
 
 	// Save user
 	if err := s.repo.Create(ctx, user); err != nil {
 		s.logger.Error("failed to create user", "email", req.Email, "error", err)
+		now := time.Now()
+		org.IsActive = false
+		org.Status = domain.OrgStatusDeleted
+		org.DeletedAt = &now
+		_ = s.orgRepo.Update(ctx, org)
 		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
+
+	// Attach user to org + finalize ownership metadata
+	now := time.Now()
+	orgUser := &domain.OrganizationUser{
+		OrganizationID:  org.ID,
+		UserID:          user.ID,
+		Role:            domain.OrgRoleOwner,
+		EncryptedOrgKey: req.EncryptedOrgKey,
+		AccessAll:       true,
+		Status:          domain.OrgUserStatusConfirmed,
+		InvitedAt:       &now,
+		AcceptedAt:      &now,
+	}
+	if err := s.orgUserRepo.Create(ctx, orgUser); err != nil {
+		return nil, fmt.Errorf("failed to add user to personal organization: %w", err)
+	}
+
+	creatorID := user.ID
+	org.CreatedByUserID = &creatorID
+	org.PersonalOwnerUserID = &creatorID
+	org.IsPersonal = true
+	if err := s.orgRepo.Update(ctx, org); err != nil {
+		return nil, fmt.Errorf("failed to finalize personal organization: %w", err)
 	}
 
 	s.logger.Info("user created by admin (zero-knowledge)",
@@ -242,6 +301,10 @@ func (s *userService) CheckOwnership(ctx context.Context, userID uint) (*domain.
 		org, err := s.orgRepo.GetByID(ctx, orgUser.OrganizationID)
 		if err != nil {
 			s.logger.Error("failed to get organization", "org_id", orgUser.OrganizationID, "error", err)
+			continue
+		}
+		// Personal Vault organizations are never deletable; don't block user deletion on them.
+		if org.IsPersonal {
 			continue
 		}
 

@@ -162,8 +162,8 @@ func (s *revenueCatService) HandleWebhook(ctx context.Context, payload []byte, s
 	return nil
 }
 
-// resolveUserAndOrg finds the user by app_user_id and their default (personal) organization.
-// All mobile subscriptions are applied to the user's default org.
+// resolveUserAndOrg finds the user by app_user_id and their Personal Vault organization.
+// All mobile subscriptions are applied to the user's Personal Vault (stable per user).
 func (s *revenueCatService) resolveUserAndOrg(ctx context.Context, appUserID string) (*domain.User, *domain.Organization, error) {
 	// Validate UUID format
 	_, err := uuid.FromString(appUserID)
@@ -185,18 +185,67 @@ func (s *revenueCatService) resolveUserAndOrg(ctx context.Context, appUserID str
 		return nil, nil, fmt.Errorf("%w: %s", ErrUserNotFoundForRevenueCat, appUserID)
 	}
 
-	// Find user's default (personal) organization
-	org, err := s.orgRepo.GetDefaultByOwnerID(ctx, user.ID)
-	if err != nil {
-		s.logger.Error("Default organization not found for user",
+	// Resolve Personal Vault organization deterministically via users.personal_organization_id.
+	org, err := s.orgRepo.GetByID(ctx, user.PersonalOrganizationID)
+	if err == nil && org != nil {
+		if !org.IsPersonal {
+			s.logger.Warn("User personal_organization_id does not point to a personal org",
+				"user_id", user.ID,
+				"app_user_id", appUserID,
+				"personal_org_id", user.PersonalOrganizationID,
+			)
+		} else {
+			return user, org, nil
+		}
+	}
+
+	// Recovery path (should be rare): list orgs and find the personal one, then self-heal user pointers.
+	orgs, listErr := s.orgRepo.ListForUser(ctx, user.ID)
+	if listErr != nil {
+		s.logger.Error("Failed to list organizations for user while resolving personal org",
 			"user_id", user.ID,
 			"app_user_id", appUserID,
-			"error", err,
+			"error", listErr,
 		)
 		return nil, nil, fmt.Errorf("%w: user_id=%d", ErrDefaultOrgNotFound, user.ID)
 	}
 
-	return user, org, nil
+	var personal *domain.Organization
+	for _, o := range orgs {
+		if o != nil && o.IsPersonal {
+			personal = o
+			break
+		}
+	}
+	if personal == nil {
+		s.logger.Error("Personal organization not found for user",
+			"user_id", user.ID,
+			"app_user_id", appUserID,
+			"org_count", len(orgs),
+		)
+		return nil, nil, fmt.Errorf("%w: user_id=%d", ErrDefaultOrgNotFound, user.ID)
+	}
+
+	s.logger.Warn("Personal org pointer invalid; self-healing user org pointers for RevenueCat",
+		"user_id", user.ID,
+		"app_user_id", appUserID,
+		"old_personal_org_id", user.PersonalOrganizationID,
+		"resolved_personal_org_id", personal.ID,
+	)
+
+	user.PersonalOrganizationID = personal.ID
+	if user.DefaultOrganizationID == 0 {
+		user.DefaultOrganizationID = personal.ID
+	}
+	if updateErr := s.userRepo.Update(ctx, user); updateErr != nil {
+		s.logger.Warn("Failed to self-heal user org pointers while resolving RevenueCat org",
+			"user_id", user.ID,
+			"app_user_id", appUserID,
+			"error", updateErr,
+		)
+	}
+
+	return user, personal, nil
 }
 
 // handleInitialPurchase handles new subscription purchases from mobile.

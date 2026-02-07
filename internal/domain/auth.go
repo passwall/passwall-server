@@ -94,14 +94,16 @@ type TokenClaims struct {
 
 // UserAuthDTO represents user data in auth responses
 type UserAuthDTO struct {
-	ID         uint   `json:"id"`
-	UUID       string `json:"uuid"`
-	Email      string `json:"email"`
-	Name       string `json:"name"`
-	Schema     string `json:"schema"`
-	Role       string `json:"role"`
-	IsVerified bool   `json:"is_verified"`
-	Language   string `json:"language"`
+	ID                   uint   `json:"id"`
+	UUID                 string `json:"uuid"`
+	Email                string `json:"email"`
+	Name                 string `json:"name"`
+	Schema               string `json:"schema"`
+	Role                 string `json:"role"`
+	IsVerified           bool   `json:"is_verified"`
+	Language             string `json:"language"`
+	PersonalOrganizationID uint `json:"personal_organization_id"`
+	DefaultOrganizationID  uint `json:"default_organization_id"`
 }
 
 // PreLoginRequest represents prelogin request

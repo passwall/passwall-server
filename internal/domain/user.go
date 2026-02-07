@@ -38,6 +38,10 @@ type User struct {
 	Email  string `json:"email" gorm:"type:varchar(255);uniqueIndex;not null"`
 	Schema string `json:"schema" gorm:"type:varchar(255);uniqueIndex;not null"`
 
+	// Organization pointers (per user)
+	PersonalOrganizationID uint `json:"personal_organization_id" gorm:"not null"`
+	DefaultOrganizationID  uint `json:"default_organization_id" gorm:"not null"`
+
 	// Modern Zero-Knowledge Encryption Fields
 	MasterPasswordHash string `json:"-" gorm:"type:varchar(255);not null"` // bcrypt(HKDF(masterKey, info="auth"))
 	ProtectedUserKey   string `json:"-" gorm:"type:text;not null"`         // EncString: "2.iv|ct|mac"

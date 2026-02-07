@@ -126,54 +126,6 @@ func (h *PaymentHandler) GetBillingInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, billingInfo)
 }
 
-// GetMyBillingInfo godoc
-// @Summary Get billing information for current user's default organization
-// @Description Get billing and subscription information for the authenticated user's default (personal) organization.
-// @Description This is a convenience endpoint for mobile apps that don't manage organizations directly.
-// @Tags payments
-// @Produce json
-// @Success 200 {object} domain.BillingInfo
-// @Failure 401 {object} map[string]string
-// @Failure 404 {object} map[string]string
-// @Router /me/billing [get]
-func (h *PaymentHandler) GetMyBillingInfo(c *gin.Context) {
-	ctx := c.Request.Context()
-
-	// Get authenticated user ID from context
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
-	}
-
-	uid, ok := userID.(uint)
-	if !ok {
-		// Try int conversion (some auth middleware sets int)
-		if intID, ok := userID.(int); ok {
-			uid = uint(intID)
-		} else {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user_id in context"})
-			return
-		}
-	}
-
-	// Find user's default organization
-	org, err := h.orgRepo.GetDefaultByOwnerID(ctx, uid)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "default organization not found"})
-		return
-	}
-
-	// Get billing info for the default org
-	billingInfo, err := h.service.GetBillingInfo(ctx, org.ID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get billing info", "details": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, billingInfo)
-}
-
 // CancelSubscription godoc
 // @Summary Cancel subscription
 // @Description Cancel an organization's subscription

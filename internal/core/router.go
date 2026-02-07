@@ -130,9 +130,6 @@ func SetupRouter(
 		apiGroup.GET("/plans", plansHandler.ListPlans)
 		apiGroup.GET("/plans/:code", plansHandler.GetPlan)
 
-		// Current user billing (convenience endpoint for mobile)
-		apiGroup.GET("/me/billing", paymentHandler.GetMyBillingInfo)
-
 		// Auth protected routes
 		apiGroup.POST("/signout", authHandler.SignOut)
 

@@ -339,6 +339,9 @@ func (s *organizationService) Update(ctx context.Context, id uint, userID uint, 
 
 	// Update fields
 	if req.Name != nil {
+		if org.IsPersonal && *req.Name != "Personal Vault" {
+			return nil, repository.ErrForbidden
+		}
 		org.Name = *req.Name
 	}
 	if req.BillingEmail != nil {
@@ -365,14 +368,13 @@ func (s *organizationService) Delete(ctx context.Context, id uint, userID uint) 
 		return repository.ErrForbidden
 	}
 
-	// Default/personal organizations cannot be deleted by their owner.
-	// (They can still be deleted by admin user-deletion flows.)
+	// Personal Vault organizations are never deletable.
 	org, err := s.orgRepo.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
-	if org.IsDefault {
-		return fmt.Errorf("cannot delete default organization")
+	if org.IsPersonal {
+		return repository.ErrForbidden
 	}
 
 	// Get organization to check for active subscription
