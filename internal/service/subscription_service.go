@@ -274,7 +274,8 @@ func (s *subscriptionService) Downgrade(ctx context.Context, orgID uint, planCod
 	return s.subRepo.Update(ctx, sub)
 }
 
-// Cancel cancels a subscription at the end of the billing period
+// Cancel cancels a subscription at the end of the billing period.
+// The cancellation is routed to the correct payment provider (Stripe, RevenueCat, or manual).
 func (s *subscriptionService) Cancel(ctx context.Context, orgID uint) error {
 	// 1. Get subscription from database
 	sub, err := s.subRepo.GetByOrganizationID(ctx, orgID)
@@ -286,52 +287,71 @@ func (s *subscriptionService) Cancel(ctx context.Context, orgID uint) error {
 		return fmt.Errorf("subscription is already canceled or expired")
 	}
 
-	// 2. Cancel subscription in Stripe FIRST (always at period end)
-	if sub.StripeSubscriptionID == nil || *sub.StripeSubscriptionID == "" {
-		return fmt.Errorf("subscription has no Stripe subscription ID")
+	// 2. Detect payment provider and route accordingly
+	provider := domain.DetectPaymentProvider(sub.StripeSubscriptionID)
+
+	switch provider {
+	case domain.PaymentProviderRevenueCat:
+		// RevenueCat subscriptions are managed by App Store / Play Store.
+		// They cannot be canceled from our API; the user must cancel from the store.
+		store := domain.DetectStoreFromSubscriptionID(sub.StripeSubscriptionID)
+		storeName := domain.StoreDisplayName(store)
+		s.logger.Infof("Cancel rejected for RevenueCat subscription (org_id=%d, store=%s, subscription_id=%s)",
+			orgID, storeName, *sub.StripeSubscriptionID)
+		return fmt.Errorf("this subscription is managed by %s. Please cancel it from the %s directly", storeName, storeName)
+
+	case domain.PaymentProviderStripe:
+		// Cancel via Stripe API
+		stripeClient, ok := s.stripe.(*stripe.Client)
+		if !ok {
+			return fmt.Errorf("stripe client not available")
+		}
+
+		s.logger.Infof("Canceling Stripe subscription at period end: %s (org_id=%d)",
+			*sub.StripeSubscriptionID, orgID)
+
+		stripeSub, err := stripeClient.CancelSubscription(*sub.StripeSubscriptionID, true) // true = cancel at period end
+		if err != nil {
+			s.logger.Error("Failed to cancel Stripe subscription",
+				"stripe_subscription_id", *sub.StripeSubscriptionID,
+				"org_id", orgID,
+				"error", err)
+			return fmt.Errorf("failed to cancel Stripe subscription: %w", err)
+		}
+
+		s.logger.Infof("Stripe subscription canceled successfully: %s (status=%s, cancel_at_period_end=true)",
+			stripeSub.ID, stripeSub.Status)
+
+	case domain.PaymentProviderManual:
+		// Manual/admin-granted subscriptions have no external provider to notify.
+		s.logger.Infof("Canceling manual subscription (org_id=%d)", orgID)
+
+	default:
+		return fmt.Errorf("unknown payment provider for subscription")
 	}
 
-	stripeClient, ok := s.stripe.(*stripe.Client)
-	if !ok {
-		return fmt.Errorf("stripe client not available")
-	}
-
-	s.logger.Infof("🔄 Canceling Stripe subscription at period end: %s (org_id=%d)",
-		*sub.StripeSubscriptionID, orgID)
-
-	stripeSub, err := stripeClient.CancelSubscription(*sub.StripeSubscriptionID, true) // true = cancel at period end
-	if err != nil {
-		s.logger.Error("Failed to cancel Stripe subscription",
-			"stripe_subscription_id", *sub.StripeSubscriptionID,
-			"org_id", orgID,
-			"error", err)
-		return fmt.Errorf("failed to cancel Stripe subscription: %w", err)
-	}
-
-	s.logger.Infof("✅ Stripe subscription canceled successfully: %s (status=%s, cancel_at_period_end=true)",
-		stripeSub.ID, stripeSub.Status)
-
-	// 3. Only update database AFTER Stripe success
+	// 3. Update database (after external provider success, if applicable)
 	now := time.Now()
 	sub.CancelAt = &now
 	sub.State = domain.SubStateCanceled
-	// RenewAt will be used to determine when to expire
 
-	s.logger.Infof("📝 Marking subscription as CANCELED at period end (org_id=%d, will_expire_at=%v)",
-		orgID, sub.RenewAt)
+	s.logger.Infof("Marking subscription as CANCELED at period end (org_id=%d, provider=%s, will_expire_at=%v)",
+		orgID, provider, sub.RenewAt)
 
 	if err := s.subRepo.Update(ctx, sub); err != nil {
-		s.logger.Error("Failed to update subscription in database after Stripe cancel",
+		s.logger.Error("Failed to update subscription in database after cancel",
 			"org_id", orgID,
+			"provider", provider,
 			"error", err)
 		return fmt.Errorf("failed to update subscription in database: %w", err)
 	}
 
-	s.logger.Infof("✅ Subscription canceled successfully in database (org_id=%d)", orgID)
+	s.logger.Infof("Subscription canceled successfully in database (org_id=%d, provider=%s)", orgID, provider)
 	return nil
 }
 
-// Resume resumes a canceled subscription
+// Resume resumes a canceled subscription.
+// The reactivation is routed to the correct payment provider (Stripe, RevenueCat, or manual).
 func (s *subscriptionService) Resume(ctx context.Context, orgID uint) error {
 	// 1. Get subscription from database
 	sub, err := s.subRepo.GetByOrganizationID(ctx, orgID)
@@ -343,43 +363,62 @@ func (s *subscriptionService) Resume(ctx context.Context, orgID uint) error {
 		return fmt.Errorf("can only resume canceled subscriptions (current state: %s)", sub.State)
 	}
 
-	// 2. Reactivate subscription in Stripe FIRST
-	if sub.StripeSubscriptionID == nil || *sub.StripeSubscriptionID == "" {
-		return fmt.Errorf("subscription has no Stripe subscription ID")
+	// 2. Detect payment provider and route accordingly
+	provider := domain.DetectPaymentProvider(sub.StripeSubscriptionID)
+
+	switch provider {
+	case domain.PaymentProviderRevenueCat:
+		// RevenueCat subscriptions are managed by App Store / Play Store.
+		// They cannot be reactivated from our API; the user must re-subscribe from the store.
+		store := domain.DetectStoreFromSubscriptionID(sub.StripeSubscriptionID)
+		storeName := domain.StoreDisplayName(store)
+		s.logger.Infof("Resume rejected for RevenueCat subscription (org_id=%d, store=%s, subscription_id=%s)",
+			orgID, storeName, *sub.StripeSubscriptionID)
+		return fmt.Errorf("this subscription is managed by %s. Please resubscribe from the %s directly", storeName, storeName)
+
+	case domain.PaymentProviderStripe:
+		// Reactivate via Stripe API
+		stripeClient, ok := s.stripe.(*stripe.Client)
+		if !ok {
+			return fmt.Errorf("stripe client not available")
+		}
+
+		s.logger.Infof("Reactivating Stripe subscription: %s (org_id=%d)",
+			*sub.StripeSubscriptionID, orgID)
+
+		stripeSub, err := stripeClient.ReactivateSubscription(*sub.StripeSubscriptionID)
+		if err != nil {
+			s.logger.Error("Failed to reactivate Stripe subscription",
+				"stripe_subscription_id", *sub.StripeSubscriptionID,
+				"org_id", orgID,
+				"error", err)
+			return fmt.Errorf("failed to reactivate Stripe subscription: %w", err)
+		}
+
+		s.logger.Infof("Stripe subscription reactivated successfully: %s (status=%s)",
+			stripeSub.ID, stripeSub.Status)
+
+	case domain.PaymentProviderManual:
+		// Manual/admin-granted subscriptions have no external provider to notify.
+		s.logger.Infof("Reactivating manual subscription (org_id=%d)", orgID)
+
+	default:
+		return fmt.Errorf("unknown payment provider for subscription")
 	}
 
-	stripeClient, ok := s.stripe.(*stripe.Client)
-	if !ok {
-		return fmt.Errorf("stripe client not available")
-	}
-
-	s.logger.Infof("🔄 Reactivating Stripe subscription: %s (org_id=%d)",
-		*sub.StripeSubscriptionID, orgID)
-
-	stripeSub, err := stripeClient.ReactivateSubscription(*sub.StripeSubscriptionID)
-	if err != nil {
-		s.logger.Error("Failed to reactivate Stripe subscription",
-			"stripe_subscription_id", *sub.StripeSubscriptionID,
-			"org_id", orgID,
-			"error", err)
-		return fmt.Errorf("failed to reactivate Stripe subscription: %w", err)
-	}
-
-	s.logger.Infof("✅ Stripe subscription reactivated successfully: %s (status=%s)",
-		stripeSub.ID, stripeSub.Status)
-
-	// 3. Only update database AFTER Stripe success
+	// 3. Update database (after external provider success, if applicable)
 	sub.State = domain.SubStateActive
 	sub.CancelAt = nil
 
 	if err := s.subRepo.Update(ctx, sub); err != nil {
-		s.logger.Error("Failed to update subscription in database after Stripe reactivation",
+		s.logger.Error("Failed to update subscription in database after reactivation",
 			"org_id", orgID,
+			"provider", provider,
 			"error", err)
 		return fmt.Errorf("failed to update subscription in database: %w", err)
 	}
 
-	s.logger.Infof("✅ Subscription reactivated successfully in database (org_id=%d)", orgID)
+	s.logger.Infof("Subscription reactivated successfully in database (org_id=%d, provider=%s)", orgID, provider)
 	return nil
 }
 

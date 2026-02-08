@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/passwall/passwall-server/internal/repository"
@@ -149,6 +150,11 @@ func (h *PaymentHandler) CancelSubscription(c *gin.Context) {
 
 	// Cancel subscription at period end using SubscriptionService
 	if err := h.subscriptionService.Cancel(ctx, orgID); err != nil {
+		// Return 400 for externally managed subscriptions (RevenueCat/App Store/Play Store)
+		if isExternalProviderError(err) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to cancel subscription", "details": err.Error()})
 		return
 	}
@@ -179,6 +185,11 @@ func (h *PaymentHandler) ReactivateSubscription(c *gin.Context) {
 
 	// Resume subscription using SubscriptionService
 	if err := h.subscriptionService.Resume(ctx, orgID); err != nil {
+		// Return 400 for externally managed subscriptions (RevenueCat/App Store/Play Store)
+		if isExternalProviderError(err) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to reactivate subscription", "details": err.Error()})
 		return
 	}
@@ -283,3 +294,12 @@ type UpdateSubscriptionSeatsRequest struct {
 }
 
 // CancelSubscriptionRequest is no longer needed - we always cancel at period end
+
+// isExternalProviderError checks if the error is about a subscription managed by an external provider
+// (App Store, Play Store via RevenueCat). These errors should be returned as 400 (client error)
+// rather than 500 (server error) since the user needs to take action in the external store.
+func isExternalProviderError(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "managed by") && (strings.Contains(msg, "App Store") ||
+		strings.Contains(msg, "Play Store") || strings.Contains(msg, "directly"))
+}
