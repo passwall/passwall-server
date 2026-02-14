@@ -55,6 +55,9 @@ type Credentials struct {
 	DeviceID string `json:"device_id,omitempty"`
 	// Optional app identifier (used with device_id). Expected: vault|extension|mobile|desktop
 	App string `json:"app,omitempty"`
+	// Optional login override:
+	// when true and free-plan device limit is hit, revoke all active sessions and continue login.
+	LogoutOtherDevices bool `json:"logout_other_devices,omitempty"`
 }
 
 // AuthResponse represents the authentication response

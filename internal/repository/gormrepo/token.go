@@ -52,6 +52,19 @@ func (r *tokenRepository) Create(ctx context.Context, userID int, sessionUUID uu
 	return r.db.WithContext(ctx).Create(t).Error
 }
 
+func (r *tokenRepository) CountActiveSessionsByUserID(ctx context.Context, userID int) (int, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&domain.Token{}).
+		Where("user_id = ? AND expiry_time > ? AND kind IN ?", userID, time.Now(), []string{"access", ""}).
+		Distinct("session_uuid").
+		Count(&count).Error
+	if err != nil {
+		return 0, err
+	}
+	return int(count), nil
+}
+
 func (r *tokenRepository) Delete(ctx context.Context, userID int) error {
 	return r.db.WithContext(ctx).Where("user_id = ?", userID).Delete(&domain.Token{}).Error
 }

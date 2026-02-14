@@ -284,16 +284,16 @@ type UpdateOrganizationRequest struct {
 
 // InviteUserToOrgRequest for inviting users
 type InviteUserToOrgRequest struct {
-	Email           string           `json:"email" validate:"required,email"`
-	Role            OrganizationRole `json:"role" validate:"required,oneof=owner admin manager member"`
-	EncryptedOrgKey string           `json:"encrypted_org_key" validate:"required"` // Org key wrapped for invitee
+	Email           string           `json:"email" binding:"required,email"`
+	Role            OrganizationRole `json:"role" binding:"required,oneof=owner admin manager member"`
+	EncryptedOrgKey string           `json:"encrypted_org_key" binding:"required"` // Org key wrapped for invitee
 	AccessAll       bool             `json:"access_all"`
 	Collections     []uint           `json:"collections,omitempty"` // Collection IDs to grant access
 }
 
 // UpdateOrgUserRoleRequest for updating user role
 type UpdateOrgUserRoleRequest struct {
-	Role      OrganizationRole `json:"role" validate:"required,oneof=owner admin manager member"`
+	Role      OrganizationRole `json:"role" binding:"required,oneof=owner admin manager member"`
 	AccessAll *bool            `json:"access_all,omitempty"`
 }
 

@@ -74,6 +74,7 @@ type PreferencesRepository interface {
 type TokenRepository interface {
 	Create(ctx context.Context, userID int, sessionUUID uuid.UUID, deviceID uuid.UUID, app string, kind string, tokenUUID uuid.UUID, token string, expiresAt time.Time) error
 	GetByUUID(ctx context.Context, uuid string) (*domain.Token, error)
+	CountActiveSessionsByUserID(ctx context.Context, userID int) (int, error)
 	Delete(ctx context.Context, userID int) error
 	DeleteByUUID(ctx context.Context, uuid string) error
 	DeleteBySessionUUID(ctx context.Context, sessionUUID string) error

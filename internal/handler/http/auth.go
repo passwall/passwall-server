@@ -125,6 +125,13 @@ func (h *AuthHandler) SignIn(c *gin.Context) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
 			return
 		}
+		if errors.Is(err, service.ErrDeviceLimit) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error":   "device_limit_exceeded",
+				"message": "Your current plan allows only 1 active device.",
+			})
+			return
+		}
 		if err.Error() == "email not verified" {
 			c.JSON(http.StatusForbidden, gin.H{
 				"error":   "email not verified",

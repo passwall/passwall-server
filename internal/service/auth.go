@@ -24,6 +24,7 @@ var (
 	ErrExpiredToken    = errors.New("token expired or invalid")
 	ErrUnauthorized    = errors.New("unauthorized")
 	ErrInvalidPassword = errors.New("invalid password")
+	ErrDeviceLimit     = errors.New("device limit exceeded for current plan")
 )
 
 type AuthConfig struct {
@@ -40,6 +41,9 @@ type authService struct {
 	orgRepo          repository.OrganizationRepository
 	orgUserRepo      repository.OrganizationUserRepository
 	invitationRepo   repository.InvitationRepository
+	subRepo          interface {
+		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
+	}
 	activityService  UserActivityService
 	emailSender      email.Sender
 	emailBuilder     *email.EmailBuilder
@@ -56,6 +60,9 @@ func NewAuthService(
 	orgRepo repository.OrganizationRepository,
 	orgUserRepo repository.OrganizationUserRepository,
 	invitationRepo repository.InvitationRepository,
+	subRepo interface {
+		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
+	},
 	activityService UserActivityService,
 	emailSender email.Sender,
 	emailBuilder *email.EmailBuilder,
@@ -70,6 +77,7 @@ func NewAuthService(
 		orgRepo:          orgRepo,
 		orgUserRepo:      orgUserRepo,
 		invitationRepo:   invitationRepo,
+		subRepo:          subRepo,
 		activityService:  activityService,
 		emailSender:      emailSender,
 		emailBuilder:     emailBuilder,
@@ -297,6 +305,16 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 		_ = s.tokenRepo.DeleteBySessionUUID(ctx, sessionUUID.String())
 	}
 
+	if err := s.enforceDeviceLimit(ctx, user); err != nil {
+		if errors.Is(err, ErrDeviceLimit) && creds.LogoutOtherDevices {
+			if revokeErr := s.tokenRepo.Delete(ctx, int(user.ID)); revokeErr != nil {
+				return nil, fmt.Errorf("failed to revoke active sessions: %w", revokeErr)
+			}
+		} else {
+			return nil, err
+		}
+	}
+
 	tokenDetails, err := s.createToken(user, sessionUUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token: %w", err)
@@ -344,6 +362,61 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 			DefaultOrganizationID:  user.DefaultOrganizationID,
 		},
 	}, nil
+}
+
+func (s *authService) enforceDeviceLimit(ctx context.Context, user *domain.User) error {
+	sub, err := s.subRepo.GetByOrganizationID(ctx, user.PersonalOrganizationID)
+	if err != nil || sub == nil || sub.Plan == nil || !sub.Plan.IsFree() {
+		return nil
+	}
+
+	// If the user has access to any active paid organization, do not enforce
+	// personal free-plan device cap at login.
+	paidAccess, err := s.hasActivePaidOrganizationAccess(ctx, user.ID)
+	if err != nil {
+		return fmt.Errorf("failed to check paid organization access: %w", err)
+	}
+	if paidAccess {
+		return nil
+	}
+
+	activeSessions, err := s.tokenRepo.CountActiveSessionsByUserID(ctx, int(user.ID))
+	if err != nil {
+		return fmt.Errorf("failed to check active sessions: %w", err)
+	}
+
+	if activeSessions >= 1 {
+		return ErrDeviceLimit
+	}
+
+	return nil
+}
+
+func (s *authService) hasActivePaidOrganizationAccess(ctx context.Context, userID uint) (bool, error) {
+	memberships, err := s.orgUserRepo.ListByUser(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+
+	for _, membership := range memberships {
+		if membership == nil {
+			continue
+		}
+		if membership.Status != domain.OrgUserStatusAccepted && membership.Status != domain.OrgUserStatusConfirmed {
+			continue
+		}
+
+		sub, err := s.subRepo.GetByOrganizationID(ctx, membership.OrganizationID)
+		if err != nil || sub == nil || sub.Plan == nil {
+			continue
+		}
+
+		if sub.IsActive() && !sub.Plan.IsFree() {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 func (s *authService) RefreshToken(ctx context.Context, refreshToken string) (*domain.TokenDetails, error) {

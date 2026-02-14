@@ -393,9 +393,22 @@ func (s *organizationService) Delete(ctx context.Context, id uint, userID uint) 
 }
 
 func (s *organizationService) InviteUser(ctx context.Context, orgID uint, inviterUserID uint, req *domain.InviteUserToOrgRequest) (*domain.OrganizationUser, error) {
+	if !isSupportedOrgRole(req.Role) {
+		return nil, fmt.Errorf("invalid organization role: %s", req.Role)
+	}
+
 	// Check if inviter can manage users
 	if err := s.checkPermission(ctx, orgID, inviterUserID, true); err != nil {
 		return nil, err
+	}
+
+	// Only current owner can invite another owner.
+	inviterMembership, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, inviterUserID)
+	if err != nil {
+		return nil, repository.ErrForbidden
+	}
+	if req.Role == domain.OrgRoleOwner && inviterMembership.Role != domain.OrgRoleOwner {
+		return nil, repository.ErrForbidden
 	}
 
 	// Check organization limits
@@ -530,9 +543,22 @@ func (s *organizationService) GetMembers(ctx context.Context, orgID uint, reques
 }
 
 func (s *organizationService) UpdateMemberRole(ctx context.Context, orgID, orgUserID uint, requestingUserID uint, req *domain.UpdateOrgUserRoleRequest) error {
+	if !isSupportedOrgRole(req.Role) {
+		return fmt.Errorf("invalid organization role: %s", req.Role)
+	}
+
 	// Check if requesting user can manage users
 	if err := s.checkPermission(ctx, orgID, requestingUserID, true); err != nil {
 		return err
+	}
+
+	// Only current owner can assign owner role.
+	requesterMembership, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, requestingUserID)
+	if err != nil {
+		return repository.ErrForbidden
+	}
+	if req.Role == domain.OrgRoleOwner && requesterMembership.Role != domain.OrgRoleOwner {
+		return repository.ErrForbidden
 	}
 
 	orgUser, err := s.orgUserRepo.GetByID(ctx, orgUserID)
@@ -776,4 +802,13 @@ func (s *organizationService) getMaxUsers(ctx context.Context, orgID uint) (int,
 
 	// Unlimited users (business/enterprise)
 	return 999999, nil
+}
+
+func isSupportedOrgRole(role domain.OrganizationRole) bool {
+	switch role {
+	case domain.OrgRoleOwner, domain.OrgRoleAdmin, domain.OrgRoleManager, domain.OrgRoleMember:
+		return true
+	default:
+		return false
+	}
 }

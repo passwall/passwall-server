@@ -144,7 +144,12 @@ func (a *App) Run(ctx context.Context) error {
 	folderService := service.NewFolderService(folderRepo, serviceLogger)
 	preferencesService := service.NewPreferencesService(preferencesRepo, serviceLogger)
 	verificationService := service.NewVerificationService(verificationRepo, userRepo, serviceLogger)
-	authService := service.NewAuthService(userRepo, tokenRepo, verificationRepo, folderRepo, orgRepo, orgUserRepo, invitationRepo, userActivityService, emailSender, emailBuilder, authConfig, serviceLogger)
+
+	// Initialize subscription repos before auth service (used for plan-based device limits)
+	subscriptionRepo := gormrepo.NewSubscriptionRepository(a.db.DB())
+	planRepo := gormrepo.NewPlanRepository(a.db.DB())
+
+	authService := service.NewAuthService(userRepo, tokenRepo, verificationRepo, folderRepo, orgRepo, orgUserRepo, invitationRepo, subscriptionRepo, userActivityService, emailSender, emailBuilder, authConfig, serviceLogger)
 	userService := service.NewUserService(userRepo, orgRepo, orgUserRepo, itemShareRepo, serviceLogger)
 	userNotificationPreferencesService := service.NewUserNotificationPreferencesService(preferencesRepo, serviceLogger)
 	userAppearancePreferencesService := service.NewUserAppearancePreferencesService(preferencesRepo, serviceLogger)
@@ -160,10 +165,6 @@ func (a *App) Run(ctx context.Context) error {
 		emailBuilder,
 		serviceLogger,
 	)
-
-	// Initialize subscription repos first
-	subscriptionRepo := gormrepo.NewSubscriptionRepository(a.db.DB())
-	planRepo := gormrepo.NewPlanRepository(a.db.DB())
 
 	// Initialize Stripe client
 	stripeClientInstance := stripeClient.NewClient(a.config.Stripe.SecretKey, a.config.Stripe.WebhookSecret)
