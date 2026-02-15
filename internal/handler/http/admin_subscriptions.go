@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -12,6 +13,8 @@ import (
 	"github.com/passwall/passwall-server/internal/service"
 	uuid "github.com/satori/go.uuid"
 )
+
+const maxManualGrantDuration = 5 * 365 * 24 * time.Hour
 
 type AdminSubscriptionsHandler struct {
 	orgRepo     repository.OrganizationRepository
@@ -318,12 +321,14 @@ func (h *AdminSubscriptionsHandler) ListOrganizations(c *gin.Context) {
 type grantManualSubscriptionRequest struct {
 	PlanCode string `json:"plan_code" binding:"required"`
 	EndsAt   string `json:"ends_at" binding:"required"` // RFC3339 timestamp
+	Users    *int   `json:"users,omitempty"`            // Optional effective user limit
+	Seats    *int   `json:"seats,omitempty"`            // Legacy alias (backward compatibility)
 	Note     string `json:"note,omitempty"`
 }
 
-// GrantManual grants a plan without payment (admin-only).
-// We implement this as: state=canceled + renew_at=end_date, so features remain until end_date,
-// and the subscription worker will auto-expire it once renew_at passes.
+// GrantManual grants a plan to an organization without payment (admin-only).
+// Manual grant subscriptions are marked active and use renew_at as the grant end date.
+// Subscription worker will move them to expired when renew_at passes.
 //
 // POST /api/admin/organizations/:id/subscription/grant
 func (h *AdminSubscriptionsHandler) GrantManual(c *gin.Context) {
@@ -350,6 +355,12 @@ func (h *AdminSubscriptionsHandler) GrantManual(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ends_at must be in the future"})
 		return
 	}
+	if endsAt.After(now.Add(maxManualGrantDuration)) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("ends_at cannot be more than %d years in the future", int(maxManualGrantDuration.Hours()/(24*365))),
+		})
+		return
+	}
 
 	org, err := h.orgRepo.GetByID(ctx, orgID)
 	if err != nil {
@@ -365,6 +376,72 @@ func (h *AdminSubscriptionsHandler) GrantManual(c *gin.Context) {
 	if !plan.IsActive {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "plan is not active"})
 		return
+	}
+
+	requestedUsers := req.Users
+	if requestedUsers == nil {
+		requestedUsers = req.Seats // Legacy payload support
+	}
+
+	if requestedUsers != nil && *requestedUsers <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "users must be greater than 0"})
+		return
+	}
+	if requestedUsers != nil && plan.MaxUsers != nil && *requestedUsers > *plan.MaxUsers {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("users (%d) cannot exceed plan max users (%d)", *requestedUsers, *plan.MaxUsers),
+		})
+		return
+	}
+
+	// Validate that manual plan assignment does not immediately violate plan limits.
+	// This keeps admin operations safe and prevents accidental lockouts after downgrade.
+	effectiveMaxUsers := plan.MaxUsers
+	if requestedUsers != nil {
+		effectiveMaxUsers = requestedUsers
+	}
+
+	if effectiveMaxUsers != nil {
+		memberCount, err := h.orgRepo.GetMemberCount(ctx, orgID)
+		if err != nil {
+			h.logger.Error("admin subscriptions: failed to get organization member count", "org_id", orgID, "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to validate organization usage"})
+			return
+		}
+		if memberCount > *effectiveMaxUsers {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": fmt.Sprintf("cannot grant plan %q: organization has %d members but effective seats limit is %d", plan.Code, memberCount, *effectiveMaxUsers),
+			})
+			return
+		}
+	}
+	if plan.MaxCollections != nil {
+		collectionCount, err := h.orgRepo.GetCollectionCount(ctx, orgID)
+		if err != nil {
+			h.logger.Error("admin subscriptions: failed to get organization collection count", "org_id", orgID, "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to validate organization usage"})
+			return
+		}
+		if collectionCount > *plan.MaxCollections {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": fmt.Sprintf("cannot grant plan %q: organization has %d collections but plan limit is %d", plan.Code, collectionCount, *plan.MaxCollections),
+			})
+			return
+		}
+	}
+	if plan.MaxItems != nil {
+		itemCount, err := h.orgRepo.GetItemCount(ctx, orgID)
+		if err != nil {
+			h.logger.Error("admin subscriptions: failed to get organization item count", "org_id", orgID, "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to validate organization usage"})
+			return
+		}
+		if itemCount > *plan.MaxItems {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": fmt.Sprintf("cannot grant plan %q: organization has %d items but plan limit is %d", plan.Code, itemCount, *plan.MaxItems),
+			})
+			return
+		}
 	}
 
 	// Load existing subscription (if any)
@@ -403,6 +480,7 @@ func (h *AdminSubscriptionsHandler) GrantManual(c *gin.Context) {
 	sub.GracePeriodEndsAt = nil
 	sub.TrialEndsAt = nil
 	sub.StripeSubscriptionID = nil
+	sub.SeatsPurchased = requestedUsers
 
 	if sub.ID == 0 {
 		if err := h.subRepo.Create(ctx, sub); err != nil {
@@ -430,6 +508,7 @@ func (h *AdminSubscriptionsHandler) GrantManual(c *gin.Context) {
 			service.ActivityFieldReason:           req.Note,
 			"manual_grant":                        true,
 			"ends_at":                             endsAt.Format(time.RFC3339),
+			"users":                               requestedUsers,
 		})
 	}
 
@@ -472,6 +551,8 @@ func (h *AdminSubscriptionsHandler) RevokeManual(c *gin.Context) {
 	now := time.Now()
 	sub.State = domain.SubStateExpired
 	sub.EndedAt = &now
+	sub.RenewAt = nil
+	sub.SeatsPurchased = nil
 
 	if err := h.subRepo.Update(ctx, sub); err != nil {
 		h.logger.Error("admin subscriptions: failed to revoke manual subscription", "org_id", orgID, "error", err)

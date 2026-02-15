@@ -70,9 +70,9 @@ func (h *PaymentHandler) CreateCheckoutSession(c *gin.Context) {
 		return
 	}
 
-	// Validate seats
+	// Validate user count
 	if req.Seats <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid seats"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user count"})
 		return
 	}
 
@@ -225,14 +225,64 @@ func (h *PaymentHandler) SyncSubscription(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Subscription synced successfully"})
 }
 
-// UpdateSubscriptionSeats godoc
-// @Summary Update subscription seats
-// @Description Increase/decrease seat quantity for an organization's active subscription (Stripe proration applies)
+// PreviewSeatChange godoc
+// @Summary Preview user license change cost
+// @Description Returns the prorated cost impact of changing user count without applying changes
 // @Tags payments
 // @Accept json
 // @Produce json
 // @Param id path int true "Organization ID"
-// @Param request body UpdateSubscriptionSeatsRequest true "Seat update"
+// @Param request body UpdateSubscriptionSeatsRequest true "User count preview"
+// @Success 200 {object} domain.SeatChangePreview
+// @Failure 400 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /organizations/{id}/subscription/seats/preview [post]
+func (h *PaymentHandler) PreviewSeatChange(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	orgID, ok := GetUintParam(c, "id")
+	if !ok {
+		return
+	}
+
+	var req UpdateSubscriptionSeatsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
+		return
+	}
+	if req.Seats <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user count"})
+		return
+	}
+
+	userID, err := GetUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	preview, err := h.service.PreviewSeatChange(ctx, orgID, userID, req.Seats)
+	if err != nil {
+		if strings.Contains(err.Error(), "forbidden") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, preview)
+}
+
+// UpdateSubscriptionSeats godoc
+// @Summary Update subscription user count
+// @Description Increase/decrease user count for an organization's active subscription (Stripe proration applies)
+// @Tags payments
+// @Accept json
+// @Produce json
+// @Param id path int true "Organization ID"
+// @Param request body UpdateSubscriptionSeatsRequest true "User count update"
 // @Success 200 {object} map[string]string
 // @Failure 400 {object} map[string]string
 // @Failure 403 {object} map[string]string
@@ -252,7 +302,7 @@ func (h *PaymentHandler) UpdateSubscriptionSeats(c *gin.Context) {
 		return
 	}
 	if req.Seats <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid seats"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user count"})
 		return
 	}
 
@@ -275,14 +325,116 @@ func (h *PaymentHandler) UpdateSubscriptionSeats(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Subscription seats updated successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "User licenses updated successfully"})
+}
+
+// PreviewPlanChange godoc
+// @Summary Preview plan change cost
+// @Description Returns the prorated cost impact of switching to a different plan without applying changes
+// @Tags payments
+// @Accept json
+// @Produce json
+// @Param id path int true "Organization ID"
+// @Param request body CreateCheckoutRequest true "Plan change preview"
+// @Success 200 {object} domain.PlanChangePreview
+// @Failure 400 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /organizations/{id}/subscription/change/preview [post]
+func (h *PaymentHandler) PreviewPlanChange(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	orgID, ok := GetUintParam(c, "id")
+	if !ok {
+		return
+	}
+
+	var req CreateCheckoutRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
+		return
+	}
+
+	userID, err := GetUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	preview, err := h.service.PreviewPlanChange(ctx, orgID, userID, req.Plan, req.BillingCycle, req.Seats)
+	if err != nil {
+		if strings.Contains(err.Error(), "forbidden") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, preview)
+}
+
+// ChangePlan godoc
+// @Summary Change subscription plan inline
+// @Description Switches an existing subscription to a different plan with prorated billing. No Stripe redirect needed.
+// @Tags payments
+// @Accept json
+// @Produce json
+// @Param id path int true "Organization ID"
+// @Param request body CreateCheckoutRequest true "Plan change request"
+// @Success 200 {object} domain.PlanChangeResult
+// @Failure 400 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /organizations/{id}/subscription/change [post]
+func (h *PaymentHandler) ChangePlan(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	orgID, ok := GetUintParam(c, "id")
+	if !ok {
+		return
+	}
+
+	var req CreateCheckoutRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
+		return
+	}
+	if req.Seats <= 0 {
+		req.Seats = 1
+	}
+
+	userID, err := GetUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	ipAddress := c.ClientIP()
+	userAgent := c.Request.UserAgent()
+
+	result, err := h.service.ChangePlan(ctx, orgID, userID, req.Plan, req.BillingCycle, req.Seats, ipAddress, userAgent)
+	if err != nil {
+		if strings.Contains(err.Error(), "forbidden") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+		if isExternalProviderError(err) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
 }
 
 // Request/Response types
 type CreateCheckoutRequest struct {
 	Plan         string `json:"plan" binding:"required"`          // premium, family, team, business
 	BillingCycle string `json:"billing_cycle" binding:"required"` // monthly, yearly
-	Seats        int    `json:"seats" binding:"required"`         // seat count (quantity). Use 1 for non-seat plans.
+	Seats        int    `json:"seats" binding:"required"`         // user count (quantity). Use 1 for non-per-user plans.
 }
 
 type CreateCheckoutResponse struct {

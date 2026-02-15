@@ -44,11 +44,11 @@ type authService struct {
 	subRepo          interface {
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
 	}
-	activityService  UserActivityService
-	emailSender      email.Sender
-	emailBuilder     *email.EmailBuilder
-	config           *AuthConfig
-	logger           Logger
+	activityService UserActivityService
+	emailSender     email.Sender
+	emailBuilder    *email.EmailBuilder
+	config          *AuthConfig
+	logger          Logger
 }
 
 // NewAuthService creates a new authentication service
@@ -127,21 +127,21 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 
 	// Create user with modern encryption fields
 	user := &domain.User{
-		UUID:               uuid.NewV4(),
-		Name:               req.Name,
-		Email:              req.Email,
-		MasterPasswordHash: string(hashedPassword),
-		ProtectedUserKey:   req.ProtectedUserKey, // EncString: "2.iv|ct|mac"
-		Schema:             schema,
+		UUID:                   uuid.NewV4(),
+		Name:                   req.Name,
+		Email:                  req.Email,
+		MasterPasswordHash:     string(hashedPassword),
+		ProtectedUserKey:       req.ProtectedUserKey, // EncString: "2.iv|ct|mac"
+		Schema:                 schema,
 		PersonalOrganizationID: org.ID,
 		DefaultOrganizationID:  org.ID,
-		KdfType:            req.KdfConfig.Type,
-		KdfIterations:      req.KdfConfig.Iterations,
-		KdfMemory:          req.KdfConfig.Memory,
-		KdfParallelism:     req.KdfConfig.Parallelism,
-		KdfSalt:            req.KdfSalt, // Random salt from client
-		RoleID:             constants.RoleIDMember,
-		IsVerified:         false,
+		KdfType:                req.KdfConfig.Type,
+		KdfIterations:          req.KdfConfig.Iterations,
+		KdfMemory:              req.KdfConfig.Memory,
+		KdfParallelism:         req.KdfConfig.Parallelism,
+		KdfSalt:                req.KdfSalt, // Random salt from client
+		RoleID:                 constants.RoleIDMember,
+		IsVerified:             false,
 	}
 
 	// Create schema
@@ -350,14 +350,14 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 		ProtectedUserKey:      user.ProtectedUserKey, // Encrypted, client will decrypt
 		KdfConfig:             user.GetKdfConfig(),
 		User: &domain.UserAuthDTO{
-			ID:                   user.ID,
-			UUID:                 user.UUID.String(),
-			Email:                user.Email,
-			Name:                 user.Name,
-			Schema:               user.Schema,
-			Role:                 user.GetRoleName(),
-			IsVerified:           user.IsVerified,
-			Language:             user.Language,
+			ID:                     user.ID,
+			UUID:                   user.UUID.String(),
+			Email:                  user.Email,
+			Name:                   user.Name,
+			Schema:                 user.Schema,
+			Role:                   user.GetRoleName(),
+			IsVerified:             user.IsVerified,
+			Language:               user.Language,
 			PersonalOrganizationID: user.PersonalOrganizationID,
 			DefaultOrganizationID:  user.DefaultOrganizationID,
 		},

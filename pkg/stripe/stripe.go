@@ -322,6 +322,143 @@ func (c *Client) UpdateSubscriptionQuantity(subscriptionID string, quantity int6
 	return updated, nil
 }
 
+// PreviewSeatChange uses Stripe's upcoming invoice API to show what the user
+// will be charged (or credited) if they change seat count. No mutation occurs.
+func (c *Client) PreviewSeatChange(subscriptionID string, newQuantity int64) (*stripe.Invoice, error) {
+	if subscriptionID == "" {
+		return nil, fmt.Errorf("subscriptionID is required")
+	}
+	if newQuantity <= 0 {
+		return nil, fmt.Errorf("quantity must be > 0")
+	}
+
+	logger.Infof("stripe.PreviewSeatChange subscription_id=%s quantity=%d", subscriptionID, newQuantity)
+
+	sub, err := subscription.Get(subscriptionID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get subscription: %w", err)
+	}
+	if sub == nil || len(sub.Items.Data) == 0 {
+		return nil, fmt.Errorf("subscription has no items")
+	}
+
+	itemID := sub.Items.Data[0].ID
+
+	params := &stripe.InvoiceUpcomingParams{
+		Subscription: stripe.String(subscriptionID),
+		SubscriptionItems: []*stripe.SubscriptionItemsParams{
+			{
+				ID:       stripe.String(itemID),
+				Quantity: stripe.Int64(newQuantity),
+			},
+		},
+		SubscriptionProrationBehavior: stripe.String("always_invoice"),
+	}
+
+	inv, err := invoice.Upcoming(params)
+	if err != nil {
+		logger.Errorf("stripe.PreviewSeatChange failed subscription_id=%s err=%v", subscriptionID, err)
+		return nil, fmt.Errorf("failed to preview seat change: %w", err)
+	}
+
+	return inv, nil
+}
+
+// UpdateSubscriptionPlan replaces the price on an existing subscription (plan change).
+// This is the industry-standard approach for changing plans when the customer already
+// has an active subscription with a payment method on file. Stripe handles proration
+// automatically — the customer is NOT redirected to a new checkout page.
+func (c *Client) UpdateSubscriptionPlan(subscriptionID string, newPriceID string, newQuantity int64, metadata map[string]string) (*stripe.Subscription, error) {
+	if subscriptionID == "" {
+		return nil, fmt.Errorf("subscriptionID is required")
+	}
+	if newPriceID == "" {
+		return nil, fmt.Errorf("newPriceID is required")
+	}
+	if newQuantity <= 0 {
+		newQuantity = 1
+	}
+
+	logger.Infof("stripe.UpdateSubscriptionPlan subscription_id=%s new_price=%s quantity=%d", subscriptionID, newPriceID, newQuantity)
+
+	// Fetch current subscription to get the subscription item ID
+	sub, err := subscription.Get(subscriptionID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get subscription: %w", err)
+	}
+	if sub == nil || len(sub.Items.Data) == 0 {
+		return nil, fmt.Errorf("subscription has no items to update")
+	}
+
+	oldItemID := sub.Items.Data[0].ID
+
+	params := &stripe.SubscriptionParams{
+		Items: []*stripe.SubscriptionItemsParams{
+			{
+				ID:       stripe.String(oldItemID),
+				Price:    stripe.String(newPriceID),
+				Quantity: stripe.Int64(newQuantity),
+			},
+		},
+		// Immediately invoice the prorated amount for plan changes
+		ProrationBehavior: stripe.String("always_invoice"),
+	}
+
+	// Update metadata (plan, billing_cycle, etc.)
+	for k, v := range metadata {
+		params.AddMetadata(k, v)
+	}
+
+	updated, err := subscription.Update(subscriptionID, params)
+	if err != nil {
+		logger.Errorf("stripe.UpdateSubscriptionPlan failed subscription_id=%s err=%v", subscriptionID, err)
+		return nil, fmt.Errorf("failed to update subscription plan: %w", err)
+	}
+
+	logger.Infof("stripe.UpdateSubscriptionPlan ok subscription_id=%s new_price=%s", subscriptionID, newPriceID)
+	return updated, nil
+}
+
+// PreviewPlanChange previews the cost of switching to a different plan/price.
+// Uses the same upcoming invoice API as seat changes but with a different price ID.
+func (c *Client) PreviewPlanChange(subscriptionID string, newPriceID string, newQuantity int64) (*stripe.Invoice, error) {
+	if subscriptionID == "" {
+		return nil, fmt.Errorf("subscriptionID is required")
+	}
+
+	logger.Infof("stripe.PreviewPlanChange subscription_id=%s new_price=%s quantity=%d", subscriptionID, newPriceID, newQuantity)
+
+	sub, err := subscription.Get(subscriptionID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get subscription: %w", err)
+	}
+	if sub == nil || len(sub.Items.Data) == 0 {
+		return nil, fmt.Errorf("subscription has no items")
+	}
+
+	itemID := sub.Items.Data[0].ID
+
+	params := &stripe.InvoiceUpcomingParams{
+		Subscription: stripe.String(subscriptionID),
+		SubscriptionItems: []*stripe.SubscriptionItemsParams{
+			{
+				ID:       stripe.String(itemID),
+				Price:    stripe.String(newPriceID),
+				Quantity: stripe.Int64(newQuantity),
+			},
+		},
+		SubscriptionProrationBehavior: stripe.String("always_invoice"),
+	}
+
+	inv, err := invoice.Upcoming(params)
+	if err != nil {
+		logger.Errorf("stripe.PreviewPlanChange failed subscription_id=%s err=%v", subscriptionID, err)
+		return nil, fmt.Errorf("failed to preview plan change: %w", err)
+	}
+
+	return inv, nil
+}
+
 // ConstructWebhookEvent constructs and verifies a webhook event
 func (c *Client) ConstructWebhookEvent(payload []byte, signature string) (stripe.Event, error) {
 	logger.Infof("stripe.ConstructWebhookEvent payload_size=%d signature_present=%t", len(payload), signature != "")

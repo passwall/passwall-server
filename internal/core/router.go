@@ -296,7 +296,10 @@ func SetupRouter(
 			// Payment & Billing routes
 			orgsGroup.POST("/:id/checkout", paymentHandler.CreateCheckoutSession)
 			orgsGroup.GET("/:id/billing", paymentHandler.GetBillingInfo)
+			orgsGroup.POST("/:id/subscription/seats/preview", paymentHandler.PreviewSeatChange)
 			orgsGroup.POST("/:id/subscription/seats", paymentHandler.UpdateSubscriptionSeats)
+			orgsGroup.POST("/:id/subscription/change/preview", paymentHandler.PreviewPlanChange)
+			orgsGroup.POST("/:id/subscription/change", paymentHandler.ChangePlan)
 			orgsGroup.POST("/:id/subscription/cancel", paymentHandler.CancelSubscription)
 			orgsGroup.POST("/:id/subscription/reactivate", paymentHandler.ReactivateSubscription)
 			orgsGroup.POST("/:id/subscription/sync", paymentHandler.SyncSubscription)

@@ -261,7 +261,10 @@ func ToOrganizationDTOWithSubscription(org *Organization, sub *Subscription) *Or
 	}
 
 	// Limits: nil means unlimited. UI treats 999 as unlimited.
-	if sub.Plan.MaxUsers != nil {
+	// For seat-based subscriptions, seats_purchased has priority as effective user limit.
+	if sub.SeatsPurchased != nil && *sub.SeatsPurchased > 0 {
+		dto.MaxUsers = *sub.SeatsPurchased
+	} else if sub.Plan.MaxUsers != nil {
 		dto.MaxUsers = *sub.Plan.MaxUsers
 	} else {
 		dto.MaxUsers = 999
@@ -370,4 +373,33 @@ type BillingInfo struct {
 
 	// Invoices
 	Invoices []*InvoiceDTO `json:"invoices,omitempty"`
+}
+
+// SeatChangePreview shows the cost impact of changing seat count before the
+// user confirms. This uses Stripe's upcoming invoice preview so the amount
+// matches exactly what will be charged.
+type SeatChangePreview struct {
+	CurrentSeats      int    `json:"current_seats"`
+	RequestedSeats    int    `json:"requested_seats"`
+	ProratedAmount    int64  `json:"prorated_amount"`     // cents – positive means charge, negative means credit
+	Currency          string `json:"currency"`            // e.g. "usd"
+	NextBillingDate   string `json:"next_billing_date"`   // ISO-8601
+	NextBillingAmount int64  `json:"next_billing_amount"` // cents – full amount at next renewal
+}
+
+// PlanChangePreview shows the cost impact of switching to a different plan.
+type PlanChangePreview struct {
+	CurrentPlan       string `json:"current_plan"`
+	NewPlan           string `json:"new_plan"`
+	ProratedAmount    int64  `json:"prorated_amount"` // cents
+	Currency          string `json:"currency"`
+	NextBillingDate   string `json:"next_billing_date"`
+	NextBillingAmount int64  `json:"next_billing_amount"`
+	ImmediateCharge   bool   `json:"immediate_charge"` // true if user will be charged now
+}
+
+// PlanChangeResult represents the result of an inline plan change.
+type PlanChangeResult struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
 }

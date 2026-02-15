@@ -184,5 +184,10 @@ type PaymentService interface {
 	SyncSubscription(ctx context.Context, orgID uint) error // Manually sync subscription from Stripe
 
 	// Seat management (quantity-based subscriptions)
+	PreviewSeatChange(ctx context.Context, orgID, userID uint, seats int) (*domain.SeatChangePreview, error)
 	UpdateSubscriptionSeats(ctx context.Context, orgID, userID uint, seats int, ipAddress, userAgent string) error
+
+	// Plan change (inline subscription update for existing subscribers)
+	PreviewPlanChange(ctx context.Context, orgID, userID uint, plan, billingCycle string, seats int) (*domain.PlanChangePreview, error)
+	ChangePlan(ctx context.Context, orgID, userID uint, plan, billingCycle string, seats int, ipAddress, userAgent string) (*domain.PlanChangeResult, error)
 }

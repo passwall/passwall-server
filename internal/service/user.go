@@ -18,6 +18,7 @@ type userService struct {
 	orgRepo       repository.OrganizationRepository
 	orgUserRepo   repository.OrganizationUserRepository
 	itemShareRepo repository.ItemShareRepository
+	folderRepo    repository.FolderRepository
 	logger        Logger
 }
 
@@ -27,6 +28,7 @@ func NewUserService(
 	orgRepo repository.OrganizationRepository,
 	orgUserRepo repository.OrganizationUserRepository,
 	itemShareRepo repository.ItemShareRepository,
+	folderRepo repository.FolderRepository,
 	logger Logger,
 ) UserService {
 	return &userService{
@@ -34,6 +36,7 @@ func NewUserService(
 		orgRepo:       orgRepo,
 		orgUserRepo:   orgUserRepo,
 		itemShareRepo: itemShareRepo,
+		folderRepo:    folderRepo,
 		logger:        logger,
 	}
 }
@@ -109,12 +112,12 @@ func (s *userService) CreateByAdmin(ctx context.Context, req *domain.CreateUserB
 	creatorEmail := req.Email
 	creatorName := req.Name
 	org := &domain.Organization{
-		Name:            "Personal Vault",
-		BillingEmail:    req.Email,
-		EncryptedOrgKey: req.EncryptedOrgKey,
-		IsActive:        true,
-		IsDefault:       false, // legacy; do not use
-		IsPersonal:      true,
+		Name:               "Personal Vault",
+		BillingEmail:       req.Email,
+		EncryptedOrgKey:    req.EncryptedOrgKey,
+		IsActive:           true,
+		IsDefault:          false, // legacy; do not use
+		IsPersonal:         true,
 		CreatedByUserEmail: &creatorEmail,
 		CreatedByUserName:  &creatorName,
 	}
@@ -132,21 +135,21 @@ func (s *userService) CreateByAdmin(ctx context.Context, req *domain.CreateUserB
 
 	// Create user with zero-knowledge fields from admin
 	user := &domain.User{
-		UUID:               uuid.NewV4(),
-		Name:               req.Name,
-		Email:              req.Email,
-		MasterPasswordHash: string(hashedPassword),
-		ProtectedUserKey:   req.ProtectedUserKey, // EncString from admin
-		Schema:             schema,
+		UUID:                   uuid.NewV4(),
+		Name:                   req.Name,
+		Email:                  req.Email,
+		MasterPasswordHash:     string(hashedPassword),
+		ProtectedUserKey:       req.ProtectedUserKey, // EncString from admin
+		Schema:                 schema,
 		PersonalOrganizationID: org.ID,
 		DefaultOrganizationID:  org.ID,
-		KdfType:            req.KdfConfig.Type,
-		KdfIterations:      req.KdfConfig.Iterations,
-		KdfMemory:          req.KdfConfig.Memory,
-		KdfParallelism:     req.KdfConfig.Parallelism,
-		KdfSalt:            req.KdfSalt, // Random salt from admin
-		RoleID:             roleID,
-		IsVerified:         true, // Admin-created users are auto-verified
+		KdfType:                req.KdfConfig.Type,
+		KdfIterations:          req.KdfConfig.Iterations,
+		KdfMemory:              req.KdfConfig.Memory,
+		KdfParallelism:         req.KdfConfig.Parallelism,
+		KdfSalt:                req.KdfSalt, // Random salt from admin
+		RoleID:                 roleID,
+		IsVerified:             true, // Admin-created users are auto-verified
 	}
 
 	// Create schema
@@ -180,6 +183,12 @@ func (s *userService) CreateByAdmin(ctx context.Context, req *domain.CreateUserB
 		org.DeletedAt = &now
 		_ = s.orgRepo.Update(ctx, org)
 		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
+
+	// Create default folders for new user (same behavior as normal signup).
+	if err := s.createDefaultFolders(ctx, user.ID); err != nil {
+		s.logger.Error("failed to create default folders", "user_id", user.ID, "error", err)
+		// Don't fail user creation if folder creation fails
 	}
 
 	// Attach user to org + finalize ownership metadata
@@ -219,6 +228,26 @@ func (s *userService) CreateByAdmin(ctx context.Context, req *domain.CreateUserB
 
 func generateSchemaFromEmail(email string) string {
 	return "user_" + uuid.NewV5(uuid.NamespaceURL, email).String()[:8]
+}
+
+// createDefaultFolders creates default folders for a new user.
+func (s *userService) createDefaultFolders(ctx context.Context, userID uint) error {
+	for _, folderName := range constants.DefaultFolders {
+		folder := &domain.Folder{
+			UUID:   uuid.NewV4(),
+			UserID: userID,
+			Name:   folderName,
+		}
+
+		if err := s.folderRepo.Create(ctx, folder); err != nil {
+			s.logger.Error("failed to create default folder", "folder", folderName, "user_id", userID, "error", err)
+			// Continue creating other folders even if one fails
+			continue
+		}
+	}
+
+	s.logger.Info("created default folders", "user_id", userID, "count", len(constants.DefaultFolders))
+	return nil
 }
 
 func (s *userService) Update(ctx context.Context, id uint, user *domain.User) error {

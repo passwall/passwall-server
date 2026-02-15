@@ -161,6 +161,68 @@ func (s *paymentService) CreateCheckoutSession(ctx context.Context, orgID, userI
 // UpdateSubscriptionSeats updates seat quantity (subscription item quantity) on Stripe.
 // This is used when an org already has an active subscription and wants to add seats
 // (e.g., 3 → 4). Stripe will prorate as configured.
+func (s *paymentService) PreviewSeatChange(ctx context.Context, orgID, userID uint, seats int) (*domain.SeatChangePreview, error) {
+	if seats <= 0 {
+		return nil, fmt.Errorf("invalid seats")
+	}
+
+	// Authorization
+	members, err := s.orgUserRepo.ListByOrganization(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load organization members: %w", err)
+	}
+	var role domain.OrganizationRole
+	for _, m := range members {
+		if m.UserID == userID {
+			role = m.Role
+			break
+		}
+	}
+	if role == "" || (role != domain.OrgRoleOwner && role != domain.OrgRoleAdmin) {
+		return nil, fmt.Errorf("forbidden")
+	}
+
+	sub, err := s.subscriptionService.GetByOrganizationID(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get subscription: %w", err)
+	}
+	if sub == nil || sub.Plan == nil || sub.StripeSubscriptionID == nil || *sub.StripeSubscriptionID == "" {
+		return nil, fmt.Errorf("subscription not found or has no Stripe ID")
+	}
+
+	currentSeats := 0
+	if sub.SeatsPurchased != nil {
+		currentSeats = *sub.SeatsPurchased
+	}
+
+	inv, err := s.stripe.PreviewSeatChange(*sub.StripeSubscriptionID, int64(seats))
+	if err != nil {
+		return nil, err
+	}
+
+	nextBillingDate := ""
+	if sub.RenewAt != nil {
+		nextBillingDate = sub.RenewAt.Format("2006-01-02")
+	}
+
+	// Prorated amount is the difference between the upcoming total and the current subscription amount
+	proratedAmount := int64(0)
+	for _, line := range inv.Lines.Data {
+		if line.Proration {
+			proratedAmount += line.Amount
+		}
+	}
+
+	return &domain.SeatChangePreview{
+		CurrentSeats:      currentSeats,
+		RequestedSeats:    seats,
+		ProratedAmount:    proratedAmount,
+		Currency:          string(inv.Currency),
+		NextBillingDate:   nextBillingDate,
+		NextBillingAmount: inv.Total,
+	}, nil
+}
+
 func (s *paymentService) UpdateSubscriptionSeats(ctx context.Context, orgID, userID uint, seats int, ipAddress, userAgent string) error {
 	if seats <= 0 {
 		return fmt.Errorf("invalid seats")
@@ -224,8 +286,156 @@ func (s *paymentService) UpdateSubscriptionSeats(ctx context.Context, orgID, use
 		return err
 	}
 
-	// Webhook will sync seats_purchased into DB. Optionally trigger a manual sync path if needed.
+	// Sync DB immediately so the frontend gets fresh data on refetch.
+	// The webhook will also fire, but this avoids the stale-read window.
+	if err := s.subscriptionService.UpdateSeatsPurchasedByStripeSubscriptionID(ctx, *sub.StripeSubscriptionID, &seats); err != nil {
+		s.logger.Error("failed to sync seats_purchased to DB (Stripe already updated)", "org_id", orgID, "seats", seats, "err", err)
+		// Don't fail the request — Stripe is the source of truth and the webhook will catch up.
+	}
+
 	s.logger.Info("updated subscription seats", "org_id", orgID, "seats", seats)
+	return nil
+}
+
+// PreviewPlanChange returns the prorated cost of switching to a different plan
+// without actually applying the change. Only works for existing Stripe subscribers.
+func (s *paymentService) PreviewPlanChange(ctx context.Context, orgID, userID uint, plan, billingCycle string, seats int) (*domain.PlanChangePreview, error) {
+	if err := s.authorizeOwnerOrAdmin(ctx, orgID, userID); err != nil {
+		return nil, err
+	}
+
+	sub, err := s.subscriptionService.GetByOrganizationID(ctx, orgID)
+	if err != nil || sub == nil || sub.StripeSubscriptionID == nil || *sub.StripeSubscriptionID == "" {
+		return nil, fmt.Errorf("no active Stripe subscription found")
+	}
+
+	planConfig, err := s.getPlanConfig(plan, billingCycle)
+	if err != nil {
+		return nil, err
+	}
+
+	if seats < 1 {
+		seats = 1
+	}
+
+	inv, err := s.stripe.PreviewPlanChange(*sub.StripeSubscriptionID, planConfig.StripePriceID, int64(seats))
+	if err != nil {
+		return nil, err
+	}
+
+	proratedAmount := int64(0)
+	for _, line := range inv.Lines.Data {
+		if line.Proration {
+			proratedAmount += line.Amount
+		}
+	}
+
+	currentPlanName := ""
+	if sub.Plan != nil {
+		currentPlanName = sub.Plan.Code
+	}
+
+	nextBillingDate := ""
+	if sub.RenewAt != nil {
+		nextBillingDate = sub.RenewAt.Format("2006-01-02")
+	}
+
+	return &domain.PlanChangePreview{
+		CurrentPlan:       currentPlanName,
+		NewPlan:           fmt.Sprintf("%s-%s", plan, billingCycle),
+		ProratedAmount:    proratedAmount,
+		Currency:          string(inv.Currency),
+		NextBillingDate:   nextBillingDate,
+		NextBillingAmount: inv.Total,
+		ImmediateCharge:   proratedAmount > 0,
+	}, nil
+}
+
+// ChangePlan performs an inline plan change on an existing Stripe subscription.
+// This swaps the price item in-place with prorated billing — no new checkout
+// session is created. This is the industry-standard approach used by 1Password,
+// Bitwarden, and other SaaS products.
+func (s *paymentService) ChangePlan(ctx context.Context, orgID, userID uint, plan, billingCycle string, seats int, ipAddress, userAgent string) (*domain.PlanChangeResult, error) {
+	if err := s.authorizeOwnerOrAdmin(ctx, orgID, userID); err != nil {
+		return nil, err
+	}
+
+	sub, err := s.subscriptionService.GetByOrganizationID(ctx, orgID)
+	if err != nil || sub == nil || sub.StripeSubscriptionID == nil || *sub.StripeSubscriptionID == "" {
+		return nil, fmt.Errorf("no active Stripe subscription found")
+	}
+
+	planConfig, err := s.getPlanConfig(plan, billingCycle)
+	if err != nil {
+		return nil, err
+	}
+
+	if seats < 1 {
+		seats = 1
+	}
+
+	// Enforce minimum seats against current member count
+	members, _ := s.orgUserRepo.ListByOrganization(ctx, orgID)
+	if len(members) > seats {
+		seats = len(members)
+	}
+
+	// Enforce plan max users
+	if planConfig.MaxUsers != nil && seats > *planConfig.MaxUsers {
+		return nil, fmt.Errorf("requested seats (%d) exceed plan maximum (%d)", seats, *planConfig.MaxUsers)
+	}
+
+	metadata := map[string]string{
+		"plan":          plan,
+		"billing_cycle": billingCycle,
+	}
+
+	_, err = s.stripe.UpdateSubscriptionPlan(*sub.StripeSubscriptionID, planConfig.StripePriceID, int64(seats), metadata)
+	if err != nil {
+		return nil, fmt.Errorf("failed to change plan: %w", err)
+	}
+
+	// Sync DB immediately so the frontend gets fresh data on refetch.
+	// Look up the new plan record and update PlanID + seats in the subscription.
+	newPlanCode := plan + "-" + billingCycle
+	newPlan, planErr := s.planRepo.GetByCode(ctx, newPlanCode)
+	if planErr == nil && newPlan != nil {
+		sub.PlanID = newPlan.ID
+		sub.Plan = newPlan
+		sub.SeatsPurchased = &seats
+		if err := s.subscriptionService.Update(ctx, sub); err != nil {
+			s.logger.Error("failed to sync plan change to DB (Stripe already updated)", "org_id", orgID, "plan", newPlanCode, "err", err)
+			// Don't fail — Stripe is the source of truth and the webhook will catch up.
+		}
+	} else {
+		s.logger.Error("failed to look up new plan for DB sync", "plan_code", newPlanCode, "err", planErr)
+	}
+
+	s.logger.Info("plan changed via inline update", "org_id", orgID, "new_plan", plan, "billing_cycle", billingCycle, "seats", seats)
+	s.activityLogger.LogCheckoutCreated(ctx, userID, ipAddress, userAgent, orgID, "", plan, billingCycle, "inline-plan-change")
+
+	return &domain.PlanChangeResult{
+		Success: true,
+		Message: "Plan changed successfully.",
+	}, nil
+}
+
+// authorizeOwnerOrAdmin checks if the user is an owner or admin of the organization.
+func (s *paymentService) authorizeOwnerOrAdmin(ctx context.Context, orgID, userID uint) error {
+	members, err := s.orgUserRepo.ListByOrganization(ctx, orgID)
+	if err != nil {
+		return fmt.Errorf("failed to load organization members: %w", err)
+	}
+	var role domain.OrganizationRole
+	for _, m := range members {
+		if m.UserID == userID {
+			role = m.Role
+			break
+		}
+	}
+	if role == "" || (role != domain.OrgRoleOwner && role != domain.OrgRoleAdmin) {
+		return fmt.Errorf("forbidden")
+	}
 	return nil
 }
 
