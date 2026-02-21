@@ -180,6 +180,7 @@ func (a *App) Run(ctx context.Context) error {
 		teamRepo,
 		teamUserRepo,
 		collectionRepo,
+		collectionUserRepo,
 		collectionTeamRepo,
 		paymentService,
 		invitationService,

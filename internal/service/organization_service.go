@@ -19,6 +19,7 @@ type organizationService struct {
 	teamRepo           repository.TeamRepository
 	teamUserRepo       repository.TeamUserRepository
 	collectionRepo     repository.CollectionRepository
+	collectionUserRepo repository.CollectionUserRepository
 	collectionTeamRepo repository.CollectionTeamRepository
 	paymentService     PaymentService
 	invitationService  InvitationService
@@ -40,6 +41,7 @@ func NewOrganizationService(
 	teamRepo repository.TeamRepository,
 	teamUserRepo repository.TeamUserRepository,
 	collectionRepo repository.CollectionRepository,
+	collectionUserRepo repository.CollectionUserRepository,
 	collectionTeamRepo repository.CollectionTeamRepository,
 	paymentService PaymentService,
 	invitationService InvitationService,
@@ -59,6 +61,7 @@ func NewOrganizationService(
 		teamRepo:           teamRepo,
 		teamUserRepo:       teamUserRepo,
 		collectionRepo:     collectionRepo,
+		collectionUserRepo: collectionUserRepo,
 		collectionTeamRepo: collectionTeamRepo,
 		paymentService:     paymentService,
 		invitationService:  invitationService,
@@ -597,9 +600,41 @@ func (s *organizationService) RemoveMember(ctx context.Context, orgID, orgUserID
 		return fmt.Errorf("member not found: %w", err)
 	}
 
+	// Prevent cross-organization member deletion with a mismatched org_user_id.
+	if orgUser.OrganizationID != orgID {
+		return repository.ErrForbidden
+	}
+
 	// Cannot remove owner
 	if orgUser.Role == domain.OrgRoleOwner {
 		return fmt.Errorf("cannot remove owner from organization")
+	}
+
+	// Cleanup team memberships before deleting org membership to avoid FK violations
+	// on environments where constraints may not cascade.
+	teamUsers, err := s.teamUserRepo.ListByOrgUser(ctx, orgUserID)
+	if err != nil {
+		s.logger.Error("failed to list team memberships before removing member", "org_user_id", orgUserID, "error", err)
+		return fmt.Errorf("failed to remove member: %w", err)
+	}
+	for _, tu := range teamUsers {
+		if err := s.teamUserRepo.Delete(ctx, tu.ID); err != nil {
+			s.logger.Error("failed to remove team membership before removing member", "org_user_id", orgUserID, "team_user_id", tu.ID, "error", err)
+			return fmt.Errorf("failed to remove member: %w", err)
+		}
+	}
+
+	// Cleanup direct collection memberships as well.
+	collectionUsers, err := s.collectionUserRepo.ListByOrgUser(ctx, orgUserID)
+	if err != nil {
+		s.logger.Error("failed to list collection memberships before removing member", "org_user_id", orgUserID, "error", err)
+		return fmt.Errorf("failed to remove member: %w", err)
+	}
+	for _, cu := range collectionUsers {
+		if err := s.collectionUserRepo.Delete(ctx, cu.ID); err != nil {
+			s.logger.Error("failed to remove collection membership before removing member", "org_user_id", orgUserID, "collection_user_id", cu.ID, "error", err)
+			return fmt.Errorf("failed to remove member: %w", err)
+		}
 	}
 
 	if err := s.orgUserRepo.Delete(ctx, orgUserID); err != nil {
