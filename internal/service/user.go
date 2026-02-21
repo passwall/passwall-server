@@ -14,12 +14,14 @@ import (
 )
 
 type userService struct {
-	repo          repository.UserRepository
-	orgRepo       repository.OrganizationRepository
-	orgUserRepo   repository.OrganizationUserRepository
-	itemShareRepo repository.ItemShareRepository
-	folderRepo    repository.FolderRepository
-	logger        Logger
+	repo               repository.UserRepository
+	orgRepo            repository.OrganizationRepository
+	orgUserRepo        repository.OrganizationUserRepository
+	teamUserRepo       repository.TeamUserRepository
+	collectionUserRepo repository.CollectionUserRepository
+	itemShareRepo      repository.ItemShareRepository
+	folderRepo         repository.FolderRepository
+	logger             Logger
 }
 
 // NewUserService creates a new user service
@@ -27,17 +29,21 @@ func NewUserService(
 	repo repository.UserRepository,
 	orgRepo repository.OrganizationRepository,
 	orgUserRepo repository.OrganizationUserRepository,
+	teamUserRepo repository.TeamUserRepository,
+	collectionUserRepo repository.CollectionUserRepository,
 	itemShareRepo repository.ItemShareRepository,
 	folderRepo repository.FolderRepository,
 	logger Logger,
 ) UserService {
 	return &userService{
-		repo:          repo,
-		orgRepo:       orgRepo,
-		orgUserRepo:   orgUserRepo,
-		itemShareRepo: itemShareRepo,
-		folderRepo:    folderRepo,
-		logger:        logger,
+		repo:               repo,
+		orgRepo:            orgRepo,
+		orgUserRepo:        orgUserRepo,
+		teamUserRepo:       teamUserRepo,
+		collectionUserRepo: collectionUserRepo,
+		itemShareRepo:      itemShareRepo,
+		folderRepo:         folderRepo,
+		logger:             logger,
 	}
 }
 
@@ -289,6 +295,48 @@ func (s *userService) Delete(ctx context.Context, id uint, schema string) error 
 	if err := s.itemShareRepo.DeleteBySharedWithUser(ctx, id); err != nil {
 		s.logger.Error("failed to delete item shares shared with user", "id", id, "error", err)
 		return err
+	}
+
+	// Cleanup organization memberships before deleting the user to avoid FK violations
+	// on organization_users.user_id and dependent team/collection membership tables.
+	orgMemberships, err := s.orgUserRepo.ListByUser(ctx, id)
+	if err != nil {
+		s.logger.Error("failed to list user organization memberships", "id", id, "error", err)
+		return err
+	}
+	for _, orgMembership := range orgMemberships {
+		if orgMembership == nil {
+			continue
+		}
+
+		teamUsers, err := s.teamUserRepo.ListByOrgUser(ctx, orgMembership.ID)
+		if err != nil {
+			s.logger.Error("failed to list team memberships while deleting user", "id", id, "org_user_id", orgMembership.ID, "error", err)
+			return err
+		}
+		for _, tu := range teamUsers {
+			if err := s.teamUserRepo.Delete(ctx, tu.ID); err != nil {
+				s.logger.Error("failed to delete team membership while deleting user", "id", id, "team_user_id", tu.ID, "error", err)
+				return err
+			}
+		}
+
+		collectionUsers, err := s.collectionUserRepo.ListByOrgUser(ctx, orgMembership.ID)
+		if err != nil {
+			s.logger.Error("failed to list collection memberships while deleting user", "id", id, "org_user_id", orgMembership.ID, "error", err)
+			return err
+		}
+		for _, cu := range collectionUsers {
+			if err := s.collectionUserRepo.Delete(ctx, cu.ID); err != nil {
+				s.logger.Error("failed to delete collection membership while deleting user", "id", id, "collection_user_id", cu.ID, "error", err)
+				return err
+			}
+		}
+
+		if err := s.orgUserRepo.Delete(ctx, orgMembership.ID); err != nil {
+			s.logger.Error("failed to delete organization membership while deleting user", "id", id, "org_user_id", orgMembership.ID, "error", err)
+			return err
+		}
 	}
 
 	if err := s.repo.Delete(ctx, id, schema); err != nil {
