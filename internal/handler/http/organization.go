@@ -379,12 +379,20 @@ func (h *OrganizationHandler) AcceptInvitation(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := GetCurrentUserID(c)
 
+	var req struct {
+		EncryptedOrgKey string `json:"encrypted_org_key" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
+		return
+	}
+
 	orgUserID, ok := GetUintParam(c, "id")
 	if !ok {
 		return
 	}
 
-	err := h.service.AcceptInvitation(ctx, orgUserID, userID)
+	err := h.service.AcceptInvitation(ctx, orgUserID, userID, req.EncryptedOrgKey)
 	if err != nil {
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "not authorized to accept this invitation"})

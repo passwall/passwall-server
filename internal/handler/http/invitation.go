@@ -2,6 +2,7 @@ package http
 
 import (
 	"errors"
+	"io"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -168,6 +169,15 @@ func (h *InvitationHandler) Accept(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := GetCurrentUserID(c)
 
+	var req struct {
+		EncryptedOrgKey string `json:"encrypted_org_key"`
+	}
+	// Accept empty body for platform invitations, but parse when provided.
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
+		return
+	}
+
 	invitationID, ok := GetUintParam(c, "id")
 	if !ok {
 		return
@@ -208,13 +218,18 @@ func (h *InvitationHandler) Accept(c *gin.Context) {
 		return
 	}
 
-	// If this is an organization invitation, add user to org
+	// If this is an organization invitation, add user to org using the invitee-wrapped org key.
 	if targetInvitation.OrganizationID != nil && targetInvitation.OrgRole != nil && targetInvitation.EncryptedOrgKey != nil {
+		if req.EncryptedOrgKey == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "encrypted_org_key is required for organization invitation acceptance"})
+			return
+		}
+
 		orgUser := &domain.OrganizationUser{
 			OrganizationID:  *targetInvitation.OrganizationID,
 			UserID:          userID,
 			Role:            domain.OrganizationRole(*targetInvitation.OrgRole),
-			EncryptedOrgKey: *targetInvitation.EncryptedOrgKey,
+			EncryptedOrgKey: req.EncryptedOrgKey,
 			AccessAll:       targetInvitation.AccessAll,
 			Status:          domain.OrgUserStatusAccepted,
 		}

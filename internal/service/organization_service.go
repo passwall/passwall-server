@@ -611,7 +611,11 @@ func (s *organizationService) RemoveMember(ctx context.Context, orgID, orgUserID
 	return nil
 }
 
-func (s *organizationService) AcceptInvitation(ctx context.Context, orgUserID uint, userID uint) error {
+func (s *organizationService) AcceptInvitation(ctx context.Context, orgUserID uint, userID uint, encryptedOrgKey string) error {
+	if encryptedOrgKey == "" {
+		return fmt.Errorf("encrypted_org_key is required")
+	}
+
 	orgUser, err := s.orgUserRepo.GetByID(ctx, orgUserID)
 	if err != nil {
 		return fmt.Errorf("invitation not found: %w", err)
@@ -626,6 +630,9 @@ func (s *organizationService) AcceptInvitation(ctx context.Context, orgUserID ui
 	if orgUser.Status != domain.OrgUserStatusInvited {
 		return fmt.Errorf("invitation already processed")
 	}
+
+	// Persist invitee-specific wrapped org key on acceptance.
+	orgUser.EncryptedOrgKey = encryptedOrgKey
 
 	// Update status
 	now := time.Now()
@@ -647,12 +654,17 @@ func (s *organizationService) AcceptInvitation(ctx context.Context, orgUserID ui
 }
 
 func (s *organizationService) AddExistingMember(ctx context.Context, orgUser *domain.OrganizationUser) error {
+	if orgUser == nil || orgUser.EncryptedOrgKey == "" {
+		return fmt.Errorf("encrypted_org_key is required")
+	}
+
 	// Check if user is already a member
 	existing, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgUser.OrganizationID, orgUser.UserID)
 	if err == nil && existing != nil {
 		// If there's a pending org membership invitation, accept it instead of failing.
 		if existing.Status == domain.OrgUserStatusInvited {
 			now := time.Now()
+			existing.EncryptedOrgKey = orgUser.EncryptedOrgKey
 			existing.Status = domain.OrgUserStatusAccepted
 			existing.AcceptedAt = &now
 			// Keep the org role / access_all from the existing record to avoid privilege escalation
