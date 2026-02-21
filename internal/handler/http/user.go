@@ -339,7 +339,6 @@ func (h *UserHandler) ChangeMasterPassword(c *gin.Context) {
 // @Param email query string true "User email"
 // @Success 200 {object} map[string]string
 // @Failure 400 {object} map[string]string
-// @Failure 404 {object} map[string]string
 // @Router /users/public-key [get]
 func (h *UserHandler) GetPublicKey(c *gin.Context) {
 	ctx := c.Request.Context()
@@ -353,7 +352,13 @@ func (h *UserHandler) GetPublicKey(c *gin.Context) {
 	user, err := h.service.GetByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+			// For invitation flow, "user not found" is a valid state.
+			// Return 200 with null key so client can show a controlled message.
+			c.JSON(http.StatusOK, gin.H{
+				"user_id":        nil,
+				"email":          email,
+				"rsa_public_key": nil,
+			})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user"})

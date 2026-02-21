@@ -14,6 +14,7 @@ type UserActivityRepository interface {
 	GetLastActivity(ctx context.Context, userID uint, activityType domain.ActivityType) (*domain.UserActivity, error)
 	List(ctx context.Context, filter ActivityFilter) ([]*domain.UserActivity, int64, error)
 	ListByUserIDs(ctx context.Context, userIDs []uint, limit int, offset int) ([]*domain.UserActivity, error)
+	DeleteByUserID(ctx context.Context, userID uint) error
 	DeleteOldActivities(ctx context.Context, olderThan time.Duration) (int64, error)
 }
 

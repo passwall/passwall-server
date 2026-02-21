@@ -132,3 +132,9 @@ func (r *folderRepository) Delete(ctx context.Context, schema string, id uint, u
 		return nil
 	})
 }
+
+func (r *folderRepository) DeleteByUserID(ctx context.Context, userID uint) error {
+	return r.db.WithContext(ctx).
+		Where("user_id = ?", userID).
+		Delete(&domain.Folder{}).Error
+}

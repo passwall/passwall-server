@@ -150,7 +150,18 @@ func (a *App) Run(ctx context.Context) error {
 	planRepo := gormrepo.NewPlanRepository(a.db.DB())
 
 	authService := service.NewAuthService(userRepo, tokenRepo, verificationRepo, folderRepo, orgRepo, orgUserRepo, invitationRepo, subscriptionRepo, userActivityService, emailSender, emailBuilder, authConfig, serviceLogger)
-	userService := service.NewUserService(userRepo, orgRepo, orgUserRepo, teamUserRepo, collectionUserRepo, itemShareRepo, folderRepo, serviceLogger)
+	userService := service.NewUserService(
+		userRepo,
+		orgRepo,
+		orgUserRepo,
+		teamUserRepo,
+		collectionUserRepo,
+		itemShareRepo,
+		folderRepo,
+		invitationRepo,
+		userActivityRepo,
+		serviceLogger,
+	)
 	userNotificationPreferencesService := service.NewUserNotificationPreferencesService(preferencesRepo, serviceLogger)
 	userAppearancePreferencesService := service.NewUserAppearancePreferencesService(preferencesRepo, serviceLogger)
 	invitationService := service.NewInvitationService(invitationRepo, userRepo, orgRepo, emailSender, emailBuilder, serviceLogger)

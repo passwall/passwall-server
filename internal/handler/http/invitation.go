@@ -208,6 +208,16 @@ func (h *InvitationHandler) Accept(c *gin.Context) {
 		return
 	}
 
+	// Org invitation without wrapped org key cannot be accepted yet.
+	// This happens when invitee was not registered (no RSA key) at invite time.
+	// Keep invitation pending so owner can resend after invitee completes signup and key generation.
+	if targetInvitation.OrganizationID != nil && targetInvitation.OrgRole != nil && targetInvitation.EncryptedOrgKey == nil {
+		c.JSON(http.StatusConflict, gin.H{
+			"error": "organization invitation needs key provisioning; ask owner to resend invitation after account setup",
+		})
+		return
+	}
+
 	// Accept invitation
 	if err := h.invitationService.AcceptInvitation(ctx, invitationID, userID); err != nil {
 		if errors.Is(err, repository.ErrForbidden) {

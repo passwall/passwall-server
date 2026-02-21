@@ -16,5 +16,6 @@ type InvitationRepository interface {
 	GetByCreator(ctx context.Context, createdBy uint) ([]*domain.Invitation, error)
 	Update(ctx context.Context, invitation *domain.Invitation) error
 	Delete(ctx context.Context, id uint) error
+	DeleteByEmail(ctx context.Context, email string) error
 	DeleteExpired(ctx context.Context) error
 }

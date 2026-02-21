@@ -443,6 +443,10 @@ func (s *organizationService) InviteUser(ctx context.Context, orgID uint, invite
 
 		orgRoleStr := string(req.Role)
 		accessAll := req.AccessAll
+		var encryptedOrgKey *string
+		if req.EncryptedOrgKey != "" {
+			encryptedOrgKey = &req.EncryptedOrgKey
+		}
 
 		// Create invitation with organization info
 		invitationReq := &domain.CreateInvitationRequest{
@@ -450,7 +454,7 @@ func (s *organizationService) InviteUser(ctx context.Context, orgID uint, invite
 			RoleID:          2, // Member role for platform access
 			OrganizationID:  &orgID,
 			OrgRole:         &orgRoleStr,
-			EncryptedOrgKey: &req.EncryptedOrgKey,
+			EncryptedOrgKey: encryptedOrgKey,
 			AccessAll:       &accessAll,
 		}
 
@@ -469,6 +473,11 @@ func (s *organizationService) InviteUser(ctx context.Context, orgID uint, invite
 	}
 
 	// CASE 2: User is registered
+	// Registered user invites require invitee-specific wrapped org key.
+	if req.EncryptedOrgKey == "" {
+		return nil, fmt.Errorf("invitee rsa_public_key is required for registered users")
+	}
+
 	// Check if user is already a member
 	existing, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, invitee.ID)
 	if err == nil && existing != nil {

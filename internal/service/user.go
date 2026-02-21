@@ -21,6 +21,8 @@ type userService struct {
 	collectionUserRepo repository.CollectionUserRepository
 	itemShareRepo      repository.ItemShareRepository
 	folderRepo         repository.FolderRepository
+	invitationRepo     repository.InvitationRepository
+	userActivityRepo   repository.UserActivityRepository
 	logger             Logger
 }
 
@@ -33,6 +35,8 @@ func NewUserService(
 	collectionUserRepo repository.CollectionUserRepository,
 	itemShareRepo repository.ItemShareRepository,
 	folderRepo repository.FolderRepository,
+	invitationRepo repository.InvitationRepository,
+	userActivityRepo repository.UserActivityRepository,
 	logger Logger,
 ) UserService {
 	return &userService{
@@ -43,6 +47,8 @@ func NewUserService(
 		collectionUserRepo: collectionUserRepo,
 		itemShareRepo:      itemShareRepo,
 		folderRepo:         folderRepo,
+		invitationRepo:     invitationRepo,
+		userActivityRepo:   userActivityRepo,
 		logger:             logger,
 	}
 }
@@ -337,6 +343,44 @@ func (s *userService) Delete(ctx context.Context, id uint, schema string) error 
 			s.logger.Error("failed to delete organization membership while deleting user", "id", id, "org_user_id", orgMembership.ID, "error", err)
 			return err
 		}
+	}
+
+	// Retire personal vault organization so it doesn't remain active after user deletion.
+	// Keep the row for audit continuity, but detach ownership pointers from deleted user.
+	if user.PersonalOrganizationID != 0 {
+		personalOrg, err := s.orgRepo.GetByID(ctx, user.PersonalOrganizationID)
+		if err != nil && err != repository.ErrNotFound {
+			s.logger.Error("failed to load personal organization while deleting user", "id", id, "org_id", user.PersonalOrganizationID, "error", err)
+			return err
+		}
+		if err == nil && personalOrg != nil && personalOrg.IsPersonal {
+			now := time.Now()
+			personalOrg.IsActive = false
+			personalOrg.Status = domain.OrgStatusDeleted
+			personalOrg.DeletedAt = &now
+			personalOrg.PersonalOwnerUserID = nil
+			personalOrg.CreatedByUserID = nil
+			if err := s.orgRepo.Update(ctx, personalOrg); err != nil {
+				s.logger.Error("failed to retire personal organization while deleting user", "id", id, "org_id", personalOrg.ID, "error", err)
+				return err
+			}
+		}
+	}
+
+	if err := s.folderRepo.DeleteByUserID(ctx, id); err != nil {
+		s.logger.Error("failed to delete folders while deleting user", "id", id, "error", err)
+		return err
+	}
+
+	if err := s.userActivityRepo.DeleteByUserID(ctx, id); err != nil {
+		s.logger.Error("failed to delete user activities while deleting user", "id", id, "error", err)
+		return err
+	}
+
+	// Remove all invitations for this email to avoid re-invite collisions.
+	if err := s.invitationRepo.DeleteByEmail(ctx, user.Email); err != nil {
+		s.logger.Error("failed to delete invitations while deleting user", "id", id, "email", user.Email, "error", err)
+		return err
 	}
 
 	if err := s.repo.Delete(ctx, id, schema); err != nil {

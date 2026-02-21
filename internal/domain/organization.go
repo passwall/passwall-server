@@ -289,7 +289,7 @@ type UpdateOrganizationRequest struct {
 type InviteUserToOrgRequest struct {
 	Email           string           `json:"email" binding:"required,email"`
 	Role            OrganizationRole `json:"role" binding:"required,oneof=owner admin manager member"`
-	EncryptedOrgKey string           `json:"encrypted_org_key" binding:"required"` // Org key wrapped for invitee
+	EncryptedOrgKey string           `json:"encrypted_org_key,omitempty"` // Org key wrapped for invitee (required for registered users)
 	AccessAll       bool             `json:"access_all"`
 	Collections     []uint           `json:"collections,omitempty"` // Collection IDs to grant access
 }

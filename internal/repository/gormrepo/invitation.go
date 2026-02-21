@@ -97,6 +97,12 @@ func (r *invitationRepository) Delete(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Delete(&domain.Invitation{}, id).Error
 }
 
+func (r *invitationRepository) DeleteByEmail(ctx context.Context, email string) error {
+	return r.db.WithContext(ctx).
+		Where("email = ?", email).
+		Delete(&domain.Invitation{}).Error
+}
+
 func (r *invitationRepository) DeleteExpired(ctx context.Context) error {
 	return r.db.WithContext(ctx).
 		Where("expires_at < ? OR used_at IS NOT NULL", time.Now()).

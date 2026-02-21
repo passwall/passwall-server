@@ -122,6 +122,12 @@ func (r *userActivityRepository) ListByUserIDs(ctx context.Context, userIDs []ui
 	return activities, nil
 }
 
+func (r *userActivityRepository) DeleteByUserID(ctx context.Context, userID uint) error {
+	return r.db.WithContext(ctx).
+		Where("user_id = ?", userID).
+		Delete(&domain.UserActivity{}).Error
+}
+
 func (r *userActivityRepository) DeleteOldActivities(ctx context.Context, olderThan time.Duration) (int64, error) {
 	cutoffTime := time.Now().Add(-olderThan)
 
