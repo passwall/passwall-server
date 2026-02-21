@@ -243,6 +243,37 @@ type OrganizationItemRepository interface {
 	HardDelete(ctx context.Context, id uint) error
 }
 
+// SSOConnectionRepository defines SSO connection data access methods
+type SSOConnectionRepository interface {
+	Create(ctx context.Context, conn *domain.SSOConnection) error
+	GetByID(ctx context.Context, id uint) (*domain.SSOConnection, error)
+	GetByUUID(ctx context.Context, uuid string) (*domain.SSOConnection, error)
+	GetAnyByDomain(ctx context.Context, domain string) (*domain.SSOConnection, error)
+	GetByDomain(ctx context.Context, domain string) (*domain.SSOConnection, error)
+	GetByOrganizationID(ctx context.Context, orgID uint) (*domain.SSOConnection, error)
+	ListByOrganization(ctx context.Context, orgID uint) ([]*domain.SSOConnection, error)
+	Update(ctx context.Context, conn *domain.SSOConnection) error
+	Delete(ctx context.Context, id uint) error
+}
+
+// SSOStateRepository defines SSO transient state data access methods
+type SSOStateRepository interface {
+	Create(ctx context.Context, state *domain.SSOState) error
+	GetByState(ctx context.Context, state string) (*domain.SSOState, error)
+	Delete(ctx context.Context, id uint) error
+	DeleteExpired(ctx context.Context) (int64, error)
+}
+
+// SCIMTokenRepository defines SCIM token data access methods
+type SCIMTokenRepository interface {
+	Create(ctx context.Context, token *domain.SCIMToken) error
+	GetByID(ctx context.Context, id uint) (*domain.SCIMToken, error)
+	GetByTokenHash(ctx context.Context, tokenHash string) (*domain.SCIMToken, error)
+	ListByOrganization(ctx context.Context, orgID uint) ([]*domain.SCIMToken, error)
+	Update(ctx context.Context, token *domain.SCIMToken) error
+	Delete(ctx context.Context, id uint) error
+}
+
 // ItemShareRepository defines item share data access methods
 type ItemShareRepository interface {
 	Create(ctx context.Context, share *domain.ItemShare) error

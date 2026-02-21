@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/passwall/passwall-server/internal/authz"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
 )
@@ -14,6 +15,7 @@ type collectionService struct {
 	collectionTeamRepo repository.CollectionTeamRepository
 	orgUserRepo        repository.OrganizationUserRepository
 	teamRepo           repository.TeamRepository
+	teamUserRepo       repository.TeamUserRepository
 	orgRepo            repository.OrganizationRepository
 	orgItemRepo        repository.OrganizationItemRepository
 	subRepo            interface {
@@ -29,6 +31,7 @@ func NewCollectionService(
 	collectionTeamRepo repository.CollectionTeamRepository,
 	orgUserRepo repository.OrganizationUserRepository,
 	teamRepo repository.TeamRepository,
+	teamUserRepo repository.TeamUserRepository,
 	orgRepo repository.OrganizationRepository,
 	orgItemRepo repository.OrganizationItemRepository,
 	subRepo interface {
@@ -42,6 +45,7 @@ func NewCollectionService(
 		collectionTeamRepo: collectionTeamRepo,
 		orgUserRepo:        orgUserRepo,
 		teamRepo:           teamRepo,
+		teamUserRepo:       teamUserRepo,
 		orgRepo:            orgRepo,
 		orgItemRepo:        orgItemRepo,
 		subRepo:            subRepo,
@@ -483,40 +487,18 @@ func (s *collectionService) checkCollectionAccess(ctx context.Context, orgID, co
 	if err != nil {
 		return false, repository.ErrForbidden
 	}
-
-	// Admins and users with access_all can access all collections
-	if orgUser.IsAdmin() || orgUser.AccessAll {
-		return true, nil
-	}
-
-	// Check direct user access
-	collectionUser, err := s.collectionUserRepo.GetByCollectionAndOrgUser(ctx, collectionID, orgUser.ID)
-	if err == nil && collectionUser != nil && collectionUser.CanRead {
-		return true, nil
-	}
-
-	// Check team access
-	teamUsers, err := s.orgUserRepo.ListByUser(ctx, userID)
+	access, err := authz.ComputeCollectionAccess(
+		ctx,
+		orgUser,
+		collectionID,
+		s.collectionUserRepo,
+		s.collectionTeamRepo,
+		s.teamUserRepo,
+	)
 	if err != nil {
 		return false, err
 	}
-
-	for _, tu := range teamUsers {
-		if tu.OrganizationID == orgID {
-			// Get teams for this org user
-			// This is simplified - in production you'd want to optimize this query
-			collections, err := s.collectionRepo.ListForUser(ctx, orgID, userID)
-			if err == nil {
-				for _, c := range collections {
-					if c.ID == collectionID {
-						return true, nil
-					}
-				}
-			}
-		}
-	}
-
-	return false, nil
+	return access.CanRead, nil
 }
 
 func (s *collectionService) checkCollectionManagePermission(ctx context.Context, orgID, collectionID, userID uint) (bool, error) {
@@ -524,19 +506,18 @@ func (s *collectionService) checkCollectionManagePermission(ctx context.Context,
 	if err != nil {
 		return false, repository.ErrForbidden
 	}
-
-	// Org admins can manage all collections
-	if orgUser.IsAdmin() {
-		return true, nil
+	access, err := authz.ComputeCollectionAccess(
+		ctx,
+		orgUser,
+		collectionID,
+		s.collectionUserRepo,
+		s.collectionTeamRepo,
+		s.teamUserRepo,
+	)
+	if err != nil {
+		return false, err
 	}
-
-	// Check if user has admin permission on this specific collection
-	collectionUser, err := s.collectionUserRepo.GetByCollectionAndOrgUser(ctx, collectionID, orgUser.ID)
-	if err == nil && collectionUser != nil && collectionUser.CanAdmin {
-		return true, nil
-	}
-
-	return false, nil
+	return access.CanAdmin, nil
 }
 
 // getMaxCollections returns max collections limit from subscription plan

@@ -387,7 +387,9 @@ func (h *UserHandler) CheckRSAKeys(c *gin.Context) {
 		return
 	}
 
-	hasKeys := user.RSAPublicKey != nil && *user.RSAPublicKey != ""
+	hasPublic := user.RSAPublicKey != nil && *user.RSAPublicKey != ""
+	hasPrivate := user.RSAPrivateKeyEnc != nil && *user.RSAPrivateKeyEnc != ""
+	hasKeys := hasPublic && hasPrivate
 
 	c.JSON(http.StatusOK, gin.H{"has_rsa_keys": hasKeys})
 }
@@ -448,6 +450,24 @@ func (h *UserHandler) StoreRSAKeys(c *gin.Context) {
 	user, err := h.service.GetByID(ctx, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user"})
+		return
+	}
+
+	hasPublic := user.RSAPublicKey != nil && *user.RSAPublicKey != ""
+	hasPrivate := user.RSAPrivateKeyEnc != nil && *user.RSAPrivateKeyEnc != ""
+
+	// Idempotent no-op when both keys are already present.
+	if hasPublic && hasPrivate {
+		c.JSON(http.StatusOK, gin.H{"message": "RSA keys already configured"})
+		return
+	}
+
+	// Partial keypair is an inconsistent state. Do not overwrite automatically,
+	// because existing organization keys might already be wrapped for this identity.
+	if hasPublic != hasPrivate {
+		c.JSON(http.StatusConflict, gin.H{
+			"error": "rsa keypair is incomplete; manual recovery required",
+		})
 		return
 	}
 

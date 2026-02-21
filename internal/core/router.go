@@ -40,6 +40,9 @@ func SetupRouter(
 	adminMailHandler *httpHandler.AdminMailHandler,
 	adminLogsHandler *httpHandler.AdminLogsHandler,
 	iconsHandler *httpHandler.IconsHandler,
+	ssoHandler *httpHandler.SSOHandler,
+	scimHandler *httpHandler.SCIMHandler,
+	scimService service.SCIMService,
 ) *gin.Engine {
 	// Create router without default middleware
 	router := gin.New()
@@ -65,6 +68,41 @@ func SetupRouter(
 		httpHandler.RateLimitMiddleware(iconRateLimiter),
 		iconsHandler.GetIcon,
 	)
+
+	// ============================================================
+	// SSO ENDPOINTS (public — no JWT auth, IdP-driven)
+	// ============================================================
+	ssoGroup := router.Group("/sso")
+	{
+		ssoGroup.POST("/login", ssoHandler.InitiateLogin)
+		ssoGroup.GET("/callback", ssoHandler.OIDCCallback)
+		ssoGroup.POST("/callback", ssoHandler.OIDCCallback)
+		ssoGroup.GET("/metadata/:connId", ssoHandler.GetSPMetadata)
+	}
+
+	// ============================================================
+	// SCIM 2.0 ENDPOINTS (authenticated via SCIM bearer token)
+	// ============================================================
+	scimGroup := router.Group("/scim/v2")
+	scimGroup.Use(httpHandler.SCIMAuthMiddleware(scimService))
+	{
+		scimGroup.GET("/ServiceProviderConfig", scimHandler.ServiceProviderConfig)
+		scimGroup.GET("/ResourceTypes", scimHandler.ResourceTypes)
+
+		scimGroup.GET("/Users", scimHandler.ListUsers)
+		scimGroup.GET("/Users/:id", scimHandler.GetUser)
+		scimGroup.POST("/Users", scimHandler.CreateUser)
+		scimGroup.PUT("/Users/:id", scimHandler.UpdateUser)
+		scimGroup.PATCH("/Users/:id", scimHandler.PatchUser)
+		scimGroup.DELETE("/Users/:id", scimHandler.DeleteUser)
+
+		scimGroup.GET("/Groups", scimHandler.ListGroups)
+		scimGroup.GET("/Groups/:id", scimHandler.GetGroup)
+		scimGroup.POST("/Groups", scimHandler.CreateGroup)
+		scimGroup.PUT("/Groups/:id", scimHandler.UpdateGroup)
+		scimGroup.PATCH("/Groups/:id", scimHandler.PatchGroup)
+		scimGroup.DELETE("/Groups/:id", scimHandler.DeleteGroup)
+	}
 
 	// Stripe webhook endpoint (no auth - verified by Stripe signature)
 	router.POST("/webhooks/stripe", webhookHandler.HandleStripeWebhook)
@@ -292,6 +330,19 @@ func SetupRouter(
 			// Collections nested under organization
 			orgsGroup.POST("/:id/collections", collectionHandler.Create)
 			orgsGroup.GET("/:id/collections", collectionHandler.List)
+
+			// SSO connection management (org admin)
+			orgsGroup.POST("/:id/sso", ssoHandler.CreateConnection)
+			orgsGroup.GET("/:id/sso", ssoHandler.ListConnections)
+			orgsGroup.GET("/:id/sso/:connId", ssoHandler.GetConnection)
+			orgsGroup.PUT("/:id/sso/:connId", ssoHandler.UpdateConnection)
+			orgsGroup.DELETE("/:id/sso/:connId", ssoHandler.DeleteConnection)
+			orgsGroup.POST("/:id/sso/:connId/activate", ssoHandler.ActivateConnection)
+
+			// SCIM token management (org admin)
+			orgsGroup.POST("/:id/scim/tokens", scimHandler.CreateToken)
+			orgsGroup.GET("/:id/scim/tokens", scimHandler.ListTokens)
+			orgsGroup.DELETE("/:id/scim/tokens/:tokenId", scimHandler.RevokeToken)
 
 			// Payment & Billing routes
 			orgsGroup.POST("/:id/checkout", paymentHandler.CreateCheckoutSession)

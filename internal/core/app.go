@@ -198,11 +198,48 @@ func (a *App) Run(ctx context.Context) error {
 	revenueCatService := service.NewRevenueCatService(userRepo, orgRepo, subscriptionService, planRepo, userActivityService, a.config, serviceLogger)
 
 	teamService := service.NewTeamService(teamRepo, teamUserRepo, orgUserRepo, orgRepo, serviceLogger)
-	collectionService := service.NewCollectionService(collectionRepo, collectionUserRepo, collectionTeamRepo, orgUserRepo, teamRepo, orgRepo, orgItemRepo, subscriptionRepo, serviceLogger)
+	collectionService := service.NewCollectionService(
+		collectionRepo,
+		collectionUserRepo,
+		collectionTeamRepo,
+		orgUserRepo,
+		teamRepo,
+		teamUserRepo,
+		orgRepo,
+		orgItemRepo,
+		subscriptionRepo,
+		serviceLogger,
+	)
 
 	// Organization items service (shared vault)
-	organizationItemService := service.NewOrganizationItemService(orgItemRepo, collectionRepo, orgUserRepo, serviceLogger)
+	organizationItemService := service.NewOrganizationItemService(
+		orgItemRepo,
+		collectionRepo,
+		collectionUserRepo,
+		collectionTeamRepo,
+		teamUserRepo,
+		orgUserRepo,
+		serviceLogger,
+	)
 	organizationFolderService := service.NewOrganizationFolderService(orgFolderRepo, orgItemRepo, orgUserRepo, serviceLogger)
+
+	// SSO & SCIM repos
+	ssoConnRepo := gormrepo.NewSSOConnectionRepository(a.db.DB())
+	ssoStateRepo := gormrepo.NewSSOStateRepository(a.db.DB())
+	scimTokenRepo := gormrepo.NewSCIMTokenRepository(a.db.DB())
+
+	// SSO service
+	serverBaseURL := a.config.Server.Domain
+	ssoService := service.NewSSOService(
+		ssoConnRepo, ssoStateRepo, userRepo, orgUserRepo, orgRepo,
+		authService, serviceLogger, serverBaseURL,
+	)
+
+	// SCIM service
+	scimService := service.NewSCIMService(
+		scimTokenRepo, userRepo, orgUserRepo, teamRepo, teamUserRepo,
+		serviceLogger, serverBaseURL,
+	)
 
 	// Initialize handlers
 	activityHandler := httpHandler.NewActivityHandler(userActivityService)
@@ -228,7 +265,7 @@ func (a *App) Run(ctx context.Context) error {
 	organizationFolderHandler := httpHandler.NewOrganizationFolderHandler(organizationFolderService)
 
 	// Payment handlers
-	paymentHandler := httpHandler.NewPaymentHandler(paymentService, subscriptionService, orgRepo)
+	paymentHandler := httpHandler.NewPaymentHandler(paymentService, subscriptionService, orgRepo, orgUserRepo)
 	webhookHandler := httpHandler.NewWebhookHandler(paymentService, revenueCatService)
 
 	// Support handler
@@ -247,6 +284,10 @@ func (a *App) Run(ctx context.Context) error {
 	)
 	adminMailHandler := httpHandler.NewAdminMailHandler(emailSender, userRepo, serviceLogger)
 	adminLogsHandler := httpHandler.NewAdminLogsHandler()
+
+	// SSO & SCIM handlers
+	ssoHandler := httpHandler.NewSSOHandler(ssoService, organizationService)
+	scimHandler := httpHandler.NewSCIMHandler(scimService, organizationService)
 
 	// Icons handler (public favicon service with protection)
 	iconsHandler := httpHandler.NewIconsHandler(serviceLogger)
@@ -280,6 +321,9 @@ func (a *App) Run(ctx context.Context) error {
 		adminMailHandler,
 		adminLogsHandler,
 		iconsHandler,
+		ssoHandler,
+		scimHandler,
+		scimService,
 	)
 
 	// Create server

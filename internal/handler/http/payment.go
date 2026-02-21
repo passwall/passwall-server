@@ -1,10 +1,13 @@
 package http
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/passwall/passwall-server/internal/authz"
+	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/internal/service"
 )
@@ -13,13 +16,24 @@ type PaymentHandler struct {
 	service             service.PaymentService
 	subscriptionService service.SubscriptionService
 	orgRepo             repository.OrganizationRepository
+	orgUserRepo         interface {
+		GetByOrgAndUser(ctx context.Context, orgID, userID uint) (*domain.OrganizationUser, error)
+	}
 }
 
-func NewPaymentHandler(service service.PaymentService, subscriptionService service.SubscriptionService, orgRepo repository.OrganizationRepository) *PaymentHandler {
+func NewPaymentHandler(
+	service service.PaymentService,
+	subscriptionService service.SubscriptionService,
+	orgRepo repository.OrganizationRepository,
+	orgUserRepo interface {
+		GetByOrgAndUser(ctx context.Context, orgID, userID uint) (*domain.OrganizationUser, error)
+	},
+) *PaymentHandler {
 	return &PaymentHandler{
 		service:             service,
 		subscriptionService: subscriptionService,
 		orgRepo:             orgRepo,
+		orgUserRepo:         orgUserRepo,
 	}
 }
 
@@ -41,6 +55,10 @@ func (h *PaymentHandler) CreateCheckoutSession(c *gin.Context) {
 
 	orgID, ok := GetUintParam(c, "id")
 	if !ok {
+		return
+	}
+
+	if _, ok := h.requireBillingManager(c, ctx, orgID); !ok {
 		return
 	}
 
@@ -118,6 +136,10 @@ func (h *PaymentHandler) GetBillingInfo(c *gin.Context) {
 		return
 	}
 
+	if _, ok := h.requireBillingViewer(c, ctx, orgID); !ok {
+		return
+	}
+
 	billingInfo, err := h.service.GetBillingInfo(ctx, orgID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get billing info", "details": err.Error()})
@@ -145,6 +167,10 @@ func (h *PaymentHandler) CancelSubscription(c *gin.Context) {
 
 	orgID, ok := GetUintParam(c, "id")
 	if !ok {
+		return
+	}
+
+	if _, ok := h.requireBillingManager(c, ctx, orgID); !ok {
 		return
 	}
 
@@ -183,6 +209,10 @@ func (h *PaymentHandler) ReactivateSubscription(c *gin.Context) {
 		return
 	}
 
+	if _, ok := h.requireBillingManager(c, ctx, orgID); !ok {
+		return
+	}
+
 	// Resume subscription using SubscriptionService
 	if err := h.subscriptionService.Resume(ctx, orgID); err != nil {
 		// Return 400 for externally managed subscriptions (RevenueCat/App Store/Play Store)
@@ -217,6 +247,10 @@ func (h *PaymentHandler) SyncSubscription(c *gin.Context) {
 		return
 	}
 
+	if _, ok := h.requireBillingManager(c, ctx, orgID); !ok {
+		return
+	}
+
 	if err := h.service.SyncSubscription(ctx, orgID); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -243,6 +277,10 @@ func (h *PaymentHandler) PreviewSeatChange(c *gin.Context) {
 
 	orgID, ok := GetUintParam(c, "id")
 	if !ok {
+		return
+	}
+
+	if _, ok := h.requireBillingManager(c, ctx, orgID); !ok {
 		return
 	}
 
@@ -293,6 +331,10 @@ func (h *PaymentHandler) UpdateSubscriptionSeats(c *gin.Context) {
 
 	orgID, ok := GetUintParam(c, "id")
 	if !ok {
+		return
+	}
+
+	if _, ok := h.requireBillingManager(c, ctx, orgID); !ok {
 		return
 	}
 
@@ -349,6 +391,10 @@ func (h *PaymentHandler) PreviewPlanChange(c *gin.Context) {
 		return
 	}
 
+	if _, ok := h.requireBillingManager(c, ctx, orgID); !ok {
+		return
+	}
+
 	var req CreateCheckoutRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
@@ -392,6 +438,10 @@ func (h *PaymentHandler) ChangePlan(c *gin.Context) {
 
 	orgID, ok := GetUintParam(c, "id")
 	if !ok {
+		return
+	}
+
+	if _, ok := h.requireBillingManager(c, ctx, orgID); !ok {
 		return
 	}
 
@@ -454,4 +504,40 @@ func isExternalProviderError(err error) bool {
 	msg := err.Error()
 	return strings.Contains(msg, "managed by") && (strings.Contains(msg, "App Store") ||
 		strings.Contains(msg, "Play Store") || strings.Contains(msg, "directly"))
+}
+
+func (h *PaymentHandler) requireBillingViewer(c *gin.Context, ctx context.Context, orgID uint) (uint, bool) {
+	userID, err := GetUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return 0, false
+	}
+	orgUser, err := h.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	if err != nil || orgUser == nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return 0, false
+	}
+	if authz.CanViewBilling(orgUser.Role) {
+		return userID, true
+	}
+	c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+	return 0, false
+}
+
+func (h *PaymentHandler) requireBillingManager(c *gin.Context, ctx context.Context, orgID uint) (uint, bool) {
+	userID, err := GetUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return 0, false
+	}
+	orgUser, err := h.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	if err != nil || orgUser == nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return 0, false
+	}
+	if authz.CanManageBilling(orgUser.Role) {
+		return userID, true
+	}
+	c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+	return 0, false
 }

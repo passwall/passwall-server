@@ -91,6 +91,15 @@ func AutoMigrate(db database.Database) error {
 		return fmt.Errorf("failed to migrate organization tables: %w", err)
 	}
 
+	// SSO & SCIM tables (Enterprise features)
+	if err := db.AutoMigrate(
+		&domain.SSOConnection{},
+		&domain.SSOState{},
+		&domain.SCIMToken{},
+	); err != nil {
+		return fmt.Errorf("failed to migrate SSO/SCIM tables: %w", err)
+	}
+
 	logger.Infof("✓ Database schema migrated successfully")
 	return nil
 }

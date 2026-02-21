@@ -364,6 +364,68 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 	}, nil
 }
 
+// IssueTokenForUser creates a fresh authenticated session for an existing user.
+// Used by trusted auth flows (e.g., OIDC SSO callback) after identity verification.
+func (s *authService) IssueTokenForUser(ctx context.Context, userID uint, app string, deviceID string) (*domain.AuthResponse, error) {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, ErrUnauthorized
+		}
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	// Keep the same signin policy: only verified accounts get tokens.
+	if !user.IsVerified {
+		return nil, errors.New("email not verified")
+	}
+
+	sessionUUID := uuid.NewV4()
+	deviceUUID := uuid.FromStringOrNil(deviceID)
+	if deviceID != "" && deviceUUID != uuid.Nil {
+		sessionUUID = deviceUUID
+		_ = s.tokenRepo.DeleteBySessionUUID(ctx, sessionUUID.String())
+	}
+
+	if err := s.enforceDeviceLimit(ctx, user); err != nil {
+		return nil, err
+	}
+
+	tokenDetails, err := s.createToken(user, sessionUUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create token: %w", err)
+	}
+
+	if err := s.tokenRepo.Create(ctx, int(user.ID), tokenDetails.SessionUUID, deviceUUID, app, "access", tokenDetails.AtUUID, tokenDetails.AccessToken, tokenDetails.AtExpiresTime); err != nil {
+		return nil, fmt.Errorf("failed to store access token: %w", err)
+	}
+	if err := s.tokenRepo.Create(ctx, int(user.ID), tokenDetails.SessionUUID, deviceUUID, app, "refresh", tokenDetails.RtUUID, tokenDetails.RefreshToken, tokenDetails.RtExpiresTime); err != nil {
+		return nil, fmt.Errorf("failed to store refresh token: %w", err)
+	}
+
+	return &domain.AuthResponse{
+		AccessToken:           tokenDetails.AccessToken,
+		RefreshToken:          tokenDetails.RefreshToken,
+		Type:                  "Bearer",
+		AccessTokenExpiresAt:  tokenDetails.AccessTokenExpiresAt,
+		RefreshTokenExpiresAt: tokenDetails.RefreshTokenExpiresAt,
+		ProtectedUserKey:      user.ProtectedUserKey,
+		KdfConfig:             user.GetKdfConfig(),
+		User: &domain.UserAuthDTO{
+			ID:                     user.ID,
+			UUID:                   user.UUID.String(),
+			Email:                  user.Email,
+			Name:                   user.Name,
+			Schema:                 user.Schema,
+			Role:                   user.GetRoleName(),
+			IsVerified:             user.IsVerified,
+			Language:               user.Language,
+			PersonalOrganizationID: user.PersonalOrganizationID,
+			DefaultOrganizationID:  user.DefaultOrganizationID,
+		},
+	}, nil
+}
+
 func (s *authService) enforceDeviceLimit(ctx context.Context, user *domain.User) error {
 	sub, err := s.subRepo.GetByOrganizationID(ctx, user.PersonalOrganizationID)
 	if err != nil || sub == nil || sub.Plan == nil || !sub.Plan.IsFree() {

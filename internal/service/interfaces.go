@@ -24,6 +24,7 @@ type AuthService interface {
 	ChangeMasterPassword(ctx context.Context, req *domain.ChangeMasterPasswordRequest) error
 	RefreshToken(ctx context.Context, refreshToken string) (*domain.TokenDetails, error)
 	ValidateToken(ctx context.Context, token string) (*domain.TokenClaims, error)
+	IssueTokenForUser(ctx context.Context, userID uint, app string, deviceID string) (*domain.AuthResponse, error)
 	// SignOut revokes only the current session (device), not all sessions.
 	// Use token UUID (from JWT claims) to locate and revoke the session.
 	SignOut(ctx context.Context, tokenUUID string) error
