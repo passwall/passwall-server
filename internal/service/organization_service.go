@@ -430,52 +430,13 @@ func (s *organizationService) InviteUser(ctx context.Context, orgID uint, invite
 		return nil, fmt.Errorf("organization has reached max users limit (%d)", maxUsers)
 	}
 
-	// Get invitee user by email
+	// Get invitee user by email (must be already registered)
 	invitee, err := s.userRepo.GetByEmail(ctx, req.Email)
-
-	// CASE 1: User is not registered yet
 	if err != nil {
-		// User not found - create pending invitation
-		inviter, err := s.userRepo.GetByID(ctx, inviterUserID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get inviter info: %w", err)
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, fmt.Errorf("user not found in Passwall. Invite via 'Invite a Friend' first")
 		}
-
-		orgRoleStr := string(req.Role)
-		accessAll := req.AccessAll
-		var encryptedOrgKey *string
-		if req.EncryptedOrgKey != "" {
-			encryptedOrgKey = &req.EncryptedOrgKey
-		}
-
-		// Create invitation with organization info
-		invitationReq := &domain.CreateInvitationRequest{
-			Email:           req.Email,
-			RoleID:          2, // Member role for platform access
-			OrganizationID:  &orgID,
-			OrgRole:         &orgRoleStr,
-			EncryptedOrgKey: encryptedOrgKey,
-			AccessAll:       &accessAll,
-		}
-
-		_, err = s.invitationService.CreateInvitation(ctx, invitationReq, inviterUserID, inviter.Name)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create invitation: %w", err)
-		}
-
-		s.logger.Info("pending invitation created for non-registered user",
-			"org_id", orgID,
-			"email", req.Email,
-			"org_role", req.Role)
-
-		// Return nil (no org user created yet - will be created after signup)
-		return nil, nil
-	}
-
-	// CASE 2: User is registered
-	// Registered user invites require invitee-specific wrapped org key.
-	if req.EncryptedOrgKey == "" {
-		return nil, fmt.Errorf("invitee rsa_public_key is required for registered users")
+		return nil, fmt.Errorf("failed to get invitee by email: %w", err)
 	}
 
 	// Check if user is already a member
