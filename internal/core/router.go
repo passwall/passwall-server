@@ -21,7 +21,6 @@ func SetupRouter(
 	itemHandler *httpHandler.ItemHandler,
 	itemShareHandler *httpHandler.ItemShareHandler,
 	excludedDomainHandler *httpHandler.ExcludedDomainHandler,
-	folderHandler *httpHandler.FolderHandler,
 	userHandler *httpHandler.UserHandler,
 	userNotificationPreferencesHandler *httpHandler.UserNotificationPreferencesHandler,
 	userAppearancePreferencesHandler *httpHandler.UserAppearancePreferencesHandler,
@@ -197,12 +196,6 @@ func SetupRouter(
 		apiGroup.DELETE("/excluded-domains/:id", excludedDomainHandler.Delete)
 		apiGroup.DELETE("/excluded-domains/by-domain/:domain", excludedDomainHandler.DeleteByDomain)
 		apiGroup.GET("/excluded-domains/check/:domain", excludedDomainHandler.Check)
-
-		// Folders API (for organizing vault items)
-		apiGroup.GET("/folders", folderHandler.List)
-		apiGroup.POST("/folders", folderHandler.Create)
-		apiGroup.PUT("/folders/:id", folderHandler.Update)
-		apiGroup.DELETE("/folders/:id", folderHandler.Delete)
 
 		// NOTE: All legacy endpoints (logins, credit-cards, bank-accounts, notes, emails, servers)
 		// have been migrated to the modern /api/items endpoint.

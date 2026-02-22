@@ -58,7 +58,6 @@ func AutoMigrate(db database.Database) error {
 	// User-related tables
 	if err := db.AutoMigrate(
 		&domain.ExcludedDomain{},
-		&domain.Folder{},
 		&domain.Preference{},
 		&domain.Invitation{},
 	); err != nil {

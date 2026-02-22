@@ -29,9 +29,10 @@ const (
 	MaxPageSize = 50000
 )
 
-// DefaultFolders are automatically created for new users
-var DefaultFolders = []string{"Work", "Personal", "Family", "Social"}
-
 func IsDev() bool {
 	return os.Getenv("APP_ENV") == "dev"
 }
+
+// DefaultPersonalVaultFolders are created as organization-level folders
+// when a Personal Vault organization is provisioned.
+var DefaultPersonalVaultFolders = []string{"Work", "Personal", "Family", "Social"}

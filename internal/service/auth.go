@@ -37,9 +37,9 @@ type authService struct {
 	userRepo         repository.UserRepository
 	tokenRepo        repository.TokenRepository
 	verificationRepo repository.VerificationRepository
-	folderRepo       repository.FolderRepository
 	orgRepo          repository.OrganizationRepository
 	orgUserRepo      repository.OrganizationUserRepository
+	orgFolderRepo    repository.OrganizationFolderRepository
 	invitationRepo   repository.InvitationRepository
 	subRepo          interface {
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
@@ -56,9 +56,9 @@ func NewAuthService(
 	userRepo repository.UserRepository,
 	tokenRepo repository.TokenRepository,
 	verificationRepo repository.VerificationRepository,
-	folderRepo repository.FolderRepository,
 	orgRepo repository.OrganizationRepository,
 	orgUserRepo repository.OrganizationUserRepository,
+	orgFolderRepo repository.OrganizationFolderRepository,
 	invitationRepo repository.InvitationRepository,
 	subRepo interface {
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
@@ -73,9 +73,9 @@ func NewAuthService(
 		userRepo:         userRepo,
 		tokenRepo:        tokenRepo,
 		verificationRepo: verificationRepo,
-		folderRepo:       folderRepo,
 		orgRepo:          orgRepo,
 		orgUserRepo:      orgUserRepo,
+		orgFolderRepo:    orgFolderRepo,
 		invitationRepo:   invitationRepo,
 		subRepo:          subRepo,
 		activityService:  activityService,
@@ -177,16 +177,13 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
-	// Create default folders for new user
-	if err := s.createDefaultFolders(ctx, user.ID); err != nil {
-		s.logger.Error("failed to create default folders", "user_id", user.ID, "error", err)
-		// Don't fail signup if folder creation fails
-	}
-
 	// Finalize the Personal Vault: add membership and attach ownership metadata.
 	if err := s.attachUserToPersonalOrganization(ctx, user, org, req.EncryptedOrgKey); err != nil {
 		s.logger.Error("failed to attach user to personal organization", "user_id", user.ID, "org_id", org.ID, "error", err)
 		return nil, fmt.Errorf("failed to attach user to personal organization: %w", err)
+	}
+	if err := s.createDefaultPersonalVaultFolders(ctx, org.ID, user.ID); err != nil {
+		s.logger.Error("failed to create default personal vault folders", "user_id", user.ID, "org_id", org.ID, "error", err)
 	}
 
 	// Note: Organization invitations remain pending - user will see them after sign-in
@@ -819,26 +816,6 @@ func generateSchema(email string) string {
 	return "user_" + uuid.NewV5(uuid.NamespaceURL, email).String()[:8]
 }
 
-// createDefaultFolders creates default folders for a new user
-func (s *authService) createDefaultFolders(ctx context.Context, userID uint) error {
-	for _, folderName := range constants.DefaultFolders {
-		folder := &domain.Folder{
-			UUID:   uuid.NewV4(),
-			UserID: userID,
-			Name:   folderName,
-		}
-
-		if err := s.folderRepo.Create(ctx, folder); err != nil {
-			s.logger.Error("failed to create default folder", "folder", folderName, "user_id", userID, "error", err)
-			// Continue creating other folders even if one fails
-			continue
-		}
-	}
-
-	s.logger.Info("created default folders", "user_id", userID, "count", len(constants.DefaultFolders))
-	return nil
-}
-
 // createPersonalOrganization creates a Personal Vault organization row (without user membership yet).
 // It must run before the user row is inserted because the DB enforces users.personal_organization_id/default_organization_id NOT NULL.
 func (s *authService) createPersonalOrganization(ctx context.Context, userName string, userEmail string, encryptedOrgKey string) (*domain.Organization, error) {
@@ -902,6 +879,29 @@ func (s *authService) attachUserToPersonalOrganization(ctx context.Context, user
 		"org_id", org.ID,
 		"org_name", org.Name)
 
+	return nil
+}
+
+func (s *authService) createDefaultPersonalVaultFolders(ctx context.Context, orgID, userID uint) error {
+	for _, folderName := range constants.DefaultPersonalVaultFolders {
+		existing, err := s.orgFolderRepo.GetByOrganizationAndName(ctx, orgID, folderName)
+		if err != nil && err != repository.ErrNotFound {
+			return err
+		}
+		if existing != nil {
+			continue
+		}
+
+		folder := &domain.OrganizationFolder{
+			UUID:           uuid.NewV4(),
+			OrganizationID: orgID,
+			CreatedByUserID: userID,
+			Name:           folderName,
+		}
+		if err := s.orgFolderRepo.Create(ctx, folder); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

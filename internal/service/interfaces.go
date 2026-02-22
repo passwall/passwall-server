@@ -80,14 +80,6 @@ type ExcludedDomainService interface {
 	IsExcluded(ctx context.Context, userID uint, domain string) (bool, error)
 }
 
-// FolderService defines the business logic for folders
-type FolderService interface {
-	Create(ctx context.Context, userID uint, req *domain.CreateFolderRequest) (*domain.Folder, error)
-	GetByUserID(ctx context.Context, userID uint) ([]*domain.Folder, error)
-	Update(ctx context.Context, id uint, userID uint, req *domain.UpdateFolderRequest) (*domain.Folder, error)
-	Delete(ctx context.Context, schema string, id uint, userID uint) error
-}
-
 // OrganizationFolderService defines the business logic for organization folders
 type OrganizationFolderService interface {
 	ListByOrganization(ctx context.Context, orgID, userID uint) ([]*domain.OrganizationFolder, error)

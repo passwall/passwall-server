@@ -87,7 +87,6 @@ func (a *App) Run(ctx context.Context) error {
 	verificationRepo := gormrepo.NewVerificationRepository(a.db.DB())
 	userActivityRepo := gormrepo.NewUserActivityRepository(a.db.DB())
 	excludedDomainRepo := gormrepo.NewExcludedDomainRepository(a.db.DB())
-	folderRepo := gormrepo.NewFolderRepository(a.db.DB())
 	preferencesRepo := gormrepo.NewPreferencesRepository(a.db.DB())
 	invitationRepo := gormrepo.NewInvitationRepository(a.db.DB())
 
@@ -141,7 +140,6 @@ func (a *App) Run(ctx context.Context) error {
 	// Initialize services
 	userActivityService := service.NewUserActivityService(userActivityRepo, serviceLogger)
 	excludedDomainService := service.NewExcludedDomainService(excludedDomainRepo, serviceLogger)
-	folderService := service.NewFolderService(folderRepo, serviceLogger)
 	preferencesService := service.NewPreferencesService(preferencesRepo, serviceLogger)
 	verificationService := service.NewVerificationService(verificationRepo, userRepo, serviceLogger)
 
@@ -149,15 +147,15 @@ func (a *App) Run(ctx context.Context) error {
 	subscriptionRepo := gormrepo.NewSubscriptionRepository(a.db.DB())
 	planRepo := gormrepo.NewPlanRepository(a.db.DB())
 
-	authService := service.NewAuthService(userRepo, tokenRepo, verificationRepo, folderRepo, orgRepo, orgUserRepo, invitationRepo, subscriptionRepo, userActivityService, emailSender, emailBuilder, authConfig, serviceLogger)
+	authService := service.NewAuthService(userRepo, tokenRepo, verificationRepo, orgRepo, orgUserRepo, orgFolderRepo, invitationRepo, subscriptionRepo, userActivityService, emailSender, emailBuilder, authConfig, serviceLogger)
 	userService := service.NewUserService(
 		userRepo,
 		orgRepo,
 		orgUserRepo,
+		orgFolderRepo,
 		teamUserRepo,
 		collectionUserRepo,
 		itemShareRepo,
-		folderRepo,
 		invitationRepo,
 		userActivityRepo,
 		serviceLogger,
@@ -267,8 +265,6 @@ func (a *App) Run(ctx context.Context) error {
 	itemHandler := httpHandler.NewItemHandler(itemService)
 	itemShareHandler := httpHandler.NewItemShareHandler(itemShareService)
 	excludedDomainHandler := httpHandler.NewExcludedDomainHandler(excludedDomainService)
-	folderHandler := httpHandler.NewFolderHandler(folderService)
-
 	// Organization handlers
 	organizationHandler := httpHandler.NewOrganizationHandler(organizationService, subscriptionRepo)
 	teamHandler := httpHandler.NewTeamHandler(teamService)
@@ -314,7 +310,6 @@ func (a *App) Run(ctx context.Context) error {
 		itemHandler,
 		itemShareHandler,
 		excludedDomainHandler,
-		folderHandler,
 		userHandler,
 		userNotificationPreferencesHandler,
 		userAppearancePreferencesHandler,

@@ -17,10 +17,10 @@ type userService struct {
 	repo               repository.UserRepository
 	orgRepo            repository.OrganizationRepository
 	orgUserRepo        repository.OrganizationUserRepository
+	orgFolderRepo      repository.OrganizationFolderRepository
 	teamUserRepo       repository.TeamUserRepository
 	collectionUserRepo repository.CollectionUserRepository
 	itemShareRepo      repository.ItemShareRepository
-	folderRepo         repository.FolderRepository
 	invitationRepo     repository.InvitationRepository
 	userActivityRepo   repository.UserActivityRepository
 	logger             Logger
@@ -31,10 +31,10 @@ func NewUserService(
 	repo repository.UserRepository,
 	orgRepo repository.OrganizationRepository,
 	orgUserRepo repository.OrganizationUserRepository,
+	orgFolderRepo repository.OrganizationFolderRepository,
 	teamUserRepo repository.TeamUserRepository,
 	collectionUserRepo repository.CollectionUserRepository,
 	itemShareRepo repository.ItemShareRepository,
-	folderRepo repository.FolderRepository,
 	invitationRepo repository.InvitationRepository,
 	userActivityRepo repository.UserActivityRepository,
 	logger Logger,
@@ -43,10 +43,10 @@ func NewUserService(
 		repo:               repo,
 		orgRepo:            orgRepo,
 		orgUserRepo:        orgUserRepo,
+		orgFolderRepo:      orgFolderRepo,
 		teamUserRepo:       teamUserRepo,
 		collectionUserRepo: collectionUserRepo,
 		itemShareRepo:      itemShareRepo,
-		folderRepo:         folderRepo,
 		invitationRepo:     invitationRepo,
 		userActivityRepo:   userActivityRepo,
 		logger:             logger,
@@ -197,12 +197,6 @@ func (s *userService) CreateByAdmin(ctx context.Context, req *domain.CreateUserB
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
-	// Create default folders for new user (same behavior as normal signup).
-	if err := s.createDefaultFolders(ctx, user.ID); err != nil {
-		s.logger.Error("failed to create default folders", "user_id", user.ID, "error", err)
-		// Don't fail user creation if folder creation fails
-	}
-
 	// Attach user to org + finalize ownership metadata
 	now := time.Now()
 	orgUser := &domain.OrganizationUser{
@@ -226,6 +220,9 @@ func (s *userService) CreateByAdmin(ctx context.Context, req *domain.CreateUserB
 	if err := s.orgRepo.Update(ctx, org); err != nil {
 		return nil, fmt.Errorf("failed to finalize personal organization: %w", err)
 	}
+	if err := s.createDefaultPersonalVaultFolders(ctx, org.ID, user.ID); err != nil {
+		s.logger.Error("failed to create default personal vault folders", "user_id", user.ID, "org_id", org.ID, "error", err)
+	}
 
 	s.logger.Info("user created by admin (zero-knowledge)",
 		"id", user.ID,
@@ -242,23 +239,26 @@ func generateSchemaFromEmail(email string) string {
 	return "user_" + uuid.NewV5(uuid.NamespaceURL, email).String()[:8]
 }
 
-// createDefaultFolders creates default folders for a new user.
-func (s *userService) createDefaultFolders(ctx context.Context, userID uint) error {
-	for _, folderName := range constants.DefaultFolders {
-		folder := &domain.Folder{
-			UUID:   uuid.NewV4(),
-			UserID: userID,
-			Name:   folderName,
+func (s *userService) createDefaultPersonalVaultFolders(ctx context.Context, orgID, userID uint) error {
+	for _, folderName := range constants.DefaultPersonalVaultFolders {
+		existing, err := s.orgFolderRepo.GetByOrganizationAndName(ctx, orgID, folderName)
+		if err != nil && err != repository.ErrNotFound {
+			return err
 		}
-
-		if err := s.folderRepo.Create(ctx, folder); err != nil {
-			s.logger.Error("failed to create default folder", "folder", folderName, "user_id", userID, "error", err)
-			// Continue creating other folders even if one fails
+		if existing != nil {
 			continue
 		}
-	}
 
-	s.logger.Info("created default folders", "user_id", userID, "count", len(constants.DefaultFolders))
+		folder := &domain.OrganizationFolder{
+			UUID:            uuid.NewV4(),
+			OrganizationID:  orgID,
+			CreatedByUserID: userID,
+			Name:            folderName,
+		}
+		if err := s.orgFolderRepo.Create(ctx, folder); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -365,11 +365,6 @@ func (s *userService) Delete(ctx context.Context, id uint, schema string) error 
 				return err
 			}
 		}
-	}
-
-	if err := s.folderRepo.DeleteByUserID(ctx, id); err != nil {
-		s.logger.Error("failed to delete folders while deleting user", "id", id, "error", err)
-		return err
 	}
 
 	if err := s.userActivityRepo.DeleteByUserID(ctx, id); err != nil {
