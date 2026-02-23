@@ -308,7 +308,6 @@ func (s *organizationService) List(ctx context.Context, userID uint) ([]*domain.
 		return nil, fmt.Errorf("failed to list organizations: %w", err)
 	}
 
-	// Fetch stats for each organization
 	for _, org := range orgs {
 		// Get member count
 		if memberCount, err := s.orgRepo.GetMemberCount(ctx, org.ID); err == nil {
@@ -398,6 +397,15 @@ func (s *organizationService) Delete(ctx context.Context, id uint, userID uint) 
 func (s *organizationService) InviteUser(ctx context.Context, orgID uint, inviterUserID uint, req *domain.InviteUserToOrgRequest) (*domain.OrganizationUser, error) {
 	if !isSupportedOrgRole(req.Role) {
 		return nil, fmt.Errorf("invalid organization role: %s", req.Role)
+	}
+
+	// Personal vaults are single-user; members must be invited to a shared organization.
+	org, err := s.orgRepo.GetByID(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("organization not found: %w", err)
+	}
+	if org.IsPersonal {
+		return nil, fmt.Errorf("cannot invite members to a personal vault; create a separate organization for sharing")
 	}
 
 	// Check if inviter can manage users
@@ -661,6 +669,15 @@ func (s *organizationService) AcceptInvitation(ctx context.Context, orgUserID ui
 func (s *organizationService) AddExistingMember(ctx context.Context, orgUser *domain.OrganizationUser) error {
 	if orgUser == nil || orgUser.EncryptedOrgKey == "" {
 		return fmt.Errorf("encrypted_org_key is required")
+	}
+
+	// Personal vaults are single-user; reject adding members.
+	org, err := s.orgRepo.GetByID(ctx, orgUser.OrganizationID)
+	if err != nil {
+		return fmt.Errorf("organization not found: %w", err)
+	}
+	if org.IsPersonal {
+		return fmt.Errorf("cannot add members to a personal vault")
 	}
 
 	// Check if user is already a member

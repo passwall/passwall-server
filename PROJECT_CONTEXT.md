@@ -294,7 +294,7 @@ type Subscription struct {
 ```go
 type Plan struct {
     ID           uint
-    Code         string  // free-monthly, premium-yearly, etc.
+    Code         string  // free-monthly, pro-yearly, etc.
     Name         string
     BillingCycle string  // monthly, yearly
     PriceCents   int
@@ -553,8 +553,8 @@ func GetEffectiveRole(membership Membership, subscription Subscription) Role {
 | Code | Name | Cycle | Price | Users | Features |
 |------|------|-------|-------|-------|----------|
 | `free-monthly` | Free | monthly | $0 | 1 | Basic |
-| `premium-monthly` | Premium | monthly | $2.99 | 1 | API |
-| `premium-yearly` | Premium | yearly | $29.90 | 1 | API |
+| `pro-monthly` | Pro | monthly | $2.99 | 1 | API |
+| `pro-yearly` | Pro | yearly | $29.90 | 1 | API |
 | `family-monthly` | Family | monthly | $5.99 | 6 | Sharing, API |
 | `family-yearly` | Family | yearly | $59.90 | 6 | Sharing, API |
 | `team-monthly` | Team | monthly | $9.99 | 10 | Teams, Priority |

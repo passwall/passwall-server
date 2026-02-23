@@ -67,6 +67,13 @@ func (s *paymentService) CreateCheckoutSession(ctx context.Context, orgID, userI
 		return "", fmt.Errorf("organization not found: %w", err)
 	}
 
+	if org.IsPersonal && domain.IsMultiUserPlan(plan) {
+		return "", fmt.Errorf("personal vaults can only be upgraded to Pro; create a separate organization for Family, Team, or Business plans")
+	}
+	if !org.IsPersonal && domain.IsPersonalVaultPlan(plan) && plan != string(domain.PlanFree) {
+		return "", fmt.Errorf("Pro plan is only available for personal vaults")
+	}
+
 	// Enforce minimum seats: cannot buy fewer seats than current members.
 	// This prevents under-purchasing and immediate lockouts.
 	if seats < 1 {
@@ -265,7 +272,7 @@ func (s *paymentService) UpdateSubscriptionSeats(ctx context.Context, orgID, use
 	}
 
 	// Only allow seat changes for seat-based plans (family/team/business).
-	// Premium/free are not seat-based in our pricing model.
+	// Pro/free are not seat-based in our pricing model.
 	base := strings.Split(sub.Plan.Code, "-")[0]
 	if base != "family" && base != "team" && base != "business" {
 		return fmt.Errorf("plan does not support seat changes")
@@ -302,6 +309,17 @@ func (s *paymentService) UpdateSubscriptionSeats(ctx context.Context, orgID, use
 func (s *paymentService) PreviewPlanChange(ctx context.Context, orgID, userID uint, plan, billingCycle string, seats int) (*domain.PlanChangePreview, error) {
 	if err := s.authorizeOwnerOrAdmin(ctx, orgID, userID); err != nil {
 		return nil, err
+	}
+
+	org, err := s.orgRepo.GetByID(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("organization not found: %w", err)
+	}
+	if org.IsPersonal && domain.IsMultiUserPlan(plan) {
+		return nil, fmt.Errorf("personal vaults can only be upgraded to Pro; create a separate organization for Family, Team, or Business plans")
+	}
+	if !org.IsPersonal && domain.IsPersonalVaultPlan(plan) && plan != string(domain.PlanFree) {
+		return nil, fmt.Errorf("Pro plan is only available for personal vaults")
 	}
 
 	sub, err := s.subscriptionService.GetByOrganizationID(ctx, orgID)
@@ -358,6 +376,17 @@ func (s *paymentService) PreviewPlanChange(ctx context.Context, orgID, userID ui
 func (s *paymentService) ChangePlan(ctx context.Context, orgID, userID uint, plan, billingCycle string, seats int, ipAddress, userAgent string) (*domain.PlanChangeResult, error) {
 	if err := s.authorizeOwnerOrAdmin(ctx, orgID, userID); err != nil {
 		return nil, err
+	}
+
+	org, err := s.orgRepo.GetByID(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("organization not found: %w", err)
+	}
+	if org.IsPersonal && domain.IsMultiUserPlan(plan) {
+		return nil, fmt.Errorf("personal vaults can only be upgraded to Pro; create a separate organization for Family, Team, or Business plans")
+	}
+	if !org.IsPersonal && domain.IsPersonalVaultPlan(plan) && plan != string(domain.PlanFree) {
+		return nil, fmt.Errorf("Pro plan is only available for personal vaults")
 	}
 
 	sub, err := s.subscriptionService.GetByOrganizationID(ctx, orgID)

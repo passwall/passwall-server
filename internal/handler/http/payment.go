@@ -69,7 +69,7 @@ func (h *PaymentHandler) CreateCheckoutSession(c *gin.Context) {
 	}
 
 	// Validate plan
-	validPlans := []string{"premium", "family", "team", "business"}
+	validPlans := []string{"pro", "family", "team", "business"}
 	isValid := false
 	for _, plan := range validPlans {
 		if req.Plan == plan {
@@ -482,7 +482,7 @@ func (h *PaymentHandler) ChangePlan(c *gin.Context) {
 
 // Request/Response types
 type CreateCheckoutRequest struct {
-	Plan         string `json:"plan" binding:"required"`          // premium, family, team, business
+	Plan         string `json:"plan" binding:"required"`          // pro, family, team, business
 	BillingCycle string `json:"billing_cycle" binding:"required"` // monthly, yearly
 	Seats        int    `json:"seats" binding:"required"`         // user count (quantity). Use 1 for non-per-user plans.
 }

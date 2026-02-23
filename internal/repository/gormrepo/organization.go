@@ -155,6 +155,41 @@ func (r *organizationRepository) ListForUser(ctx context.Context, userID uint) (
 		return nil, err
 	}
 
+	if len(orgs) == 0 {
+		return orgs, nil
+	}
+
+	// Batch-fetch user-specific wrapped org keys from organization_users.
+	// Each member has their own encrypted_org_key (org key wrapped with their User Key).
+	// The organizations table stores the owner's copy, which is wrong for non-owner members.
+	orgIDs := make([]uint, len(orgs))
+	for i, o := range orgs {
+		orgIDs[i] = o.ID
+	}
+
+	type orgKeyRow struct {
+		OrganizationID  uint   `gorm:"column:organization_id"`
+		EncryptedOrgKey string `gorm:"column:encrypted_org_key"`
+	}
+	var keys []orgKeyRow
+	if err := r.db.WithContext(ctx).
+		Table("organization_users").
+		Select("organization_id, encrypted_org_key").
+		Where("user_id = ? AND organization_id IN ?", userID, orgIDs).
+		Find(&keys).Error; err != nil {
+		return nil, fmt.Errorf("failed to fetch user org keys: %w", err)
+	}
+
+	keyByOrg := make(map[uint]string, len(keys))
+	for _, k := range keys {
+		keyByOrg[k.OrganizationID] = k.EncryptedOrgKey
+	}
+	for _, org := range orgs {
+		if key, ok := keyByOrg[org.ID]; ok {
+			org.EncryptedOrgKey = key
+		}
+	}
+
 	return orgs, nil
 }
 

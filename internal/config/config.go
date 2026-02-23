@@ -81,7 +81,7 @@ type StripeConfig struct {
 // PlanConfig defines a subscription plan
 type PlanConfig struct {
 	Code           string       `mapstructure:"code"`            // Plan code (e.g., "personal-monthly")
-	Name           string       `mapstructure:"name"`            // Display name (e.g., "Premium")
+	Name           string       `mapstructure:"name"`            // Display name (e.g., "Pro")
 	BillingCycle   string       `mapstructure:"billing_cycle"`   // "monthly" or "yearly"
 	PriceCents     int          `mapstructure:"price_cents"`     // Price in cents
 	Currency       string       `mapstructure:"currency"`        // Currency code (e.g., "USD")

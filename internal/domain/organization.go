@@ -14,12 +14,46 @@ type OrganizationPlan string
 
 const (
 	PlanFree       OrganizationPlan = "free"
-	PlanPremium    OrganizationPlan = "premium" // Premium plan does NOT use organizations
+	PlanPro        OrganizationPlan = "pro" // Pro plan does NOT use organizations
 	PlanFamily     OrganizationPlan = "family"
 	PlanTeam       OrganizationPlan = "team"
 	PlanBusiness   OrganizationPlan = "business"
 	PlanEnterprise OrganizationPlan = "enterprise"
 )
+
+// IsPersonalVaultPlan returns true for plans that can only be assigned to personal vaults.
+func IsPersonalVaultPlan(plan string) bool {
+	base := plan
+	for _, suffix := range []string{"-monthly", "-yearly"} {
+		if len(base) > len(suffix) && base[len(base)-len(suffix):] == suffix {
+			base = base[:len(base)-len(suffix)]
+			break
+		}
+	}
+	switch OrganizationPlan(base) {
+	case PlanFree, PlanPro:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsMultiUserPlan returns true for plans that require a non-personal organization.
+func IsMultiUserPlan(plan string) bool {
+	base := plan
+	for _, suffix := range []string{"-monthly", "-yearly"} {
+		if len(base) > len(suffix) && base[len(base)-len(suffix):] == suffix {
+			base = base[:len(base)-len(suffix)]
+			break
+		}
+	}
+	switch OrganizationPlan(base) {
+	case PlanFamily, PlanTeam, PlanBusiness, PlanEnterprise:
+		return true
+	default:
+		return false
+	}
+}
 
 // Organization represents a team/company organization
 type Organization struct {
@@ -183,6 +217,7 @@ type OrganizationDTO struct {
 	Name               string             `json:"name"`
 	BillingEmail       string             `json:"billing_email"`
 	IsDefault          bool               `json:"is_default"`
+	IsPersonal         bool               `json:"is_personal"`
 	CreatedByUserID    *uint              `json:"created_by_user_id,omitempty"`
 	CreatedByUserEmail *string            `json:"created_by_user_email,omitempty"`
 	CreatedByUserName  *string            `json:"created_by_user_name,omitempty"`
@@ -312,6 +347,7 @@ func ToOrganizationDTO(org *Organization) *OrganizationDTO {
 		Name:               org.Name,
 		BillingEmail:       org.BillingEmail,
 		IsDefault:          org.IsDefault,
+		IsPersonal:         org.IsPersonal,
 		CreatedByUserID:    org.CreatedByUserID,
 		CreatedByUserEmail: org.CreatedByUserEmail,
 		CreatedByUserName:  org.CreatedByUserName,
