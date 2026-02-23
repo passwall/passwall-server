@@ -10,18 +10,25 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/passwall/passwall-server/pkg/constants"
+	"github.com/passwall/passwall-server/pkg/logger"
 )
 
 type AdminLogsHandler struct {
 	appLogPath  string
 	httpLogPath string
 	maxBytes    int64
+}
+
+type AdminLogClearResponse struct {
+	Cleared int      `json:"cleared"`
+	Files   []string `json:"files"`
 }
 
 type AdminLogEntryDTO struct {
@@ -37,11 +44,12 @@ type AdminLogEntryDTO struct {
 }
 
 type AdminLogListResponse struct {
-	Items     []AdminLogEntryDTO `json:"items"`
-	Total     int                `json:"total"`
-	Filtered  int                `json:"filtered"`
-	Truncated bool               `json:"truncated"`
-	LogFile   string             `json:"log_file,omitempty"`
+	Items                []AdminLogEntryDTO `json:"items"`
+	Total                int                `json:"total"`
+	Filtered             int                `json:"filtered"`
+	Truncated            bool               `json:"truncated"`
+	LogFile              string             `json:"log_file,omitempty"`
+	AvailableStatusCodes []int              `json:"available_status_codes,omitempty"`
 }
 
 func NewAdminLogsHandler() *AdminLogsHandler {
@@ -147,11 +155,12 @@ func (h *AdminLogsHandler) List(c *gin.Context) {
 			// If the file doesn't exist yet (e.g. no HTTP requests logged yet),
 			// return an empty result instead of failing the whole UI.
 			c.JSON(http.StatusOK, AdminLogListResponse{
-				Items:     []AdminLogEntryDTO{},
-				Total:     0,
-				Filtered:  0,
-				Truncated: false,
-				LogFile:   filepath.Base(logPath),
+				Items:                []AdminLogEntryDTO{},
+				Total:                0,
+				Filtered:             0,
+				Truncated:            false,
+				LogFile:              filepath.Base(logPath),
+				AvailableStatusCodes: []int{},
 			})
 			return
 		}
@@ -164,6 +173,8 @@ func (h *AdminLogsHandler) List(c *gin.Context) {
 	}
 
 	total := len(entries)
+
+	statusCodes := uniqueSortedStatusCodes(entries)
 
 	// Apply filters
 	filtered := make([]AdminLogEntryDTO, 0, len(entries))
@@ -202,11 +213,12 @@ func (h *AdminLogsHandler) List(c *gin.Context) {
 	paged := paginate(filtered, offset, limit)
 
 	c.JSON(http.StatusOK, AdminLogListResponse{
-		Items:     paged,
-		Total:     total,
-		Filtered:  len(filtered),
-		Truncated: truncated,
-		LogFile:   filepath.Base(logPath),
+		Items:                paged,
+		Total:                total,
+		Filtered:             len(filtered),
+		Truncated:            truncated,
+		LogFile:              filepath.Base(logPath),
+		AvailableStatusCodes: statusCodes,
 	})
 }
 
@@ -285,6 +297,49 @@ func (h *AdminLogsHandler) DownloadBundle(c *gin.Context) {
 
 	add(filepath.Base(h.appLogPath), h.appLogPath)
 	add(filepath.Base(h.httpLogPath), h.httpLogPath)
+}
+
+func (h *AdminLogsHandler) Clear(c *gin.Context) {
+	kind := strings.TrimSpace(strings.ToLower(c.DefaultQuery("kind", "all")))
+
+	paths := make([]string, 0, 2)
+	switch kind {
+	case "app":
+		paths = append(paths, h.appLogPath)
+	case "http":
+		paths = append(paths, h.httpLogPath)
+	case "all":
+		paths = append(paths, h.appLogPath, h.httpLogPath)
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid kind (expected: app, http, all)"})
+		return
+	}
+
+	cleared := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if err := truncateLogFile(path); err != nil {
+			if errors.Is(err, os.ErrPermission) {
+				c.JSON(http.StatusForbidden, gin.H{"error": "permission denied truncating log file"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to clear log file"})
+			return
+		}
+		cleared = append(cleared, filepath.Base(path))
+	}
+
+	// Reopen file writers after truncation to keep both app/http log streams healthy.
+	logger.ReopenLogFiles()
+	logger.Infof("Admin cleared server logs: files=%s", strings.Join(cleared, ","))
+
+	c.JSON(http.StatusOK, AdminLogClearResponse{
+		Cleared: len(cleared),
+		Files:   cleared,
+	})
+}
+
+func (h *AdminLogsHandler) LogPaths() []string {
+	return []string{h.appLogPath, h.httpLogPath}
 }
 
 func reverseEntries(items []AdminLogEntryDTO) {
@@ -463,4 +518,31 @@ func parseGroup(lines []string) AdminLogEntryDTO {
 		Line:       lineNum,
 		Function:   function,
 	}
+}
+
+func truncateLogFile(path string) error {
+	// Truncate in place so running logger file descriptors keep writing
+	// to the same files without requiring rotation or process restart.
+	f, err := os.OpenFile(path, os.O_TRUNC|os.O_WRONLY|os.O_CREATE, 0666)
+	if err != nil {
+		return err
+	}
+	return f.Close()
+}
+
+func uniqueSortedStatusCodes(entries []AdminLogEntryDTO) []int {
+	seen := make(map[int]struct{}, len(entries))
+	out := make([]int, 0)
+	for _, e := range entries {
+		if e.StatusCode < 100 || e.StatusCode > 599 {
+			continue
+		}
+		if _, ok := seen[e.StatusCode]; ok {
+			continue
+		}
+		seen[e.StatusCode] = struct{}{}
+		out = append(out, e.StatusCode)
+	}
+	sort.Ints(out)
+	return out
 }

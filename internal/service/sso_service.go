@@ -44,6 +44,7 @@ type SSOService interface {
 	InitiateLogin(ctx context.Context, req *domain.SSOInitiateRequest, baseURL string) (redirectURL string, err error)
 	HandleOIDCCallback(ctx context.Context, stateParam, code string) (*domain.SSOCallbackResult, error)
 	HandleSAMLCallback(ctx context.Context, relayState, samlResponse string) (*domain.SSOCallbackResult, error)
+	GetRedirectURLByState(ctx context.Context, state string) (string, error)
 
 	// SP metadata
 	GetSPMetadata(ctx context.Context, connID uint) (string, error)
@@ -86,22 +87,27 @@ func NewSSOService(
 func (s *ssoService) CreateConnection(ctx context.Context, orgID, userID uint, req *domain.CreateSSOConnectionRequest) (*domain.SSOConnection, error) {
 	normalizedDomain := strings.ToLower(strings.TrimSpace(req.Domain))
 	if normalizedDomain == "" {
+		s.logger.Error("SSO create connection rejected: empty domain", "org_id", orgID, "user_id", userID)
 		return nil, fmt.Errorf("domain is required")
 	}
 
 	// Validate protocol-specific config
 	if req.Protocol == domain.SSOProtocolSAML && req.SAMLConfig == nil {
+		s.logger.Error("SSO create connection rejected: missing SAML config", "org_id", orgID, "user_id", userID)
 		return nil, ErrSSOProtocolMismatch
 	}
 	if req.Protocol == domain.SSOProtocolOIDC && req.OIDCConfig == nil {
+		s.logger.Error("SSO create connection rejected: missing OIDC config", "org_id", orgID, "user_id", userID)
 		return nil, ErrSSOProtocolMismatch
 	}
 	if req.Protocol == domain.SSOProtocolSAML {
 		if req.SAMLConfig.EntityID == "" || req.SAMLConfig.SSOURL == "" || req.SAMLConfig.Certificate == "" {
+			s.logger.Error("SSO create connection rejected: incomplete SAML config", "org_id", orgID, "user_id", userID)
 			return nil, fmt.Errorf("SAML connection requires entity_id, sso_url and certificate")
 		}
 	}
 	if existing, err := s.connRepo.GetAnyByDomain(ctx, normalizedDomain); err == nil && existing != nil {
+		s.logger.Warn("SSO create connection domain already configured", "org_id", orgID, "user_id", userID, "domain", normalizedDomain, "existing_org_id", existing.OrganizationID)
 		return nil, fmt.Errorf("domain is already configured for another organization")
 	}
 
@@ -134,12 +140,14 @@ func (s *ssoService) CreateConnection(ctx context.Context, orgID, userID uint, r
 	}
 
 	if err := s.connRepo.Create(ctx, conn); err != nil {
+		s.logger.Error("SSO create connection repository create failed", "org_id", orgID, "user_id", userID, "domain", normalizedDomain, "err", err)
 		return nil, fmt.Errorf("failed to create SSO connection: %w", err)
 	}
 	// Generate SP metadata URLs (stable callback path for simpler IdP setup).
 	conn.SPEntityID = fmt.Sprintf("%s/sso/metadata/%d", s.baseURL, conn.ID)
 	conn.SPAcsURL = s.callbackURL()
 	if err := s.connRepo.Update(ctx, conn); err != nil {
+		s.logger.Error("SSO create connection metadata update failed", "org_id", orgID, "user_id", userID, "conn_id", conn.ID, "err", err)
 		return nil, fmt.Errorf("failed to persist generated SP metadata URLs: %w", err)
 	}
 
@@ -151,8 +159,10 @@ func (s *ssoService) GetConnection(ctx context.Context, id uint) (*domain.SSOCon
 	conn, err := s.connRepo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
+			s.logger.Warn("SSO get connection not found", "conn_id", id)
 			return nil, ErrSSOConnectionNotFound
 		}
+		s.logger.Error("SSO get connection failed", "conn_id", id, "err", err)
 		return nil, err
 	}
 	return conn, nil
@@ -166,8 +176,10 @@ func (s *ssoService) UpdateConnection(ctx context.Context, id, userID uint, req 
 	conn, err := s.connRepo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
+			s.logger.Warn("SSO update connection not found", "conn_id", id, "user_id", userID)
 			return nil, ErrSSOConnectionNotFound
 		}
+		s.logger.Error("SSO update connection fetch failed", "conn_id", id, "user_id", userID, "err", err)
 		return nil, err
 	}
 
@@ -177,9 +189,11 @@ func (s *ssoService) UpdateConnection(ctx context.Context, id, userID uint, req 
 	if req.Domain != nil {
 		d := strings.ToLower(strings.TrimSpace(*req.Domain))
 		if d == "" {
+			s.logger.Error("SSO update connection rejected: empty domain", "conn_id", id, "user_id", userID)
 			return nil, fmt.Errorf("domain cannot be empty")
 		}
 		if existing, err := s.connRepo.GetAnyByDomain(ctx, d); err == nil && existing != nil && existing.ID != conn.ID {
+			s.logger.Warn("SSO update connection domain conflict", "conn_id", id, "user_id", userID, "domain", d, "existing_conn_id", existing.ID)
 			return nil, fmt.Errorf("domain is already configured for another organization")
 		}
 		conn.Domain = d
@@ -204,19 +218,24 @@ func (s *ssoService) UpdateConnection(ctx context.Context, id, userID uint, req 
 	}
 
 	if err := s.connRepo.Update(ctx, conn); err != nil {
+		s.logger.Error("SSO update connection repository update failed", "conn_id", id, "user_id", userID, "err", err)
 		return nil, fmt.Errorf("failed to update SSO connection: %w", err)
 	}
 
+	s.logger.Info("SSO connection updated", "conn_id", id, "user_id", userID, "org_id", conn.OrganizationID)
 	return conn, nil
 }
 
 func (s *ssoService) DeleteConnection(ctx context.Context, id, userID uint) error {
 	if _, err := s.connRepo.GetByID(ctx, id); err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
+			s.logger.Warn("SSO delete connection not found", "conn_id", id, "user_id", userID)
 			return ErrSSOConnectionNotFound
 		}
+		s.logger.Error("SSO delete connection fetch failed", "conn_id", id, "user_id", userID, "err", err)
 		return err
 	}
+	s.logger.Info("SSO connection delete requested", "conn_id", id, "user_id", userID)
 	return s.connRepo.Delete(ctx, id)
 }
 
@@ -224,25 +243,30 @@ func (s *ssoService) ActivateConnection(ctx context.Context, id, userID uint) (*
 	conn, err := s.connRepo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
+			s.logger.Warn("SSO activate connection not found", "conn_id", id, "user_id", userID)
 			return nil, ErrSSOConnectionNotFound
 		}
+		s.logger.Error("SSO activate connection fetch failed", "conn_id", id, "user_id", userID, "err", err)
 		return nil, err
 	}
 
 	// Validate that required config is present before activation
 	if conn.Protocol == domain.SSOProtocolOIDC {
 		if conn.OIDCConfig == nil || conn.OIDCConfig.ClientID == "" || conn.OIDCConfig.Issuer == "" {
+			s.logger.Error("SSO activate connection rejected: incomplete OIDC config", "conn_id", id, "user_id", userID)
 			return nil, fmt.Errorf("OIDC connection requires issuer and client_id before activation")
 		}
 	}
 	if conn.Protocol == domain.SSOProtocolSAML {
 		if conn.SAMLConfig == nil || conn.SAMLConfig.EntityID == "" || conn.SAMLConfig.SSOURL == "" || conn.SAMLConfig.Certificate == "" {
+			s.logger.Error("SSO activate connection rejected: incomplete SAML config", "conn_id", id, "user_id", userID)
 			return nil, fmt.Errorf("SAML connection requires entity_id, sso_url and certificate before activation")
 		}
 	}
 
 	conn.Status = domain.SSOStatusActive
 	if err := s.connRepo.Update(ctx, conn); err != nil {
+		s.logger.Error("SSO activate connection update failed", "conn_id", id, "user_id", userID, "err", err)
 		return nil, fmt.Errorf("failed to activate SSO connection: %w", err)
 	}
 
@@ -252,19 +276,24 @@ func (s *ssoService) ActivateConnection(ctx context.Context, id, userID uint) (*
 
 // InitiateLogin starts the SSO authentication flow by generating the IdP redirect URL
 func (s *ssoService) InitiateLogin(ctx context.Context, req *domain.SSOInitiateRequest, baseURL string) (string, error) {
+	s.logger.Info("SSO initiate login started", "domain", strings.ToLower(req.Domain), "has_redirect_url", strings.TrimSpace(req.RedirectURL) != "", "request_base_url", baseURL)
 	conn, err := s.connRepo.GetByDomain(ctx, strings.ToLower(req.Domain))
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
+			s.logger.Warn("SSO initiate login connection not found", "domain", strings.ToLower(req.Domain))
 			return "", ErrSSOConnectionNotFound
 		}
+		s.logger.Error("SSO initiate login domain lookup failed", "domain", strings.ToLower(req.Domain), "err", err)
 		return "", err
 	}
 	if !conn.IsActive() {
+		s.logger.Warn("SSO initiate login connection inactive", "conn_id", conn.ID, "domain", conn.Domain)
 		return "", ErrSSOConnectionInactive
 	}
 
 	stateToken, err := generateRandomState()
 	if err != nil {
+		s.logger.Error("SSO initiate login state generation failed", "conn_id", conn.ID, "err", err)
 		return "", fmt.Errorf("failed to generate state: %w", err)
 	}
 
@@ -278,10 +307,13 @@ func (s *ssoService) InitiateLogin(ctx context.Context, req *domain.SSOInitiateR
 
 	switch conn.Protocol {
 	case domain.SSOProtocolOIDC:
+		s.logger.Info("SSO initiate login using OIDC", "conn_id", conn.ID, "org_id", conn.OrganizationID)
 		return s.initiateOIDC(ctx, conn, ssoState)
 	case domain.SSOProtocolSAML:
+		s.logger.Info("SSO initiate login using SAML", "conn_id", conn.ID, "org_id", conn.OrganizationID)
 		return s.initiateSAML(ctx, conn, ssoState)
 	default:
+		s.logger.Error("SSO initiate login unsupported protocol", "conn_id", conn.ID, "protocol", conn.Protocol)
 		return "", fmt.Errorf("unsupported SSO protocol: %s", conn.Protocol)
 	}
 }
@@ -289,6 +321,7 @@ func (s *ssoService) InitiateLogin(ctx context.Context, req *domain.SSOInitiateR
 func (s *ssoService) initiateOIDC(ctx context.Context, conn *domain.SSOConnection, ssoState *domain.SSOState) (string, error) {
 	cfg := conn.OIDCConfig
 	if cfg == nil {
+		s.logger.Error("SSO OIDC initiate missing protocol config", "conn_id", conn.ID)
 		return "", ErrSSOProtocolMismatch
 	}
 	scopes := cfg.Scopes
@@ -301,6 +334,7 @@ func (s *ssoService) initiateOIDC(ctx context.Context, conn *domain.SSOConnectio
 	if cfg.PKCEEnabled {
 		v, ch, err := generatePKCE()
 		if err != nil {
+			s.logger.Error("SSO OIDC initiate PKCE generation failed", "conn_id", conn.ID, "err", err)
 			return "", fmt.Errorf("failed to generate PKCE: %w", err)
 		}
 		codeVerifier = v
@@ -309,12 +343,14 @@ func (s *ssoService) initiateOIDC(ctx context.Context, conn *domain.SSOConnectio
 	}
 	nonce, err := generateRandomState()
 	if err != nil {
+		s.logger.Error("SSO OIDC initiate nonce generation failed", "conn_id", conn.ID, "err", err)
 		return "", fmt.Errorf("failed to generate nonce: %w", err)
 	}
 	ssoState.Nonce = nonce
 
 	// Persist state
 	if err := s.stateRepo.Create(ctx, ssoState); err != nil {
+		s.logger.Error("SSO OIDC initiate persist state failed", "conn_id", conn.ID, "err", err)
 		return "", fmt.Errorf("failed to persist SSO state: %w", err)
 	}
 
@@ -322,6 +358,7 @@ func (s *ssoService) initiateOIDC(ctx context.Context, conn *domain.SSOConnectio
 	if cfg.UseDiscovery || (cfg.AuthURL == "" || cfg.TokenURL == "") {
 		provider, err := oidc.NewProvider(ctx, cfg.Issuer)
 		if err != nil {
+			s.logger.Error("SSO OIDC discovery failed", "conn_id", conn.ID, "issuer", cfg.Issuer, "err", err)
 			return "", fmt.Errorf("OIDC discovery failed: %w", err)
 		}
 		endpoint = provider.Endpoint()
@@ -339,39 +376,48 @@ func (s *ssoService) initiateOIDC(ctx context.Context, conn *domain.SSOConnectio
 		opts = append(opts, oauth2.SetAuthURLParam("code_challenge", codeChallenge))
 		opts = append(opts, oauth2.SetAuthURLParam("code_challenge_method", "S256"))
 	}
+	s.logger.Info("SSO OIDC authorize URL generated", "conn_id", conn.ID, "use_discovery", cfg.UseDiscovery, "pkce_enabled", cfg.PKCEEnabled)
 	return oauthCfg.AuthCodeURL(ssoState.State, opts...), nil
 }
 
 func (s *ssoService) initiateSAML(ctx context.Context, conn *domain.SSOConnection, ssoState *domain.SSOState) (string, error) {
 	cfg := conn.SAMLConfig
 	if cfg == nil {
+		s.logger.Error("SSO SAML initiate missing protocol config", "conn_id", conn.ID)
 		return "", ErrSSOProtocolMismatch
 	}
 	if cfg.SSOURL == "" {
+		s.logger.Error("SSO SAML initiate missing SSO URL", "conn_id", conn.ID)
 		return "", fmt.Errorf("SAML SSO URL is not configured")
 	}
 	if err := s.stateRepo.Create(ctx, ssoState); err != nil {
+		s.logger.Error("SSO SAML initiate persist state failed", "conn_id", conn.ID, "err", err)
 		return "", fmt.Errorf("failed to persist SSO state: %w", err)
 	}
 
 	idpURL, err := url.Parse(cfg.SSOURL)
 	if err != nil {
+		s.logger.Error("SSO SAML initiate invalid SSO URL", "conn_id", conn.ID, "sso_url", cfg.SSOURL, "err", err)
 		return "", fmt.Errorf("invalid SAML SSO URL: %w", err)
 	}
 	q := idpURL.Query()
 	q.Set("RelayState", ssoState.State)
 	idpURL.RawQuery = q.Encode()
+	s.logger.Info("SSO SAML redirect URL generated", "conn_id", conn.ID)
 	return idpURL.String(), nil
 }
 
 // HandleOIDCCallback processes the IdP's authorization code callback
 func (s *ssoService) HandleOIDCCallback(ctx context.Context, stateParam, code string) (*domain.SSOCallbackResult, error) {
+	s.logger.Info("SSO OIDC callback started", "state", stateParam)
 	ssoState, err := s.stateRepo.GetByState(ctx, stateParam)
 	if err != nil {
+		s.logger.Warn("SSO OIDC callback state not found", "state", stateParam)
 		return nil, ErrSSOInvalidState
 	}
 	if ssoState.IsExpired() {
 		_ = s.stateRepo.Delete(ctx, ssoState.ID)
+		s.logger.Warn("SSO OIDC callback state expired", "state_id", ssoState.ID, "conn_id", ssoState.ConnectionID)
 		return nil, ErrSSOInvalidState
 	}
 
@@ -380,18 +426,22 @@ func (s *ssoService) HandleOIDCCallback(ctx context.Context, stateParam, code st
 
 	conn, err := s.connRepo.GetByID(ctx, ssoState.ConnectionID)
 	if err != nil {
+		s.logger.Error("SSO OIDC callback connection lookup failed", "state_id", ssoState.ID, "conn_id", ssoState.ConnectionID, "err", err)
 		return nil, fmt.Errorf("SSO connection not found for state: %w", err)
 	}
 	if !conn.IsActive() {
+		s.logger.Warn("SSO OIDC callback connection inactive", "conn_id", conn.ID)
 		return nil, ErrSSOConnectionInactive
 	}
 
 	cfg := conn.OIDCConfig
 	if cfg == nil {
+		s.logger.Error("SSO OIDC callback missing protocol config", "conn_id", conn.ID)
 		return nil, ErrSSOProtocolMismatch
 	}
 	provider, err := oidc.NewProvider(ctx, cfg.Issuer)
 	if err != nil {
+		s.logger.Error("SSO OIDC callback provider discovery failed", "conn_id", conn.ID, "issuer", cfg.Issuer, "err", err)
 		return nil, fmt.Errorf("OIDC provider discovery failed: %w", err)
 	}
 	endpoint := provider.Endpoint()
@@ -411,24 +461,29 @@ func (s *ssoService) HandleOIDCCallback(ctx context.Context, stateParam, code st
 	}
 	token, err := oauthCfg.Exchange(ctx, code, exchangeOpts...)
 	if err != nil {
+		s.logger.Error("SSO OIDC callback code exchange failed", "conn_id", conn.ID, "err", err)
 		return nil, fmt.Errorf("OIDC code exchange failed: %w", err)
 	}
 	rawIDToken, ok := token.Extra("id_token").(string)
 	if !ok || rawIDToken == "" {
+		s.logger.Error("SSO OIDC callback missing id_token", "conn_id", conn.ID)
 		return nil, fmt.Errorf("OIDC response did not include id_token")
 	}
 	verifier := provider.Verifier(&oidc.Config{ClientID: cfg.ClientID})
 	idToken, err := verifier.Verify(ctx, rawIDToken)
 	if err != nil {
+		s.logger.Error("SSO OIDC callback id_token verify failed", "conn_id", conn.ID, "err", err)
 		return nil, fmt.Errorf("OIDC id_token verification failed: %w", err)
 	}
 	claims := map[string]interface{}{}
 	if err := idToken.Claims(&claims); err != nil {
+		s.logger.Error("SSO OIDC callback claims parse failed", "conn_id", conn.ID, "err", err)
 		return nil, fmt.Errorf("failed to parse id_token claims: %w", err)
 	}
 	if ssoState.Nonce != "" {
 		nonce, _ := claims["nonce"].(string)
 		if nonce != ssoState.Nonce {
+			s.logger.Error("SSO OIDC callback nonce mismatch", "conn_id", conn.ID)
 			return nil, fmt.Errorf("invalid nonce in id_token")
 		}
 	}
@@ -439,37 +494,51 @@ func (s *ssoService) HandleOIDCCallback(ctx context.Context, stateParam, code st
 	email, _ := claims[emailClaim].(string)
 	email = strings.ToLower(strings.TrimSpace(email))
 	if email == "" {
+		s.logger.Error("SSO OIDC callback missing email claim", "conn_id", conn.ID, "email_claim", emailClaim)
 		return nil, fmt.Errorf("email claim is missing in id_token")
 	}
 	if verified, exists := claims["email_verified"]; exists {
 		if vb, ok := verified.(bool); ok && !vb {
+			s.logger.Warn("SSO OIDC callback email not verified", "conn_id", conn.ID, "email", email)
 			return nil, fmt.Errorf("email is not verified by identity provider")
 		}
 	}
 	if !matchesDomain(email, conn.Domain) {
+		s.logger.Warn("SSO OIDC callback domain mismatch", "conn_id", conn.ID, "email", email, "expected_domain", conn.Domain)
 		return nil, ErrSSODomainMismatch
 	}
-	return s.completeSSOLogin(ctx, conn, email)
+	s.logger.Info("SSO OIDC callback validated", "conn_id", conn.ID, "email", email)
+	result, err := s.completeSSOLogin(ctx, conn, email)
+	if err != nil {
+		return nil, err
+	}
+	result.RedirectURL = strings.TrimSpace(ssoState.RedirectURL)
+	return result, nil
 }
 
 func (s *ssoService) HandleSAMLCallback(ctx context.Context, relayState, samlResponse string) (*domain.SSOCallbackResult, error) {
 	if relayState == "" || samlResponse == "" {
+		s.logger.Warn("SSO SAML callback missing parameters", "has_relay_state", relayState != "", "has_saml_response", samlResponse != "")
 		return nil, ErrSSOInvalidSAMLResponse
 	}
 	ssoState, err := s.stateRepo.GetByState(ctx, relayState)
 	if err != nil || ssoState == nil || ssoState.IsExpired() {
+		s.logger.Warn("SSO SAML callback invalid state", "relay_state", relayState, "err", err)
 		return nil, ErrSSOInvalidState
 	}
 	defer func() { _ = s.stateRepo.Delete(ctx, ssoState.ID) }()
 
 	conn, err := s.connRepo.GetByID(ctx, ssoState.ConnectionID)
 	if err != nil {
+		s.logger.Error("SSO SAML callback connection lookup failed", "state_id", ssoState.ID, "conn_id", ssoState.ConnectionID, "err", err)
 		return nil, ErrSSOConnectionNotFound
 	}
 	if !conn.IsActive() {
+		s.logger.Warn("SSO SAML callback connection inactive", "conn_id", conn.ID)
 		return nil, ErrSSOConnectionInactive
 	}
 	if conn.Protocol != domain.SSOProtocolSAML || conn.SAMLConfig == nil {
+		s.logger.Error("SSO SAML callback protocol mismatch", "conn_id", conn.ID, "protocol", conn.Protocol)
 		return nil, ErrSSOProtocolMismatch
 	}
 
@@ -477,19 +546,23 @@ func (s *ssoService) HandleSAMLCallback(ctx context.Context, relayState, samlRes
 	if err != nil {
 		decoded, err = base64.RawStdEncoding.DecodeString(samlResponse)
 		if err != nil {
+			s.logger.Error("SSO SAML callback decode failed", "conn_id", conn.ID, "err", err)
 			return nil, ErrSSOInvalidSAMLResponse
 		}
 	}
 
 	var resp samlResponseEnvelope
 	if err := xml.Unmarshal(decoded, &resp); err != nil {
+		s.logger.Error("SSO SAML callback XML parse failed", "conn_id", conn.ID, "err", err)
 		return nil, ErrSSOInvalidSAMLResponse
 	}
 	if resp.Assertion == nil {
+		s.logger.Error("SSO SAML callback missing assertion", "conn_id", conn.ID)
 		return nil, ErrSSOInvalidSAMLResponse
 	}
 	if conn.SAMLConfig.WantAssertionSigned {
 		if !resp.hasSignature() && !resp.Assertion.hasSignature() {
+			s.logger.Error("SSO SAML callback unsigned assertion/response", "conn_id", conn.ID)
 			return nil, fmt.Errorf("SAML response/assertion is not signed")
 		}
 	}
@@ -499,6 +572,7 @@ func (s *ssoService) HandleSAMLCallback(ctx context.Context, relayState, samlRes
 			issuer = strings.TrimSpace(resp.Issuer.Value)
 		}
 		if issuer != "" && issuer != strings.TrimSpace(conn.SAMLConfig.EntityID) {
+			s.logger.Error("SSO SAML callback issuer mismatch", "conn_id", conn.ID, "issuer", issuer, "expected", strings.TrimSpace(conn.SAMLConfig.EntityID))
 			return nil, fmt.Errorf("SAML issuer mismatch")
 		}
 	}
@@ -506,78 +580,120 @@ func (s *ssoService) HandleSAMLCallback(ctx context.Context, relayState, samlRes
 	if resp.Assertion.Conditions.NotBefore != "" {
 		notBefore, err := parseSAMLTime(resp.Assertion.Conditions.NotBefore)
 		if err == nil && now.Before(notBefore.Add(-2*time.Minute)) {
+			s.logger.Error("SSO SAML callback assertion not yet valid", "conn_id", conn.ID)
 			return nil, fmt.Errorf("SAML assertion not yet valid")
 		}
 	}
 	if resp.Assertion.Conditions.NotOnOrAfter != "" {
 		notOnOrAfter, err := parseSAMLTime(resp.Assertion.Conditions.NotOnOrAfter)
 		if err == nil && !now.Before(notOnOrAfter.Add(2*time.Minute)) {
+			s.logger.Error("SSO SAML callback assertion expired", "conn_id", conn.ID)
 			return nil, fmt.Errorf("SAML assertion expired")
 		}
 	}
 	if recipient := strings.TrimSpace(resp.Assertion.Subject.SubjectConfirmation.SubjectConfirmationData.Recipient); recipient != "" {
 		if !urlsEqualWithoutTrailingSlash(recipient, s.callbackURL()) {
+			s.logger.Error("SSO SAML callback recipient mismatch", "conn_id", conn.ID, "recipient", recipient, "expected", s.callbackURL())
 			return nil, fmt.Errorf("SAML recipient mismatch")
 		}
 	}
 	if audience := strings.TrimSpace(resp.Assertion.Conditions.AudienceRestriction.Audience); audience != "" {
 		if !urlsEqualWithoutTrailingSlash(audience, conn.SPEntityID) {
+			s.logger.Error("SSO SAML callback audience mismatch", "conn_id", conn.ID, "audience", audience, "expected", conn.SPEntityID)
 			return nil, fmt.Errorf("SAML audience mismatch")
 		}
 	}
 
 	email := extractSAMLEmail(resp.Assertion)
 	if email == "" {
+		s.logger.Error("SSO SAML callback missing email in assertion", "conn_id", conn.ID)
 		return nil, fmt.Errorf("email is missing in SAML assertion")
 	}
 	email = strings.ToLower(strings.TrimSpace(email))
 	if !matchesDomain(email, conn.Domain) {
+		s.logger.Warn("SSO SAML callback domain mismatch", "conn_id", conn.ID, "email", email, "expected_domain", conn.Domain)
 		return nil, ErrSSODomainMismatch
 	}
-	return s.completeSSOLogin(ctx, conn, email)
+	s.logger.Info("SSO SAML callback validated", "conn_id", conn.ID, "email", email)
+	result, err := s.completeSSOLogin(ctx, conn, email)
+	if err != nil {
+		return nil, err
+	}
+	result.RedirectURL = strings.TrimSpace(ssoState.RedirectURL)
+	return result, nil
+}
+
+func (s *ssoService) GetRedirectURLByState(ctx context.Context, state string) (string, error) {
+	if strings.TrimSpace(state) == "" {
+		return "", ErrSSOInvalidState
+	}
+	ssoState, err := s.stateRepo.GetByState(ctx, state)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return "", ErrSSOInvalidState
+		}
+		return "", err
+	}
+	if ssoState.IsExpired() {
+		return "", ErrSSOInvalidState
+	}
+	return strings.TrimSpace(ssoState.RedirectURL), nil
 }
 
 func (s *ssoService) completeSSOLogin(ctx context.Context, conn *domain.SSOConnection, email string) (*domain.SSOCallbackResult, error) {
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
+			s.logger.Warn("SSO complete login user not found", "conn_id", conn.ID, "email", email)
 			return nil, fmt.Errorf("user does not exist in Passwall; create account first")
 		}
+		s.logger.Error("SSO complete login user lookup failed", "conn_id", conn.ID, "email", email, "err", err)
 		return nil, err
 	}
 	orgMembership, err := s.orgUserRepo.GetByOrgAndUser(ctx, conn.OrganizationID, user.ID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			if conn.AutoProvision {
+				s.logger.Warn("SSO complete login auto provisioning blocked", "conn_id", conn.ID, "org_id", conn.OrganizationID, "user_id", user.ID)
 				return nil, ErrSSOProvisioningBlocked
 			}
+			s.logger.Warn("SSO complete login user not member of organization", "conn_id", conn.ID, "org_id", conn.OrganizationID, "user_id", user.ID)
 			return nil, fmt.Errorf("user is not a member of this organization")
 		}
+		s.logger.Error("SSO complete login membership lookup failed", "conn_id", conn.ID, "org_id", conn.OrganizationID, "user_id", user.ID, "err", err)
 		return nil, err
 	}
 	if orgMembership.Status != domain.OrgUserStatusAccepted && orgMembership.Status != domain.OrgUserStatusConfirmed {
+		s.logger.Warn("SSO complete login membership inactive", "conn_id", conn.ID, "org_id", conn.OrganizationID, "user_id", user.ID, "status", orgMembership.Status)
 		return nil, fmt.Errorf("organization membership is not active")
 	}
 	authResp, err := s.authService.IssueTokenForUser(ctx, user.ID, "sso", "")
 	if err != nil {
+		s.logger.Error("SSO complete login token issue failed", "conn_id", conn.ID, "org_id", conn.OrganizationID, "user_id", user.ID, "err", err)
 		return nil, fmt.Errorf("failed to create Passwall session from SSO login: %w", err)
 	}
 	org, err := s.orgRepo.GetByID(ctx, conn.OrganizationID)
 	if err != nil {
+		s.logger.Error("SSO complete login organization lookup failed", "conn_id", conn.ID, "org_id", conn.OrganizationID, "err", err)
 		return nil, fmt.Errorf("failed to fetch organization: %w", err)
 	}
+	s.logger.Info("SSO complete login success", "conn_id", conn.ID, "org_id", conn.OrganizationID, "user_id", user.ID)
 	return &domain.SSOCallbackResult{
-		User:         user,
-		Organization: org,
-		IsNewUser:    false,
-		AccessToken:  authResp.AccessToken,
-		RefreshToken: authResp.RefreshToken,
+		User:             user,
+		AuthUser:         authResp.User,
+		Organization:     org,
+		IsNewUser:        false,
+		AccessToken:      authResp.AccessToken,
+		RefreshToken:     authResp.RefreshToken,
+		ProtectedUserKey: authResp.ProtectedUserKey,
+		KdfConfig:        authResp.KdfConfig,
 	}, nil
 }
 
 func (s *ssoService) GetSPMetadata(ctx context.Context, connID uint) (string, error) {
 	conn, err := s.connRepo.GetByID(ctx, connID)
 	if err != nil {
+		s.logger.Error("SSO get SP metadata failed", "conn_id", connID, "err", err)
 		return "", err
 	}
 

@@ -225,6 +225,32 @@ func getHTTPWriter() io.Writer {
 	return file
 }
 
+// ReopenLogFiles reopens app/http log file writers.
+// Useful after external file truncation to ensure active writers continue cleanly.
+func ReopenLogFiles() {
+	oldAppOut := logger.Out
+	oldHTTPOut := httpLogger.Out
+
+	// Use SetOutput to switch writers under logger's internal lock.
+	logger.SetOutput(getAppWriter())
+	httpLogger.SetOutput(getHTTPWriter())
+
+	// Close old descriptors after a successful output swap.
+	closeIfFile(oldAppOut)
+	closeIfFile(oldHTTPOut)
+}
+
+func closeIfFile(w io.Writer) {
+	f, ok := w.(*os.File)
+	if !ok || f == nil {
+		return
+	}
+	if f == os.Stdout || f == os.Stderr {
+		return
+	}
+	_ = f.Close()
+}
+
 // Formatter implements logrus.Formatter interface.
 type formatter struct {
 	prefix string

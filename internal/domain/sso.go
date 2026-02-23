@@ -32,7 +32,7 @@ type SAMLConfig struct {
 	SSOURL              string `json:"sso_url"`
 	SLOURL              string `json:"slo_url,omitempty"`
 	Certificate         string `json:"certificate"`
-	SignAuthnRequests    bool   `json:"sign_authn_requests"`
+	SignAuthnRequests   bool   `json:"sign_authn_requests"`
 	WantAssertionSigned bool   `json:"want_assertion_signed"`
 	NameIDFormat        string `json:"name_id_format,omitempty"`
 }
@@ -56,19 +56,19 @@ func (c SAMLConfig) Value() (driver.Value, error) {
 
 // OIDCConfig holds OIDC-specific IdP configuration
 type OIDCConfig struct {
-	Issuer        string   `json:"issuer"`
-	ClientID      string   `json:"client_id"`
-	ClientSecret  string   `json:"client_secret"`
-	AuthURL       string   `json:"auth_url,omitempty"`
-	TokenURL      string   `json:"token_url,omitempty"`
-	UserInfoURL   string   `json:"user_info_url,omitempty"`
-	JwksURI       string   `json:"jwks_uri,omitempty"`
-	Scopes        []string `json:"scopes,omitempty"`
-	UseDiscovery  bool     `json:"use_discovery"`
-	PKCEEnabled   bool     `json:"pkce_enabled"`
-	EmailClaim    string   `json:"email_claim,omitempty"`
-	NameClaim     string   `json:"name_claim,omitempty"`
-	GroupsClaim   string   `json:"groups_claim,omitempty"`
+	Issuer       string   `json:"issuer"`
+	ClientID     string   `json:"client_id"`
+	ClientSecret string   `json:"client_secret"`
+	AuthURL      string   `json:"auth_url,omitempty"`
+	TokenURL     string   `json:"token_url,omitempty"`
+	UserInfoURL  string   `json:"user_info_url,omitempty"`
+	JwksURI      string   `json:"jwks_uri,omitempty"`
+	Scopes       []string `json:"scopes,omitempty"`
+	UseDiscovery bool     `json:"use_discovery"`
+	PKCEEnabled  bool     `json:"pkce_enabled"`
+	EmailClaim   string   `json:"email_claim,omitempty"`
+	NameClaim    string   `json:"name_claim,omitempty"`
+	GroupsClaim  string   `json:"groups_claim,omitempty"`
 }
 
 // Scan implements sql.Scanner
@@ -107,15 +107,15 @@ type SSOConnection struct {
 	OIDCConfig *OIDCConfig `json:"oidc_config,omitempty" gorm:"type:jsonb"`
 
 	// SP (Passwall) metadata — generated at creation, read-only for admin
-	SPEntityID  string `json:"sp_entity_id" gorm:"type:varchar(512)"`
-	SPAcsURL    string `json:"sp_acs_url" gorm:"type:varchar(512)"`
-	SPMetadata  string `json:"-" gorm:"type:text"`
+	SPEntityID string `json:"sp_entity_id" gorm:"type:varchar(512)"`
+	SPAcsURL   string `json:"sp_acs_url" gorm:"type:varchar(512)"`
+	SPMetadata string `json:"-" gorm:"type:text"`
 
 	// Behaviour
-	AutoProvision    bool               `json:"auto_provision" gorm:"default:true"`
-	DefaultRole      OrganizationRole   `json:"default_role" gorm:"type:varchar(20);default:'member'"`
-	JITProvisioning  bool               `json:"jit_provisioning" gorm:"default:true"`
-	Status           SSOConnectionStatus `json:"status" gorm:"type:varchar(20);not null;default:'draft'"`
+	AutoProvision   bool                `json:"auto_provision" gorm:"default:true"`
+	DefaultRole     OrganizationRole    `json:"default_role" gorm:"type:varchar(20);default:'member'"`
+	JITProvisioning bool                `json:"jit_provisioning" gorm:"default:true"`
+	Status          SSOConnectionStatus `json:"status" gorm:"type:varchar(20);not null;default:'draft'"`
 
 	// Associations
 	Organization *Organization `json:"organization,omitempty" gorm:"foreignKey:OrganizationID"`
@@ -169,20 +169,20 @@ func (s *SSOState) IsExpired() bool {
 
 // SSOConnectionDTO for API responses (sensitive fields stripped)
 type SSOConnectionDTO struct {
-	ID               uint                `json:"id"`
-	UUID             uuid.UUID           `json:"uuid"`
-	OrganizationID   uint                `json:"organization_id"`
-	Protocol         SSOProtocol         `json:"protocol"`
-	Name             string              `json:"name"`
-	Domain           string              `json:"domain"`
-	SPEntityID       string              `json:"sp_entity_id"`
-	SPAcsURL         string              `json:"sp_acs_url"`
-	AutoProvision    bool                `json:"auto_provision"`
-	DefaultRole      OrganizationRole    `json:"default_role"`
-	JITProvisioning  bool                `json:"jit_provisioning"`
-	Status           SSOConnectionStatus `json:"status"`
-	CreatedAt        time.Time           `json:"created_at"`
-	UpdatedAt        time.Time           `json:"updated_at"`
+	ID              uint                `json:"id"`
+	UUID            uuid.UUID           `json:"uuid"`
+	OrganizationID  uint                `json:"organization_id"`
+	Protocol        SSOProtocol         `json:"protocol"`
+	Name            string              `json:"name"`
+	Domain          string              `json:"domain"`
+	SPEntityID      string              `json:"sp_entity_id"`
+	SPAcsURL        string              `json:"sp_acs_url"`
+	AutoProvision   bool                `json:"auto_provision"`
+	DefaultRole     OrganizationRole    `json:"default_role"`
+	JITProvisioning bool                `json:"jit_provisioning"`
+	Status          SSOConnectionStatus `json:"status"`
+	CreatedAt       time.Time           `json:"created_at"`
+	UpdatedAt       time.Time           `json:"updated_at"`
 
 	// Protocol-specific (admin-visible only)
 	SAMLConfig *SAMLConfigDTO `json:"saml_config,omitempty"`
@@ -195,7 +195,7 @@ type SAMLConfigDTO struct {
 	SSOURL              string `json:"sso_url"`
 	SLOURL              string `json:"slo_url,omitempty"`
 	HasCertificate      bool   `json:"has_certificate"`
-	SignAuthnRequests    bool   `json:"sign_authn_requests"`
+	SignAuthnRequests   bool   `json:"sign_authn_requests"`
 	WantAssertionSigned bool   `json:"want_assertion_signed"`
 	NameIDFormat        string `json:"name_id_format,omitempty"`
 }
@@ -240,7 +240,7 @@ func ToSSOConnectionDTO(conn *SSOConnection) *SSOConnectionDTO {
 			SSOURL:              conn.SAMLConfig.SSOURL,
 			SLOURL:              conn.SAMLConfig.SLOURL,
 			HasCertificate:      conn.SAMLConfig.Certificate != "",
-			SignAuthnRequests:    conn.SAMLConfig.SignAuthnRequests,
+			SignAuthnRequests:   conn.SAMLConfig.SignAuthnRequests,
 			WantAssertionSigned: conn.SAMLConfig.WantAssertionSigned,
 			NameIDFormat:        conn.SAMLConfig.NameIDFormat,
 		}
@@ -277,13 +277,13 @@ type CreateSSOConnectionRequest struct {
 
 // UpdateSSOConnectionRequest for updating an SSO connection
 type UpdateSSOConnectionRequest struct {
-	Name            *string          `json:"name,omitempty" binding:"omitempty,max=255"`
-	Domain          *string          `json:"domain,omitempty" binding:"omitempty,max=255"`
-	SAMLConfig      *SAMLConfig      `json:"saml_config,omitempty"`
-	OIDCConfig      *OIDCConfig      `json:"oidc_config,omitempty"`
-	AutoProvision   *bool            `json:"auto_provision,omitempty"`
-	DefaultRole     *OrganizationRole `json:"default_role,omitempty"`
-	JITProvisioning *bool            `json:"jit_provisioning,omitempty"`
+	Name            *string              `json:"name,omitempty" binding:"omitempty,max=255"`
+	Domain          *string              `json:"domain,omitempty" binding:"omitempty,max=255"`
+	SAMLConfig      *SAMLConfig          `json:"saml_config,omitempty"`
+	OIDCConfig      *OIDCConfig          `json:"oidc_config,omitempty"`
+	AutoProvision   *bool                `json:"auto_provision,omitempty"`
+	DefaultRole     *OrganizationRole    `json:"default_role,omitempty"`
+	JITProvisioning *bool                `json:"jit_provisioning,omitempty"`
 	Status          *SSOConnectionStatus `json:"status,omitempty" binding:"omitempty,oneof=draft active inactive"`
 }
 
@@ -295,9 +295,13 @@ type SSOInitiateRequest struct {
 
 // SSOCallbackResult returned after successful SSO authentication
 type SSOCallbackResult struct {
-	User         *User         `json:"user"`
-	Organization *Organization `json:"organization"`
-	IsNewUser    bool          `json:"is_new_user"`
-	AccessToken  string        `json:"access_token"`
-	RefreshToken string        `json:"refresh_token"`
+	User             *User         `json:"user"`
+	AuthUser         *UserAuthDTO  `json:"auth_user,omitempty"`
+	Organization     *Organization `json:"organization"`
+	IsNewUser        bool          `json:"is_new_user"`
+	AccessToken      string        `json:"access_token"`
+	RefreshToken     string        `json:"refresh_token"`
+	ProtectedUserKey string        `json:"protected_user_key,omitempty"`
+	KdfConfig        *KdfConfig    `json:"kdf_config,omitempty"`
+	RedirectURL      string        `json:"redirect_url,omitempty"`
 }

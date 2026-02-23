@@ -274,6 +274,7 @@ func SetupRouter(
 			adminGroup.GET("/logs", adminLogsHandler.List)
 			adminGroup.GET("/logs/download", adminLogsHandler.Download)
 			adminGroup.GET("/logs/download-bundle", adminLogsHandler.DownloadBundle)
+			adminGroup.POST("/logs/clear", adminLogsHandler.Clear)
 
 			// Custom icons management (admin only)
 			adminGroup.GET("/icons", iconsHandler.ListCustomIcons)

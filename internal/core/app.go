@@ -26,6 +26,7 @@ type App struct {
 	server          *http.Server
 	tokenCleanup    *cleanup.TokenCleanup
 	activityCleanup *cleanup.ActivityCleanup
+	logCleanup      *cleanup.LogCleanup
 	emailSender     email.Sender
 }
 
@@ -349,9 +350,13 @@ func (a *App) Run(ctx context.Context) error {
 	// Initialize activity cleanup service (runs every 24 hours, keeps 90 days)
 	a.activityCleanup = cleanup.NewActivityCleanup(userActivityService, 24*time.Hour, 90*24*time.Hour)
 
+	// Initialize log cleanup service (runs every 15 days, truncates log files in place)
+	a.logCleanup = cleanup.NewLogCleanup(adminLogsHandler.LogPaths(), 15*24*time.Hour)
+
 	// Start cleanup services in background (using application context)
 	go a.tokenCleanup.Start(ctx)
 	go a.activityCleanup.Start(ctx)
+	go a.logCleanup.Start(ctx)
 
 	// Start server in a goroutine
 	serverErrChan := make(chan error, 1)
@@ -394,6 +399,7 @@ func (a *App) gracefulShutdown() error {
 	// Cleanup services already stopped via context cancellation
 	logger.Infof("Token cleanup stopped")
 	logger.Infof("Activity cleanup stopped")
+	logger.Infof("Log cleanup stopped")
 
 	// Close email sender
 	logger.Infof("Closing email sender...")

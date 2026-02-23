@@ -150,14 +150,14 @@ func getSCIMOrgID(c *gin.Context) uint {
 // ServiceProviderConfig returns SCIM 2.0 ServiceProviderConfig (RFC 7643 §5)
 func (h *SCIMHandler) ServiceProviderConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
-		"schemas": []string{domain.SCIMSchemaServiceConfig},
+		"schemas":          []string{domain.SCIMSchemaServiceConfig},
 		"documentationUri": "https://passwall.io/docs/scim",
 		"patch": gin.H{
 			"supported": true,
 		},
 		"bulk": gin.H{
-			"supported":  false,
-			"maxOperations": 0,
+			"supported":      false,
+			"maxOperations":  0,
 			"maxPayloadSize": 0,
 		},
 		"filter": gin.H{
@@ -175,11 +175,11 @@ func (h *SCIMHandler) ServiceProviderConfig(c *gin.Context) {
 		},
 		"authenticationSchemes": []gin.H{
 			{
-				"name":             "OAuth Bearer Token",
-				"description":      "Authentication scheme using the OAuth Bearer Token Standard",
-				"specUri":          "http://www.rfc-editor.org/info/rfc6750",
-				"type":             "oauthbearertoken",
-				"primary":          true,
+				"name":        "OAuth Bearer Token",
+				"description": "Authentication scheme using the OAuth Bearer Token Standard",
+				"specUri":     "http://www.rfc-editor.org/info/rfc6750",
+				"type":        "oauthbearertoken",
+				"primary":     true,
 			},
 		},
 		"meta": gin.H{
@@ -193,22 +193,22 @@ func (h *SCIMHandler) ServiceProviderConfig(c *gin.Context) {
 func (h *SCIMHandler) ResourceTypes(c *gin.Context) {
 	c.JSON(http.StatusOK, []gin.H{
 		{
-			"schemas":     []string{domain.SCIMSchemaResourceType},
-			"id":          "User",
-			"name":        "User",
-			"endpoint":    "/Users",
-			"schema":      domain.SCIMSchemaUser,
+			"schemas":  []string{domain.SCIMSchemaResourceType},
+			"id":       "User",
+			"name":     "User",
+			"endpoint": "/Users",
+			"schema":   domain.SCIMSchemaUser,
 			"meta": gin.H{
 				"resourceType": "ResourceType",
 				"location":     "/scim/v2/ResourceTypes/User",
 			},
 		},
 		{
-			"schemas":     []string{domain.SCIMSchemaResourceType},
-			"id":          "Group",
-			"name":        "Group",
-			"endpoint":    "/Groups",
-			"schema":      domain.SCIMSchemaGroup,
+			"schemas":  []string{domain.SCIMSchemaResourceType},
+			"id":       "Group",
+			"name":     "Group",
+			"endpoint": "/Groups",
+			"schema":   domain.SCIMSchemaGroup,
 			"meta": gin.H{
 				"resourceType": "ResourceType",
 				"location":     "/scim/v2/ResourceTypes/Group",
