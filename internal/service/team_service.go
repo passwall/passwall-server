@@ -79,6 +79,13 @@ func (s *teamService) GetByID(ctx context.Context, id uint, userID uint) (*domai
 		return nil, err
 	}
 
+	memberCount, err := s.teamRepo.GetMemberCount(ctx, team.ID)
+	if err != nil {
+		s.logger.Error("failed to get team member count", "team_id", team.ID, "error", err)
+		return nil, fmt.Errorf("failed to get team member count: %w", err)
+	}
+	team.MemberCount = &memberCount
+
 	return team, nil
 }
 
@@ -92,6 +99,15 @@ func (s *teamService) ListByOrganization(ctx context.Context, orgID uint, userID
 	if err != nil {
 		s.logger.Error("failed to list teams", "org_id", orgID, "error", err)
 		return nil, fmt.Errorf("failed to list teams: %w", err)
+	}
+
+	for _, team := range teams {
+		memberCount, countErr := s.teamRepo.GetMemberCount(ctx, team.ID)
+		if countErr != nil {
+			s.logger.Error("failed to get team member count", "team_id", team.ID, "error", countErr)
+			return nil, fmt.Errorf("failed to get team member count: %w", countErr)
+		}
+		team.MemberCount = &memberCount
 	}
 
 	return teams, nil

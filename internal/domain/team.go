@@ -28,6 +28,9 @@ type Team struct {
 	// External ID for LDAP/AD sync
 	ExternalID *string `json:"external_id,omitempty" gorm:"type:varchar(255);index"`
 
+	// Stats (runtime calculated, not stored in DB)
+	MemberCount *int `json:"member_count,omitempty" gorm:"-"`
+
 	// Associations
 	Organization *Organization `json:"organization,omitempty" gorm:"foreignKey:OrganizationID"`
 	Members      []TeamUser    `json:"members,omitempty" gorm:"foreignKey:TeamID"`
@@ -131,6 +134,7 @@ func ToTeamDTO(team *Team) *TeamDTO {
 		IsDefault:            team.IsDefault,
 		CreatedAt:            team.CreatedAt,
 		UpdatedAt:            team.UpdatedAt,
+		MemberCount:          team.MemberCount,
 	}
 }
 
