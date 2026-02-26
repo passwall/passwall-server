@@ -404,3 +404,51 @@ func (h *OrganizationHandler) AcceptInvitation(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "invitation accepted successfully"})
 }
+
+// ConfirmProvisionedMember godoc
+// @Summary Confirm provisioned member
+// @Description Confirm a provisioned member by providing their encrypted org key (key exchange)
+// @Tags organizations
+// @Accept json
+// @Produce json
+// @Param id path int true "Organization ID"
+// @Param userId path int true "Organization User ID"
+// @Param request body object{encrypted_org_key=string} true "Encrypted org key"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Router /organizations/{id}/members/{userId}/confirm [post]
+func (h *OrganizationHandler) ConfirmProvisionedMember(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := GetCurrentUserID(c)
+
+	orgID, ok := GetUintParam(c, "id")
+	if !ok {
+		return
+	}
+
+	orgUserID, ok := GetUintParam(c, "userId")
+	if !ok {
+		return
+	}
+
+	var req struct {
+		EncryptedOrgKey string `json:"encrypted_org_key" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
+		return
+	}
+
+	err := h.service.ConfirmProvisionedMember(ctx, orgID, orgUserID, userID, req.EncryptedOrgKey)
+	if err != nil {
+		if errors.Is(err, repository.ErrForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to confirm provisioned member", "details": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "provisioned member confirmed successfully"})
+}

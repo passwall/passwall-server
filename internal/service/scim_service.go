@@ -229,17 +229,40 @@ func (s *scimService) CreateUser(ctx context.Context, orgID uint, scimUser *doma
 		return nil, fmt.Errorf("SCIM user must have a primary email")
 	}
 
-	// Check if user already exists in the system
 	existingUser, err := s.userRepo.GetByEmail(ctx, strings.ToLower(email))
-	if err == nil {
-		// User exists in system, check org membership
-		_, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, existingUser.ID)
-		if err == nil {
-			return nil, ErrSCIMUserExists
-		}
-		return nil, ErrSCIMProvisioningBlocked
+	if err != nil {
+		s.logger.Info("SCIM CreateUser: user not found in system, cannot provision", "email", email, "org_id", orgID)
+		return nil, fmt.Errorf("user %s does not have a Passwall account yet; they must sign up first", email)
 	}
-	return nil, ErrSCIMProvisioningBlocked
+
+	_, err = s.orgUserRepo.GetByOrgAndUser(ctx, orgID, existingUser.ID)
+	if err == nil {
+		return nil, ErrSCIMUserExists
+	}
+
+	now := time.Now()
+	orgUser := &domain.OrganizationUser{
+		UUID:            uuid.NewV4(),
+		OrganizationID:  orgID,
+		UserID:          existingUser.ID,
+		Role:            domain.OrgRoleMember,
+		EncryptedOrgKey: "pending_key_exchange",
+		AccessAll:       false,
+		Status:          domain.OrgUserStatusProvisioned,
+		InvitedAt:       &now,
+	}
+	if scimUser.ExternalID != "" {
+		orgUser.ExternalID = ptrString(scimUser.ExternalID)
+	}
+
+	if err := s.orgUserRepo.Create(ctx, orgUser); err != nil {
+		return nil, fmt.Errorf("failed to provision SCIM user: %w", err)
+	}
+
+	s.logger.Info("SCIM user provisioned", "user_id", existingUser.ID, "org_id", orgID, "status", "provisioned")
+
+	orgUser.User = existingUser
+	return s.orgUserToSCIMUser(orgUser, orgID), nil
 }
 
 func (s *scimService) UpdateUser(ctx context.Context, orgID uint, userID string, scimUser *domain.SCIMUser) (*domain.SCIMUser, error) {

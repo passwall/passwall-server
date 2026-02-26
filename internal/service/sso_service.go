@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
+	"encoding/pem"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -12,7 +14,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/beevik/etree"
 	"github.com/coreos/go-oidc/v3/oidc"
+	dsig "github.com/russellhaering/goxmldsig"
 	uuid "github.com/satori/go.uuid"
 	"golang.org/x/oauth2"
 
@@ -297,11 +301,16 @@ func (s *ssoService) InitiateLogin(ctx context.Context, req *domain.SSOInitiateR
 		return "", fmt.Errorf("failed to generate state: %w", err)
 	}
 
+	validatedRedirect := validateRedirectURL(req.RedirectURL, s.baseURL, conn.Domain)
+	if req.RedirectURL != "" && validatedRedirect == "" {
+		s.logger.Warn("SSO initiate login rejected redirect URL", "conn_id", conn.ID, "redirect_url", req.RedirectURL)
+	}
+
 	ssoState := &domain.SSOState{
 		State:          stateToken,
 		ConnectionID:   conn.ID,
 		OrganizationID: conn.OrganizationID,
-		RedirectURL:    req.RedirectURL,
+		RedirectURL:    validatedRedirect,
 		ExpiresAt:      time.Now().Add(10 * time.Minute),
 	}
 
@@ -566,6 +575,12 @@ func (s *ssoService) HandleSAMLCallback(ctx context.Context, relayState, samlRes
 			return nil, fmt.Errorf("SAML response/assertion is not signed")
 		}
 	}
+
+	if err := verifySAMLXMLSignature(decoded, conn.SAMLConfig.Certificate); err != nil {
+		s.logger.Error("SSO SAML callback signature verification failed", "conn_id", conn.ID, "err", err)
+		return nil, fmt.Errorf("SAML signature verification failed: %w", err)
+	}
+
 	if conn.SAMLConfig.EntityID != "" {
 		issuer := strings.TrimSpace(resp.Assertion.Issuer.Value)
 		if issuer == "" {
@@ -653,17 +668,28 @@ func (s *ssoService) completeSSOLogin(ctx context.Context, conn *domain.SSOConne
 	orgMembership, err := s.orgUserRepo.GetByOrgAndUser(ctx, conn.OrganizationID, user.ID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			if conn.AutoProvision {
-				s.logger.Warn("SSO complete login auto provisioning blocked", "conn_id", conn.ID, "org_id", conn.OrganizationID, "user_id", user.ID)
-				return nil, ErrSSOProvisioningBlocked
+			if conn.JITProvisioning || conn.AutoProvision {
+				orgMembership, err = s.jitProvisionMember(ctx, conn, user)
+				if err != nil {
+					s.logger.Error("SSO JIT provisioning failed", "conn_id", conn.ID, "org_id", conn.OrganizationID, "user_id", user.ID, "err", err)
+					return nil, fmt.Errorf("SSO provisioning failed: %w", err)
+				}
+			} else {
+				s.logger.Warn("SSO complete login user not member of organization", "conn_id", conn.ID, "org_id", conn.OrganizationID, "user_id", user.ID)
+				return nil, fmt.Errorf("user is not a member of this organization")
 			}
-			s.logger.Warn("SSO complete login user not member of organization", "conn_id", conn.ID, "org_id", conn.OrganizationID, "user_id", user.ID)
-			return nil, fmt.Errorf("user is not a member of this organization")
+		} else {
+			s.logger.Error("SSO complete login membership lookup failed", "conn_id", conn.ID, "org_id", conn.OrganizationID, "user_id", user.ID, "err", err)
+			return nil, err
 		}
-		s.logger.Error("SSO complete login membership lookup failed", "conn_id", conn.ID, "org_id", conn.OrganizationID, "user_id", user.ID, "err", err)
-		return nil, err
 	}
-	if orgMembership.Status != domain.OrgUserStatusAccepted && orgMembership.Status != domain.OrgUserStatusConfirmed {
+
+	allowedStatuses := map[domain.OrganizationUserStatus]bool{
+		domain.OrgUserStatusAccepted:    true,
+		domain.OrgUserStatusConfirmed:   true,
+		domain.OrgUserStatusProvisioned: true,
+	}
+	if !allowedStatuses[orgMembership.Status] {
 		s.logger.Warn("SSO complete login membership inactive", "conn_id", conn.ID, "org_id", conn.OrganizationID, "user_id", user.ID, "status", orgMembership.Status)
 		return nil, fmt.Errorf("organization membership is not active")
 	}
@@ -688,6 +714,31 @@ func (s *ssoService) completeSSOLogin(ctx context.Context, conn *domain.SSOConne
 		ProtectedUserKey: authResp.ProtectedUserKey,
 		KdfConfig:        authResp.KdfConfig,
 	}, nil
+}
+
+// jitProvisionMember creates an org membership for a user during their first SSO login.
+// The member is created with "provisioned" status and a placeholder org key.
+// An org admin must later confirm the member to complete the key exchange.
+func (s *ssoService) jitProvisionMember(ctx context.Context, conn *domain.SSOConnection, user *domain.User) (*domain.OrganizationUser, error) {
+	now := time.Now()
+	orgUser := &domain.OrganizationUser{
+		UUID:            uuid.NewV4(),
+		OrganizationID:  conn.OrganizationID,
+		UserID:          user.ID,
+		Role:            conn.DefaultRole,
+		EncryptedOrgKey: "pending_key_exchange",
+		AccessAll:       false,
+		Status:          domain.OrgUserStatusProvisioned,
+		InvitedAt:       &now,
+	}
+
+	if err := s.orgUserRepo.Create(ctx, orgUser); err != nil {
+		return nil, fmt.Errorf("failed to create JIT membership: %w", err)
+	}
+
+	s.logger.Info("SSO JIT provisioned user into org", "conn_id", conn.ID, "org_id", conn.OrganizationID, "user_id", user.ID, "role", conn.DefaultRole)
+	orgUser.User = user
+	return orgUser, nil
 }
 
 func (s *ssoService) GetSPMetadata(ctx context.Context, connID uint) (string, error) {
@@ -860,4 +911,100 @@ func urlsEqualWithoutTrailingSlash(a, b string) bool {
 
 func (s *ssoService) callbackURL() string {
 	return strings.TrimRight(s.baseURL, "/") + "/sso/callback"
+}
+
+// verifySAMLXMLSignature cryptographically verifies the XML digital signature
+// in a SAML response against the IdP's x509 certificate.
+func verifySAMLXMLSignature(xmlBytes []byte, pemCertificate string) error {
+	cert, err := parseIdPCertificate(pemCertificate)
+	if err != nil {
+		return fmt.Errorf("failed to parse IdP certificate: %w", err)
+	}
+
+	certStore := dsig.MemoryX509CertificateStore{
+		Roots: []*x509.Certificate{cert},
+	}
+
+	validationCtx := dsig.NewDefaultValidationContext(&certStore)
+	validationCtx.Clock = dsig.NewFakeClockAt(time.Now())
+
+	doc := etree.NewDocument()
+	if err := doc.ReadFromBytes(xmlBytes); err != nil {
+		return fmt.Errorf("failed to parse SAML XML: %w", err)
+	}
+
+	_, err = validationCtx.Validate(doc.Root())
+	if err != nil {
+		return fmt.Errorf("XML signature validation failed: %w", err)
+	}
+
+	return nil
+}
+
+// parseIdPCertificate parses an x509 certificate from PEM or raw base64.
+func parseIdPCertificate(raw string) (*x509.Certificate, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, fmt.Errorf("empty certificate")
+	}
+
+	block, _ := pem.Decode([]byte(raw))
+	if block != nil {
+		return x509.ParseCertificate(block.Bytes)
+	}
+
+	// Try raw base64 (certificate without PEM headers)
+	cleaned := strings.ReplaceAll(raw, "\n", "")
+	cleaned = strings.ReplaceAll(cleaned, "\r", "")
+	cleaned = strings.ReplaceAll(cleaned, " ", "")
+	derBytes, err := base64.StdEncoding.DecodeString(cleaned)
+	if err != nil {
+		return nil, fmt.Errorf("certificate is neither valid PEM nor base64: %w", err)
+	}
+	return x509.ParseCertificate(derBytes)
+}
+
+// validateRedirectURL ensures the redirect URL is safe and belongs to allowed origins.
+// It checks against the server's own base URL origin and the SSO connection's domain.
+func validateRedirectURL(redirectURL, serverBaseURL, connectionDomain string) string {
+	redirectURL = strings.TrimSpace(redirectURL)
+	if redirectURL == "" {
+		return ""
+	}
+
+	parsed, err := url.Parse(redirectURL)
+	if err != nil || !parsed.IsAbs() {
+		return ""
+	}
+	if parsed.Scheme != "https" && parsed.Scheme != "http" {
+		return ""
+	}
+
+	host := strings.ToLower(parsed.Hostname())
+
+	serverParsed, err := url.Parse(serverBaseURL)
+	if err == nil && strings.ToLower(serverParsed.Hostname()) == host {
+		return redirectURL
+	}
+
+	// Allow origins that share the SSO connection's verified domain
+	connDomain := strings.ToLower(strings.TrimSpace(connectionDomain))
+	if connDomain != "" && (host == connDomain || strings.HasSuffix(host, "."+connDomain)) {
+		return redirectURL
+	}
+
+	// Allow common Passwall domains
+	allowedSuffixes := []string{".passwall.io", ".passwall.com"}
+	for _, suffix := range allowedSuffixes {
+		if strings.HasSuffix(host, suffix) || host == strings.TrimPrefix(suffix, ".") {
+			return redirectURL
+		}
+	}
+
+	// Allow localhost for development
+	if host == "localhost" || host == "127.0.0.1" {
+		return redirectURL
+	}
+
+	return ""
 }

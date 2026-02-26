@@ -21,6 +21,7 @@ const (
 	ItemTypeIdentity    ItemType = 7
 	ItemTypeSSHKey      ItemType = 8
 	ItemTypeAddress     ItemType = 9  // Address/Location
+	ItemTypePasskey     ItemType = 10 // Passkey/WebAuthn/FIDO2 credential
 	ItemTypeCustom      ItemType = 99 // User-defined
 )
 
@@ -45,6 +46,8 @@ func (it ItemType) String() string {
 		return "SSHKey"
 	case ItemTypeAddress:
 		return "Address"
+	case ItemTypePasskey:
+		return "Passkey"
 	case ItemTypeCustom:
 		return "Custom"
 	default:
@@ -57,7 +60,7 @@ func (it ItemType) IsValid() bool {
 	validTypes := []ItemType{
 		ItemTypePassword, ItemTypeSecureNote, ItemTypeCard,
 		ItemTypeBankAccount, ItemTypeEmail, ItemTypeServer,
-		ItemTypeIdentity, ItemTypeSSHKey, ItemTypeAddress, ItemTypeCustom,
+		ItemTypeIdentity, ItemTypeSSHKey, ItemTypeAddress, ItemTypePasskey, ItemTypeCustom,
 	}
 	for _, vt := range validTypes {
 		if it == vt {
@@ -100,11 +103,11 @@ type Item struct {
 	Revision    int64 `json:"revision" gorm:"not null;default:0"`
 	SyncVersion int   `json:"sync_version" gorm:"not null;default:1"`
 
-	ItemType ItemType     `json:"item_type" gorm:"not null"`
-	Data     string       `json:"data" gorm:"type:text;not null"` // Encrypted JSON
+	ItemType ItemType `json:"item_type" gorm:"not null"`
+	Data     string   `json:"data" gorm:"type:text;not null"` // Encrypted JSON
 	// Optional: encrypted item key (for per-item key envelope encryption)
 	ItemKeyEnc *string      `json:"item_key_enc,omitempty" gorm:"type:text"`
-	Metadata ItemMetadata `json:"metadata" gorm:"type:jsonb;not null"`
+	Metadata   ItemMetadata `json:"metadata" gorm:"type:jsonb;not null"`
 
 	// User preferences
 	IsFavorite bool  `json:"is_favorite" gorm:"default:false"`

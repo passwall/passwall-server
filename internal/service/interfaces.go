@@ -103,6 +103,7 @@ type OrganizationService interface {
 	UpdateMemberRole(ctx context.Context, orgID, orgUserID uint, requestingUserID uint, req *domain.UpdateOrgUserRoleRequest) error
 	RemoveMember(ctx context.Context, orgID, orgUserID uint, requestingUserID uint) error
 	AcceptInvitation(ctx context.Context, orgUserID uint, userID uint, encryptedOrgKey string) error
+	ConfirmProvisionedMember(ctx context.Context, orgID, orgUserID uint, requestingUserID uint, encryptedOrgKey string) error
 	AddExistingMember(ctx context.Context, orgUser *domain.OrganizationUser) error
 	DeclineInvitationForUser(ctx context.Context, orgID uint, userID uint) error
 

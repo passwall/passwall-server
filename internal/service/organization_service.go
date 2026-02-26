@@ -666,6 +666,49 @@ func (s *organizationService) AcceptInvitation(ctx context.Context, orgUserID ui
 	return nil
 }
 
+func (s *organizationService) ConfirmProvisionedMember(ctx context.Context, orgID, orgUserID uint, requestingUserID uint, encryptedOrgKey string) error {
+	if encryptedOrgKey == "" {
+		return fmt.Errorf("encrypted_org_key is required")
+	}
+
+	// Check if requesting user can manage users (owner or admin)
+	if err := s.checkPermission(ctx, orgID, requestingUserID, true); err != nil {
+		return err
+	}
+
+	orgUser, err := s.orgUserRepo.GetByID(ctx, orgUserID)
+	if err != nil {
+		return fmt.Errorf("member not found: %w", err)
+	}
+
+	// Verify the member belongs to this organization
+	if orgUser.OrganizationID != orgID {
+		return repository.ErrForbidden
+	}
+
+	// Can only confirm provisioned members
+	if orgUser.Status != domain.OrgUserStatusProvisioned {
+		return fmt.Errorf("member is not in provisioned status (current: %s)", orgUser.Status)
+	}
+
+	// Set the encrypted org key and update status to confirmed
+	orgUser.EncryptedOrgKey = encryptedOrgKey
+	orgUser.Status = domain.OrgUserStatusConfirmed
+
+	if err := s.orgUserRepo.Update(ctx, orgUser); err != nil {
+		s.logger.Error("failed to confirm provisioned member", "org_user_id", orgUserID, "error", err)
+		return fmt.Errorf("failed to confirm provisioned member: %w", err)
+	}
+
+	// Ensure confirmed user is in default team
+	if err := s.ensureOrgUserInDefaultTeam(ctx, orgID, orgUser.ID); err != nil {
+		return fmt.Errorf("failed to ensure default team membership: %w", err)
+	}
+
+	s.logger.Info("provisioned member confirmed", "org_id", orgID, "org_user_id", orgUserID)
+	return nil
+}
+
 func (s *organizationService) AddExistingMember(ctx context.Context, orgUser *domain.OrganizationUser) error {
 	if orgUser == nil || orgUser.EncryptedOrgKey == "" {
 		return fmt.Errorf("encrypted_org_key is required")

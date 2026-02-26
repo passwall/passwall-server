@@ -316,6 +316,7 @@ func SetupRouter(
 			orgsGroup.GET("/:id/members", organizationHandler.GetMembers)
 			orgsGroup.PUT("/:id/members/:userId", organizationHandler.UpdateMemberRole)
 			orgsGroup.DELETE("/:id/members/:userId", organizationHandler.RemoveMember)
+			orgsGroup.POST("/:id/members/:userId/confirm", organizationHandler.ConfirmProvisionedMember)
 
 			// Teams nested under organization
 			orgsGroup.POST("/:id/teams", teamHandler.Create)

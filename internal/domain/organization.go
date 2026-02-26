@@ -145,10 +145,11 @@ const (
 type OrganizationUserStatus string
 
 const (
-	OrgUserStatusInvited   OrganizationUserStatus = "invited"
-	OrgUserStatusAccepted  OrganizationUserStatus = "accepted"
-	OrgUserStatusConfirmed OrganizationUserStatus = "confirmed"
-	OrgUserStatusSuspended OrganizationUserStatus = "suspended"
+	OrgUserStatusInvited     OrganizationUserStatus = "invited"
+	OrgUserStatusAccepted    OrganizationUserStatus = "accepted"
+	OrgUserStatusConfirmed   OrganizationUserStatus = "confirmed"
+	OrgUserStatusSuspended   OrganizationUserStatus = "suspended"
+	OrgUserStatusProvisioned OrganizationUserStatus = "provisioned" // Created via SCIM/SSO JIT; pending org key exchange
 )
 
 // OrganizationUser represents a user's membership in an organization
