@@ -90,6 +90,13 @@ func AutoMigrate(db database.Database) error {
 		return fmt.Errorf("failed to migrate organization tables: %w", err)
 	}
 
+	// Organization policies
+	if err := db.AutoMigrate(
+		&domain.OrganizationPolicy{},
+	); err != nil {
+		return fmt.Errorf("failed to migrate organization policy tables: %w", err)
+	}
+
 	// SSO & SCIM tables (Enterprise features)
 	if err := db.AutoMigrate(
 		&domain.SSOConnection{},

@@ -108,6 +108,7 @@ func (h *AuthHandler) SignIn(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
 		return
 	}
+	creds.ClientIP = GetIPAddress(c)
 
 	authResponse, err := h.authService.SignIn(ctx, &creds)
 	if err != nil {
@@ -121,6 +122,10 @@ func (h *AuthHandler) SignIn(c *gin.Context) {
 			})
 		}()
 
+		if errors.Is(err, service.ErrLoginBlocked) {
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": err.Error()})
+			return
+		}
 		if errors.Is(err, service.ErrUnauthorized) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
 			return

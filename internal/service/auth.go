@@ -24,7 +24,8 @@ var (
 	ErrExpiredToken    = errors.New("token expired or invalid")
 	ErrUnauthorized    = errors.New("unauthorized")
 	ErrInvalidPassword = errors.New("invalid password")
-	ErrDeviceLimit     = errors.New("device limit exceeded for current plan")
+	ErrDeviceLimit  = errors.New("device limit exceeded for current plan")
+	ErrLoginBlocked = errors.New("login temporarily blocked")
 )
 
 type AuthConfig struct {
@@ -44,7 +45,9 @@ type authService struct {
 	subRepo          interface {
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
 	}
-	activityService UserActivityService
+	policyRepo         repository.OrganizationPolicyRepository
+	failedLoginTracker FailedLoginTracker
+	activityService    UserActivityService
 	emailSender     email.Sender
 	emailBuilder    *email.EmailBuilder
 	config          *AuthConfig
@@ -63,6 +66,8 @@ func NewAuthService(
 	subRepo interface {
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
 	},
+	policyRepo repository.OrganizationPolicyRepository,
+	failedLoginTracker FailedLoginTracker,
 	activityService UserActivityService,
 	emailSender email.Sender,
 	emailBuilder *email.EmailBuilder,
@@ -70,19 +75,21 @@ func NewAuthService(
 	logger Logger,
 ) AuthService {
 	return &authService{
-		userRepo:         userRepo,
-		tokenRepo:        tokenRepo,
-		verificationRepo: verificationRepo,
-		orgRepo:          orgRepo,
-		orgUserRepo:      orgUserRepo,
-		orgFolderRepo:    orgFolderRepo,
-		invitationRepo:   invitationRepo,
-		subRepo:          subRepo,
-		activityService:  activityService,
-		emailSender:      emailSender,
-		emailBuilder:     emailBuilder,
-		config:           config,
-		logger:           logger,
+		userRepo:           userRepo,
+		tokenRepo:          tokenRepo,
+		verificationRepo:   verificationRepo,
+		orgRepo:            orgRepo,
+		orgUserRepo:        orgUserRepo,
+		orgFolderRepo:      orgFolderRepo,
+		invitationRepo:     invitationRepo,
+		subRepo:            subRepo,
+		policyRepo:         policyRepo,
+		failedLoginTracker: failedLoginTracker,
+		activityService:    activityService,
+		emailSender:        emailSender,
+		emailBuilder:       emailBuilder,
+		config:             config,
+		logger:             logger,
 	}
 }
 
@@ -272,6 +279,17 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 		return nil, fmt.Errorf("authentication failed: %w", err)
 	}
 
+	// Check failed login policy: is this IP blocked for any of the user's orgs?
+	userOrgIDs := s.getUserOrgIDs(ctx, user.ID)
+	if s.failedLoginTracker != nil && creds.ClientIP != "" {
+		for _, orgID := range userOrgIDs {
+			if blocked, msg := s.failedLoginTracker.IsBlocked(ctx, orgID, creds.ClientIP); blocked {
+				s.logger.Warn("login blocked by failed login policy", "email", creds.Email, "ip", creds.ClientIP, "org_id", orgID)
+				return nil, fmt.Errorf("%w: %s", ErrLoginBlocked, msg)
+			}
+		}
+	}
+
 	// Verify master password hash
 	// Client sent: HKDF(masterKey, info="auth") (base64-encoded string)
 	// Server has: bcrypt(HKDF(masterKey, info="auth"))
@@ -280,7 +298,19 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 		[]byte(creds.MasterPasswordHash),
 	); err != nil {
 		s.logger.Warn("invalid password attempt", "email", creds.Email)
+		if s.failedLoginTracker != nil && creds.ClientIP != "" {
+			for _, orgID := range userOrgIDs {
+				s.failedLoginTracker.RecordFailedAttempt(ctx, orgID, creds.ClientIP)
+			}
+		}
 		return nil, ErrUnauthorized
+	}
+
+	// Successful password verification: clear any failed login entries
+	if s.failedLoginTracker != nil && creds.ClientIP != "" {
+		for _, orgID := range userOrgIDs {
+			s.failedLoginTracker.RecordSuccess(ctx, orgID, creds.ClientIP)
+		}
 	}
 
 	// Check if email is verified
@@ -336,6 +366,9 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 		})
 	}()
 
+	// Check organization policy requirements (non-blocking, informational)
+	policyReqs := s.collectPolicyRequirements(ctx, user)
+
 	// Return auth response with protected user key
 	// Client will decrypt User Key with their Master Key
 	return &domain.AuthResponse{
@@ -358,6 +391,7 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 			PersonalOrganizationID: user.PersonalOrganizationID,
 			DefaultOrganizationID:  user.DefaultOrganizationID,
 		},
+		PolicyRequirements: policyReqs,
 	}, nil
 }
 
@@ -974,6 +1008,111 @@ func (s *authService) processPendingOrgInvitations(ctx context.Context, user *do
 		"org_role", *invitation.OrgRole)
 
 	return nil
+}
+
+// collectPolicyRequirements checks all organizations the user belongs to and
+// returns any outstanding compliance requirements (e.g. 2FA required but not enabled).
+// This runs best-effort; failures are logged but never block authentication.
+func (s *authService) collectPolicyRequirements(ctx context.Context, user *domain.User) []domain.PolicyRequirement {
+	if s.policyRepo == nil {
+		return nil
+	}
+
+	memberships, err := s.orgUserRepo.ListByUser(ctx, user.ID)
+	if err != nil {
+		return nil
+	}
+
+	var reqs []domain.PolicyRequirement
+	for _, m := range memberships {
+		if m == nil || m.Status == domain.OrgUserStatusInvited {
+			continue
+		}
+
+		policies, err := s.policyRepo.ListEnabledByOrganization(ctx, m.OrganizationID)
+		if err != nil || len(policies) == 0 {
+			continue
+		}
+
+		orgName := ""
+		if org, err := s.orgRepo.GetByID(ctx, m.OrganizationID); err == nil {
+			orgName = org.Name
+		}
+
+		for _, p := range policies {
+			switch p.Type {
+			case domain.PolicyRequireTwoFactor:
+				reqs = append(reqs, domain.PolicyRequirement{
+					OrganizationID:   m.OrganizationID,
+					OrganizationName: orgName,
+					PolicyType:       domain.PolicyRequireTwoFactor,
+					Message:          "Two-factor authentication is required by your organization",
+				})
+			case domain.PolicyMasterPWRequirements:
+				reqs = append(reqs, domain.PolicyRequirement{
+					OrganizationID:   m.OrganizationID,
+					OrganizationName: orgName,
+					PolicyType:       domain.PolicyMasterPWRequirements,
+					Message:          "Your master password must meet organization requirements",
+					Data:             p.Data,
+				})
+			case domain.PolicySessionTimeout:
+				reqs = append(reqs, domain.PolicyRequirement{
+					OrganizationID:   m.OrganizationID,
+					OrganizationName: orgName,
+					PolicyType:       domain.PolicySessionTimeout,
+					Message:          "Session timeout is enforced by your organization",
+					Data:             p.Data,
+				})
+			case domain.PolicyPasswordGenerator:
+				reqs = append(reqs, domain.PolicyRequirement{
+					OrganizationID:   m.OrganizationID,
+					OrganizationName: orgName,
+					PolicyType:       domain.PolicyPasswordGenerator,
+					Message:          "Password generator requirements are enforced by your organization",
+					Data:             p.Data,
+				})
+			case domain.PolicySingleOrganization:
+				reqs = append(reqs, domain.PolicyRequirement{
+					OrganizationID:   m.OrganizationID,
+					OrganizationName: orgName,
+					PolicyType:       domain.PolicySingleOrganization,
+					Message:          "You are restricted to a single organization",
+				})
+			case domain.PolicyDisablePersonalExport:
+				reqs = append(reqs, domain.PolicyRequirement{
+					OrganizationID:   m.OrganizationID,
+					OrganizationName: orgName,
+					PolicyType:       domain.PolicyDisablePersonalExport,
+					Message:          "Personal vault export is disabled by your organization",
+				})
+			case domain.PolicyRemoveSend:
+				reqs = append(reqs, domain.PolicyRequirement{
+					OrganizationID:   m.OrganizationID,
+					OrganizationName: orgName,
+					PolicyType:       domain.PolicyRemoveSend,
+					Message:          "Send feature is disabled by your organization",
+				})
+			}
+		}
+	}
+
+	return reqs
+}
+
+// getUserOrgIDs returns the IDs of organizations a user actively belongs to.
+func (s *authService) getUserOrgIDs(ctx context.Context, userID uint) []uint {
+	memberships, err := s.orgUserRepo.ListByUser(ctx, userID)
+	if err != nil {
+		return nil
+	}
+	var ids []uint
+	for _, m := range memberships {
+		if m.Status == domain.OrgUserStatusAccepted || m.Status == domain.OrgUserStatusConfirmed {
+			ids = append(ids, m.OrganizationID)
+		}
+	}
+	return ids
 }
 
 // ValidateSchema validates that a schema exists in the database

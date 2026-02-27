@@ -15,6 +15,7 @@ import (
 func SetupRouter(
 	serverConfig *config.ServerConfig,
 	authService service.AuthService,
+	firewallService service.PolicyFirewallService,
 	authHandler *httpHandler.AuthHandler,
 	activityHandler *httpHandler.ActivityHandler,
 	organizationActivityHandler *httpHandler.OrganizationActivityHandler,
@@ -27,6 +28,8 @@ func SetupRouter(
 	userPreferencesHandler *httpHandler.UserPreferencesHandler,
 	invitationHandler *httpHandler.InvitationHandler,
 	organizationHandler *httpHandler.OrganizationHandler,
+	organizationPolicyHandler *httpHandler.OrganizationPolicyHandler,
+	organizationSettingsHandler *httpHandler.OrganizationSettingsHandler,
 	teamHandler *httpHandler.TeamHandler,
 	collectionHandler *httpHandler.CollectionHandler,
 	organizationItemHandler *httpHandler.OrganizationItemHandler,
@@ -167,6 +170,10 @@ func SetupRouter(
 		apiGroup.GET("/plans", plansHandler.ListPlans)
 		apiGroup.GET("/plans/:code", plansHandler.GetPlan)
 
+		// Policy & settings definitions catalog (authenticated, no org context needed)
+		apiGroup.GET("/policies/definitions", organizationPolicyHandler.ListPolicyDefinitions)
+		apiGroup.GET("/settings/definitions", organizationSettingsHandler.ListSettingsDefinitions)
+
 		// Auth protected routes
 		apiGroup.POST("/signout", authHandler.SignOut)
 
@@ -290,8 +297,9 @@ func SetupRouter(
 		// ORGANIZATIONS API
 		// ============================================================
 
-		// Organizations CRUD
+		// Organizations CRUD (firewall middleware checks IP-based access per org)
 		orgsGroup := apiGroup.Group("/organizations")
+		orgsGroup.Use(httpHandler.FirewallMiddleware(firewallService))
 		{
 			orgsGroup.POST("", organizationHandler.Create)
 			orgsGroup.GET("", organizationHandler.List)
@@ -325,6 +333,16 @@ func SetupRouter(
 			// Collections nested under organization
 			orgsGroup.POST("/:id/collections", collectionHandler.Create)
 			orgsGroup.GET("/:id/collections", collectionHandler.List)
+
+			// Organization settings (preferences)
+			orgsGroup.GET("/:id/settings", organizationSettingsHandler.ListSettings)
+			orgsGroup.PUT("/:id/settings", organizationSettingsHandler.UpsertSettings)
+
+			// Organization policies
+			orgsGroup.GET("/:id/policies", organizationPolicyHandler.ListPolicies)
+			orgsGroup.GET("/:id/policies/active", organizationPolicyHandler.GetActivePolicies)
+			orgsGroup.GET("/:id/policies/:policyType", organizationPolicyHandler.GetPolicy)
+			orgsGroup.PUT("/:id/policies/:policyType", organizationPolicyHandler.UpdatePolicy)
 
 			// SSO connection management (org admin)
 			orgsGroup.POST("/:id/sso", ssoHandler.CreateConnection)

@@ -18,6 +18,7 @@ type PlanFeatures struct {
 	SSO             bool `json:"sso"`              // Single Sign-On enabled
 	APIAccess       bool `json:"api_access"`       // API access enabled
 	PrioritySupport bool `json:"priority_support"` // Priority support enabled
+	Policies        bool `json:"policies"`         // Organization policies enabled
 }
 
 // Scan implements sql.Scanner for PlanFeatures (JSONB)

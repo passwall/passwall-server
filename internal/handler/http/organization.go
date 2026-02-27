@@ -12,19 +12,32 @@ import (
 )
 
 type OrganizationHandler struct {
-	service service.OrganizationService
-	subRepo interface {
+	service       service.OrganizationService
+	policyService service.OrganizationPolicyService
+	subRepo       interface {
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
 	}
 }
 
 func NewOrganizationHandler(
 	service service.OrganizationService,
+	policyService service.OrganizationPolicyService,
 	subRepo interface {
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
 	},
 ) *OrganizationHandler {
-	return &OrganizationHandler{service: service, subRepo: subRepo}
+	return &OrganizationHandler{service: service, policyService: policyService, subRepo: subRepo}
+}
+
+// enrichWithPolicies populates ActivePolicies on the DTO (best-effort, never fails)
+func (h *OrganizationHandler) enrichWithPolicies(ctx context.Context, dto *domain.OrganizationDTO, userID uint) {
+	if dto == nil || dto.IsPersonal || h.policyService == nil {
+		return
+	}
+	summary, err := h.policyService.GetActivePolicySummary(ctx, dto.ID, userID)
+	if err == nil && len(summary) > 0 {
+		dto.ActivePolicies = summary
+	}
 }
 
 // Create godoc
@@ -55,7 +68,9 @@ func (h *OrganizationHandler) Create(c *gin.Context) {
 	}
 
 	sub, _ := h.subRepo.GetByOrganizationID(ctx, org.ID)
-	c.JSON(http.StatusCreated, domain.ToOrganizationDTOWithSubscription(org, sub))
+	dto := domain.ToOrganizationDTOWithSubscription(org, sub)
+	h.enrichWithPolicies(ctx, dto, userID)
+	c.JSON(http.StatusCreated, dto)
 }
 
 // List godoc
@@ -80,6 +95,7 @@ func (h *OrganizationHandler) List(c *gin.Context) {
 	for i, org := range orgs {
 		sub, _ := h.subRepo.GetByOrganizationID(ctx, org.ID)
 		dtos[i] = domain.ToOrganizationDTOWithSubscription(org, sub)
+		h.enrichWithPolicies(ctx, dtos[i], userID)
 	}
 
 	c.JSON(http.StatusOK, dtos)
@@ -120,7 +136,9 @@ func (h *OrganizationHandler) GetByID(c *gin.Context) {
 	}
 
 	sub, _ := h.subRepo.GetByOrganizationID(ctx, org.ID)
-	c.JSON(http.StatusOK, domain.ToOrganizationDTOWithSubscription(org, sub))
+	dto := domain.ToOrganizationDTOWithSubscription(org, sub)
+	h.enrichWithPolicies(ctx, dto, userID)
+	c.JSON(http.StatusOK, dto)
 }
 
 // Update godoc
@@ -166,7 +184,9 @@ func (h *OrganizationHandler) Update(c *gin.Context) {
 	}
 
 	sub, _ := h.subRepo.GetByOrganizationID(ctx, org.ID)
-	c.JSON(http.StatusOK, domain.ToOrganizationDTOWithSubscription(org, sub))
+	dto := domain.ToOrganizationDTOWithSubscription(org, sub)
+	h.enrichWithPolicies(ctx, dto, userID)
+	c.JSON(http.StatusOK, dto)
 }
 
 // Delete godoc

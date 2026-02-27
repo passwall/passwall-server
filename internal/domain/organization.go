@@ -241,6 +241,9 @@ type OrganizationDTO struct {
 
 	// Encrypted org key (safe to send - user's own copy, encrypted with their User Key)
 	EncryptedOrgKey string `json:"encrypted_org_key,omitempty"`
+
+	// Active policies (optional, populated for clients to adapt their behavior)
+	ActivePolicies map[PolicyType]PolicyData `json:"active_policies,omitempty"`
 }
 
 // OrganizationUserDTO for API responses

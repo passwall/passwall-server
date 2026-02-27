@@ -32,3 +32,13 @@ func CanViewMemberDirectory(role domain.OrganizationRole) bool {
 func CanViewSecurityAndAudit(role domain.OrganizationRole) bool {
 	return role == domain.OrgRoleOwner || role == domain.OrgRoleAdmin
 }
+
+func CanManagePolicies(role domain.OrganizationRole) bool {
+	return role == domain.OrgRoleOwner || role == domain.OrgRoleAdmin
+}
+
+func CanViewPolicies(role domain.OrganizationRole) bool {
+	return role == domain.OrgRoleOwner ||
+		role == domain.OrgRoleAdmin ||
+		role == domain.OrgRoleManager
+}

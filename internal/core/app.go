@@ -148,7 +148,14 @@ func (a *App) Run(ctx context.Context) error {
 	subscriptionRepo := gormrepo.NewSubscriptionRepository(a.db.DB())
 	planRepo := gormrepo.NewPlanRepository(a.db.DB())
 
-	authService := service.NewAuthService(userRepo, tokenRepo, verificationRepo, orgRepo, orgUserRepo, orgFolderRepo, invitationRepo, subscriptionRepo, userActivityService, emailSender, emailBuilder, authConfig, serviceLogger)
+	// Organization policy repo (needed by auth service for policy requirements on sign-in)
+	orgPolicyRepo := gormrepo.NewOrganizationPolicyRepository(a.db.DB())
+
+	// Organization policy service (created early so failedLoginTracker can use it in authService)
+	organizationPolicyService := service.NewOrganizationPolicyService(orgPolicyRepo, orgUserRepo, subscriptionRepo, serviceLogger)
+	failedLoginTracker := service.NewFailedLoginTracker(organizationPolicyService)
+
+	authService := service.NewAuthService(userRepo, tokenRepo, verificationRepo, orgRepo, orgUserRepo, orgFolderRepo, invitationRepo, subscriptionRepo, orgPolicyRepo, failedLoginTracker, userActivityService, emailSender, emailBuilder, authConfig, serviceLogger)
 	userService := service.NewUserService(
 		userRepo,
 		orgRepo,
@@ -192,6 +199,7 @@ func (a *App) Run(ctx context.Context) error {
 		collectionRepo,
 		collectionUserRepo,
 		collectionTeamRepo,
+		orgPolicyRepo,
 		paymentService,
 		invitationService,
 		subscriptionRepo,
@@ -234,6 +242,14 @@ func (a *App) Run(ctx context.Context) error {
 	)
 	organizationFolderService := service.NewOrganizationFolderService(orgFolderRepo, orgItemRepo, orgUserRepo, serviceLogger)
 
+	// Organization policy enforcement services
+	policyEnforcementService := service.NewPolicyEnforcementService(organizationPolicyService)
+	_ = policyEnforcementService // Available for injection into other services
+	policyFirewallService := service.NewPolicyFirewallService(organizationPolicyService)
+
+	// Organization settings service (uses existing preferences repo)
+	organizationSettingsService := service.NewOrganizationSettingsService(preferencesRepo, orgUserRepo, serviceLogger)
+
 	// SSO & SCIM repos
 	ssoConnRepo := gormrepo.NewSSOConnectionRepository(a.db.DB())
 	ssoStateRepo := gormrepo.NewSSOStateRepository(a.db.DB())
@@ -267,7 +283,7 @@ func (a *App) Run(ctx context.Context) error {
 	itemShareHandler := httpHandler.NewItemShareHandler(itemShareService)
 	excludedDomainHandler := httpHandler.NewExcludedDomainHandler(excludedDomainService)
 	// Organization handlers
-	organizationHandler := httpHandler.NewOrganizationHandler(organizationService, subscriptionRepo)
+	organizationHandler := httpHandler.NewOrganizationHandler(organizationService, organizationPolicyService, subscriptionRepo)
 	teamHandler := httpHandler.NewTeamHandler(teamService)
 	collectionHandler := httpHandler.NewCollectionHandler(collectionService)
 	organizationItemHandler := httpHandler.NewOrganizationItemHandler(organizationItemService, userActivityService)
@@ -294,6 +310,10 @@ func (a *App) Run(ctx context.Context) error {
 	adminMailHandler := httpHandler.NewAdminMailHandler(emailSender, userRepo, serviceLogger)
 	adminLogsHandler := httpHandler.NewAdminLogsHandler()
 
+	// Organization policy & settings handlers
+	organizationPolicyHandler := httpHandler.NewOrganizationPolicyHandler(organizationPolicyService)
+	organizationSettingsHandler := httpHandler.NewOrganizationSettingsHandler(organizationSettingsService)
+
 	// SSO & SCIM handlers
 	ssoHandler := httpHandler.NewSSOHandler(ssoService, organizationService)
 	scimHandler := httpHandler.NewSCIMHandler(scimService, organizationService)
@@ -305,6 +325,7 @@ func (a *App) Run(ctx context.Context) error {
 	router := SetupRouter(
 		&a.config.Server,
 		authService,
+		policyFirewallService,
 		authHandler,
 		activityHandler,
 		organizationActivityHandler,
@@ -317,6 +338,8 @@ func (a *App) Run(ctx context.Context) error {
 		userPreferencesHandler,
 		invitationHandler,
 		organizationHandler,
+		organizationPolicyHandler,
+		organizationSettingsHandler,
 		teamHandler,
 		collectionHandler,
 		organizationItemHandler,

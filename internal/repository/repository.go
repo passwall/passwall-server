@@ -274,6 +274,17 @@ type SCIMTokenRepository interface {
 	Delete(ctx context.Context, id uint) error
 }
 
+// OrganizationPolicyRepository defines organization policy data access methods
+type OrganizationPolicyRepository interface {
+	Create(ctx context.Context, policy *domain.OrganizationPolicy) error
+	GetByID(ctx context.Context, id uint) (*domain.OrganizationPolicy, error)
+	GetByOrgAndType(ctx context.Context, orgID uint, policyType domain.PolicyType) (*domain.OrganizationPolicy, error)
+	ListByOrganization(ctx context.Context, orgID uint) ([]*domain.OrganizationPolicy, error)
+	ListEnabledByOrganization(ctx context.Context, orgID uint) ([]*domain.OrganizationPolicy, error)
+	Update(ctx context.Context, policy *domain.OrganizationPolicy) error
+	Delete(ctx context.Context, id uint) error
+}
+
 // ItemShareRepository defines item share data access methods
 type ItemShareRepository interface {
 	Create(ctx context.Context, share *domain.ItemShare) error

@@ -2,6 +2,7 @@ package http
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/passwall/passwall-server/pkg/constants"
@@ -22,19 +23,20 @@ func GetUserID(c *gin.Context) (uint, error) {
 	return id, nil
 }
 
-// GetIPAddress extracts client IP from request
+// GetIPAddress extracts the original client IP from request headers.
+// X-Forwarded-For may contain "client, proxy1, proxy2"; we take the first entry.
 func GetIPAddress(c *gin.Context) string {
-	// Check X-Forwarded-For header (if behind proxy)
 	if forwarded := c.GetHeader("X-Forwarded-For"); forwarded != "" {
-		return forwarded
+		if first, _, ok := strings.Cut(forwarded, ","); ok {
+			return strings.TrimSpace(first)
+		}
+		return strings.TrimSpace(forwarded)
 	}
 
-	// Check X-Real-IP header
 	if realIP := c.GetHeader("X-Real-IP"); realIP != "" {
-		return realIP
+		return strings.TrimSpace(realIP)
 	}
 
-	// Fallback to RemoteAddr
 	return c.ClientIP()
 }
 

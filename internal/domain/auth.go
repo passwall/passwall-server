@@ -58,6 +58,9 @@ type Credentials struct {
 	// Optional login override:
 	// when true and free-plan device limit is hit, revoke all active sessions and continue login.
 	LogoutOtherDevices bool `json:"logout_other_devices,omitempty"`
+
+	// Server-populated fields (not from JSON body)
+	ClientIP string `json:"-"`
 }
 
 // AuthResponse represents the authentication response
@@ -70,6 +73,20 @@ type AuthResponse struct {
 	ProtectedUserKey      string       `json:"protected_user_key"`
 	KdfConfig             *KdfConfig   `json:"kdf_config"`
 	User                  *UserAuthDTO `json:"user"`
+
+	// PolicyRequirements informs clients about actions the user must take
+	// to comply with organization policies (e.g., enable 2FA).
+	// Non-nil only when there are outstanding requirements.
+	PolicyRequirements []PolicyRequirement `json:"policy_requirements,omitempty"`
+}
+
+// PolicyRequirement represents a compliance action required by an organization policy
+type PolicyRequirement struct {
+	OrganizationID   uint       `json:"organization_id"`
+	OrganizationName string     `json:"organization_name"`
+	PolicyType       PolicyType `json:"policy_type"`
+	Message          string     `json:"message"`
+	Data             PolicyData `json:"data,omitempty"`
 }
 
 // TokenDetails represents JWT token details

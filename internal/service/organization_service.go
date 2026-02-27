@@ -21,6 +21,7 @@ type organizationService struct {
 	collectionRepo     repository.CollectionRepository
 	collectionUserRepo repository.CollectionUserRepository
 	collectionTeamRepo repository.CollectionTeamRepository
+	policyRepo         repository.OrganizationPolicyRepository
 	paymentService     PaymentService
 	invitationService  InvitationService
 	subRepo            interface {
@@ -43,6 +44,7 @@ func NewOrganizationService(
 	collectionRepo repository.CollectionRepository,
 	collectionUserRepo repository.CollectionUserRepository,
 	collectionTeamRepo repository.CollectionTeamRepository,
+	policyRepo repository.OrganizationPolicyRepository,
 	paymentService PaymentService,
 	invitationService InvitationService,
 	subRepo interface {
@@ -63,6 +65,7 @@ func NewOrganizationService(
 		collectionRepo:     collectionRepo,
 		collectionUserRepo: collectionUserRepo,
 		collectionTeamRepo: collectionTeamRepo,
+		policyRepo:         policyRepo,
 		paymentService:     paymentService,
 		invitationService:  invitationService,
 		subRepo:            subRepo,
@@ -453,6 +456,13 @@ func (s *organizationService) InviteUser(ctx context.Context, orgID uint, invite
 		return nil, fmt.Errorf("user is already a member of this organization")
 	}
 
+	// Enforce Single Organization policy:
+	// 1) If the target org has the policy enabled, the invitee must not belong to any other org.
+	// 2) If any of the invitee's current orgs has the policy, they cannot join a new one.
+	if err := s.checkSingleOrganizationPolicy(ctx, orgID, invitee.ID); err != nil {
+		return nil, err
+	}
+
 	// Create an invitation record as well (unified invitation management + email).
 	// This enables a single "Invitations" area to manage both platform and org invites.
 	inviter, err := s.userRepo.GetByID(ctx, inviterUserID)
@@ -642,6 +652,11 @@ func (s *organizationService) AcceptInvitation(ctx context.Context, orgUserID ui
 	// Check if already accepted
 	if orgUser.Status != domain.OrgUserStatusInvited {
 		return fmt.Errorf("invitation already processed")
+	}
+
+	// Re-check Single Organization policy at acceptance time
+	if err := s.checkSingleOrganizationPolicy(ctx, orgUser.OrganizationID, userID); err != nil {
+		return err
 	}
 
 	// Persist invitee-specific wrapped org key on acceptance.
@@ -888,4 +903,47 @@ func isSupportedOrgRole(role domain.OrganizationRole) bool {
 	default:
 		return false
 	}
+}
+
+// checkSingleOrganizationPolicy verifies that neither the target organization nor the
+// user's existing organizations enforce the Single Organization policy.
+func (s *organizationService) checkSingleOrganizationPolicy(ctx context.Context, targetOrgID uint, userID uint) error {
+	if s.policyRepo == nil {
+		return nil
+	}
+
+	isActiveMembership := func(status domain.OrganizationUserStatus) bool {
+		return status == domain.OrgUserStatusAccepted || status == domain.OrgUserStatusConfirmed
+	}
+
+	// Check if the target org requires single organization membership
+	targetPolicy, err := s.policyRepo.GetByOrgAndType(ctx, targetOrgID, domain.PolicySingleOrganization)
+	if err == nil && targetPolicy != nil && targetPolicy.Enabled {
+		memberships, err := s.orgUserRepo.ListByUser(ctx, userID)
+		if err != nil {
+			return fmt.Errorf("failed to check existing memberships: %w", err)
+		}
+		for _, m := range memberships {
+			if m.OrganizationID != targetOrgID && isActiveMembership(m.Status) {
+				return fmt.Errorf("organization policy requires single organization membership; user belongs to another organization")
+			}
+		}
+	}
+
+	// Check if any of the user's existing organizations enforces single organization
+	memberships, err := s.orgUserRepo.ListByUser(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to check existing memberships: %w", err)
+	}
+	for _, m := range memberships {
+		if m.OrganizationID == targetOrgID || !isActiveMembership(m.Status) {
+			continue
+		}
+		existingPolicy, err := s.policyRepo.GetByOrgAndType(ctx, m.OrganizationID, domain.PolicySingleOrganization)
+		if err == nil && existingPolicy != nil && existingPolicy.Enabled {
+			return fmt.Errorf("user's existing organization enforces single organization membership")
+		}
+	}
+
+	return nil
 }
