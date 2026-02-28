@@ -35,6 +35,7 @@ type ServerConfig struct {
 	FrontendURL                string  `mapstructure:"frontend_url"`
 	RecaptchaSecretKey         string  `mapstructure:"recaptcha_secret_key"`
 	RecaptchaThreshold         float64 `mapstructure:"recaptcha_threshold"`
+	EscrowMasterKey            string  `mapstructure:"escrow_master_key"` // hex-encoded 256-bit key for SSO key escrow
 }
 
 // DatabaseConfig contains database-related configuration

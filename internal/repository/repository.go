@@ -285,6 +285,49 @@ type OrganizationPolicyRepository interface {
 	Delete(ctx context.Context, id uint) error
 }
 
+// EmergencyAccessRepository defines emergency access data access methods
+type EmergencyAccessRepository interface {
+	Create(ctx context.Context, ea *domain.EmergencyAccess) error
+	GetByUUID(ctx context.Context, uuid string) (*domain.EmergencyAccess, error)
+	ListByGrantor(ctx context.Context, grantorID uint) ([]*domain.EmergencyAccess, error)
+	ListByGrantee(ctx context.Context, granteeID uint) ([]*domain.EmergencyAccess, error)
+	ListByGranteeEmail(ctx context.Context, email string) ([]*domain.EmergencyAccess, error)
+	ListConfirmedByGrantor(ctx context.Context, grantorID uint) ([]*domain.EmergencyAccess, error)
+	Update(ctx context.Context, ea *domain.EmergencyAccess) error
+	Delete(ctx context.Context, id uint) error
+}
+
+// SendRepository defines send data access methods
+type SendRepository interface {
+	Create(ctx context.Context, send *domain.Send) error
+	GetByUUID(ctx context.Context, uuid string) (*domain.Send, error)
+	GetByAccessID(ctx context.Context, accessID string) (*domain.Send, error)
+	ListByCreator(ctx context.Context, creatorID uint) ([]*domain.Send, error)
+	Update(ctx context.Context, send *domain.Send) error
+	Delete(ctx context.Context, id uint) error
+	SoftDelete(ctx context.Context, id uint) error
+	IncrementAccessCount(ctx context.Context, id uint) error
+	DeleteExpired(ctx context.Context) (int64, error)
+}
+
+// KeyEscrowRepository defines key escrow data access methods
+type KeyEscrowRepository interface {
+	Create(ctx context.Context, escrow *domain.KeyEscrow) error
+	GetByUserAndOrg(ctx context.Context, userID, orgID uint) (*domain.KeyEscrow, error)
+	ListByOrganization(ctx context.Context, orgID uint) ([]*domain.KeyEscrow, error)
+	Update(ctx context.Context, escrow *domain.KeyEscrow) error
+	Delete(ctx context.Context, id uint) error
+	DeleteByUserAndOrg(ctx context.Context, userID, orgID uint) error
+}
+
+// OrgEscrowKeyRepository defines org escrow key data access methods
+type OrgEscrowKeyRepository interface {
+	Create(ctx context.Context, key *domain.OrgEscrowKey) error
+	GetByOrganizationID(ctx context.Context, orgID uint) (*domain.OrgEscrowKey, error)
+	Update(ctx context.Context, key *domain.OrgEscrowKey) error
+	Delete(ctx context.Context, id uint) error
+}
+
 // ItemShareRepository defines item share data access methods
 type ItemShareRepository interface {
 	Create(ctx context.Context, share *domain.ItemShare) error

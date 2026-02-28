@@ -27,6 +27,7 @@ type App struct {
 	tokenCleanup    *cleanup.TokenCleanup
 	activityCleanup *cleanup.ActivityCleanup
 	logCleanup      *cleanup.LogCleanup
+	sendCleanup     *cleanup.SendCleanup
 	emailSender     email.Sender
 }
 
@@ -103,6 +104,10 @@ func (a *App) Run(ctx context.Context) error {
 	orgFolderRepo := gormrepo.NewOrganizationFolderRepository(a.db.DB())
 	// Item share repo (personal sharing)
 	itemShareRepo := gormrepo.NewItemShareRepository(a.db.DB())
+	// Emergency access repo
+	emergencyAccessRepo := gormrepo.NewEmergencyAccessRepository(a.db.DB())
+	// Send repo
+	sendRepo := gormrepo.NewSendRepository(a.db.DB())
 
 	// NOTE: Legacy repos removed - all item types now use ItemRepository with type field
 
@@ -242,6 +247,19 @@ func (a *App) Run(ctx context.Context) error {
 	)
 	organizationFolderService := service.NewOrganizationFolderService(orgFolderRepo, orgItemRepo, orgUserRepo, serviceLogger)
 
+	// Emergency access service
+	emergencyAccessService := service.NewEmergencyAccessService(
+		emergencyAccessRepo,
+		userRepo,
+		orgItemRepo,
+		emailSender,
+		emailBuilder,
+		serviceLogger,
+	)
+
+	// Send service
+	sendService := service.NewSendService(sendRepo, userRepo, orgUserRepo, orgPolicyRepo, serviceLogger)
+
 	// Organization policy enforcement services
 	policyEnforcementService := service.NewPolicyEnforcementService(organizationPolicyService)
 	_ = policyEnforcementService // Available for injection into other services
@@ -255,11 +273,19 @@ func (a *App) Run(ctx context.Context) error {
 	ssoStateRepo := gormrepo.NewSSOStateRepository(a.db.DB())
 	scimTokenRepo := gormrepo.NewSCIMTokenRepository(a.db.DB())
 
+	// Key Escrow repos and service
+	keyEscrowRepo := gormrepo.NewKeyEscrowRepository(a.db.DB())
+	orgEscrowKeyRepo := gormrepo.NewOrgEscrowKeyRepository(a.db.DB())
+	keyEscrowService := service.NewKeyEscrowService(
+		keyEscrowRepo, orgEscrowKeyRepo, ssoConnRepo,
+		a.config.Server.EscrowMasterKey, serviceLogger,
+	)
+
 	// SSO service
 	serverBaseURL := a.config.Server.Domain
 	ssoService := service.NewSSOService(
 		ssoConnRepo, ssoStateRepo, userRepo, orgUserRepo, orgRepo,
-		authService, serviceLogger, serverBaseURL,
+		authService, keyEscrowService, serviceLogger, serverBaseURL,
 	)
 
 	// SCIM service
@@ -310,13 +336,20 @@ func (a *App) Run(ctx context.Context) error {
 	adminMailHandler := httpHandler.NewAdminMailHandler(emailSender, userRepo, serviceLogger)
 	adminLogsHandler := httpHandler.NewAdminLogsHandler()
 
+	// Emergency access handler
+	emergencyAccessHandler := httpHandler.NewEmergencyAccessHandler(emergencyAccessService, userRepo)
+
+	// Send handler
+	sendHandler := httpHandler.NewSendHandler(sendService)
+
 	// Organization policy & settings handlers
 	organizationPolicyHandler := httpHandler.NewOrganizationPolicyHandler(organizationPolicyService)
 	organizationSettingsHandler := httpHandler.NewOrganizationSettingsHandler(organizationSettingsService)
 
-	// SSO & SCIM handlers
+	// SSO, SCIM & Key Escrow handlers
 	ssoHandler := httpHandler.NewSSOHandler(ssoService, organizationService)
 	scimHandler := httpHandler.NewSCIMHandler(scimService, organizationService)
+	keyEscrowHandler := httpHandler.NewKeyEscrowHandler(keyEscrowService, organizationService)
 
 	// Icons handler (public favicon service with protection)
 	iconsHandler := httpHandler.NewIconsHandler(serviceLogger)
@@ -344,6 +377,8 @@ func (a *App) Run(ctx context.Context) error {
 		collectionHandler,
 		organizationItemHandler,
 		organizationFolderHandler,
+		emergencyAccessHandler,
+		sendHandler,
 		paymentHandler,
 		webhookHandler,
 		supportHandler,
@@ -355,6 +390,7 @@ func (a *App) Run(ctx context.Context) error {
 		ssoHandler,
 		scimHandler,
 		scimService,
+		keyEscrowHandler,
 	)
 
 	// Create server
@@ -376,10 +412,14 @@ func (a *App) Run(ctx context.Context) error {
 	// Initialize log cleanup service (runs every 15 days, truncates log files in place)
 	a.logCleanup = cleanup.NewLogCleanup(adminLogsHandler.LogPaths(), 15*24*time.Hour)
 
+	// Initialize send cleanup service (runs every 6 hours)
+	a.sendCleanup = cleanup.NewSendCleanup(sendRepo, 6*time.Hour)
+
 	// Start cleanup services in background (using application context)
 	go a.tokenCleanup.Start(ctx)
 	go a.activityCleanup.Start(ctx)
 	go a.logCleanup.Start(ctx)
+	go a.sendCleanup.Start(ctx)
 
 	// Start server in a goroutine
 	serverErrChan := make(chan error, 1)

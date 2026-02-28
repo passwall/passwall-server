@@ -112,10 +112,11 @@ type SSOConnection struct {
 	SPMetadata string `json:"-" gorm:"type:text"`
 
 	// Behaviour
-	AutoProvision   bool                `json:"auto_provision" gorm:"default:true"`
-	DefaultRole     OrganizationRole    `json:"default_role" gorm:"type:varchar(20);default:'member'"`
-	JITProvisioning bool                `json:"jit_provisioning" gorm:"default:true"`
-	Status          SSOConnectionStatus `json:"status" gorm:"type:varchar(20);not null;default:'draft'"`
+	AutoProvision    bool                `json:"auto_provision" gorm:"default:true"`
+	DefaultRole      OrganizationRole    `json:"default_role" gorm:"type:varchar(20);default:'member'"`
+	JITProvisioning  bool                `json:"jit_provisioning" gorm:"default:true"`
+	KeyEscrowEnabled bool                `json:"key_escrow_enabled" gorm:"default:false"`
+	Status           SSOConnectionStatus `json:"status" gorm:"type:varchar(20);not null;default:'draft'"`
 
 	// Associations
 	Organization *Organization `json:"organization,omitempty" gorm:"foreignKey:OrganizationID"`
@@ -179,10 +180,11 @@ type SSOConnectionDTO struct {
 	SPAcsURL        string              `json:"sp_acs_url"`
 	AutoProvision   bool                `json:"auto_provision"`
 	DefaultRole     OrganizationRole    `json:"default_role"`
-	JITProvisioning bool                `json:"jit_provisioning"`
-	Status          SSOConnectionStatus `json:"status"`
-	CreatedAt       time.Time           `json:"created_at"`
-	UpdatedAt       time.Time           `json:"updated_at"`
+	JITProvisioning  bool                `json:"jit_provisioning"`
+	KeyEscrowEnabled bool                `json:"key_escrow_enabled"`
+	Status           SSOConnectionStatus `json:"status"`
+	CreatedAt        time.Time           `json:"created_at"`
+	UpdatedAt        time.Time           `json:"updated_at"`
 
 	// Protocol-specific (admin-visible only)
 	SAMLConfig *SAMLConfigDTO `json:"saml_config,omitempty"`
@@ -228,8 +230,9 @@ func ToSSOConnectionDTO(conn *SSOConnection) *SSOConnectionDTO {
 		SPAcsURL:        conn.SPAcsURL,
 		AutoProvision:   conn.AutoProvision,
 		DefaultRole:     conn.DefaultRole,
-		JITProvisioning: conn.JITProvisioning,
-		Status:          conn.Status,
+		JITProvisioning:  conn.JITProvisioning,
+		KeyEscrowEnabled: conn.KeyEscrowEnabled,
+		Status:           conn.Status,
 		CreatedAt:       conn.CreatedAt,
 		UpdatedAt:       conn.UpdatedAt,
 	}
@@ -277,14 +280,15 @@ type CreateSSOConnectionRequest struct {
 
 // UpdateSSOConnectionRequest for updating an SSO connection
 type UpdateSSOConnectionRequest struct {
-	Name            *string              `json:"name,omitempty" binding:"omitempty,max=255"`
-	Domain          *string              `json:"domain,omitempty" binding:"omitempty,max=255"`
-	SAMLConfig      *SAMLConfig          `json:"saml_config,omitempty"`
-	OIDCConfig      *OIDCConfig          `json:"oidc_config,omitempty"`
-	AutoProvision   *bool                `json:"auto_provision,omitempty"`
-	DefaultRole     *OrganizationRole    `json:"default_role,omitempty"`
-	JITProvisioning *bool                `json:"jit_provisioning,omitempty"`
-	Status          *SSOConnectionStatus `json:"status,omitempty" binding:"omitempty,oneof=draft active inactive"`
+	Name             *string              `json:"name,omitempty" binding:"omitempty,max=255"`
+	Domain           *string              `json:"domain,omitempty" binding:"omitempty,max=255"`
+	SAMLConfig       *SAMLConfig          `json:"saml_config,omitempty"`
+	OIDCConfig       *OIDCConfig          `json:"oidc_config,omitempty"`
+	AutoProvision    *bool                `json:"auto_provision,omitempty"`
+	DefaultRole      *OrganizationRole    `json:"default_role,omitempty"`
+	JITProvisioning  *bool                `json:"jit_provisioning,omitempty"`
+	KeyEscrowEnabled *bool                `json:"key_escrow_enabled,omitempty"`
+	Status           *SSOConnectionStatus `json:"status,omitempty" binding:"omitempty,oneof=draft active inactive"`
 }
 
 // SSOInitiateRequest for starting SSO login
@@ -304,4 +308,11 @@ type SSOCallbackResult struct {
 	ProtectedUserKey string        `json:"protected_user_key,omitempty"`
 	KdfConfig        *KdfConfig    `json:"kdf_config,omitempty"`
 	RedirectURL      string        `json:"redirect_url,omitempty"`
+
+	// Key Escrow: when enabled, the server returns the raw Org Key
+	// so the client can unlock org vault items without master password.
+	// Personal vault remains locked (requires master password).
+	OrgKey        string `json:"org_key,omitempty"`
+	OrgID         uint   `json:"org_id,omitempty"`
+	KeyEscrowUsed bool   `json:"key_escrow_used"`
 }

@@ -97,11 +97,21 @@ func AutoMigrate(db database.Database) error {
 		return fmt.Errorf("failed to migrate organization policy tables: %w", err)
 	}
 
+	// Emergency Access & Sends
+	if err := db.AutoMigrate(
+		&domain.EmergencyAccess{},
+		&domain.Send{},
+	); err != nil {
+		return fmt.Errorf("failed to migrate emergency access / send tables: %w", err)
+	}
+
 	// SSO & SCIM tables (Enterprise features)
 	if err := db.AutoMigrate(
 		&domain.SSOConnection{},
 		&domain.SSOState{},
 		&domain.SCIMToken{},
+		&domain.OrgEscrowKey{},
+		&domain.KeyEscrow{},
 	); err != nil {
 		return fmt.Errorf("failed to migrate SSO/SCIM tables: %w", err)
 	}

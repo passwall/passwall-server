@@ -1,6 +1,9 @@
 package email
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // EmailBuilder helps build specific types of emails
 // This is where business logic lives - not in the email clients
@@ -179,6 +182,113 @@ func (b *EmailBuilder) BuildShareNotificationEmail(to, inviterName, itemName str
 		Subject: subject,
 		Body:    htmlBody,
 	}, nil
+}
+
+// BuildEmergencyInviteEmail builds an emergency access invitation email
+func (b *EmailBuilder) BuildEmergencyInviteEmail(to, grantorName string) (*EmailMessage, error) {
+	if to == "" {
+		return nil, fmt.Errorf("recipient email is required")
+	}
+
+	emergencyURL := fmt.Sprintf("%s/settings/emergency-access", b.frontendURL)
+	data := &TemplateData{
+		GrantorName:  grantorName,
+		EmergencyURL: emergencyURL,
+		Year:         currentYear(),
+	}
+
+	htmlBody, err := b.templateManager.Render(TemplateEmergencyInvite, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to render template: %w", err)
+	}
+
+	return &EmailMessage{
+		To:      to,
+		From:    b.defaultFrom,
+		Subject: fmt.Sprintf("%s added you as an emergency contact on Passwall", grantorName),
+		Body:    htmlBody,
+	}, nil
+}
+
+// BuildEmergencyAcceptedEmail notifies grantor that grantee accepted
+func (b *EmailBuilder) BuildEmergencyAcceptedEmail(to, granteeName string) (*EmailMessage, error) {
+	if to == "" {
+		return nil, fmt.Errorf("recipient email is required")
+	}
+
+	emergencyURL := fmt.Sprintf("%s/settings/emergency-access", b.frontendURL)
+	data := &TemplateData{
+		GranteeName:  granteeName,
+		EmergencyURL: emergencyURL,
+		Year:         currentYear(),
+	}
+
+	htmlBody, err := b.templateManager.Render(TemplateEmergencyAccepted, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to render template: %w", err)
+	}
+
+	return &EmailMessage{
+		To:      to,
+		From:    b.defaultFrom,
+		Subject: fmt.Sprintf("%s accepted your emergency access invitation", granteeName),
+		Body:    htmlBody,
+	}, nil
+}
+
+// BuildEmergencyRecoveryRequestEmail notifies grantor of recovery request
+func (b *EmailBuilder) BuildEmergencyRecoveryRequestEmail(to, granteeName string) (*EmailMessage, error) {
+	if to == "" {
+		return nil, fmt.Errorf("recipient email is required")
+	}
+
+	emergencyURL := fmt.Sprintf("%s/settings/emergency-access", b.frontendURL)
+	data := &TemplateData{
+		GranteeName:  granteeName,
+		EmergencyURL: emergencyURL,
+		Year:         currentYear(),
+	}
+
+	htmlBody, err := b.templateManager.Render(TemplateEmergencyRecoveryReq, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to render template: %w", err)
+	}
+
+	return &EmailMessage{
+		To:      to,
+		From:    b.defaultFrom,
+		Subject: fmt.Sprintf("URGENT: %s is requesting emergency access to your vault", granteeName),
+		Body:    htmlBody,
+	}, nil
+}
+
+// BuildEmergencyRecoveryApprovedEmail notifies grantee that recovery was approved
+func (b *EmailBuilder) BuildEmergencyRecoveryApprovedEmail(to string) (*EmailMessage, error) {
+	if to == "" {
+		return nil, fmt.Errorf("recipient email is required")
+	}
+
+	emergencyURL := fmt.Sprintf("%s/settings/emergency-access", b.frontendURL)
+	data := &TemplateData{
+		EmergencyURL: emergencyURL,
+		Year:         currentYear(),
+	}
+
+	htmlBody, err := b.templateManager.Render(TemplateEmergencyRecoveryOK, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to render template: %w", err)
+	}
+
+	return &EmailMessage{
+		To:      to,
+		From:    b.defaultFrom,
+		Subject: "Your emergency access request has been approved",
+		Body:    htmlBody,
+	}, nil
+}
+
+func currentYear() int {
+	return time.Now().Year()
 }
 
 // BuildCustomEmail builds a custom email with provided subject and body

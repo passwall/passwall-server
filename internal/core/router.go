@@ -34,6 +34,8 @@ func SetupRouter(
 	collectionHandler *httpHandler.CollectionHandler,
 	organizationItemHandler *httpHandler.OrganizationItemHandler,
 	organizationFolderHandler *httpHandler.OrganizationFolderHandler,
+	emergencyAccessHandler *httpHandler.EmergencyAccessHandler,
+	sendHandler *httpHandler.SendHandler,
 	paymentHandler *httpHandler.PaymentHandler,
 	webhookHandler *httpHandler.WebhookHandler,
 	supportHandler *httpHandler.SupportHandler,
@@ -45,6 +47,7 @@ func SetupRouter(
 	ssoHandler *httpHandler.SSOHandler,
 	scimHandler *httpHandler.SCIMHandler,
 	scimService service.SCIMService,
+	keyEscrowHandler *httpHandler.KeyEscrowHandler,
 ) *gin.Engine {
 	// Create router without default middleware
 	router := gin.New()
@@ -196,6 +199,33 @@ func SetupRouter(
 		apiGroup.PATCH("/item-shares/:uuid/permissions", itemShareHandler.UpdatePermissions)
 		apiGroup.POST("/item-shares/:uuid/re-share", itemShareHandler.ReShare)
 		apiGroup.DELETE("/item-shares/:id", itemShareHandler.Revoke)
+
+		// Emergency Access
+		eaGroup := apiGroup.Group("/emergency-access")
+		{
+			eaGroup.POST("", emergencyAccessHandler.Invite)
+			eaGroup.GET("/granted", emergencyAccessHandler.ListGranted)
+			eaGroup.GET("/trusted", emergencyAccessHandler.ListTrusted)
+			eaGroup.POST("/:uuid/accept", emergencyAccessHandler.Accept)
+			eaGroup.POST("/:uuid/confirm", emergencyAccessHandler.Confirm)
+			eaGroup.POST("/:uuid/request", emergencyAccessHandler.RequestRecovery)
+			eaGroup.POST("/:uuid/approve", emergencyAccessHandler.ApproveRecovery)
+			eaGroup.POST("/:uuid/reject", emergencyAccessHandler.RejectRecovery)
+			eaGroup.DELETE("/:uuid", emergencyAccessHandler.RevokeAccess)
+			eaGroup.GET("/:uuid/vault", emergencyAccessHandler.GetVault)
+		}
+
+		// Secure Send
+		sendsGroup := apiGroup.Group("/sends")
+		{
+			sendsGroup.POST("", sendHandler.Create)
+			sendsGroup.GET("", sendHandler.List)
+			sendsGroup.GET("/:uuid", sendHandler.GetByUUID)
+			sendsGroup.PUT("/:uuid", sendHandler.Update)
+			sendsGroup.DELETE("/:uuid", sendHandler.Delete)
+			sendsGroup.GET("/access/:access_id", sendHandler.Access)
+			sendsGroup.POST("/access/:access_id/password", sendHandler.VerifyPassword)
+		}
 
 		// Excluded Domains API (for "Turn off Passwall for this site")
 		apiGroup.GET("/excluded-domains", excludedDomainHandler.List)
@@ -351,6 +381,11 @@ func SetupRouter(
 			orgsGroup.PUT("/:id/sso/:connId", ssoHandler.UpdateConnection)
 			orgsGroup.DELETE("/:id/sso/:connId", ssoHandler.DeleteConnection)
 			orgsGroup.POST("/:id/sso/:connId/activate", ssoHandler.ActivateConnection)
+
+			// Key Escrow (SSO passwordless vault unlock)
+			orgsGroup.POST("/:id/key-escrow/enroll", keyEscrowHandler.Enroll)
+			orgsGroup.GET("/:id/key-escrow/status", keyEscrowHandler.GetStatus)
+			orgsGroup.DELETE("/:id/key-escrow/users/:userId", keyEscrowHandler.Revoke)
 
 			// SCIM token management (org admin)
 			orgsGroup.POST("/:id/scim/tokens", scimHandler.CreateToken)

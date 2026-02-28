@@ -11,10 +11,14 @@ import (
 type TemplateType string
 
 const (
-	TemplateVerification TemplateType = "verification"
-	TemplateInvitation   TemplateType = "invitation"
-	TemplateShareInvite  TemplateType = "share-invite"
-	TemplateShareNotice  TemplateType = "share-notice"
+	TemplateVerification           TemplateType = "verification"
+	TemplateInvitation             TemplateType = "invitation"
+	TemplateShareInvite            TemplateType = "share-invite"
+	TemplateShareNotice            TemplateType = "share-notice"
+	TemplateEmergencyInvite        TemplateType = "emergency-invite"
+	TemplateEmergencyAccepted      TemplateType = "emergency-accepted"
+	TemplateEmergencyRecoveryReq   TemplateType = "emergency-recovery-request"
+	TemplateEmergencyRecoveryOK    TemplateType = "emergency-recovery-approved"
 )
 
 // TemplateData holds data for email templates
@@ -33,6 +37,10 @@ type TemplateData struct {
 	ShareSignupURL   string
 	ShareSignInURL   string
 	ShareRecipient   string
+	// Emergency access fields
+	GrantorName    string
+	GranteeName    string
+	EmergencyURL   string
 }
 
 // TemplateManager handles email template rendering
@@ -73,6 +81,31 @@ func NewTemplateManager() (*TemplateManager, error) {
 		return nil, fmt.Errorf("failed to parse share notice template: %w", err)
 	}
 	tm.templates[TemplateShareNotice] = shareNoticeTmpl
+
+	// Parse emergency access templates
+	eaInviteTmpl, err := template.New("emergency-invite").Parse(emergencyInviteEmailTemplate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse emergency invite template: %w", err)
+	}
+	tm.templates[TemplateEmergencyInvite] = eaInviteTmpl
+
+	eaAcceptedTmpl, err := template.New("emergency-accepted").Parse(emergencyAcceptedEmailTemplate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse emergency accepted template: %w", err)
+	}
+	tm.templates[TemplateEmergencyAccepted] = eaAcceptedTmpl
+
+	eaRecoveryReqTmpl, err := template.New("emergency-recovery-request").Parse(emergencyRecoveryRequestEmailTemplate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse emergency recovery request template: %w", err)
+	}
+	tm.templates[TemplateEmergencyRecoveryReq] = eaRecoveryReqTmpl
+
+	eaRecoveryOKTmpl, err := template.New("emergency-recovery-approved").Parse(emergencyRecoveryApprovedEmailTemplate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse emergency recovery approved template: %w", err)
+	}
+	tm.templates[TemplateEmergencyRecoveryOK] = eaRecoveryOKTmpl
 
 	return tm, nil
 }
@@ -520,3 +553,92 @@ const shareNoticeEmailTemplate = `<!DOCTYPE html>
     </table>
 </body>
 </html>`
+
+// emergencyInviteEmailTemplate is the HTML template for emergency access invitations
+const emergencyInviteEmailTemplate = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Emergency Access Invitation</title></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background-color:#f5f5f5;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5;padding:40px 20px;"><tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background-color:#fff;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+<tr><td style="padding:40px 40px 20px;text-align:center;border-bottom:1px solid #e0e0e0;"><h1 style="margin:0;font-size:32px;font-weight:700;color:#1a1a1a;"><span style="color:#3b82f6;">Pass</span>wall</h1></td></tr>
+<tr><td style="padding:40px;">
+<h2 style="margin:0 0 20px;font-size:24px;font-weight:600;color:#1a1a1a;">Emergency Access Invitation</h2>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#4a5568;"><strong>{{.GrantorName}}</strong> has added you as a trusted emergency contact on Passwall.</p>
+<p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:#4a5568;">If you accept, you will be able to request access to their vault in case of emergency. The vault owner must approve each request.</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;"><tr><td align="center">
+<a href="{{.EmergencyURL}}" style="display:inline-block;padding:14px 32px;background-color:#3b82f6;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;font-size:16px;">View Emergency Access</a>
+</td></tr></table>
+<div style="background-color:#fef3c7;border-left:4px solid #f59e0b;padding:16px;margin:20px 0;border-radius:4px;">
+<p style="margin:0;font-size:14px;color:#92400e;"><strong>Note:</strong> If you were not expecting this invitation, you can safely ignore this email.</p>
+</div>
+</td></tr>
+<tr><td style="padding:30px 40px;background-color:#f7fafc;border-top:1px solid #e0e0e0;border-radius:0 0 8px 8px;">
+<p style="margin:0 0 10px;font-size:14px;color:#718096;text-align:center;">This is an automated message, please do not reply.</p>
+<p style="margin:0;font-size:12px;color:#a0aec0;text-align:center;">© {{.Year}} Passwall. All rights reserved.</p>
+</td></tr></table></td></tr></table></body></html>`
+
+// emergencyAcceptedEmailTemplate notifies grantor that grantee accepted
+const emergencyAcceptedEmailTemplate = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Emergency Contact Accepted</title></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background-color:#f5f5f5;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5;padding:40px 20px;"><tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background-color:#fff;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+<tr><td style="padding:40px 40px 20px;text-align:center;border-bottom:1px solid #e0e0e0;"><h1 style="margin:0;font-size:32px;font-weight:700;color:#1a1a1a;"><span style="color:#3b82f6;">Pass</span>wall</h1></td></tr>
+<tr><td style="padding:40px;">
+<h2 style="margin:0 0 20px;font-size:24px;font-weight:600;color:#1a1a1a;">Emergency Contact Accepted</h2>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#4a5568;"><strong>{{.GranteeName}}</strong> has accepted your emergency access invitation.</p>
+<p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:#4a5568;">Please sign in to confirm the emergency access and complete the key exchange.</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;"><tr><td align="center">
+<a href="{{.EmergencyURL}}" style="display:inline-block;padding:14px 32px;background-color:#10b981;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;font-size:16px;">Confirm Emergency Access</a>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:30px 40px;background-color:#f7fafc;border-top:1px solid #e0e0e0;border-radius:0 0 8px 8px;">
+<p style="margin:0 0 10px;font-size:14px;color:#718096;text-align:center;">This is an automated message, please do not reply.</p>
+<p style="margin:0;font-size:12px;color:#a0aec0;text-align:center;">© {{.Year}} Passwall. All rights reserved.</p>
+</td></tr></table></td></tr></table></body></html>`
+
+// emergencyRecoveryRequestEmailTemplate notifies grantor of recovery request
+const emergencyRecoveryRequestEmailTemplate = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Emergency Access Request</title></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background-color:#f5f5f5;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5;padding:40px 20px;"><tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background-color:#fff;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+<tr><td style="padding:40px 40px 20px;text-align:center;border-bottom:1px solid #e0e0e0;"><h1 style="margin:0;font-size:32px;font-weight:700;color:#1a1a1a;"><span style="color:#3b82f6;">Pass</span>wall</h1></td></tr>
+<tr><td style="padding:40px;">
+<h2 style="margin:0 0 20px;font-size:24px;font-weight:600;color:#e53e3e;">Emergency Access Requested</h2>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#4a5568;"><strong>{{.GranteeName}}</strong> is requesting emergency access to your vault.</p>
+<p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:#4a5568;">Sign in to approve or reject this request.</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;"><tr><td align="center">
+<a href="{{.EmergencyURL}}" style="display:inline-block;padding:14px 32px;background-color:#e53e3e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;font-size:16px;">Review Request</a>
+</td></tr></table>
+<div style="background-color:#fed7d7;border-left:4px solid #e53e3e;padding:16px;margin:20px 0;border-radius:4px;">
+<p style="margin:0;font-size:14px;color:#9b2c2c;"><strong>Important:</strong> If you did not expect this request, reject it immediately and review your emergency contacts.</p>
+</div>
+</td></tr>
+<tr><td style="padding:30px 40px;background-color:#f7fafc;border-top:1px solid #e0e0e0;border-radius:0 0 8px 8px;">
+<p style="margin:0 0 10px;font-size:14px;color:#718096;text-align:center;">This is an automated message, please do not reply.</p>
+<p style="margin:0;font-size:12px;color:#a0aec0;text-align:center;">© {{.Year}} Passwall. All rights reserved.</p>
+</td></tr></table></td></tr></table></body></html>`
+
+// emergencyRecoveryApprovedEmailTemplate notifies grantee that recovery was approved
+const emergencyRecoveryApprovedEmailTemplate = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Emergency Access Approved</title></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background-color:#f5f5f5;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5;padding:40px 20px;"><tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background-color:#fff;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+<tr><td style="padding:40px 40px 20px;text-align:center;border-bottom:1px solid #e0e0e0;"><h1 style="margin:0;font-size:32px;font-weight:700;color:#1a1a1a;"><span style="color:#3b82f6;">Pass</span>wall</h1></td></tr>
+<tr><td style="padding:40px;">
+<h2 style="margin:0 0 20px;font-size:24px;font-weight:600;color:#10b981;">Emergency Access Approved</h2>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#4a5568;">Your emergency access request has been approved. You can now view the vault.</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;"><tr><td align="center">
+<a href="{{.EmergencyURL}}" style="display:inline-block;padding:14px 32px;background-color:#10b981;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;font-size:16px;">View Vault</a>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:30px 40px;background-color:#f7fafc;border-top:1px solid #e0e0e0;border-radius:0 0 8px 8px;">
+<p style="margin:0 0 10px;font-size:14px;color:#718096;text-align:center;">This is an automated message, please do not reply.</p>
+<p style="margin:0;font-size:12px;color:#a0aec0;text-align:center;">© {{.Year}} Passwall. All rights reserved.</p>
+</td></tr></table></td></tr></table></body></html>`

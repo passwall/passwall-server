@@ -150,6 +150,14 @@ func (h *SSOHandler) UpdateConnection(c *gin.Context) {
 		return
 	}
 
+	// Verify connection belongs to this org BEFORE any mutation
+	existing, err := h.ssoService.GetConnection(ctx, connID)
+	if err != nil || existing.OrganizationID != orgID {
+		logger.Warnf("SSO UpdateConnection org mismatch or not found: user_id=%d org_id=%d conn_id=%d err=%v", userID, orgID, connID, err)
+		c.JSON(http.StatusNotFound, gin.H{"error": "SSO connection not found"})
+		return
+	}
+
 	var req domain.UpdateSSOConnectionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Errorf("SSO UpdateConnection bind failed: user_id=%d org_id=%d conn_id=%d err=%v", userID, orgID, connID, err)
@@ -168,11 +176,6 @@ func (h *SSOHandler) UpdateConnection(c *gin.Context) {
 		return
 	}
 
-	if conn.OrganizationID != orgID {
-		logger.Warnf("SSO UpdateConnection org mismatch: user_id=%d org_id=%d conn_id=%d conn_org_id=%d", userID, orgID, connID, conn.OrganizationID)
-		c.JSON(http.StatusNotFound, gin.H{"error": "SSO connection not found"})
-		return
-	}
 	logger.Infof("SSO UpdateConnection success: user_id=%d org_id=%d conn_id=%d", userID, orgID, connID)
 	c.JSON(http.StatusOK, domain.ToSSOConnectionDTO(conn))
 }
@@ -230,6 +233,14 @@ func (h *SSOHandler) ActivateConnection(c *gin.Context) {
 		return
 	}
 
+	// Verify connection belongs to this org BEFORE any mutation
+	existing, err := h.ssoService.GetConnection(ctx, connID)
+	if err != nil || existing.OrganizationID != orgID {
+		logger.Warnf("SSO ActivateConnection org mismatch or not found: user_id=%d org_id=%d conn_id=%d err=%v", userID, orgID, connID, err)
+		c.JSON(http.StatusNotFound, gin.H{"error": "SSO connection not found"})
+		return
+	}
+
 	conn, err := h.ssoService.ActivateConnection(ctx, connID, userID)
 	if err != nil {
 		logger.Errorf("SSO ActivateConnection failed: user_id=%d org_id=%d conn_id=%d err=%v", userID, orgID, connID, err)
@@ -241,11 +252,6 @@ func (h *SSOHandler) ActivateConnection(c *gin.Context) {
 		return
 	}
 
-	if conn.OrganizationID != orgID {
-		logger.Warnf("SSO ActivateConnection org mismatch: user_id=%d org_id=%d conn_id=%d conn_org_id=%d", userID, orgID, connID, conn.OrganizationID)
-		c.JSON(http.StatusNotFound, gin.H{"error": "SSO connection not found"})
-		return
-	}
 	logger.Infof("SSO ActivateConnection success: user_id=%d org_id=%d conn_id=%d", userID, orgID, connID)
 	c.JSON(http.StatusOK, domain.ToSSOConnectionDTO(conn))
 }
@@ -410,6 +416,11 @@ func buildSSOCallbackPayload(result *domain.SSOCallbackResult) (string, error) {
 		"protected_user_key": result.ProtectedUserKey,
 		"kdf_config":         result.KdfConfig,
 		"redirect_url":       result.RedirectURL,
+		"key_escrow_used":    result.KeyEscrowUsed,
+	}
+	if result.OrgKey != "" {
+		data["org_key"] = result.OrgKey
+		data["org_id"] = result.OrgID
 	}
 	raw, err := json.Marshal(data)
 	if err != nil {

@@ -55,14 +55,15 @@ type SSOService interface {
 }
 
 type ssoService struct {
-	connRepo    repository.SSOConnectionRepository
-	stateRepo   repository.SSOStateRepository
-	userRepo    repository.UserRepository
-	orgUserRepo repository.OrganizationUserRepository
-	orgRepo     repository.OrganizationRepository
-	authService AuthService
-	logger      Logger
-	baseURL     string
+	connRepo        repository.SSOConnectionRepository
+	stateRepo       repository.SSOStateRepository
+	userRepo        repository.UserRepository
+	orgUserRepo     repository.OrganizationUserRepository
+	orgRepo         repository.OrganizationRepository
+	authService     AuthService
+	escrowService   KeyEscrowService
+	logger          Logger
+	baseURL         string
 }
 
 // NewSSOService creates a new SSO service
@@ -73,18 +74,20 @@ func NewSSOService(
 	orgUserRepo repository.OrganizationUserRepository,
 	orgRepo repository.OrganizationRepository,
 	authService AuthService,
+	escrowService KeyEscrowService,
 	logger Logger,
 	baseURL string,
 ) SSOService {
 	return &ssoService{
-		connRepo:    connRepo,
-		stateRepo:   stateRepo,
-		userRepo:    userRepo,
-		orgUserRepo: orgUserRepo,
-		orgRepo:     orgRepo,
-		authService: authService,
-		logger:      logger,
-		baseURL:     baseURL,
+		connRepo:      connRepo,
+		stateRepo:     stateRepo,
+		userRepo:      userRepo,
+		orgUserRepo:   orgUserRepo,
+		orgRepo:       orgRepo,
+		authService:   authService,
+		escrowService: escrowService,
+		logger:        logger,
+		baseURL:       baseURL,
 	}
 }
 
@@ -216,6 +219,19 @@ func (s *ssoService) UpdateConnection(ctx context.Context, id, userID uint, req 
 	}
 	if req.JITProvisioning != nil {
 		conn.JITProvisioning = *req.JITProvisioning
+	}
+	if req.KeyEscrowEnabled != nil {
+		if *req.KeyEscrowEnabled {
+			if s.escrowService == nil || !s.escrowService.IsConfigured() {
+				s.logger.Error("SSO update connection rejected: key escrow requested but server escrow_master_key not configured", "conn_id", id, "org_id", conn.OrganizationID)
+				return nil, fmt.Errorf("cannot enable key escrow: server escrow master key is not configured")
+			}
+			if err := s.escrowService.EnableForOrg(ctx, conn.OrganizationID); err != nil {
+				s.logger.Error("SSO update connection escrow enable failed", "conn_id", id, "org_id", conn.OrganizationID, "err", err)
+				return nil, fmt.Errorf("failed to enable key escrow: %w", err)
+			}
+		}
+		conn.KeyEscrowEnabled = *req.KeyEscrowEnabled
 	}
 	if req.Status != nil {
 		conn.Status = *req.Status
@@ -703,8 +719,7 @@ func (s *ssoService) completeSSOLogin(ctx context.Context, conn *domain.SSOConne
 		s.logger.Error("SSO complete login organization lookup failed", "conn_id", conn.ID, "org_id", conn.OrganizationID, "err", err)
 		return nil, fmt.Errorf("failed to fetch organization: %w", err)
 	}
-	s.logger.Info("SSO complete login success", "conn_id", conn.ID, "org_id", conn.OrganizationID, "user_id", user.ID)
-	return &domain.SSOCallbackResult{
+	result := &domain.SSOCallbackResult{
 		User:             user,
 		AuthUser:         authResp.User,
 		Organization:     org,
@@ -713,7 +728,25 @@ func (s *ssoService) completeSSOLogin(ctx context.Context, conn *domain.SSOConne
 		RefreshToken:     authResp.RefreshToken,
 		ProtectedUserKey: authResp.ProtectedUserKey,
 		KdfConfig:        authResp.KdfConfig,
-	}, nil
+	}
+
+	// If key escrow is enabled and user is enrolled, include the raw User Key
+	// so the client can unlock org vault items without master password.
+	// Only the org key is returned — personal vault remains locked.
+	if conn.KeyEscrowEnabled && s.escrowService != nil && s.escrowService.IsConfigured() {
+		orgKey, err := s.escrowService.GetOrgKey(ctx, user.ID, conn.OrganizationID)
+		if err != nil {
+			s.logger.Warn("SSO key escrow retrieval failed (fallback to master password)", "conn_id", conn.ID, "user_id", user.ID, "err", err)
+		} else {
+			result.OrgKey = orgKey
+			result.OrgID = conn.OrganizationID
+			result.KeyEscrowUsed = true
+			s.logger.Info("SSO org key escrow used for login", "conn_id", conn.ID, "user_id", user.ID, "org_id", conn.OrganizationID)
+		}
+	}
+
+	s.logger.Info("SSO complete login success", "conn_id", conn.ID, "org_id", conn.OrganizationID, "user_id", user.ID, "key_escrow_used", result.KeyEscrowUsed)
+	return result, nil
 }
 
 // jitProvisionMember creates an org membership for a user during their first SSO login.
