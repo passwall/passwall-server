@@ -338,7 +338,7 @@ func (h *SSOHandler) OIDCCallback(c *gin.Context) {
 			return
 		}
 		logger.Infof("SSO OIDC callback start: state=%s", state)
-		result, err = h.ssoService.HandleOIDCCallback(ctx, state, code)
+		result, err = h.ssoService.HandleOIDCCallback(ctx, state, code, getBaseURL(c))
 	}
 	if err != nil {
 		logger.Errorf("SSO callback failed: state=%s relay_state_present=%t err=%v", state, relayState != "", err)
@@ -400,6 +400,15 @@ func (h *SSOHandler) GetSPMetadata(c *gin.Context) {
 }
 
 func getBaseURL(c *gin.Context) string {
+	forwardedHost := strings.TrimSpace(strings.Split(c.GetHeader("X-Forwarded-Host"), ",")[0])
+	forwardedProto := strings.TrimSpace(strings.Split(c.GetHeader("X-Forwarded-Proto"), ",")[0])
+	if forwardedHost != "" {
+		if forwardedProto == "" {
+			forwardedProto = "https"
+		}
+		return forwardedProto + "://" + forwardedHost
+	}
+
 	scheme := "https"
 	if c.Request.TLS == nil {
 		scheme = "http"
