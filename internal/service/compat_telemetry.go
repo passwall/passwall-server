@@ -123,6 +123,17 @@ func (s *compatTelemetryService) ListForAdmin(
 	return s.repo.List(ctx, filter)
 }
 
+func (s *compatTelemetryService) ListSummaryForAdmin(
+	ctx context.Context,
+	filter repository.CompatTelemetryListFilter,
+) ([]*domain.CompatTelemetrySummaryRow, int64, error) {
+	return s.repo.ListSummary(ctx, filter)
+}
+
+func (s *compatTelemetryService) DeleteOlderThan(ctx context.Context, before time.Time) (int64, error) {
+	return s.repo.DeleteOlderThan(ctx, before)
+}
+
 func normalizeCompatPayload(payload CompatTelemetryEventPayload) (*CompatTelemetryEventPayload, error) {
 	eventName := strings.TrimSpace(payload.EventName)
 	if eventName == "" {

@@ -44,3 +44,16 @@ type CompatTelemetryEvent struct {
 func (CompatTelemetryEvent) TableName() string {
 	return "compat_telemetry_events"
 }
+
+// CompatTelemetrySummaryRow is a deduplicated aggregate row for admin review.
+type CompatTelemetrySummaryRow struct {
+	DomainETLD1 string    `json:"domain_etld1"`
+	EventName   string    `json:"event_name"`
+	ErrorCode   string    `json:"error_code"`
+	FlowType    string    `json:"flow_type"`
+	Surface     string    `json:"surface"`
+	Succeeded   bool      `json:"succeeded"`
+	Count       int64     `json:"count"`
+	FirstSeen   time.Time `json:"first_seen"`
+	LastSeen    time.Time `json:"last_seen"`
+}

@@ -45,8 +45,8 @@ type SSOService interface {
 	ActivateConnection(ctx context.Context, id, userID uint) (*domain.SSOConnection, error)
 
 	// Authentication flows
-	InitiateLogin(ctx context.Context, req *domain.SSOInitiateRequest, baseURL string) (redirectURL string, err error)
-	HandleOIDCCallback(ctx context.Context, stateParam, code, baseURL string) (*domain.SSOCallbackResult, error)
+	InitiateLogin(ctx context.Context, req *domain.SSOInitiateRequest) (redirectURL string, err error)
+	HandleOIDCCallback(ctx context.Context, stateParam, code string) (*domain.SSOCallbackResult, error)
 	HandleSAMLCallback(ctx context.Context, relayState, samlResponse string) (*domain.SSOCallbackResult, error)
 	GetRedirectURLByState(ctx context.Context, state string) (string, error)
 
@@ -295,9 +295,8 @@ func (s *ssoService) ActivateConnection(ctx context.Context, id, userID uint) (*
 }
 
 // InitiateLogin starts the SSO authentication flow by generating the IdP redirect URL
-func (s *ssoService) InitiateLogin(ctx context.Context, req *domain.SSOInitiateRequest, baseURL string) (string, error) {
-	s.logger.Info("SSO initiate login started", "domain", strings.ToLower(req.Domain), "has_redirect_url", strings.TrimSpace(req.RedirectURL) != "", "request_base_url", baseURL)
-	callbackURL := s.callbackURLFor(baseURL)
+func (s *ssoService) InitiateLogin(ctx context.Context, req *domain.SSOInitiateRequest) (string, error) {
+	s.logger.Info("SSO initiate login started", "domain", strings.ToLower(req.Domain), "has_redirect_url", strings.TrimSpace(req.RedirectURL) != "")
 	conn, err := s.connRepo.GetByDomain(ctx, strings.ToLower(req.Domain))
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
@@ -333,8 +332,8 @@ func (s *ssoService) InitiateLogin(ctx context.Context, req *domain.SSOInitiateR
 
 	switch conn.Protocol {
 	case domain.SSOProtocolOIDC:
-		s.logger.Info("SSO initiate login using OIDC", "conn_id", conn.ID, "org_id", conn.OrganizationID, "callback_url", callbackURL)
-		return s.initiateOIDC(ctx, conn, ssoState, callbackURL)
+		s.logger.Info("SSO initiate login using OIDC", "conn_id", conn.ID, "org_id", conn.OrganizationID)
+		return s.initiateOIDC(ctx, conn, ssoState)
 	case domain.SSOProtocolSAML:
 		s.logger.Info("SSO initiate login using SAML", "conn_id", conn.ID, "org_id", conn.OrganizationID)
 		return s.initiateSAML(ctx, conn, ssoState)
@@ -344,7 +343,7 @@ func (s *ssoService) InitiateLogin(ctx context.Context, req *domain.SSOInitiateR
 	}
 }
 
-func (s *ssoService) initiateOIDC(ctx context.Context, conn *domain.SSOConnection, ssoState *domain.SSOState, callbackURL string) (string, error) {
+func (s *ssoService) initiateOIDC(ctx context.Context, conn *domain.SSOConnection, ssoState *domain.SSOState) (string, error) {
 	cfg := conn.OIDCConfig
 	if cfg == nil {
 		s.logger.Error("SSO OIDC initiate missing protocol config", "conn_id", conn.ID)
@@ -393,7 +392,7 @@ func (s *ssoService) initiateOIDC(ctx context.Context, conn *domain.SSOConnectio
 	}
 	oauthCfg := oauth2.Config{
 		ClientID:    cfg.ClientID,
-		RedirectURL: callbackURL,
+		RedirectURL: s.callbackURL(),
 		Endpoint:    endpoint,
 		Scopes:      scopes,
 	}
@@ -402,7 +401,7 @@ func (s *ssoService) initiateOIDC(ctx context.Context, conn *domain.SSOConnectio
 		opts = append(opts, oauth2.SetAuthURLParam("code_challenge", codeChallenge))
 		opts = append(opts, oauth2.SetAuthURLParam("code_challenge_method", "S256"))
 	}
-	s.logger.Info("SSO OIDC authorize URL generated", "conn_id", conn.ID, "use_discovery", cfg.UseDiscovery, "pkce_enabled", cfg.PKCEEnabled)
+	s.logger.Info("SSO OIDC authorize URL generated", "conn_id", conn.ID, "use_discovery", cfg.UseDiscovery, "pkce_enabled", cfg.PKCEEnabled, "redirect_url", s.callbackURL(), "client_id", cfg.ClientID)
 	return oauthCfg.AuthCodeURL(ssoState.State, opts...), nil
 }
 
@@ -434,9 +433,8 @@ func (s *ssoService) initiateSAML(ctx context.Context, conn *domain.SSOConnectio
 }
 
 // HandleOIDCCallback processes the IdP's authorization code callback
-func (s *ssoService) HandleOIDCCallback(ctx context.Context, stateParam, code, baseURL string) (*domain.SSOCallbackResult, error) {
+func (s *ssoService) HandleOIDCCallback(ctx context.Context, stateParam, code string) (*domain.SSOCallbackResult, error) {
 	s.logger.Info("SSO OIDC callback started", "state", stateParam)
-	callbackURL := s.callbackURLFor(baseURL)
 	ssoState, err := s.stateRepo.GetByState(ctx, stateParam)
 	if err != nil {
 		s.logger.Warn("SSO OIDC callback state not found", "state", stateParam)
@@ -478,7 +476,7 @@ func (s *ssoService) HandleOIDCCallback(ctx context.Context, stateParam, code, b
 	oauthCfg := oauth2.Config{
 		ClientID:     cfg.ClientID,
 		ClientSecret: cfg.ClientSecret,
-		RedirectURL:  callbackURL,
+		RedirectURL:  s.callbackURL(),
 		Endpoint:     endpoint,
 		Scopes:       defaultScopes(cfg.Scopes),
 	}
@@ -946,14 +944,6 @@ func urlsEqualWithoutTrailingSlash(a, b string) bool {
 
 func (s *ssoService) callbackURL() string {
 	return strings.TrimRight(s.baseURL, "/") + "/sso/callback"
-}
-
-func (s *ssoService) callbackURLFor(baseURL string) string {
-	parsed, err := url.Parse(strings.TrimSpace(baseURL))
-	if err == nil && parsed != nil && parsed.Host != "" && (parsed.Scheme == "https" || parsed.Scheme == "http") {
-		return strings.TrimRight(parsed.String(), "/") + "/sso/callback"
-	}
-	return s.callbackURL()
 }
 
 // verifySAMLXMLSignature cryptographically verifies the XML digital signature

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"time"
 
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
@@ -84,6 +85,8 @@ type ExcludedDomainService interface {
 type CompatTelemetryService interface {
 	IngestBatch(ctx context.Context, userID uint, sourceIP string, userAgent string, req *CompatTelemetryBatchRequest) (int, error)
 	ListForAdmin(ctx context.Context, filter repository.CompatTelemetryListFilter) ([]*domain.CompatTelemetryEvent, int64, int64, error)
+	ListSummaryForAdmin(ctx context.Context, filter repository.CompatTelemetryListFilter) ([]*domain.CompatTelemetrySummaryRow, int64, error)
+	DeleteOlderThan(ctx context.Context, before time.Time) (int64, error)
 }
 
 // OrganizationFolderService defines the business logic for organization folders

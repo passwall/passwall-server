@@ -347,18 +347,21 @@ type ItemShareRepository interface {
 type CompatTelemetryRepository interface {
 	CreateBatch(ctx context.Context, events []*domain.CompatTelemetryEvent) error
 	List(ctx context.Context, filter CompatTelemetryListFilter) ([]*domain.CompatTelemetryEvent, int64, int64, error)
+	DeleteOlderThan(ctx context.Context, before time.Time) (int64, error)
+	ListSummary(ctx context.Context, filter CompatTelemetryListFilter) ([]*domain.CompatTelemetrySummaryRow, int64, error)
 }
 
 // CompatTelemetryListFilter represents filter options for compatibility telemetry list queries.
 type CompatTelemetryListFilter struct {
-	Search    string
-	Domain    string
-	EventName string
-	FlowType  string
-	Surface   string
-	ErrorCode string
-	Succeeded *bool
-	Order     string
-	Limit     int
-	Offset    int
+	Search       string
+	Domain       string
+	EventName    string
+	FlowType     string
+	Surface      string
+	ErrorCode    string
+	Succeeded    *bool
+	Order        string
+	Limit        int
+	Offset       int
+	CreatedAfter *time.Time // retention: only events after this time
 }

@@ -267,9 +267,8 @@ func (h *SSOHandler) InitiateLogin(c *gin.Context) {
 		return
 	}
 
-	baseURL := getBaseURL(c)
-	logger.Infof("SSO InitiateLogin attempt: domain=%s base_url=%s redirect_url_present=%t", req.Domain, baseURL, strings.TrimSpace(req.RedirectURL) != "")
-	redirectURL, err := h.ssoService.InitiateLogin(ctx, &req, baseURL)
+	logger.Infof("SSO InitiateLogin attempt: domain=%s redirect_url_present=%t", req.Domain, strings.TrimSpace(req.RedirectURL) != "")
+	redirectURL, err := h.ssoService.InitiateLogin(ctx, &req)
 	if err != nil {
 		logger.Errorf("SSO InitiateLogin failed: domain=%s err=%v", req.Domain, err)
 		if errors.Is(err, service.ErrSSOConnectionNotFound) {
@@ -338,7 +337,7 @@ func (h *SSOHandler) OIDCCallback(c *gin.Context) {
 			return
 		}
 		logger.Infof("SSO OIDC callback start: state=%s", state)
-		result, err = h.ssoService.HandleOIDCCallback(ctx, state, code, getBaseURL(c))
+		result, err = h.ssoService.HandleOIDCCallback(ctx, state, code)
 	}
 	if err != nil {
 		logger.Errorf("SSO callback failed: state=%s relay_state_present=%t err=%v", state, relayState != "", err)
@@ -397,23 +396,6 @@ func (h *SSOHandler) GetSPMetadata(c *gin.Context) {
 
 	c.Header("Content-Type", "application/xml")
 	c.String(http.StatusOK, metadata)
-}
-
-func getBaseURL(c *gin.Context) string {
-	forwardedHost := strings.TrimSpace(strings.Split(c.GetHeader("X-Forwarded-Host"), ",")[0])
-	forwardedProto := strings.TrimSpace(strings.Split(c.GetHeader("X-Forwarded-Proto"), ",")[0])
-	if forwardedHost != "" {
-		if forwardedProto == "" {
-			forwardedProto = "https"
-		}
-		return forwardedProto + "://" + forwardedHost
-	}
-
-	scheme := "https"
-	if c.Request.TLS == nil {
-		scheme = "http"
-	}
-	return scheme + "://" + c.Request.Host
 }
 
 func buildSSOCallbackPayload(result *domain.SSOCallbackResult) (string, error) {

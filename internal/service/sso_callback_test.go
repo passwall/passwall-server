@@ -994,7 +994,7 @@ func TestInitiateLogin_DomainNotFound(t *testing.T) {
 	svc := newTestSSOService(nil, nil, nil, nil, nil, nil)
 	ctx := context.Background()
 
-	_, err := svc.InitiateLogin(ctx, &domain.SSOInitiateRequest{Domain: "unknown.com"}, testBaseURL)
+	_, err := svc.InitiateLogin(ctx, &domain.SSOInitiateRequest{Domain: "unknown.com"})
 	assert.ErrorIs(t, err, ErrSSOConnectionNotFound)
 }
 
@@ -1024,7 +1024,7 @@ func TestInitiateLogin_InactiveConnection(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	_, err := svc.InitiateLogin(ctx, &domain.SSOInitiateRequest{Domain: "acme.com"}, testBaseURL)
+	_, err := svc.InitiateLogin(ctx, &domain.SSOInitiateRequest{Domain: "acme.com"})
 	assert.ErrorIs(t, err, ErrSSOConnectionInactive)
 }
 
@@ -1048,7 +1048,7 @@ func TestInitiateLogin_SAML_GeneratesRedirect(t *testing.T) {
 
 	redirectURL, err := svc.InitiateLogin(ctx, &domain.SSOInitiateRequest{
 		Domain: "acme.com",
-	}, testBaseURL)
+	})
 	require.NoError(t, err)
 
 	assert.Contains(t, redirectURL, "https://idp.acme.com/saml/login")
@@ -1099,7 +1099,7 @@ func TestInitiateLogin_RedirectURLValidation(t *testing.T) {
 			_, err := svc.InitiateLogin(ctx, &domain.SSOInitiateRequest{
 				Domain:      "acme.com",
 				RedirectURL: tt.redirectURL,
-			}, testBaseURL)
+			})
 			require.NoError(t, err)
 
 			// Check the stored redirect URL

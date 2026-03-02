@@ -3,6 +3,7 @@ package gormrepo
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
@@ -60,6 +61,9 @@ func (r *compatTelemetryRepository) List(
 	if filter.Succeeded != nil {
 		query = query.Where("succeeded = ?", *filter.Succeeded)
 	}
+	if filter.CreatedAfter != nil {
+		query = query.Where("created_at >= ?", *filter.CreatedAfter)
+	}
 	if filter.Search != "" {
 		like := "%" + strings.ToLower(filter.Search) + "%"
 		query = query.Where(
@@ -97,4 +101,84 @@ func (r *compatTelemetryRepository) List(
 	}
 
 	return items, total, filtered, nil
+}
+
+func (r *compatTelemetryRepository) DeleteOlderThan(ctx context.Context, before time.Time) (int64, error) {
+	res := r.db.WithContext(ctx).Where("created_at < ?", before).Delete(&domain.CompatTelemetryEvent{})
+	return res.RowsAffected, res.Error
+}
+
+func (r *compatTelemetryRepository) ListSummary(
+	ctx context.Context,
+	filter repository.CompatTelemetryListFilter,
+) ([]*domain.CompatTelemetrySummaryRow, int64, error) {
+	base := r.db.WithContext(ctx).Model(&domain.CompatTelemetryEvent{}).Select(
+		`domain_etld1, event_name, COALESCE(NULLIF(error_code,''), 'none') AS error_code, flow_type, surface, succeeded,
+		 COUNT(*) AS count, MIN(created_at) AS first_seen, MAX(created_at) AS last_seen`,
+	).Group(
+		`domain_etld1, event_name, COALESCE(NULLIF(error_code,''), 'none'), flow_type, surface, succeeded`,
+	)
+	if filter.Domain != "" {
+		base = base.Where("domain_etld1 = ?", filter.Domain)
+	}
+	if filter.EventName != "" {
+		base = base.Where("event_name = ?", filter.EventName)
+	}
+	if filter.FlowType != "" {
+		base = base.Where("flow_type = ?", filter.FlowType)
+	}
+	if filter.Surface != "" {
+		base = base.Where("surface = ?", filter.Surface)
+	}
+	if filter.ErrorCode != "" {
+		base = base.Where("COALESCE(NULLIF(error_code,''), 'none') = ?", filter.ErrorCode)
+	}
+	if filter.Succeeded != nil {
+		base = base.Where("succeeded = ?", *filter.Succeeded)
+	}
+	if filter.CreatedAfter != nil {
+		base = base.Where("created_at >= ?", *filter.CreatedAfter)
+	}
+	if filter.Search != "" {
+		like := "%" + strings.ToLower(filter.Search) + "%"
+		base = base.Where(
+			`LOWER(domain_etld1) LIKE ? OR LOWER(event_name) LIKE ? OR LOWER(flow_type) LIKE ? OR LOWER(surface) LIKE ? OR LOWER(error_code) LIKE ?`,
+			like, like, like, like, like,
+		)
+	}
+
+	var total int64
+	countQuery := r.db.WithContext(ctx).Table("(?) AS sub", base)
+	if err := countQuery.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	order := "last_seen DESC"
+	if strings.ToLower(strings.TrimSpace(filter.Order)) == "asc" {
+		order = "last_seen ASC"
+	}
+	base = base.Order(order)
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	base = base.Limit(limit).Offset(offset)
+
+	var rows []*domain.CompatTelemetrySummaryRow
+	if err := base.Scan(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	for _, row := range rows {
+		if row.ErrorCode == "none" {
+			row.ErrorCode = ""
+		}
+	}
+	return rows, total, nil
 }

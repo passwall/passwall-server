@@ -317,6 +317,8 @@ func SetupRouter(
 			adminGroup.GET("/logs/download-bundle", adminLogsHandler.DownloadBundle)
 			adminGroup.POST("/logs/clear", adminLogsHandler.Clear)
 			adminGroup.GET("/telemetry/compat", compatTelemetryHandler.ListAdmin)
+			adminGroup.GET("/telemetry/compat/summary", compatTelemetryHandler.ListSummaryAdmin)
+			adminGroup.POST("/telemetry/compat/cleanup", compatTelemetryHandler.CleanupAdmin)
 
 			// Custom icons management (admin only)
 			adminGroup.GET("/icons", iconsHandler.ListCustomIcons)
