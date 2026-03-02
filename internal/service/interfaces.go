@@ -80,6 +80,12 @@ type ExcludedDomainService interface {
 	IsExcluded(ctx context.Context, userID uint, domain string) (bool, error)
 }
 
+// CompatTelemetryService defines ingest logic for compatibility telemetry events.
+type CompatTelemetryService interface {
+	IngestBatch(ctx context.Context, userID uint, sourceIP string, userAgent string, req *CompatTelemetryBatchRequest) (int, error)
+	ListForAdmin(ctx context.Context, filter repository.CompatTelemetryListFilter) ([]*domain.CompatTelemetryEvent, int64, int64, error)
+}
+
 // OrganizationFolderService defines the business logic for organization folders
 type OrganizationFolderService interface {
 	ListByOrganization(ctx context.Context, orgID, userID uint) ([]*domain.OrganizationFolder, error)

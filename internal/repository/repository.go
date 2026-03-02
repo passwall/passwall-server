@@ -342,3 +342,23 @@ type ItemShareRepository interface {
 	DeleteBySharedWithUser(ctx context.Context, userID uint) error
 	DeleteExpired(ctx context.Context) (int64, error)
 }
+
+// CompatTelemetryRepository defines compatibility telemetry persistence methods.
+type CompatTelemetryRepository interface {
+	CreateBatch(ctx context.Context, events []*domain.CompatTelemetryEvent) error
+	List(ctx context.Context, filter CompatTelemetryListFilter) ([]*domain.CompatTelemetryEvent, int64, int64, error)
+}
+
+// CompatTelemetryListFilter represents filter options for compatibility telemetry list queries.
+type CompatTelemetryListFilter struct {
+	Search    string
+	Domain    string
+	EventName string
+	FlowType  string
+	Surface   string
+	ErrorCode string
+	Succeeded *bool
+	Order     string
+	Limit     int
+	Offset    int
+}

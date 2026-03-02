@@ -48,6 +48,7 @@ func SetupRouter(
 	scimHandler *httpHandler.SCIMHandler,
 	scimService service.SCIMService,
 	keyEscrowHandler *httpHandler.KeyEscrowHandler,
+	compatTelemetryHandler *httpHandler.CompatTelemetryHandler,
 ) *gin.Engine {
 	// Create router without default middleware
 	router := gin.New()
@@ -183,6 +184,9 @@ func SetupRouter(
 		// Support endpoint (authenticated users only)
 		apiGroup.POST("/support", supportHandler.SendSupportEmail)
 
+		// Compatibility telemetry ingest (authenticated extension clients)
+		apiGroup.POST("/telemetry/compat", compatTelemetryHandler.Ingest)
+
 		// Modern Items API (unified endpoint for all types)
 		apiGroup.POST("/items", itemHandler.Create)
 		apiGroup.GET("/items", itemHandler.List)
@@ -312,6 +316,7 @@ func SetupRouter(
 			adminGroup.GET("/logs/download", adminLogsHandler.Download)
 			adminGroup.GET("/logs/download-bundle", adminLogsHandler.DownloadBundle)
 			adminGroup.POST("/logs/clear", adminLogsHandler.Clear)
+			adminGroup.GET("/telemetry/compat", compatTelemetryHandler.ListAdmin)
 
 			// Custom icons management (admin only)
 			adminGroup.GET("/icons", iconsHandler.ListCustomIcons)

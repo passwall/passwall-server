@@ -89,6 +89,7 @@ func (a *App) Run(ctx context.Context) error {
 	verificationRepo := gormrepo.NewVerificationRepository(a.db.DB())
 	userActivityRepo := gormrepo.NewUserActivityRepository(a.db.DB())
 	excludedDomainRepo := gormrepo.NewExcludedDomainRepository(a.db.DB())
+	compatTelemetryRepo := gormrepo.NewCompatTelemetryRepository(a.db.DB())
 	preferencesRepo := gormrepo.NewPreferencesRepository(a.db.DB())
 	invitationRepo := gormrepo.NewInvitationRepository(a.db.DB())
 
@@ -146,6 +147,7 @@ func (a *App) Run(ctx context.Context) error {
 	// Initialize services
 	userActivityService := service.NewUserActivityService(userActivityRepo, serviceLogger)
 	excludedDomainService := service.NewExcludedDomainService(excludedDomainRepo, serviceLogger)
+	compatTelemetryService := service.NewCompatTelemetryService(compatTelemetryRepo, serviceLogger)
 	preferencesService := service.NewPreferencesService(preferencesRepo, serviceLogger)
 	verificationService := service.NewVerificationService(verificationRepo, userRepo, serviceLogger)
 
@@ -308,6 +310,7 @@ func (a *App) Run(ctx context.Context) error {
 	itemHandler := httpHandler.NewItemHandler(itemService)
 	itemShareHandler := httpHandler.NewItemShareHandler(itemShareService)
 	excludedDomainHandler := httpHandler.NewExcludedDomainHandler(excludedDomainService)
+	compatTelemetryHandler := httpHandler.NewCompatTelemetryHandler(compatTelemetryService)
 	// Organization handlers
 	organizationHandler := httpHandler.NewOrganizationHandler(organizationService, organizationPolicyService, subscriptionRepo)
 	teamHandler := httpHandler.NewTeamHandler(teamService)
@@ -391,6 +394,7 @@ func (a *App) Run(ctx context.Context) error {
 		scimHandler,
 		scimService,
 		keyEscrowHandler,
+		compatTelemetryHandler,
 	)
 
 	// Create server
