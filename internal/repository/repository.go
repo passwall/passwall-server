@@ -349,12 +349,26 @@ type CompatTelemetryRepository interface {
 	List(ctx context.Context, filter CompatTelemetryListFilter) ([]*domain.CompatTelemetryEvent, int64, int64, error)
 	DeleteOlderThan(ctx context.Context, before time.Time) (int64, error)
 	ListSummary(ctx context.Context, filter CompatTelemetryListFilter) ([]*domain.CompatTelemetrySummaryRow, int64, error)
+	// ListExistingCompatKeys returns distinct (domain_etld1, page_path, event_name, error_code, flow_type, surface, succeeded) since the given time (for server-side dedupe).
+	ListExistingCompatKeys(ctx context.Context, since time.Time) ([]CompatTelemetryDedupeKey, error)
+}
+
+// CompatTelemetryDedupeKey is the business key used to skip duplicate telemetry events.
+type CompatTelemetryDedupeKey struct {
+	DomainETLD1 string
+	PagePath    string
+	EventName   string
+	ErrorCode   string
+	FlowType    string
+	Surface     string
+	Succeeded   bool
 }
 
 // CompatTelemetryListFilter represents filter options for compatibility telemetry list queries.
 type CompatTelemetryListFilter struct {
 	Search       string
 	Domain       string
+	PagePath     string
 	EventName    string
 	FlowType     string
 	Surface      string

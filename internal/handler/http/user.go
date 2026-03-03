@@ -13,14 +13,16 @@ import (
 )
 
 type UserHandler struct {
-	service        service.UserService
-	activityLogger *service.ActivityLogger
+	service         service.UserService
+	activityService service.UserActivityService
+	activityLogger  *service.ActivityLogger
 }
 
 func NewUserHandler(userService service.UserService, activityService service.UserActivityService) *UserHandler {
 	return &UserHandler{
-		service:        userService,
-		activityLogger: service.NewActivityLogger(activityService),
+		service:         userService,
+		activityService: activityService,
+		activityLogger:  service.NewActivityLogger(activityService),
 	}
 }
 
@@ -33,8 +35,14 @@ func (h *UserHandler) List(c *gin.Context) {
 		return
 	}
 
-	// Convert to DTOs for API response
-	c.JSON(http.StatusOK, domain.ToUserDTOs(users))
+	dtos := domain.ToUserDTOs(users)
+	for i, u := range users {
+		last, err := h.activityService.GetLastSignIn(ctx, u.ID)
+		if err == nil && last != nil {
+			dtos[i].LastSignInAt = &last.CreatedAt
+		}
+	}
+	c.JSON(http.StatusOK, dtos)
 }
 
 func (h *UserHandler) Create(c *gin.Context) {
@@ -72,7 +80,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 		}
 
 		go func() {
-			h.activityLogger.LogActivity(context.Background(), actorID, domain.ActivityTypeAdminUserCreated, ipAddress, userAgent, service.ActivityDetails{
+			_ = h.activityLogger.LogActivity(context.Background(), actorID, domain.ActivityTypeAdminUserCreated, ipAddress, userAgent, service.ActivityDetails{
 				service.ActivityFieldUserID:    user.ID,
 				service.ActivityFieldUserEmail: user.Email,
 				service.ActivityFieldRole:      targetRoleID,
@@ -185,7 +193,7 @@ func (h *UserHandler) Update(c *gin.Context) {
 		}
 
 		go func() {
-			h.activityLogger.LogActivity(context.Background(), actorID, domain.ActivityTypeAdminUserUpdated, ipAddress, userAgent, details)
+			_ = h.activityLogger.LogActivity(context.Background(), actorID, domain.ActivityTypeAdminUserUpdated, ipAddress, userAgent, details)
 		}()
 	}
 
@@ -224,7 +232,7 @@ func (h *UserHandler) Delete(c *gin.Context) {
 		ipAddress := GetIPAddress(c)
 		userAgent := GetUserAgent(c)
 		go func() {
-			h.activityLogger.LogActivity(context.Background(), actorID, domain.ActivityTypeAdminUserDeleted, ipAddress, userAgent, service.ActivityDetails{
+			_ = h.activityLogger.LogActivity(context.Background(), actorID, domain.ActivityTypeAdminUserDeleted, ipAddress, userAgent, service.ActivityDetails{
 				service.ActivityFieldUserID:    id,
 				service.ActivityFieldUserEmail: user.Email,
 				service.ActivityFieldRole:      user.RoleID,

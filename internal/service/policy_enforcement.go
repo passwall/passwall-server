@@ -34,29 +34,29 @@ type PolicyEnforcementService interface {
 
 // MasterPasswordPolicy captures the parsed config for master password requirements
 type MasterPasswordPolicy struct {
-	MinLength         int  `json:"min_length"`
-	RequireUppercase  bool `json:"require_uppercase"`
-	RequireLowercase  bool `json:"require_lowercase"`
-	RequireNumbers    bool `json:"require_numbers"`
-	RequireSpecial    bool `json:"require_special"`
-	MinSpecialCount   int  `json:"min_special_count"`
-	MinComplexity     int  `json:"min_complexity"`
+	MinLength             int  `json:"min_length"`
+	RequireUppercase      bool `json:"require_uppercase"`
+	RequireLowercase      bool `json:"require_lowercase"`
+	RequireNumbers        bool `json:"require_numbers"`
+	RequireSpecial        bool `json:"require_special"`
+	MinSpecialCount       int  `json:"min_special_count"`
+	MinComplexity         int  `json:"min_complexity"`
 	RequireExistingChange bool `json:"require_existing_change"`
 }
 
 // PasswordGeneratorPolicy captures the parsed config for password generator requirements
 type PasswordGeneratorPolicy struct {
-	DefaultType       string `json:"type"`
-	MinLength         int    `json:"min_length"`
-	RequireUppercase  bool   `json:"require_uppercase"`
-	RequireLowercase  bool   `json:"require_lowercase"`
-	RequireNumbers    bool   `json:"require_numbers"`
-	RequireSpecial    bool   `json:"require_special"`
-	MinSpecialCount   int    `json:"min_special_count"`
-	MinNumberCount    int    `json:"min_number_count"`
-	PassphraseMinWords     int  `json:"passphrase_min_words"`
-	PassphraseCapitalize   bool `json:"passphrase_capitalize"`
-	PassphraseIncludeNumber bool `json:"passphrase_include_number"`
+	DefaultType             string `json:"type"`
+	MinLength               int    `json:"min_length"`
+	RequireUppercase        bool   `json:"require_uppercase"`
+	RequireLowercase        bool   `json:"require_lowercase"`
+	RequireNumbers          bool   `json:"require_numbers"`
+	RequireSpecial          bool   `json:"require_special"`
+	MinSpecialCount         int    `json:"min_special_count"`
+	MinNumberCount          int    `json:"min_number_count"`
+	PassphraseMinWords      int    `json:"passphrase_min_words"`
+	PassphraseCapitalize    bool   `json:"passphrase_capitalize"`
+	PassphraseIncludeNumber bool   `json:"passphrase_include_number"`
 }
 
 // SessionTimeoutPolicy captures the parsed config for session timeout requirements

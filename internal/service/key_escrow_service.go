@@ -48,11 +48,11 @@ type KeyEscrowService interface {
 }
 
 type keyEscrowService struct {
-	escrowRepo    repository.KeyEscrowRepository
-	orgKeyRepo    repository.OrgEscrowKeyRepository
-	ssoConnRepo   repository.SSOConnectionRepository
-	masterKey     []byte // 256-bit server escrow master key
-	logger        Logger
+	escrowRepo  repository.KeyEscrowRepository
+	orgKeyRepo  repository.OrgEscrowKeyRepository
+	ssoConnRepo repository.SSOConnectionRepository
+	masterKey   []byte // 256-bit server escrow master key
+	logger      Logger
 }
 
 func NewKeyEscrowService(

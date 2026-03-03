@@ -181,7 +181,11 @@ func (s *smtpSender) sendWithSTARTTLS(addr string, auth smtp.Auth, from string, 
 	if err != nil {
 		return fmt.Errorf("SMTP dial failed: %w", err)
 	}
-	defer client.Quit()
+	defer func() {
+		if err := client.Quit(); err != nil {
+			s.logger.Error("SMTP Quit failed", "error", err)
+		}
+	}()
 
 	// Use STARTTLS if available
 	if ok, _ := client.Extension("STARTTLS"); ok {
@@ -236,7 +240,11 @@ func (s *smtpSender) sendViaClient(conn net.Conn, auth smtp.Auth, from string, r
 	if err != nil {
 		return fmt.Errorf("create SMTP client failed: %w", err)
 	}
-	defer client.Quit()
+	defer func() {
+		if err := client.Quit(); err != nil {
+			s.logger.Error("SMTP Quit failed", "error", err)
+		}
+	}()
 
 	if auth != nil {
 		if err = client.Auth(auth); err != nil {

@@ -13,8 +13,8 @@ import (
 type FirewallAction string
 
 const (
-	FirewallActionAllow FirewallAction = "allow"
-	FirewallActionDeny  FirewallAction = "deny"
+	FirewallActionAllow  FirewallAction = "allow"
+	FirewallActionDeny   FirewallAction = "deny"
 	FirewallActionReport FirewallAction = "report"
 )
 
@@ -27,9 +27,9 @@ type FirewallRule struct {
 
 // FirewallCheckResult contains the result of a firewall check
 type FirewallCheckResult struct {
-	Allowed     bool   `json:"allowed"`
+	Allowed     bool          `json:"allowed"`
 	MatchedRule *FirewallRule `json:"matched_rule,omitempty"`
-	Reason      string `json:"reason,omitempty"`
+	Reason      string        `json:"reason,omitempty"`
 }
 
 // PolicyFirewallService handles firewall rules enforcement

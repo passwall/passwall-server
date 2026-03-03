@@ -22,19 +22,19 @@ type EventType string
 
 const (
 	// Initial purchase events
-	EventInitialPurchase       EventType = "INITIAL_PURCHASE"
-	EventNonRenewingPurchase   EventType = "NON_RENEWING_PURCHASE"
-	EventRenewal               EventType = "RENEWAL"
-	EventProductChange         EventType = "PRODUCT_CHANGE"
-	EventCancellation          EventType = "CANCELLATION"
-	EventUncancellation        EventType = "UNCANCELLATION"
-	EventBillingIssue          EventType = "BILLING_ISSUE"
-	EventSubscriberAlias       EventType = "SUBSCRIBER_ALIAS"
-	EventSubscriptionPaused    EventType = "SUBSCRIPTION_PAUSED"
-	EventSubscriptionExtended  EventType = "SUBSCRIPTION_EXTENDED"
-	EventExpiration            EventType = "EXPIRATION"
-	EventTransfer              EventType = "TRANSFER"
-	EventTest                  EventType = "TEST"
+	EventInitialPurchase           EventType = "INITIAL_PURCHASE"
+	EventNonRenewingPurchase       EventType = "NON_RENEWING_PURCHASE"
+	EventRenewal                   EventType = "RENEWAL"
+	EventProductChange             EventType = "PRODUCT_CHANGE"
+	EventCancellation              EventType = "CANCELLATION"
+	EventUncancellation            EventType = "UNCANCELLATION"
+	EventBillingIssue              EventType = "BILLING_ISSUE"
+	EventSubscriberAlias           EventType = "SUBSCRIBER_ALIAS"
+	EventSubscriptionPaused        EventType = "SUBSCRIPTION_PAUSED"
+	EventSubscriptionExtended      EventType = "SUBSCRIPTION_EXTENDED"
+	EventExpiration                EventType = "EXPIRATION"
+	EventTransfer                  EventType = "TRANSFER"
+	EventTest                      EventType = "TEST"
 	EventTemporaryEntitlementGrant EventType = "TEMPORARY_ENTITLEMENT_GRANT"
 )
 
@@ -42,12 +42,12 @@ const (
 type Store string
 
 const (
-	StoreAppStore   Store = "APP_STORE"
-	StorePlayStore  Store = "PLAY_STORE"
+	StoreAppStore    Store = "APP_STORE"
+	StorePlayStore   Store = "PLAY_STORE"
 	StoreMacAppStore Store = "MAC_APP_STORE"
-	StoreStripe     Store = "STRIPE"
-	StoreAmazon     Store = "AMAZON"
-	StorePromo      Store = "PROMOTIONAL"
+	StoreStripe      Store = "STRIPE"
+	StoreAmazon      Store = "AMAZON"
+	StorePromo       Store = "PROMOTIONAL"
 )
 
 // Environment represents the RevenueCat environment
@@ -62,10 +62,10 @@ const (
 type PeriodType string
 
 const (
-	PeriodTypeNormal       PeriodType = "NORMAL"
-	PeriodTypeTrial        PeriodType = "TRIAL"
-	PeriodTypeIntro        PeriodType = "INTRO"
-	PeriodTypePromotional  PeriodType = "PROMOTIONAL"
+	PeriodTypeNormal      PeriodType = "NORMAL"
+	PeriodTypeTrial       PeriodType = "TRIAL"
+	PeriodTypeIntro       PeriodType = "INTRO"
+	PeriodTypePromotional PeriodType = "PROMOTIONAL"
 )
 
 // WebhookEvent represents the top-level webhook payload from RevenueCat
@@ -139,7 +139,7 @@ type SubscriberAttribute struct {
 
 // Client is the RevenueCat webhook client
 type Client struct {
-	webhookSecret string
+	webhookSecret   string
 	productMappings map[string]ProductMapping // Maps RevenueCat product_id to internal plan code
 }
 
@@ -152,7 +152,7 @@ type ProductMapping struct {
 // NewClient creates a new RevenueCat client
 func NewClient(webhookSecret string) *Client {
 	return &Client{
-		webhookSecret: webhookSecret,
+		webhookSecret:   webhookSecret,
 		productMappings: make(map[string]ProductMapping),
 	}
 }

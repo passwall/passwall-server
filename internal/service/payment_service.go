@@ -533,7 +533,10 @@ func (s *paymentService) handleCheckoutCompleted(ctx context.Context, event stri
 	}
 
 	var orgID uint
-	fmt.Sscanf(orgIDStr, "%d", &orgID)
+	if _, err := fmt.Sscanf(orgIDStr, "%d", &orgID); err != nil {
+		s.logger.Error("invalid organization_id in checkout session metadata", "session_id", session.ID, "organization_id", orgIDStr, "error", err)
+		return fmt.Errorf("invalid organization_id in metadata: %w", err)
+	}
 
 	s.logger.Info("Processing checkout for organization", "org_id", orgID, "session_id", session.ID)
 
@@ -576,7 +579,10 @@ func (s *paymentService) handleSubscriptionCreated(ctx context.Context, event st
 	}
 
 	var orgID uint
-	fmt.Sscanf(orgIDStr, "%d", &orgID)
+	if _, err := fmt.Sscanf(orgIDStr, "%d", &orgID); err != nil {
+		s.logger.Error("invalid organization_id in subscription metadata", "subscription_id", sub.ID, "organization_id", orgIDStr, "error", err)
+		return fmt.Errorf("invalid organization_id in metadata: %w", err)
+	}
 
 	// Get plan from price ID
 	priceID := stripeClient.GetPriceFromSubscription(&sub)
@@ -740,7 +746,10 @@ func (s *paymentService) updateOrgFromSubscription(ctx context.Context, sub *str
 	}
 
 	var orgID uint
-	fmt.Sscanf(orgIDStr, "%d", &orgID)
+	if _, err := fmt.Sscanf(orgIDStr, "%d", &orgID); err != nil {
+		s.logger.Warn("invalid organization_id in subscription metadata (skipping update)", "subscription_id", sub.ID, "organization_id", orgIDStr, "error", err)
+		return nil
+	}
 
 	s.logger.Info("Updating organization from subscription data", "org_id", orgID, "subscription_id", sub.ID)
 

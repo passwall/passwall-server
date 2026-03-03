@@ -81,6 +81,7 @@ func (h *CompatTelemetryHandler) ListAdmin(c *gin.Context) {
 	filter := repository.CompatTelemetryListFilter{
 		Search:    strings.TrimSpace(c.Query("q")),
 		Domain:    strings.ToLower(strings.TrimSpace(c.Query("domain"))),
+		PagePath:  strings.TrimSpace(c.Query("page_path")),
 		EventName: strings.TrimSpace(c.Query("event_name")),
 		FlowType:  strings.TrimSpace(c.Query("flow_type")),
 		Surface:   strings.TrimSpace(c.Query("surface")),
@@ -127,6 +128,7 @@ func (h *CompatTelemetryHandler) ListSummaryAdmin(c *gin.Context) {
 	filter := repository.CompatTelemetryListFilter{
 		Search:       strings.TrimSpace(c.Query("q")),
 		Domain:       strings.ToLower(strings.TrimSpace(c.Query("domain"))),
+		PagePath:     strings.TrimSpace(c.Query("page_path")),
 		EventName:    strings.TrimSpace(c.Query("event_name")),
 		FlowType:     strings.TrimSpace(c.Query("flow_type")),
 		Surface:      strings.TrimSpace(c.Query("surface")),

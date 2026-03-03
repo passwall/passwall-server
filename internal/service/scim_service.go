@@ -17,10 +17,10 @@ import (
 )
 
 var (
-	ErrSCIMTokenInvalid   = errors.New("invalid SCIM token")
-	ErrSCIMUserNotFound   = errors.New("SCIM user not found")
-	ErrSCIMGroupNotFound  = errors.New("SCIM group not found")
-	ErrSCIMUserExists     = errors.New("SCIM user already exists in organization")
+	ErrSCIMTokenInvalid        = errors.New("invalid SCIM token")
+	ErrSCIMUserNotFound        = errors.New("SCIM user not found")
+	ErrSCIMGroupNotFound       = errors.New("SCIM group not found")
+	ErrSCIMUserExists          = errors.New("SCIM user already exists in organization")
 	ErrSCIMProvisioningBlocked = errors.New("SCIM auto-provisioning is blocked until secure org-key exchange is implemented")
 )
 
@@ -50,13 +50,13 @@ type SCIMService interface {
 }
 
 type scimService struct {
-	tokenRepo   repository.SCIMTokenRepository
-	userRepo    repository.UserRepository
-	orgUserRepo repository.OrganizationUserRepository
-	teamRepo    repository.TeamRepository
+	tokenRepo    repository.SCIMTokenRepository
+	userRepo     repository.UserRepository
+	orgUserRepo  repository.OrganizationUserRepository
+	teamRepo     repository.TeamRepository
 	teamUserRepo repository.TeamUserRepository
-	logger      Logger
-	baseURL     string
+	logger       Logger
+	baseURL      string
 }
 
 // NewSCIMService creates a new SCIM service

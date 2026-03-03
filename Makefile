@@ -1,22 +1,25 @@
 # Makefile for PassWall Server
-.PHONY: help build test lint generate up down clean image-build image-publish install-tools run dev logs
+.PHONY: help build test lint format generate up down clean image-build image-publish install-tools run dev logs pre-release release
 
 # Variables
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M:%S)
 COMMIT_ID := $(shell git rev-parse HEAD 2>/dev/null || echo "unknown")
+BUILD_ID := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DOCKER_IMAGE ?= passwall/passwall-server
 DOCKER_TAG ?= latest
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 BUILD_DIR := build
 DOCKER_DIR := $(BUILD_DIR)/docker
+export PATH := $(shell go env GOPATH 2>/dev/null)/bin:$(PATH)
 
 # Build flags
 GO_BUILD_LDFLAGS := -s -w
 GO_BUILD_LDFLAGS += -X github.com/passwall/passwall-server/pkg/buildvars.Version=$(VERSION)
 GO_BUILD_LDFLAGS += -X github.com/passwall/passwall-server/pkg/buildvars.BuildTime=$(BUILD_TIME)
 GO_BUILD_LDFLAGS += -X github.com/passwall/passwall-server/pkg/buildvars.CommitID=$(COMMIT_ID)
+GO_BUILD_LDFLAGS += -X github.com/passwall/passwall-server/pkg/buildvars.BuildID=$(BUILD_ID)
 GO_BUILD_TAGS := netgo osusergo
 
 # Colors for output
@@ -42,13 +45,11 @@ generate: ## Run go generate
 
 install-tools: ## Install development tools (golangci-lint, gocov)
 	@echo "$(BLUE)Installing development tools...$(NC)"
-	@command -v golangci-lint >/dev/null 2>&1 || { \
-		echo "Installing golangci-lint..."; \
-		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin v1.62.2; \
-	}
+	@echo "Ensuring golangci-lint (built with current Go)..."; \
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	@command -v gocov >/dev/null 2>&1 || { \
-		echo "Installing gocov..."; \
-		go install github.com/axw/gocov/gocov@latest; \
+		echo "Installing gocov (optional)..."; \
+		go install github.com/axw/gocov/gocov@latest || echo "$(YELLOW)⚠ gocov install skipped (optional, needed only for test-coverage)$(NC)"; \
 	}
 	@echo "$(GREEN)✓ Tools installed$(NC)"
 
@@ -56,6 +57,11 @@ lint: ## Run golangci-lint
 	@echo "$(BLUE)Running linter...$(NC)"
 	@golangci-lint run --timeout 15m ./...
 	@echo "$(GREEN)✓ Lint passed$(NC)"
+
+format: ## Run go fmt
+	@echo "$(BLUE)Running go fmt...$(NC)"
+	@go fmt ./...
+	@echo "$(GREEN)✓ Format completed$(NC)"
 
 test: ## Run tests
 	@echo "$(BLUE)Running tests...$(NC)"
@@ -164,10 +170,27 @@ ps: ## Show running Docker Compose services
 
 ##@ Local Development
 
-run: build ## Build and run server locally (without Docker)
+WORK_DIR ?= debug
+
+PW_STRIPE_PUBLISHABLE_KEY ?= ""
+PW_STRIPE_SECRET_KEY ?= ""
+PW_STRIPE_WEBHOOK_SECRET ?= ""
+export PW_STRIPE_WEBHOOK_SECRET
+export PW_STRIPE_SECRET_KEY
+export PW_STRIPE_PUBLISHABLE_KEY
+
+run: ## Run server locally from debug folder (without Docker)
 	@echo "$(BLUE)Starting PassWall Server locally...$(NC)"
 	@echo "$(YELLOW)⚠ Make sure PostgreSQL is running (make up or external)$(NC)"
-	@$(BUILD_DIR)/passwall-server
+	@echo "$(YELLOW)Working directory: $(WORK_DIR)$(NC)"
+	@mkdir -p $(WORK_DIR)
+	@cd $(WORK_DIR) && \
+		PW_LOG_PATH="." \
+		PW_HTTP_LOG_PATH="." \
+		PW_STRIPE_SECRET_KEY="$(PW_STRIPE_SECRET_KEY)" \
+		PW_STRIPE_PUBLISHABLE_KEY="$(PW_STRIPE_PUBLISHABLE_KEY)" \
+		PW_STRIPE_WEBHOOK_SECRET="$(PW_STRIPE_WEBHOOK_SECRET)" \
+		go run ../cmd/passwall-server
 
 dev: ## Run server in development mode with auto-reload (requires air)
 	@echo "$(BLUE)Starting development server...$(NC)"
@@ -237,11 +260,34 @@ ci: install-tools lint test build ## Run CI pipeline (lint, test, build)
 check: lint test ## Run checks (lint and test)
 	@echo "$(GREEN)✓ All checks passed$(NC)"
 
+pre-release: ## Lint, format, bump minor version in VERSION, git add/commit/push
+	@echo "$(BLUE)Pre-release: lint, format, bump version, commit & push$(NC)"
+	@$(MAKE) install-tools
+	@$(MAKE) lint
+	@$(MAKE) format
+	@test -f VERSION || echo "1.0.0" > VERSION
+	@current=$$(cat VERSION); new_version=$$(echo "$$current" | awk 'BEGIN {FS=OFS="."} {$$2++; $$3=0; print $$1"."$$2"."$$3}'); \
+	echo "$$new_version" > VERSION; \
+	echo "$(GREEN)Bumped VERSION: $$current → $$new_version$(NC)"; \
+	git add .; \
+	git commit -m "chore: release v$$new_version"; \
+	git push
+	@echo "$(GREEN)✓ Pre-release done.$(NC)"
+
+release: ## Create git tag from VERSION and push
+	@test -f VERSION || (echo "$(RED)VERSION file not found$(NC)" && exit 1)
+	@release_version=$$(cat VERSION); \
+	echo "$(BLUE)Releasing v$$release_version$(NC)"; \
+	git tag "v$$release_version"; \
+	git push origin "v$$release_version"; \
+	echo "$(GREEN)✓ Release v$$release_version tagged and pushed.$(NC)"
+
 ##@ Information
 
 version: ## Show version information
 	@echo "Version: $(YELLOW)$(VERSION)$(NC)"
-	@echo "Commit: $(YELLOW)$(COMMIT_ID)$(NC)"
+	@echo "Commit ID: $(YELLOW)$(COMMIT_ID)$(NC)"
+	@echo "Build ID: $(YELLOW)$(BUILD_ID)$(NC)"
 	@echo "Build Time: $(YELLOW)$(BUILD_TIME)$(NC)"
 	@echo "Go Version: $(YELLOW)$(shell go version)$(NC)"
 

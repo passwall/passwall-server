@@ -27,6 +27,18 @@ func (r *compatTelemetryRepository) CreateBatch(ctx context.Context, events []*d
 	return r.db.WithContext(ctx).Create(&events).Error
 }
 
+func (r *compatTelemetryRepository) ListExistingCompatKeys(ctx context.Context, since time.Time) ([]repository.CompatTelemetryDedupeKey, error) {
+	var rows []repository.CompatTelemetryDedupeKey
+	err := r.db.WithContext(ctx).Model(&domain.CompatTelemetryEvent{}).
+		Select(`domain_etld1, page_path, event_name,
+			COALESCE(NULLIF(TRIM(error_code),''), 'none') AS error_code,
+			flow_type, surface, succeeded`).
+		Where("created_at >= ?", since).
+		Distinct().
+		Scan(&rows).Error
+	return rows, err
+}
+
 func (r *compatTelemetryRepository) List(
 	ctx context.Context,
 	filter repository.CompatTelemetryListFilter,
@@ -45,6 +57,9 @@ func (r *compatTelemetryRepository) List(
 	query := r.db.WithContext(ctx).Model(&domain.CompatTelemetryEvent{})
 	if filter.Domain != "" {
 		query = query.Where("domain_etld1 = ?", filter.Domain)
+	}
+	if filter.PagePath != "" {
+		query = query.Where("page_path = ?", filter.PagePath)
 	}
 	if filter.EventName != "" {
 		query = query.Where("event_name = ?", filter.EventName)
@@ -67,8 +82,8 @@ func (r *compatTelemetryRepository) List(
 	if filter.Search != "" {
 		like := "%" + strings.ToLower(filter.Search) + "%"
 		query = query.Where(
-			`LOWER(domain_etld1) LIKE ? OR LOWER(event_name) LIKE ? OR LOWER(flow_type) LIKE ? OR LOWER(surface) LIKE ? OR LOWER(error_code) LIKE ?`,
-			like, like, like, like, like,
+			`LOWER(domain_etld1) LIKE ? OR LOWER(page_path) LIKE ? OR LOWER(event_name) LIKE ? OR LOWER(flow_type) LIKE ? OR LOWER(surface) LIKE ? OR LOWER(error_code) LIKE ?`,
+			like, like, like, like, like, like,
 		)
 	}
 
@@ -113,13 +128,16 @@ func (r *compatTelemetryRepository) ListSummary(
 	filter repository.CompatTelemetryListFilter,
 ) ([]*domain.CompatTelemetrySummaryRow, int64, error) {
 	base := r.db.WithContext(ctx).Model(&domain.CompatTelemetryEvent{}).Select(
-		`domain_etld1, event_name, COALESCE(NULLIF(error_code,''), 'none') AS error_code, flow_type, surface, succeeded,
+		`domain_etld1, COALESCE(NULLIF(TRIM(page_path),''), domain_etld1) AS page_path, event_name, COALESCE(NULLIF(error_code,''), 'none') AS error_code, flow_type, surface, succeeded,
 		 COUNT(*) AS count, MIN(created_at) AS first_seen, MAX(created_at) AS last_seen`,
 	).Group(
-		`domain_etld1, event_name, COALESCE(NULLIF(error_code,''), 'none'), flow_type, surface, succeeded`,
+		`domain_etld1, COALESCE(NULLIF(TRIM(page_path),''), domain_etld1), event_name, COALESCE(NULLIF(error_code,''), 'none'), flow_type, surface, succeeded`,
 	)
 	if filter.Domain != "" {
 		base = base.Where("domain_etld1 = ?", filter.Domain)
+	}
+	if filter.PagePath != "" {
+		base = base.Where("page_path = ?", filter.PagePath)
 	}
 	if filter.EventName != "" {
 		base = base.Where("event_name = ?", filter.EventName)
@@ -142,8 +160,8 @@ func (r *compatTelemetryRepository) ListSummary(
 	if filter.Search != "" {
 		like := "%" + strings.ToLower(filter.Search) + "%"
 		base = base.Where(
-			`LOWER(domain_etld1) LIKE ? OR LOWER(event_name) LIKE ? OR LOWER(flow_type) LIKE ? OR LOWER(surface) LIKE ? OR LOWER(error_code) LIKE ?`,
-			like, like, like, like, like,
+			`LOWER(domain_etld1) LIKE ? OR LOWER(page_path) LIKE ? OR LOWER(event_name) LIKE ? OR LOWER(flow_type) LIKE ? OR LOWER(surface) LIKE ? OR LOWER(error_code) LIKE ?`,
+			like, like, like, like, like, like,
 		)
 	}
 
@@ -178,6 +196,9 @@ func (r *compatTelemetryRepository) ListSummary(
 	for _, row := range rows {
 		if row.ErrorCode == "none" {
 			row.ErrorCode = ""
+		}
+		if row.PagePath == "" {
+			row.PagePath = row.DomainETLD1
 		}
 	}
 	return rows, total, nil

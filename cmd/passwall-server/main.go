@@ -16,6 +16,9 @@ import (
 )
 
 func main() {
+	if showVersion() {
+		return
+	}
 	applyWorkDir()
 	logStartupInfo()
 
@@ -64,6 +67,18 @@ func applyWorkDir() {
 	}
 }
 
+// showVersion prints version, commit id, build id and build time to stdout and returns true if -v/--version was passed.
+func showVersion() bool {
+	for _, arg := range os.Args[1:] {
+		if arg == "-v" || arg == "--version" {
+			fmt.Printf("Version: %s\nCommit ID: %s\nBuild ID: %s\nBuild Time: %s\n",
+				buildvars.Version, buildvars.CommitID, buildvars.BuildID, buildvars.BuildTime)
+			return true
+		}
+	}
+	return false
+}
+
 func logStartupInfo() {
 	args := os.Args
 	if args == nil {
@@ -71,6 +86,6 @@ func logStartupInfo() {
 	}
 
 	logger.Infof("Passwall Server started")
-	logger.Infof("Version: %s Commit ID: %s Build Time: %s", buildvars.Version, buildvars.CommitID, buildvars.BuildTime)
+	logger.Infof("Version: %s Commit ID: %s Build ID: %s Build Time: %s", buildvars.Version, buildvars.CommitID, buildvars.BuildID, buildvars.BuildTime)
 	logger.Infof("Application arguments: %q", args)
 }

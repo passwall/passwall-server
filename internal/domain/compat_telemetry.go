@@ -12,6 +12,7 @@ type CompatTelemetryEvent struct {
 	UserID uint `gorm:"not null;index" json:"user_id"`
 
 	DomainETLD1  string `gorm:"type:varchar(255);not null;index" json:"domain_etld1"`
+	PagePath     string `gorm:"type:varchar(512);index" json:"page_path"`
 	EventName    string `gorm:"type:varchar(80);not null;index" json:"event_name"`
 	EventVersion int    `gorm:"not null;default:1" json:"event_version"`
 	OccurredAt   string `gorm:"type:varchar(64)" json:"occurred_at"`
@@ -48,6 +49,7 @@ func (CompatTelemetryEvent) TableName() string {
 // CompatTelemetrySummaryRow is a deduplicated aggregate row for admin review.
 type CompatTelemetrySummaryRow struct {
 	DomainETLD1 string    `json:"domain_etld1"`
+	PagePath    string    `json:"page_path"`
 	EventName   string    `json:"event_name"`
 	ErrorCode   string    `json:"error_code"`
 	FlowType    string    `json:"flow_type"`

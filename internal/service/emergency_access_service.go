@@ -28,8 +28,8 @@ type EmergencyAccessService interface {
 
 // EmergencyVaultResponse contains the grantor's encrypted vault for recovery view
 type EmergencyVaultResponse struct {
-	KeyEncrypted string                      `json:"key_encrypted"`
-	Items        []*domain.OrganizationItem  `json:"items"`
+	KeyEncrypted string                     `json:"key_encrypted"`
+	Items        []*domain.OrganizationItem `json:"items"`
 }
 
 type emergencyAccessService struct {

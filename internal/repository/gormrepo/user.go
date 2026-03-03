@@ -8,6 +8,7 @@ import (
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/pkg/database"
+	"github.com/passwall/passwall-server/pkg/logger"
 	"gorm.io/gorm"
 )
 
@@ -163,13 +164,13 @@ func (r *userRepository) Delete(ctx context.Context, id uint, schema string) err
 	if schema != "" && schema != "public" {
 		// Validate schema name to prevent SQL injection
 		if err := database.ValidateSchemaName(schema); err != nil {
-			// Log validation error but continue to delete user
+			logger.Errorf("user delete: invalid schema name %q: %v", schema, err)
 		} else {
 			// Safely quote the schema identifier
 			safeSchema := database.SanitizeIdentifier(schema)
 			dropSQL := fmt.Sprintf("DROP SCHEMA IF EXISTS %s CASCADE", safeSchema)
 			if err := r.db.WithContext(ctx).Exec(dropSQL).Error; err != nil {
-				// Log error but continue to delete user
+				logger.Errorf("user delete: failed to drop schema %q for user id %d: %v", schema, id, err)
 			}
 		}
 	}

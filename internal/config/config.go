@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/passwall/passwall-server/pkg/logger"
 	"github.com/spf13/viper"
 )
 
@@ -106,8 +107,8 @@ type PlanFeatures struct {
 
 // RevenueCatConfig contains RevenueCat in-app purchase configuration
 type RevenueCatConfig struct {
-	WebhookSecret string                  `mapstructure:"webhook_secret"` // Webhook authorization header value
-	Products      []RevenueCatProductConfig `mapstructure:"products"`     // Product ID to plan mappings
+	WebhookSecret string                    `mapstructure:"webhook_secret"` // Webhook authorization header value
+	Products      []RevenueCatProductConfig `mapstructure:"products"`       // Product ID to plan mappings
 }
 
 // RevenueCatProductConfig maps a RevenueCat product ID to an internal plan
@@ -257,48 +258,53 @@ func setDefaults(v *viper.Viper) {
 
 // bindEnvVariables binds environment variables for backwards compatibility
 func bindEnvVariables(v *viper.Viper) {
+	bind := func(key string, env ...string) {
+		if err := v.BindEnv(append([]string{key}, env...)...); err != nil {
+			logger.Errorf("config: bind env %q failed: %v", key, err)
+		}
+	}
 	// Server bindings
-	v.BindEnv("server.env", "PW_ENV")
-	v.BindEnv("server.host", "PW_SERVER_HOST")
-	v.BindEnv("server.port", "PORT", "PW_SERVER_PORT")
-	v.BindEnv("server.domain", "DOMAIN", "PW_SERVER_DOMAIN")
-	v.BindEnv("server.passphrase", "PW_SERVER_PASSPHRASE")
-	v.BindEnv("server.secret", "PW_SERVER_SECRET")
-	v.BindEnv("server.timeout", "PW_SERVER_TIMEOUT")
-	v.BindEnv("server.generated_password_length", "PW_SERVER_GENERATED_PASSWORD_LENGTH")
-	v.BindEnv("server.access_token_expire_duration", "PW_SERVER_ACCESS_TOKEN_EXPIRE_DURATION")
-	v.BindEnv("server.refresh_token_expire_duration", "PW_SERVER_REFRESH_TOKEN_EXPIRE_DURATION")
-	v.BindEnv("server.frontend_url", "PW_SERVER_FRONTEND_URL", "FRONTEND_URL")
-	v.BindEnv("server.recaptcha_secret_key", "PW_RECAPTCHA_SECRET_KEY", "RECAPTCHA_SECRET_KEY")
-	v.BindEnv("server.recaptcha_threshold", "PW_RECAPTCHA_THRESHOLD", "RECAPTCHA_THRESHOLD")
+	bind("server.env", "PW_ENV")
+	bind("server.host", "PW_SERVER_HOST")
+	bind("server.port", "PORT", "PW_SERVER_PORT")
+	bind("server.domain", "DOMAIN", "PW_SERVER_DOMAIN")
+	bind("server.passphrase", "PW_SERVER_PASSPHRASE")
+	bind("server.secret", "PW_SERVER_SECRET")
+	bind("server.timeout", "PW_SERVER_TIMEOUT")
+	bind("server.generated_password_length", "PW_SERVER_GENERATED_PASSWORD_LENGTH")
+	bind("server.access_token_expire_duration", "PW_SERVER_ACCESS_TOKEN_EXPIRE_DURATION")
+	bind("server.refresh_token_expire_duration", "PW_SERVER_REFRESH_TOKEN_EXPIRE_DURATION")
+	bind("server.frontend_url", "PW_SERVER_FRONTEND_URL", "FRONTEND_URL")
+	bind("server.recaptcha_secret_key", "PW_RECAPTCHA_SECRET_KEY", "RECAPTCHA_SECRET_KEY")
+	bind("server.recaptcha_threshold", "PW_RECAPTCHA_THRESHOLD", "RECAPTCHA_THRESHOLD")
 
 	// Database bindings
-	v.BindEnv("database.name", "PW_DB_NAME", "POSTGRES_DB")
-	v.BindEnv("database.username", "PW_DB_USERNAME", "POSTGRES_USER")
-	v.BindEnv("database.password", "PW_DB_PASSWORD", "POSTGRES_PASSWORD")
-	v.BindEnv("database.host", "PW_DB_HOST", "POSTGRES_HOST")
-	v.BindEnv("database.port", "PW_DB_PORT", "POSTGRES_PORT")
-	v.BindEnv("database.log_mode", "PW_DB_LOG_MODE")
-	v.BindEnv("database.ssl_mode", "PW_DB_SSL_MODE")
+	bind("database.name", "PW_DB_NAME", "POSTGRES_DB")
+	bind("database.username", "PW_DB_USERNAME", "POSTGRES_USER")
+	bind("database.password", "PW_DB_PASSWORD", "POSTGRES_PASSWORD")
+	bind("database.host", "PW_DB_HOST", "POSTGRES_HOST")
+	bind("database.port", "PW_DB_PORT", "POSTGRES_PORT")
+	bind("database.log_mode", "PW_DB_LOG_MODE")
+	bind("database.ssl_mode", "PW_DB_SSL_MODE")
 
 	// Email bindings
-	v.BindEnv("email.host", "PW_EMAIL_HOST")
-	v.BindEnv("email.port", "PW_EMAIL_PORT")
-	v.BindEnv("email.username", "PW_EMAIL_USERNAME")
-	v.BindEnv("email.password", "PW_EMAIL_PASSWORD")
-	v.BindEnv("email.from_name", "PW_EMAIL_FROM_NAME")
-	v.BindEnv("email.from_email", "PW_EMAIL_FROM_EMAIL")
-	v.BindEnv("email.admin", "PW_EMAIL_ADMIN")
-	v.BindEnv("email.bcc", "PW_EMAIL_BCC")
-	v.BindEnv("email.access_key", "PW_EMAIL_ACCESS_KEY", "AWS_ACCESS_KEY_ID")
-	v.BindEnv("email.secret_key", "PW_EMAIL_SECRET_KEY", "AWS_SECRET_ACCESS_KEY")
-	v.BindEnv("email.region", "PW_EMAIL_REGION", "AWS_REGION", "AWS_DEFAULT_REGION")
-	v.BindEnv("email.gmail_client_id", "PW_EMAIL_GMAIL_CLIENT_ID", "GMAIL_CLIENT_ID")
-	v.BindEnv("email.gmail_client_secret", "PW_EMAIL_GMAIL_CLIENT_SECRET", "GMAIL_CLIENT_SECRET")
-	v.BindEnv("email.gmail_refresh_token", "PW_EMAIL_GMAIL_REFRESH_TOKEN", "GMAIL_REFRESH_TOKEN")
+	bind("email.host", "PW_EMAIL_HOST")
+	bind("email.port", "PW_EMAIL_PORT")
+	bind("email.username", "PW_EMAIL_USERNAME")
+	bind("email.password", "PW_EMAIL_PASSWORD")
+	bind("email.from_name", "PW_EMAIL_FROM_NAME")
+	bind("email.from_email", "PW_EMAIL_FROM_EMAIL")
+	bind("email.admin", "PW_EMAIL_ADMIN")
+	bind("email.bcc", "PW_EMAIL_BCC")
+	bind("email.access_key", "PW_EMAIL_ACCESS_KEY", "AWS_ACCESS_KEY_ID")
+	bind("email.secret_key", "PW_EMAIL_SECRET_KEY", "AWS_SECRET_ACCESS_KEY")
+	bind("email.region", "PW_EMAIL_REGION", "AWS_REGION", "AWS_DEFAULT_REGION")
+	bind("email.gmail_client_id", "PW_EMAIL_GMAIL_CLIENT_ID", "GMAIL_CLIENT_ID")
+	bind("email.gmail_client_secret", "PW_EMAIL_GMAIL_CLIENT_SECRET", "GMAIL_CLIENT_SECRET")
+	bind("email.gmail_refresh_token", "PW_EMAIL_GMAIL_REFRESH_TOKEN", "GMAIL_REFRESH_TOKEN")
 
 	// RevenueCat bindings (for mobile in-app purchases)
-	v.BindEnv("revenuecat.webhook_secret", "PW_REVENUECAT_WEBHOOK_SECRET", "REVENUECAT_WEBHOOK_SECRET")
+	bind("revenuecat.webhook_secret", "PW_REVENUECAT_WEBHOOK_SECRET", "REVENUECAT_WEBHOOK_SECRET")
 }
 
 // createDefaultConfigFile creates a config file with default values

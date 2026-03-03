@@ -10,20 +10,21 @@ import (
 // UserDTO is the data transfer object for User
 // It converts the Role relationship to a simple string for API responses
 type UserDTO struct {
-	ID            uint      `json:"id"`
-	UUID          uuid.UUID `json:"uuid"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
-	Name          string    `json:"name"`
-	Email         string    `json:"email"`
-	Schema        string    `json:"schema"`
-	Role          string    `json:"role"`
-	IsVerified    bool      `json:"is_verified"`
-	IsSystemUser  bool      `json:"is_system_user"` // System users cannot be deleted
-	Language      string    `json:"language"`
-	ItemCount     *int      `json:"item_count,omitempty"`
-	KdfType       KdfType   `json:"kdf_type"`
-	KdfIterations int       `json:"kdf_iterations"`
+	ID            uint       `json:"id"`
+	UUID          uuid.UUID  `json:"uuid"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+	Name          string     `json:"name"`
+	Email         string     `json:"email"`
+	Schema        string     `json:"schema"`
+	Role          string     `json:"role"`
+	IsVerified    bool       `json:"is_verified"`
+	IsSystemUser  bool       `json:"is_system_user"` // System users cannot be deleted
+	Language      string     `json:"language"`
+	ItemCount     *int       `json:"item_count,omitempty"`
+	KdfType       KdfType    `json:"kdf_type"`
+	KdfIterations int        `json:"kdf_iterations"`
+	LastSignInAt  *time.Time `json:"last_sign_in,omitempty"`
 }
 
 // ToUserDTO converts User to UserDTO

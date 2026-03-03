@@ -16,6 +16,7 @@ type InvitationHandler struct {
 	invitationService   service.InvitationService
 	userService         service.UserService
 	organizationService service.OrganizationService
+	activityLogger      *service.ActivityLogger
 }
 
 // NewInvitationHandler creates a new invitation handler
@@ -23,11 +24,13 @@ func NewInvitationHandler(
 	invitationService service.InvitationService,
 	userService service.UserService,
 	organizationService service.OrganizationService,
+	activityService service.UserActivityService,
 ) *InvitationHandler {
 	return &InvitationHandler{
 		invitationService:   invitationService,
 		userService:         userService,
 		organizationService: organizationService,
+		activityLogger:      service.NewActivityLogger(activityService),
 	}
 }
 
@@ -99,6 +102,9 @@ func (h *InvitationHandler) Invite(c *gin.Context) {
 		return
 	}
 
+	if h.activityLogger != nil {
+		h.activityLogger.LogInvitationSent(ctx, userID, c.ClientIP(), c.GetHeader("User-Agent"), req.Email)
+	}
 	c.JSON(http.StatusCreated, gin.H{
 		"message":    "invitation sent successfully",
 		"email":      invitation.Email,
@@ -216,6 +222,15 @@ func (h *InvitationHandler) Accept(c *gin.Context) {
 		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to accept invitation", "details": err.Error()})
 		return
+	}
+
+	if h.activityLogger != nil && targetInvitation.OrganizationID != nil {
+		org, _ := h.organizationService.GetByID(ctx, *targetInvitation.OrganizationID, userID)
+		orgName := ""
+		if org != nil {
+			orgName = org.Name
+		}
+		h.activityLogger.LogInvitationAccepted(ctx, userID, c.ClientIP(), c.GetHeader("User-Agent"), *targetInvitation.OrganizationID, orgName)
 	}
 
 	// If this is an organization invitation, add user to org using the invitee-wrapped org key.

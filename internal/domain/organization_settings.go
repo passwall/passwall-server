@@ -7,16 +7,16 @@ const (
 	OrgSettingOwnerType = "organization"
 
 	// --- Section: general ---
-	OrgSettingSectionGeneral     = "general"
-	OrgSettingKeyLogo            = "logo"
-	OrgSettingKeyBusinessID      = "business_identifier"
-	OrgSettingKeyTimezone        = "timezone"
+	OrgSettingSectionGeneral = "general"
+	OrgSettingKeyLogo        = "logo"
+	OrgSettingKeyBusinessID  = "business_identifier"
+	OrgSettingKeyTimezone    = "timezone"
 
 	// --- Section: domains ---
-	OrgSettingSectionDomains       = "domains"
-	OrgSettingKeyClaimedDomains    = "claimed_domains"
-	OrgSettingKeyApprovedEmails    = "approved_email_domains"
-	OrgSettingKeyAutoJoinVerified  = "auto_join_verified_domain"
+	OrgSettingSectionDomains      = "domains"
+	OrgSettingKeyClaimedDomains   = "claimed_domains"
+	OrgSettingKeyApprovedEmails   = "approved_email_domains"
+	OrgSettingKeyAutoJoinVerified = "auto_join_verified_domain"
 
 	// --- Section: members ---
 	OrgSettingSectionMembers          = "members"
@@ -32,23 +32,23 @@ const (
 	OrgSettingKeyEmergencyAccessEnabled = "emergency_access_enabled"
 
 	// --- Section: audit ---
-	OrgSettingSectionAudit             = "audit"
-	OrgSettingKeyLogRetentionDays      = "log_retention_days"
-	OrgSettingKeyLogExportEnabled      = "log_export_enabled"
-	OrgSettingKeyComplianceMode        = "compliance_mode"
+	OrgSettingSectionAudit        = "audit"
+	OrgSettingKeyLogRetentionDays = "log_retention_days"
+	OrgSettingKeyLogExportEnabled = "log_export_enabled"
+	OrgSettingKeyComplianceMode   = "compliance_mode"
 
 	// --- Section: notifications ---
-	OrgSettingSectionNotifications          = "notifications"
-	OrgSettingKeyAdminNotifications         = "admin_notifications_enabled"
-	OrgSettingKeyMemberNotifications        = "member_notifications_enabled"
-	OrgSettingKeyBreachAlertNotifications   = "breach_alert_notifications_enabled"
-	OrgSettingKeyWeeklySecurityReport       = "weekly_security_report_enabled"
+	OrgSettingSectionNotifications        = "notifications"
+	OrgSettingKeyAdminNotifications       = "admin_notifications_enabled"
+	OrgSettingKeyMemberNotifications      = "member_notifications_enabled"
+	OrgSettingKeyBreachAlertNotifications = "breach_alert_notifications_enabled"
+	OrgSettingKeyWeeklySecurityReport     = "weekly_security_report_enabled"
 
 	// --- Section: billing ---
-	OrgSettingSectionBilling         = "billing"
-	OrgSettingKeyBillingContact      = "billing_contact"
-	OrgSettingKeySeatManagementMode  = "seat_management_mode"
-	OrgSettingKeyInvoicePONumber     = "invoice_po_number"
+	OrgSettingSectionBilling        = "billing"
+	OrgSettingKeyBillingContact     = "billing_contact"
+	OrgSettingKeySeatManagementMode = "seat_management_mode"
+	OrgSettingKeyInvoicePONumber    = "invoice_po_number"
 )
 
 // OrgSettingsDefinition describes a single organization setting (not stored in DB)

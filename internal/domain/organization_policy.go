@@ -14,32 +14,32 @@ type PolicyType string
 
 const (
 	// Authentication & Access Policies
-	PolicyRequireTwoFactor      PolicyType = "require_two_factor"
-	PolicyRequireSSO            PolicyType = "require_sso"
-	PolicyMasterPWRequirements  PolicyType = "master_password_requirements"
-	PolicySessionTimeout        PolicyType = "session_timeout"
-	PolicyRemovePINUnlock       PolicyType = "remove_pin_unlock"
-	PolicyFailedLoginLimit      PolicyType = "failed_login_limit"
-	PolicyAccountRecovery       PolicyType = "account_recovery"
+	PolicyRequireTwoFactor     PolicyType = "require_two_factor"
+	PolicyRequireSSO           PolicyType = "require_sso"
+	PolicyMasterPWRequirements PolicyType = "master_password_requirements"
+	PolicySessionTimeout       PolicyType = "session_timeout"
+	PolicyRemovePINUnlock      PolicyType = "remove_pin_unlock"
+	PolicyFailedLoginLimit     PolicyType = "failed_login_limit"
+	PolicyAccountRecovery      PolicyType = "account_recovery"
 
 	// Vault & Data Policies
-	PolicySingleOrganization    PolicyType = "single_organization"
-	PolicyDisablePersonalExport PolicyType = "disable_personal_export"
-	PolicyEnforceDataOwnership  PolicyType = "enforce_data_ownership"
-	PolicyRemoveCardType        PolicyType = "remove_card_type"
+	PolicySingleOrganization     PolicyType = "single_organization"
+	PolicyDisablePersonalExport  PolicyType = "disable_personal_export"
+	PolicyEnforceDataOwnership   PolicyType = "enforce_data_ownership"
+	PolicyRemoveCardType         PolicyType = "remove_card_type"
 	PolicyDisableExternalSharing PolicyType = "disable_external_sharing"
 
 	// Password Generation
 	PolicyPasswordGenerator PolicyType = "password_generator"
 
 	// Autofill & Browser
-	PolicyActivateAutofill         PolicyType = "activate_autofill"
-	PolicyDefaultURIMatch          PolicyType = "default_uri_match"
-	PolicyRequireAutofillConfirm   PolicyType = "require_autofill_confirmation"
-	PolicyRequireBrowserExtension  PolicyType = "require_browser_extension"
+	PolicyActivateAutofill        PolicyType = "activate_autofill"
+	PolicyDefaultURIMatch         PolicyType = "default_uri_match"
+	PolicyRequireAutofillConfirm  PolicyType = "require_autofill_confirmation"
+	PolicyRequireBrowserExtension PolicyType = "require_browser_extension"
 
 	// Network & IP
-	PolicyFirewallRules             PolicyType = "firewall_rules"
+	PolicyFirewallRules              PolicyType = "firewall_rules"
 	PolicyBlockDomainAccountCreation PolicyType = "block_domain_account_creation"
 
 	// Sharing & Send
@@ -139,11 +139,11 @@ type UpdateOrganizationPolicyRequest struct {
 
 // PolicyDefinition describes a policy type with its metadata (not stored in DB)
 type PolicyDefinition struct {
-	Type         PolicyType `json:"type"`
-	Name         string     `json:"name"`
-	Description  string     `json:"description"`
-	Category     string     `json:"category"`
-	Tier         PolicyTier `json:"tier"`
+	Type         PolicyType   `json:"type"`
+	Name         string       `json:"name"`
+	Description  string       `json:"description"`
+	Category     string       `json:"category"`
+	Tier         PolicyTier   `json:"tier"`
 	Dependencies []PolicyType `json:"dependencies,omitempty"`
 }
 
@@ -156,39 +156,39 @@ func AllPolicyDefinitions() []PolicyDefinition {
 		{
 			Type: PolicyRequireTwoFactor, Name: "Require Two-Factor Authentication",
 			Description: "Require all members to use two-step login for vault access",
-			Category: "authentication", Tier: PolicyTierTeam,
+			Category:    "authentication", Tier: PolicyTierTeam,
 		},
 		{
 			Type: PolicyRequireSSO, Name: "Require Single Sign-On",
 			Description: "Require non-owner/non-admin members to authenticate via SSO",
-			Category: "authentication", Tier: PolicyTierEnterprise,
+			Category:    "authentication", Tier: PolicyTierEnterprise,
 			Dependencies: []PolicyType{PolicySingleOrganization},
 		},
 		{
 			Type: PolicyMasterPWRequirements, Name: "Master Password Requirements",
 			Description: "Enforce minimum password complexity, length, and character requirements",
-			Category: "authentication", Tier: PolicyTierTeam,
+			Category:    "authentication", Tier: PolicyTierTeam,
 		},
 		{
 			Type: PolicySessionTimeout, Name: "Session Timeout",
 			Description: "Set maximum vault timeout duration and timeout action for members",
-			Category: "authentication", Tier: PolicyTierBusiness,
+			Category:    "authentication", Tier: PolicyTierBusiness,
 			Dependencies: []PolicyType{PolicySingleOrganization},
 		},
 		{
 			Type: PolicyRemovePINUnlock, Name: "Remove Unlock with PIN",
 			Description: "Prohibit members from using PIN unlock on web, browser, and desktop apps",
-			Category: "authentication", Tier: PolicyTierBusiness,
+			Category:    "authentication", Tier: PolicyTierBusiness,
 		},
 		{
 			Type: PolicyFailedLoginLimit, Name: "Failed Login Attempt Limit",
 			Description: "Temporarily block IP after specified number of failed sign-in attempts",
-			Category: "authentication", Tier: PolicyTierEnterprise,
+			Category:    "authentication", Tier: PolicyTierEnterprise,
 		},
 		{
 			Type: PolicyAccountRecovery, Name: "Account Recovery Administration",
 			Description: "Allow admins to reset member master passwords and restore account access",
-			Category: "authentication", Tier: PolicyTierBusiness,
+			Category:    "authentication", Tier: PolicyTierBusiness,
 			Dependencies: []PolicyType{PolicySingleOrganization},
 		},
 
@@ -196,81 +196,81 @@ func AllPolicyDefinitions() []PolicyDefinition {
 		{
 			Type: PolicySingleOrganization, Name: "Single Organization",
 			Description: "Restrict members from joining or creating other organizations",
-			Category: "vault", Tier: PolicyTierBusiness,
+			Category:    "vault", Tier: PolicyTierBusiness,
 		},
 		{
 			Type: PolicyDisablePersonalExport, Name: "Disable Personal Vault Export",
 			Description: "Prevent non-admin members from exporting their vault data",
-			Category: "vault", Tier: PolicyTierBusiness,
+			Category:    "vault", Tier: PolicyTierBusiness,
 		},
 		{
 			Type: PolicyEnforceDataOwnership, Name: "Enforce Organization Data Ownership",
 			Description: "All saved items belong to the organization, retained on member departure",
-			Category: "vault", Tier: PolicyTierEnterprise,
+			Category:    "vault", Tier: PolicyTierEnterprise,
 		},
 		{
 			Type: PolicyRemoveCardType, Name: "Remove Card Item Type",
 			Description: "Prevent members from creating or importing credit card items",
-			Category: "vault", Tier: PolicyTierBusiness,
+			Category:    "vault", Tier: PolicyTierBusiness,
 		},
 		{
 			Type: PolicyDisableExternalSharing, Name: "Disable External Sharing",
 			Description: "Prevent sharing outside the organization; allow only via shared collections",
-			Category: "vault", Tier: PolicyTierTeam,
+			Category:    "vault", Tier: PolicyTierTeam,
 		},
 
 		// Password Generation
 		{
 			Type: PolicyPasswordGenerator, Name: "Password Generator Requirements",
 			Description: "Enforce minimum standards for generated passwords and passphrases",
-			Category: "generator", Tier: PolicyTierTeam,
+			Category:    "generator", Tier: PolicyTierTeam,
 		},
 
 		// Autofill & Browser
 		{
 			Type: PolicyActivateAutofill, Name: "Activate Autofill",
 			Description: "Automatically enable autofill on page load for all members",
-			Category: "autofill", Tier: PolicyTierBusiness,
+			Category:    "autofill", Tier: PolicyTierBusiness,
 		},
 		{
 			Type: PolicyDefaultURIMatch, Name: "Default URI Match Detection",
 			Description: "Set the default URI match detection method for the organization",
-			Category: "autofill", Tier: PolicyTierBusiness,
+			Category:    "autofill", Tier: PolicyTierBusiness,
 			Dependencies: []PolicyType{PolicySingleOrganization},
 		},
 		{
 			Type: PolicyRequireAutofillConfirm, Name: "Require Autofill Confirmation",
 			Description: "Require confirmation before autofilling credit cards, addresses, or logins",
-			Category: "autofill", Tier: PolicyTierBusiness,
+			Category:    "autofill", Tier: PolicyTierBusiness,
 		},
 		{
 			Type: PolicyRequireBrowserExtension, Name: "Require Browser Extension",
 			Description: "Require members to install the browser extension during signup",
-			Category: "autofill", Tier: PolicyTierTeam,
+			Category:    "autofill", Tier: PolicyTierTeam,
 		},
 
 		// Network & IP
 		{
 			Type: PolicyFirewallRules, Name: "Firewall Rules",
 			Description: "Restrict vault access by IP address, geographic location, or anonymous IP type",
-			Category: "network", Tier: PolicyTierEnterprise,
+			Category:    "network", Tier: PolicyTierEnterprise,
 		},
 		{
 			Type: PolicyBlockDomainAccountCreation, Name: "Block Domain Account Creation",
 			Description: "Prevent account creation outside the organization for claimed domain emails",
-			Category: "network", Tier: PolicyTierEnterprise,
+			Category:    "network", Tier: PolicyTierEnterprise,
 		},
 
 		// Sharing & Send
 		{
 			Type: PolicySendOptions, Name: "Send Options",
 			Description: "Configure Send creation options, including email visibility requirements",
-			Category: "sharing", Tier: PolicyTierBusiness,
+			Category:    "sharing", Tier: PolicyTierBusiness,
 		},
 		{
 			Type: PolicyRemoveSend, Name: "Remove Send",
 			Description: "Prevent non-admin members from creating or editing Sends",
-			Category: "sharing", Tier: PolicyTierEnterprise,
+			Category:    "sharing", Tier: PolicyTierEnterprise,
 		},
 	}
 }

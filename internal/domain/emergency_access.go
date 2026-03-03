@@ -52,19 +52,19 @@ func (EmergencyAccess) TableName() string {
 
 // EmergencyAccessDTO for API responses
 type EmergencyAccessDTO struct {
-	ID               uint                  `json:"id"`
-	UUID             uuid.UUID             `json:"uuid"`
-	GrantorID        uint                  `json:"grantor_id"`
-	GrantorEmail     string                `json:"grantor_email,omitempty"`
-	GrantorName      string                `json:"grantor_name,omitempty"`
-	GranteeID        *uint                 `json:"grantee_id,omitempty"`
-	GranteeEmail     string                `json:"grantee_email"`
-	GranteeName      string                `json:"grantee_name,omitempty"`
-	Status           EmergencyAccessStatus `json:"status"`
-	CreatedAt        time.Time             `json:"created_at"`
-	UpdatedAt        time.Time             `json:"updated_at"`
-	RecoveryInitAt   *time.Time            `json:"recovery_init_at,omitempty"`
-	RecoveryApproveAt *time.Time           `json:"recovery_approve_at,omitempty"`
+	ID                uint                  `json:"id"`
+	UUID              uuid.UUID             `json:"uuid"`
+	GrantorID         uint                  `json:"grantor_id"`
+	GrantorEmail      string                `json:"grantor_email,omitempty"`
+	GrantorName       string                `json:"grantor_name,omitempty"`
+	GranteeID         *uint                 `json:"grantee_id,omitempty"`
+	GranteeEmail      string                `json:"grantee_email"`
+	GranteeName       string                `json:"grantee_name,omitempty"`
+	Status            EmergencyAccessStatus `json:"status"`
+	CreatedAt         time.Time             `json:"created_at"`
+	UpdatedAt         time.Time             `json:"updated_at"`
+	RecoveryInitAt    *time.Time            `json:"recovery_init_at,omitempty"`
+	RecoveryApproveAt *time.Time            `json:"recovery_approve_at,omitempty"`
 }
 
 func ToEmergencyAccessDTO(ea *EmergencyAccess) *EmergencyAccessDTO {

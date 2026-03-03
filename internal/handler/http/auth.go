@@ -12,6 +12,7 @@ import (
 	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/internal/service"
 	"github.com/passwall/passwall-server/pkg/constants"
+	"github.com/passwall/passwall-server/pkg/logger"
 )
 
 type AuthHandler struct {
@@ -376,7 +377,7 @@ func (h *AuthHandler) ResendVerificationCode(c *gin.Context) {
 
 		// Send email
 		if err := h.emailSender.Send(emailCtx, message); err != nil {
-			// Log error but don't fail the request
+			logger.Errorf("resend verification email failed: email=%s error=%v", req.Email, err)
 		}
 	}()
 

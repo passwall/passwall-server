@@ -11,14 +11,14 @@ import (
 type TemplateType string
 
 const (
-	TemplateVerification           TemplateType = "verification"
-	TemplateInvitation             TemplateType = "invitation"
-	TemplateShareInvite            TemplateType = "share-invite"
-	TemplateShareNotice            TemplateType = "share-notice"
-	TemplateEmergencyInvite        TemplateType = "emergency-invite"
-	TemplateEmergencyAccepted      TemplateType = "emergency-accepted"
-	TemplateEmergencyRecoveryReq   TemplateType = "emergency-recovery-request"
-	TemplateEmergencyRecoveryOK    TemplateType = "emergency-recovery-approved"
+	TemplateVerification         TemplateType = "verification"
+	TemplateInvitation           TemplateType = "invitation"
+	TemplateShareInvite          TemplateType = "share-invite"
+	TemplateShareNotice          TemplateType = "share-notice"
+	TemplateEmergencyInvite      TemplateType = "emergency-invite"
+	TemplateEmergencyAccepted    TemplateType = "emergency-accepted"
+	TemplateEmergencyRecoveryReq TemplateType = "emergency-recovery-request"
+	TemplateEmergencyRecoveryOK  TemplateType = "emergency-recovery-approved"
 )
 
 // TemplateData holds data for email templates
@@ -38,9 +38,9 @@ type TemplateData struct {
 	ShareSignInURL   string
 	ShareRecipient   string
 	// Emergency access fields
-	GrantorName    string
-	GranteeName    string
-	EmergencyURL   string
+	GrantorName  string
+	GranteeName  string
+	EmergencyURL string
 }
 
 // TemplateManager handles email template rendering

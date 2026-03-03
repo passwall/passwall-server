@@ -170,16 +170,16 @@ func (s *SSOState) IsExpired() bool {
 
 // SSOConnectionDTO for API responses (sensitive fields stripped)
 type SSOConnectionDTO struct {
-	ID              uint                `json:"id"`
-	UUID            uuid.UUID           `json:"uuid"`
-	OrganizationID  uint                `json:"organization_id"`
-	Protocol        SSOProtocol         `json:"protocol"`
-	Name            string              `json:"name"`
-	Domain          string              `json:"domain"`
-	SPEntityID      string              `json:"sp_entity_id"`
-	SPAcsURL        string              `json:"sp_acs_url"`
-	AutoProvision   bool                `json:"auto_provision"`
-	DefaultRole     OrganizationRole    `json:"default_role"`
+	ID               uint                `json:"id"`
+	UUID             uuid.UUID           `json:"uuid"`
+	OrganizationID   uint                `json:"organization_id"`
+	Protocol         SSOProtocol         `json:"protocol"`
+	Name             string              `json:"name"`
+	Domain           string              `json:"domain"`
+	SPEntityID       string              `json:"sp_entity_id"`
+	SPAcsURL         string              `json:"sp_acs_url"`
+	AutoProvision    bool                `json:"auto_provision"`
+	DefaultRole      OrganizationRole    `json:"default_role"`
 	JITProvisioning  bool                `json:"jit_provisioning"`
 	KeyEscrowEnabled bool                `json:"key_escrow_enabled"`
 	Status           SSOConnectionStatus `json:"status"`
@@ -220,21 +220,21 @@ func ToSSOConnectionDTO(conn *SSOConnection) *SSOConnectionDTO {
 	}
 
 	dto := &SSOConnectionDTO{
-		ID:              conn.ID,
-		UUID:            conn.UUID,
-		OrganizationID:  conn.OrganizationID,
-		Protocol:        conn.Protocol,
-		Name:            conn.Name,
-		Domain:          conn.Domain,
-		SPEntityID:      conn.SPEntityID,
-		SPAcsURL:        conn.SPAcsURL,
-		AutoProvision:   conn.AutoProvision,
-		DefaultRole:     conn.DefaultRole,
+		ID:               conn.ID,
+		UUID:             conn.UUID,
+		OrganizationID:   conn.OrganizationID,
+		Protocol:         conn.Protocol,
+		Name:             conn.Name,
+		Domain:           conn.Domain,
+		SPEntityID:       conn.SPEntityID,
+		SPAcsURL:         conn.SPAcsURL,
+		AutoProvision:    conn.AutoProvision,
+		DefaultRole:      conn.DefaultRole,
 		JITProvisioning:  conn.JITProvisioning,
 		KeyEscrowEnabled: conn.KeyEscrowEnabled,
 		Status:           conn.Status,
-		CreatedAt:       conn.CreatedAt,
-		UpdatedAt:       conn.UpdatedAt,
+		CreatedAt:        conn.CreatedAt,
+		UpdatedAt:        conn.UpdatedAt,
 	}
 
 	if conn.SAMLConfig != nil {

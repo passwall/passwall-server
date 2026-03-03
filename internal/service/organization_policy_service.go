@@ -25,7 +25,7 @@ type OrganizationPolicyService interface {
 }
 
 type organizationPolicyService struct {
-	policyRepo repository.OrganizationPolicyRepository
+	policyRepo  repository.OrganizationPolicyRepository
 	orgUserRepo repository.OrganizationUserRepository
 	subRepo     interface {
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)

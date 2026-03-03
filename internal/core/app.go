@@ -304,7 +304,7 @@ func (a *App) Run(ctx context.Context) error {
 	userNotificationPreferencesHandler := httpHandler.NewUserNotificationPreferencesHandler(userNotificationPreferencesService)
 	userAppearancePreferencesHandler := httpHandler.NewUserAppearancePreferencesHandler(userAppearancePreferencesService)
 	userPreferencesHandler := httpHandler.NewUserPreferencesHandler(preferencesService)
-	invitationHandler := httpHandler.NewInvitationHandler(invitationService, userService, organizationService)
+	invitationHandler := httpHandler.NewInvitationHandler(invitationService, userService, organizationService, userActivityService)
 
 	// Modern handlers (all item types use ItemHandler now)
 	itemHandler := httpHandler.NewItemHandler(itemService)
@@ -312,9 +312,9 @@ func (a *App) Run(ctx context.Context) error {
 	excludedDomainHandler := httpHandler.NewExcludedDomainHandler(excludedDomainService)
 	compatTelemetryHandler := httpHandler.NewCompatTelemetryHandler(compatTelemetryService)
 	// Organization handlers
-	organizationHandler := httpHandler.NewOrganizationHandler(organizationService, organizationPolicyService, subscriptionRepo)
-	teamHandler := httpHandler.NewTeamHandler(teamService)
-	collectionHandler := httpHandler.NewCollectionHandler(collectionService)
+	organizationHandler := httpHandler.NewOrganizationHandler(organizationService, organizationPolicyService, subscriptionRepo, userActivityService)
+	teamHandler := httpHandler.NewTeamHandler(teamService, userActivityService, organizationService)
+	collectionHandler := httpHandler.NewCollectionHandler(collectionService, userActivityService, organizationService)
 	organizationItemHandler := httpHandler.NewOrganizationItemHandler(organizationItemService, userActivityService)
 	organizationFolderHandler := httpHandler.NewOrganizationFolderHandler(organizationFolderService)
 

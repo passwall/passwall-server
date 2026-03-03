@@ -101,15 +101,15 @@ type CreateSCIMTokenRequest struct {
 
 // SCIMUser represents a SCIM 2.0 User resource
 type SCIMUser struct {
-	Schemas    []string        `json:"schemas"`
-	ID         string          `json:"id"`
-	ExternalID string          `json:"externalId,omitempty"`
-	UserName   string          `json:"userName"`
-	Name       *SCIMName       `json:"name,omitempty"`
-	Emails     []SCIMEmail     `json:"emails,omitempty"`
-	Active     bool            `json:"active"`
-	Groups     []SCIMGroupRef  `json:"groups,omitempty"`
-	Meta       *SCIMMeta       `json:"meta,omitempty"`
+	Schemas    []string       `json:"schemas"`
+	ID         string         `json:"id"`
+	ExternalID string         `json:"externalId,omitempty"`
+	UserName   string         `json:"userName"`
+	Name       *SCIMName      `json:"name,omitempty"`
+	Emails     []SCIMEmail    `json:"emails,omitempty"`
+	Active     bool           `json:"active"`
+	Groups     []SCIMGroupRef `json:"groups,omitempty"`
+	Meta       *SCIMMeta      `json:"meta,omitempty"`
 }
 
 // SCIMName represents the name component of a SCIM user
@@ -135,12 +135,12 @@ type SCIMGroupRef struct {
 
 // SCIMGroup represents a SCIM 2.0 Group resource
 type SCIMGroup struct {
-	Schemas    []string         `json:"schemas"`
-	ID         string           `json:"id"`
-	ExternalID string           `json:"externalId,omitempty"`
+	Schemas     []string        `json:"schemas"`
+	ID          string          `json:"id"`
+	ExternalID  string          `json:"externalId,omitempty"`
 	DisplayName string          `json:"displayName"`
-	Members    []SCIMMemberRef  `json:"members,omitempty"`
-	Meta       *SCIMMeta        `json:"meta,omitempty"`
+	Members     []SCIMMemberRef `json:"members,omitempty"`
+	Meta        *SCIMMeta       `json:"meta,omitempty"`
 }
 
 // SCIMMemberRef is a reference to a group member
@@ -190,12 +190,12 @@ type SCIMPatchOpItem struct {
 
 // SCIM 2.0 schema URNs
 const (
-	SCIMSchemaUser           = "urn:ietf:params:scim:schemas:core:2.0:User"
-	SCIMSchemaGroup          = "urn:ietf:params:scim:schemas:core:2.0:Group"
-	SCIMSchemaListResponse   = "urn:ietf:params:scim:api:messages:2.0:ListResponse"
-	SCIMSchemaError          = "urn:ietf:params:scim:api:messages:2.0:Error"
-	SCIMSchemaPatchOp        = "urn:ietf:params:scim:api:messages:2.0:PatchOp"
-	SCIMSchemaServiceConfig  = "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig"
-	SCIMSchemaResourceType   = "urn:ietf:params:scim:schemas:core:2.0:ResourceType"
-	SCIMSchemaSchema         = "urn:ietf:params:scim:schemas:core:2.0:Schema"
+	SCIMSchemaUser          = "urn:ietf:params:scim:schemas:core:2.0:User"
+	SCIMSchemaGroup         = "urn:ietf:params:scim:schemas:core:2.0:Group"
+	SCIMSchemaListResponse  = "urn:ietf:params:scim:api:messages:2.0:ListResponse"
+	SCIMSchemaError         = "urn:ietf:params:scim:api:messages:2.0:Error"
+	SCIMSchemaPatchOp       = "urn:ietf:params:scim:api:messages:2.0:PatchOp"
+	SCIMSchemaServiceConfig = "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig"
+	SCIMSchemaResourceType  = "urn:ietf:params:scim:schemas:core:2.0:ResourceType"
+	SCIMSchemaSchema        = "urn:ietf:params:scim:schemas:core:2.0:Schema"
 )

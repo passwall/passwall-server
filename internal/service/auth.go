@@ -24,8 +24,8 @@ var (
 	ErrExpiredToken    = errors.New("token expired or invalid")
 	ErrUnauthorized    = errors.New("unauthorized")
 	ErrInvalidPassword = errors.New("invalid password")
-	ErrDeviceLimit  = errors.New("device limit exceeded for current plan")
-	ErrLoginBlocked = errors.New("login temporarily blocked")
+	ErrDeviceLimit     = errors.New("device limit exceeded for current plan")
+	ErrLoginBlocked    = errors.New("login temporarily blocked")
 )
 
 type AuthConfig struct {
@@ -48,10 +48,10 @@ type authService struct {
 	policyRepo         repository.OrganizationPolicyRepository
 	failedLoginTracker FailedLoginTracker
 	activityService    UserActivityService
-	emailSender     email.Sender
-	emailBuilder    *email.EmailBuilder
-	config          *AuthConfig
-	logger          Logger
+	emailSender        email.Sender
+	emailBuilder       *email.EmailBuilder
+	config             *AuthConfig
+	logger             Logger
 }
 
 // NewAuthService creates a new authentication service
@@ -368,6 +368,11 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 
 	// Check organization policy requirements (non-blocking, informational)
 	policyReqs := s.collectPolicyRequirements(ctx, user)
+
+	// Process any pending org invitations for this user (e.g. invite link signup)
+	if err := s.processPendingOrgInvitations(ctx, user); err != nil {
+		s.logger.Error("failed to process pending org invitations", "user_id", user.ID, "error", err)
+	}
 
 	// Return auth response with protected user key
 	// Client will decrypt User Key with their Master Key
@@ -927,10 +932,10 @@ func (s *authService) createDefaultPersonalVaultFolders(ctx context.Context, org
 		}
 
 		folder := &domain.OrganizationFolder{
-			UUID:           uuid.NewV4(),
-			OrganizationID: orgID,
+			UUID:            uuid.NewV4(),
+			OrganizationID:  orgID,
 			CreatedByUserID: userID,
-			Name:           folderName,
+			Name:            folderName,
 		}
 		if err := s.orgFolderRepo.Create(ctx, folder); err != nil {
 			return err

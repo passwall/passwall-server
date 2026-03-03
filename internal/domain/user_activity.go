@@ -35,6 +35,31 @@ const (
 	ActivityTypeInvoicePaymentFailed    ActivityType = "invoice_payment_failed"
 	ActivityTypeOrganizationUpgraded    ActivityType = "organization_upgraded"
 	ActivityTypeOrganizationDowngraded  ActivityType = "organization_downgraded"
+
+	// Organization & structure
+	ActivityTypeOrganizationCreated ActivityType = "organization_created"
+	ActivityTypeOrganizationDeleted ActivityType = "organization_deleted"
+	ActivityTypeTeamCreated         ActivityType = "team_created"
+	ActivityTypeTeamUpdated         ActivityType = "team_updated"
+	ActivityTypeTeamDeleted         ActivityType = "team_deleted"
+	ActivityTypeCollectionCreated   ActivityType = "collection_created"
+	ActivityTypeCollectionUpdated   ActivityType = "collection_updated"
+	ActivityTypeCollectionDeleted   ActivityType = "collection_deleted"
+	ActivityTypeFolderCreated       ActivityType = "folder_created"
+	ActivityTypeFolderUpdated       ActivityType = "folder_updated"
+	ActivityTypeFolderDeleted       ActivityType = "folder_deleted"
+
+	// Members & invitations
+	ActivityTypeMemberInvited      ActivityType = "member_invited"
+	ActivityTypeMemberJoined       ActivityType = "member_joined"
+	ActivityTypeMemberRemoved      ActivityType = "member_removed"
+	ActivityTypeMemberRoleChanged  ActivityType = "member_role_changed"
+	ActivityTypeInvitationSent     ActivityType = "invitation_sent"
+	ActivityTypeInvitationAccepted ActivityType = "invitation_accepted"
+
+	// Secure Send
+	ActivityTypeSendCreated  ActivityType = "send_created"
+	ActivityTypeSendAccessed ActivityType = "send_accessed"
 )
 
 // UserActivity represents user activity log for audit trail

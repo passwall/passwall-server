@@ -65,10 +65,13 @@ func (r *organizationRepository) List(ctx context.Context, filter repository.Lis
 		return nil, nil, err
 	}
 
-	// Apply search filter
+	// Apply search filter (case-insensitive)
 	if filter.Search != "" {
 		searchPattern := "%" + filter.Search + "%"
-		query = query.Where("name LIKE ? OR billing_email LIKE ?", searchPattern, searchPattern)
+		query = query.Where(
+			"LOWER(name) LIKE LOWER(?) OR LOWER(COALESCE(billing_email, '')) LIKE LOWER(?)",
+			searchPattern, searchPattern,
+		)
 	}
 
 	// Count filtered

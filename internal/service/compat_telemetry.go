@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
 )
+
+const compatTelemetryDedupeWindow = 7 * 24 * time.Hour
 
 var compatDomainPattern = regexp.MustCompile(`^[a-z0-9.-]+\.[a-z]{2,}$`)
 
@@ -25,6 +28,7 @@ type CompatTelemetryEventPayload struct {
 	OccurredAt   string `json:"occurred_at"`
 
 	DomainETLD1 string `json:"domain_etld1"`
+	PagePath    string `json:"page_path"`
 	FlowType    string `json:"flow_type"`
 	Surface     string `json:"surface"`
 	Attempted   bool   `json:"attempted"`
@@ -80,6 +84,7 @@ func (s *compatTelemetryService) IngestBatch(
 			UserID: userID,
 
 			DomainETLD1:  normalized.DomainETLD1,
+			PagePath:     normalized.PagePath,
 			EventName:    normalized.EventName,
 			EventVersion: normalized.EventVersion,
 			OccurredAt:   normalized.OccurredAt,
@@ -108,12 +113,56 @@ func (s *compatTelemetryService) IngestBatch(
 		})
 	}
 
-	if err := s.repo.CreateBatch(ctx, events); err != nil {
-		s.logger.Error("failed to ingest compatibility telemetry", "count", len(events), "error", err)
+	existingSet, err := s.repo.ListExistingCompatKeys(ctx, time.Now().Add(-compatTelemetryDedupeWindow))
+	if err != nil {
+		s.logger.Warn("failed to load existing telemetry keys for dedupe", "error", err)
+		existingSet = nil
+	}
+
+	keySet := make(map[string]struct{})
+	for _, k := range existingSet {
+		keySet[compatDedupeKeyString(k.DomainETLD1, k.PagePath, k.EventName, k.ErrorCode, k.FlowType, k.Surface, k.Succeeded)] = struct{}{}
+	}
+
+	filtered := make([]*domain.CompatTelemetryEvent, 0, len(events))
+	for _, e := range events {
+		key := compatDedupeKeyString(e.DomainETLD1, e.PagePath, e.EventName, normErrorCodeForDedupe(e.ErrorCode), e.FlowType, e.Surface, e.Succeeded)
+		if _, exists := keySet[key]; exists {
+			continue
+		}
+		keySet[key] = struct{}{}
+		filtered = append(filtered, e)
+	}
+
+	if len(filtered) == 0 {
+		return 0, nil
+	}
+
+	if err := s.repo.CreateBatch(ctx, filtered); err != nil {
+		s.logger.Error("failed to ingest compatibility telemetry", "count", len(filtered), "error", err)
 		return 0, err
 	}
 
-	return len(events), nil
+	if skipped := len(events) - len(filtered); skipped > 0 {
+		s.logger.Debug("compat telemetry dedupe skipped", "skipped", skipped, "ingested", len(filtered))
+	}
+
+	return len(filtered), nil
+}
+
+func normErrorCodeForDedupe(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "none"
+	}
+	return s
+}
+
+func compatDedupeKeyString(domainETLD1, pagePath, eventName, errorCode, flowType, surface string, succeeded bool) string {
+	return strings.Join([]string{
+		domainETLD1, pagePath, eventName, normErrorCodeForDedupe(errorCode), flowType, surface,
+		strconv.FormatBool(succeeded),
+	}, "|")
 }
 
 func (s *compatTelemetryService) ListForAdmin(
@@ -156,6 +205,11 @@ func normalizeCompatPayload(payload CompatTelemetryEventPayload) (*CompatTelemet
 		return nil, fmt.Errorf("domain_etld1 is invalid")
 	}
 
+	pagePath := truncateLower(payload.PagePath, 512)
+	if pagePath == "" {
+		pagePath = normalizedDomain
+	}
+
 	occurredAt := strings.TrimSpace(payload.OccurredAt)
 	if occurredAt != "" {
 		if _, err := time.Parse(time.RFC3339, occurredAt); err != nil {
@@ -187,6 +241,7 @@ func normalizeCompatPayload(payload CompatTelemetryEventPayload) (*CompatTelemet
 		EventVersion: eventVersion,
 		OccurredAt:   occurredAt,
 		DomainETLD1:  normalizedDomain,
+		PagePath:     pagePath,
 		FlowType:     flowType,
 		Surface:      surface,
 		Attempted:    payload.Attempted,

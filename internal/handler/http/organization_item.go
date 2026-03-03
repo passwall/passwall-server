@@ -78,7 +78,7 @@ func (h *OrganizationItemHandler) Create(c *gin.Context) {
 		if item.CollectionID != nil {
 			details[service.ActivityFieldCollectionID] = *item.CollectionID
 		}
-		h.activityLogger.LogActivity(ctx, userID, domain.ActivityTypeItemCreated, ipAddress, userAgent, details)
+		_ = h.activityLogger.LogActivity(ctx, userID, domain.ActivityTypeItemCreated, ipAddress, userAgent, details)
 	}
 }
 
@@ -286,7 +286,7 @@ func (h *OrganizationItemHandler) Update(c *gin.Context) {
 		if item.CollectionID != nil {
 			details[service.ActivityFieldCollectionID] = *item.CollectionID
 		}
-		h.activityLogger.LogActivity(ctx, userID, domain.ActivityTypeItemUpdated, ipAddress, userAgent, details)
+		_ = h.activityLogger.LogActivity(ctx, userID, domain.ActivityTypeItemUpdated, ipAddress, userAgent, details)
 	}
 }
 
@@ -331,6 +331,6 @@ func (h *OrganizationItemHandler) Delete(c *gin.Context) {
 		if item.CollectionID != nil {
 			details[service.ActivityFieldCollectionID] = *item.CollectionID
 		}
-		h.activityLogger.LogActivity(ctx, userID, domain.ActivityTypeItemDeleted, ipAddress, userAgent, details)
+		_ = h.activityLogger.LogActivity(ctx, userID, domain.ActivityTypeItemDeleted, ipAddress, userAgent, details)
 	}
 }

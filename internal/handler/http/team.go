@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -11,11 +12,29 @@ import (
 )
 
 type TeamHandler struct {
-	service service.TeamService
+	service        service.TeamService
+	activityLogger *service.ActivityLogger
+	orgService     service.OrganizationService
 }
 
-func NewTeamHandler(service service.TeamService) *TeamHandler {
-	return &TeamHandler{service: service}
+func NewTeamHandler(
+	teamService service.TeamService,
+	activityService service.UserActivityService,
+	orgService service.OrganizationService,
+) *TeamHandler {
+	return &TeamHandler{
+		service:        teamService,
+		activityLogger: service.NewActivityLogger(activityService),
+		orgService:     orgService,
+	}
+}
+
+func (h *TeamHandler) orgName(ctx context.Context, orgID uint, userID uint) string {
+	org, err := h.orgService.GetByID(ctx, orgID, userID)
+	if err != nil || org == nil {
+		return ""
+	}
+	return org.Name
 }
 
 // Create godoc
@@ -55,6 +74,10 @@ func (h *TeamHandler) Create(c *gin.Context) {
 		return
 	}
 
+	if h.activityLogger != nil {
+		orgName := h.orgName(ctx, orgID, userID)
+		h.activityLogger.LogTeamCreated(ctx, userID, c.ClientIP(), c.GetHeader("User-Agent"), orgID, orgName, team.ID, team.Name)
+	}
 	c.JSON(http.StatusCreated, domain.ToTeamDTO(team))
 }
 
@@ -169,6 +192,10 @@ func (h *TeamHandler) Update(c *gin.Context) {
 		return
 	}
 
+	if h.activityLogger != nil && team != nil {
+		orgName := h.orgName(ctx, team.OrganizationID, userID)
+		h.activityLogger.LogTeamUpdated(ctx, userID, c.ClientIP(), c.GetHeader("User-Agent"), team.OrganizationID, orgName, team.ID, team.Name)
+	}
 	c.JSON(http.StatusOK, domain.ToTeamDTO(team))
 }
 
@@ -190,6 +217,7 @@ func (h *TeamHandler) Delete(c *gin.Context) {
 		return
 	}
 
+	team, _ := h.service.GetByID(ctx, id, userID)
 	err := h.service.Delete(ctx, id, userID)
 	if err != nil {
 		if errors.Is(err, repository.ErrForbidden) {
@@ -199,7 +227,10 @@ func (h *TeamHandler) Delete(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete team"})
 		return
 	}
-
+	if team != nil && h.activityLogger != nil {
+		orgName := h.orgName(ctx, team.OrganizationID, userID)
+		h.activityLogger.LogTeamDeleted(ctx, userID, c.ClientIP(), c.GetHeader("User-Agent"), team.OrganizationID, orgName, team.ID, team.Name)
+	}
 	c.Status(http.StatusNoContent)
 }
 

@@ -124,10 +124,10 @@ func (f *fakeSubRepo) GetByOrganizationID(_ context.Context, orgID uint) (*domai
 // ─── Test builder ───────────────────────────────────────────────────────────────
 
 const (
-	policyTestOrgID   = uint(1)
-	policyTestOwnerID = uint(100)
-	policyTestAdminID = uint(101)
-	policyTestMemberID = uint(200)
+	policyTestOrgID     = uint(1)
+	policyTestOwnerID   = uint(100)
+	policyTestAdminID   = uint(101)
+	policyTestMemberID  = uint(200)
 	policyTestManagerID = uint(201)
 )
 

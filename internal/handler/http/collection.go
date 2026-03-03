@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -11,11 +12,29 @@ import (
 )
 
 type CollectionHandler struct {
-	service service.CollectionService
+	service        service.CollectionService
+	activityLogger *service.ActivityLogger
+	orgService     service.OrganizationService
 }
 
-func NewCollectionHandler(service service.CollectionService) *CollectionHandler {
-	return &CollectionHandler{service: service}
+func NewCollectionHandler(
+	collectionService service.CollectionService,
+	activityService service.UserActivityService,
+	orgService service.OrganizationService,
+) *CollectionHandler {
+	return &CollectionHandler{
+		service:        collectionService,
+		activityLogger: service.NewActivityLogger(activityService),
+		orgService:     orgService,
+	}
+}
+
+func (h *CollectionHandler) orgName(ctx context.Context, orgID uint, userID uint) string {
+	org, err := h.orgService.GetByID(ctx, orgID, userID)
+	if err != nil || org == nil {
+		return ""
+	}
+	return org.Name
 }
 
 // Create godoc
@@ -55,6 +74,10 @@ func (h *CollectionHandler) Create(c *gin.Context) {
 		return
 	}
 
+	if h.activityLogger != nil {
+		orgName := h.orgName(ctx, orgID, userID)
+		h.activityLogger.LogCollectionCreated(ctx, userID, c.ClientIP(), c.GetHeader("User-Agent"), orgID, orgName, collection.ID, collection.Name)
+	}
 	c.JSON(http.StatusCreated, domain.ToCollectionDTO(collection))
 }
 
@@ -169,6 +192,10 @@ func (h *CollectionHandler) Update(c *gin.Context) {
 		return
 	}
 
+	if h.activityLogger != nil && collection != nil {
+		orgName := h.orgName(ctx, collection.OrganizationID, userID)
+		h.activityLogger.LogCollectionUpdated(ctx, userID, c.ClientIP(), c.GetHeader("User-Agent"), collection.OrganizationID, orgName, collection.ID, collection.Name)
+	}
 	c.JSON(http.StatusOK, domain.ToCollectionDTO(collection))
 }
 
@@ -190,6 +217,7 @@ func (h *CollectionHandler) Delete(c *gin.Context) {
 		return
 	}
 
+	collection, _ := h.service.GetByID(ctx, id, userID)
 	err := h.service.Delete(ctx, id, userID)
 	if err != nil {
 		if errors.Is(err, repository.ErrForbidden) {
@@ -199,7 +227,10 @@ func (h *CollectionHandler) Delete(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete collection"})
 		return
 	}
-
+	if collection != nil && h.activityLogger != nil {
+		orgName := h.orgName(ctx, collection.OrganizationID, userID)
+		h.activityLogger.LogCollectionDeleted(ctx, userID, c.ClientIP(), c.GetHeader("User-Agent"), collection.OrganizationID, orgName, collection.ID, collection.Name)
+	}
 	c.Status(http.StatusNoContent)
 }
 

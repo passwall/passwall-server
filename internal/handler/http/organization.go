@@ -17,16 +17,23 @@ type OrganizationHandler struct {
 	subRepo       interface {
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
 	}
+	activityLogger *service.ActivityLogger
 }
 
 func NewOrganizationHandler(
-	service service.OrganizationService,
+	svc service.OrganizationService,
 	policyService service.OrganizationPolicyService,
 	subRepo interface {
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
 	},
+	activityService service.UserActivityService,
 ) *OrganizationHandler {
-	return &OrganizationHandler{service: service, policyService: policyService, subRepo: subRepo}
+	return &OrganizationHandler{
+		service:        svc,
+		policyService:  policyService,
+		subRepo:        subRepo,
+		activityLogger: service.NewActivityLogger(activityService),
+	}
 }
 
 // enrichWithPolicies populates ActivePolicies on the DTO (best-effort, never fails)
@@ -68,6 +75,13 @@ func (h *OrganizationHandler) Create(c *gin.Context) {
 	}
 
 	sub, _ := h.subRepo.GetByOrganizationID(ctx, org.ID)
+	if h.activityLogger != nil {
+		plan := "free"
+		if sub != nil && sub.Plan != nil {
+			plan = sub.Plan.Code
+		}
+		h.activityLogger.LogOrganizationCreated(ctx, userID, c.ClientIP(), c.GetHeader("User-Agent"), org.ID, org.Name, plan)
+	}
 	dto := domain.ToOrganizationDTOWithSubscription(org, sub)
 	h.enrichWithPolicies(ctx, dto, userID)
 	c.JSON(http.StatusCreated, dto)

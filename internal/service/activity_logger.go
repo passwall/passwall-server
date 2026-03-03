@@ -184,7 +184,7 @@ func (l *ActivityLogger) LogInvoicePaymentFailed(ctx context.Context, userID uin
 
 // LogOrganizationCreated logs organization creation
 func (l *ActivityLogger) LogOrganizationCreated(ctx context.Context, userID uint, ipAddress, userAgent string, orgID uint, orgName, plan string) {
-	_ = l.LogActivity(ctx, userID, domain.ActivityTypeItemCreated, ipAddress, userAgent, ActivityDetails{
+	_ = l.LogActivity(ctx, userID, domain.ActivityTypeOrganizationCreated, ipAddress, userAgent, ActivityDetails{
 		ActivityFieldOrganizationID:   orgID,
 		ActivityFieldOrganizationName: orgName,
 		ActivityFieldPlan:             plan,
@@ -193,7 +193,7 @@ func (l *ActivityLogger) LogOrganizationCreated(ctx context.Context, userID uint
 
 // LogOrganizationDeleted logs organization deletion
 func (l *ActivityLogger) LogOrganizationDeleted(ctx context.Context, userID uint, ipAddress, userAgent string, orgID uint, orgName string) {
-	_ = l.LogActivity(ctx, userID, domain.ActivityTypeItemDeleted, ipAddress, userAgent, ActivityDetails{
+	_ = l.LogActivity(ctx, userID, domain.ActivityTypeOrganizationDeleted, ipAddress, userAgent, ActivityDetails{
 		ActivityFieldOrganizationID:   orgID,
 		ActivityFieldOrganizationName: orgName,
 	})
@@ -203,7 +203,27 @@ func (l *ActivityLogger) LogOrganizationDeleted(ctx context.Context, userID uint
 
 // LogTeamCreated logs team creation
 func (l *ActivityLogger) LogTeamCreated(ctx context.Context, userID uint, ipAddress, userAgent string, orgID uint, orgName string, teamID uint, teamName string) {
-	_ = l.LogActivity(ctx, userID, domain.ActivityTypeItemCreated, ipAddress, userAgent, ActivityDetails{
+	_ = l.LogActivity(ctx, userID, domain.ActivityTypeTeamCreated, ipAddress, userAgent, ActivityDetails{
+		ActivityFieldOrganizationID:   orgID,
+		ActivityFieldOrganizationName: orgName,
+		ActivityFieldTeamID:           teamID,
+		ActivityFieldTeamName:         teamName,
+	})
+}
+
+// LogTeamUpdated logs team update
+func (l *ActivityLogger) LogTeamUpdated(ctx context.Context, userID uint, ipAddress, userAgent string, orgID uint, orgName string, teamID uint, teamName string) {
+	_ = l.LogActivity(ctx, userID, domain.ActivityTypeTeamUpdated, ipAddress, userAgent, ActivityDetails{
+		ActivityFieldOrganizationID:   orgID,
+		ActivityFieldOrganizationName: orgName,
+		ActivityFieldTeamID:           teamID,
+		ActivityFieldTeamName:         teamName,
+	})
+}
+
+// LogTeamDeleted logs team deletion
+func (l *ActivityLogger) LogTeamDeleted(ctx context.Context, userID uint, ipAddress, userAgent string, orgID uint, orgName string, teamID uint, teamName string) {
+	_ = l.LogActivity(ctx, userID, domain.ActivityTypeTeamDeleted, ipAddress, userAgent, ActivityDetails{
 		ActivityFieldOrganizationID:   orgID,
 		ActivityFieldOrganizationName: orgName,
 		ActivityFieldTeamID:           teamID,
@@ -213,7 +233,7 @@ func (l *ActivityLogger) LogTeamCreated(ctx context.Context, userID uint, ipAddr
 
 // LogMemberRoleChanged logs member role change
 func (l *ActivityLogger) LogMemberRoleChanged(ctx context.Context, userID uint, ipAddress, userAgent string, orgID uint, orgName string, targetUserID uint, targetUserName, oldRole, newRole string) {
-	_ = l.LogActivity(ctx, userID, domain.ActivityTypeItemUpdated, ipAddress, userAgent, ActivityDetails{
+	_ = l.LogActivity(ctx, userID, domain.ActivityTypeMemberRoleChanged, ipAddress, userAgent, ActivityDetails{
 		ActivityFieldOrganizationID:   orgID,
 		ActivityFieldOrganizationName: orgName,
 		ActivityFieldUserID:           targetUserID,
@@ -227,7 +247,27 @@ func (l *ActivityLogger) LogMemberRoleChanged(ctx context.Context, userID uint, 
 
 // LogCollectionCreated logs collection creation
 func (l *ActivityLogger) LogCollectionCreated(ctx context.Context, userID uint, ipAddress, userAgent string, orgID uint, orgName string, collectionID uint, collectionName string) {
-	_ = l.LogActivity(ctx, userID, domain.ActivityTypeItemCreated, ipAddress, userAgent, ActivityDetails{
+	_ = l.LogActivity(ctx, userID, domain.ActivityTypeCollectionCreated, ipAddress, userAgent, ActivityDetails{
+		ActivityFieldOrganizationID:   orgID,
+		ActivityFieldOrganizationName: orgName,
+		ActivityFieldCollectionID:     collectionID,
+		ActivityFieldCollectionName:   collectionName,
+	})
+}
+
+// LogCollectionUpdated logs collection update
+func (l *ActivityLogger) LogCollectionUpdated(ctx context.Context, userID uint, ipAddress, userAgent string, orgID uint, orgName string, collectionID uint, collectionName string) {
+	_ = l.LogActivity(ctx, userID, domain.ActivityTypeCollectionUpdated, ipAddress, userAgent, ActivityDetails{
+		ActivityFieldOrganizationID:   orgID,
+		ActivityFieldOrganizationName: orgName,
+		ActivityFieldCollectionID:     collectionID,
+		ActivityFieldCollectionName:   collectionName,
+	})
+}
+
+// LogCollectionDeleted logs collection deletion
+func (l *ActivityLogger) LogCollectionDeleted(ctx context.Context, userID uint, ipAddress, userAgent string, orgID uint, orgName string, collectionID uint, collectionName string) {
+	_ = l.LogActivity(ctx, userID, domain.ActivityTypeCollectionDeleted, ipAddress, userAgent, ActivityDetails{
 		ActivityFieldOrganizationID:   orgID,
 		ActivityFieldOrganizationName: orgName,
 		ActivityFieldCollectionID:     collectionID,
@@ -237,13 +277,55 @@ func (l *ActivityLogger) LogCollectionCreated(ctx context.Context, userID uint, 
 
 // LogCollectionShared logs collection sharing
 func (l *ActivityLogger) LogCollectionShared(ctx context.Context, userID uint, ipAddress, userAgent string, orgID uint, orgName string, collectionID uint, collectionName string, sharedWithUserID uint, sharedWithUserName string) {
-	_ = l.LogActivity(ctx, userID, domain.ActivityTypeItemUpdated, ipAddress, userAgent, ActivityDetails{
+	_ = l.LogActivity(ctx, userID, domain.ActivityTypeCollectionUpdated, ipAddress, userAgent, ActivityDetails{
 		ActivityFieldOrganizationID:   orgID,
 		ActivityFieldOrganizationName: orgName,
 		ActivityFieldCollectionID:     collectionID,
 		ActivityFieldCollectionName:   collectionName,
 		ActivityFieldUserID:           sharedWithUserID,
 		ActivityFieldUserName:         sharedWithUserName,
+	})
+}
+
+// LogMemberInvited logs organization member invitation
+func (l *ActivityLogger) LogMemberInvited(ctx context.Context, userID uint, ipAddress, userAgent string, orgID uint, orgName string, inviteeEmail string) {
+	_ = l.LogActivity(ctx, userID, domain.ActivityTypeMemberInvited, ipAddress, userAgent, ActivityDetails{
+		ActivityFieldOrganizationID:   orgID,
+		ActivityFieldOrganizationName: orgName,
+		ActivityFieldUserEmail:        inviteeEmail,
+	})
+}
+
+// LogMemberJoined logs user accepting org invitation
+func (l *ActivityLogger) LogMemberJoined(ctx context.Context, userID uint, ipAddress, userAgent string, orgID uint, orgName string) {
+	_ = l.LogActivity(ctx, userID, domain.ActivityTypeMemberJoined, ipAddress, userAgent, ActivityDetails{
+		ActivityFieldOrganizationID:   orgID,
+		ActivityFieldOrganizationName: orgName,
+	})
+}
+
+// LogMemberRemoved logs member removed from organization
+func (l *ActivityLogger) LogMemberRemoved(ctx context.Context, userID uint, ipAddress, userAgent string, orgID uint, orgName string, removedUserID uint, removedUserName string) {
+	_ = l.LogActivity(ctx, userID, domain.ActivityTypeMemberRemoved, ipAddress, userAgent, ActivityDetails{
+		ActivityFieldOrganizationID:   orgID,
+		ActivityFieldOrganizationName: orgName,
+		ActivityFieldUserID:           removedUserID,
+		ActivityFieldUserName:         removedUserName,
+	})
+}
+
+// LogInvitationSent logs invitation sent (to join org)
+func (l *ActivityLogger) LogInvitationSent(ctx context.Context, userID uint, ipAddress, userAgent string, inviteeEmail string) {
+	_ = l.LogActivity(ctx, userID, domain.ActivityTypeInvitationSent, ipAddress, userAgent, ActivityDetails{
+		ActivityFieldUserEmail: inviteeEmail,
+	})
+}
+
+// LogInvitationAccepted logs invitation accepted (user joined org)
+func (l *ActivityLogger) LogInvitationAccepted(ctx context.Context, userID uint, ipAddress, userAgent string, orgID uint, orgName string) {
+	_ = l.LogActivity(ctx, userID, domain.ActivityTypeInvitationAccepted, ipAddress, userAgent, ActivityDetails{
+		ActivityFieldOrganizationID:   orgID,
+		ActivityFieldOrganizationName: orgName,
 	})
 }
 

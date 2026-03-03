@@ -6,6 +6,7 @@ import (
 
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
+	"github.com/passwall/passwall-server/pkg/logger"
 	"gorm.io/gorm"
 )
 
@@ -22,7 +23,7 @@ func NewVerificationRepository(db *gorm.DB) repository.VerificationRepository {
 func (r *verificationRepository) Create(ctx context.Context, code *domain.VerificationCode) error {
 	// Delete any existing codes for this email first
 	if err := r.DeleteByEmail(ctx, code.Email); err != nil {
-		// Log but don't fail - it's OK if there are no codes to delete
+		logger.Errorf("verification Create: delete existing codes for %q failed: %v", code.Email, err)
 	}
 
 	return r.db.WithContext(ctx).Create(code).Error
