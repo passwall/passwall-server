@@ -272,10 +272,10 @@ func (h *SendHandler) Notify(c *gin.Context) {
 
 	var req struct {
 		Email string `json:"email" binding:"required,email"`
-		URL   string `json:"url" binding:"required,url"`
+		URL   string `json:"url" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "valid email and url are required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "valid email and url are required", "details": err.Error()})
 		return
 	}
 
