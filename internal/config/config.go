@@ -235,6 +235,19 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("database.username is required")
 	}
 
+	// Normalize common legacy/boolean SSL mode values to PostgreSQL-compatible ones.
+	sslMode := strings.ToLower(strings.TrimSpace(c.Database.SSLMode))
+	switch sslMode {
+	case "", "false", "off", "0", "no":
+		c.Database.SSLMode = "disable"
+	case "true", "on", "1", "yes":
+		c.Database.SSLMode = "require"
+	case "disable", "allow", "prefer", "require", "verify-ca", "verify-full":
+		c.Database.SSLMode = sslMode
+	default:
+		return fmt.Errorf("database.ssl_mode is invalid: %q (allowed: disable, allow, prefer, require, verify-ca, verify-full)", c.Database.SSLMode)
+	}
+
 	return nil
 }
 
