@@ -69,4 +69,4 @@ config.yml
 .gocache/
 
 # Icon cache (generated files)
-data/icons/
+debug/data/icons/
