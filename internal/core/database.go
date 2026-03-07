@@ -61,6 +61,7 @@ func AutoMigrate(db database.Database) error {
 		&domain.Preference{},
 		&domain.Invitation{},
 		&domain.CompatTelemetryEvent{},
+		&domain.TelemetryAIVerdict{},
 	); err != nil {
 		return fmt.Errorf("failed to migrate user-related tables: %w", err)
 	}

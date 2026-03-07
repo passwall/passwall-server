@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
+	"github.com/passwall/passwall-server/internal/email"
 	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/pkg/constants"
 	"golang.org/x/crypto/bcrypt"
@@ -24,15 +25,18 @@ type SendService interface {
 	List(ctx context.Context, creatorID uint) ([]*domain.Send, error)
 	Update(ctx context.Context, creatorID uint, sendUUID string, req *domain.UpdateSendRequest) (*domain.Send, error)
 	Delete(ctx context.Context, creatorID uint, sendUUID string) error
+	NotifyRecipient(ctx context.Context, creatorID uint, sendUUID string, recipientEmail string, sendURL string) error
 	CleanupExpired(ctx context.Context) (int64, error)
 }
 
 type sendService struct {
-	sendRepo    repository.SendRepository
-	userRepo    repository.UserRepository
-	orgUserRepo repository.OrganizationUserRepository
-	policyRepo  repository.OrganizationPolicyRepository
-	logger      Logger
+	sendRepo     repository.SendRepository
+	userRepo     repository.UserRepository
+	orgUserRepo  repository.OrganizationUserRepository
+	policyRepo   repository.OrganizationPolicyRepository
+	emailSender  email.Sender
+	emailBuilder *email.EmailBuilder
+	logger       Logger
 }
 
 func NewSendService(
@@ -40,14 +44,18 @@ func NewSendService(
 	userRepo repository.UserRepository,
 	orgUserRepo repository.OrganizationUserRepository,
 	policyRepo repository.OrganizationPolicyRepository,
+	emailSender email.Sender,
+	emailBuilder *email.EmailBuilder,
 	logger Logger,
 ) SendService {
 	return &sendService{
-		sendRepo:    sendRepo,
-		userRepo:    userRepo,
-		orgUserRepo: orgUserRepo,
-		policyRepo:  policyRepo,
-		logger:      logger,
+		sendRepo:     sendRepo,
+		userRepo:     userRepo,
+		orgUserRepo:  orgUserRepo,
+		policyRepo:   policyRepo,
+		emailSender:  emailSender,
+		emailBuilder: emailBuilder,
+		logger:       logger,
 	}
 }
 
@@ -283,6 +291,48 @@ func (s *sendService) Delete(ctx context.Context, creatorID uint, sendUUID strin
 
 func (s *sendService) CleanupExpired(ctx context.Context) (int64, error) {
 	return s.sendRepo.DeleteExpired(ctx)
+}
+
+func (s *sendService) NotifyRecipient(ctx context.Context, creatorID uint, sendUUID string, recipientEmail string, sendURL string) error {
+	send, err := s.sendRepo.GetByUUID(ctx, sendUUID)
+	if err != nil {
+		return err
+	}
+
+	if send.CreatorID != creatorID {
+		return repository.ErrForbidden
+	}
+
+	// Get creator info for the email
+	creator, err := s.userRepo.GetByID(ctx, creatorID)
+	if err != nil {
+		s.logger.Error("failed to get creator for send notification", "creator_id", creatorID, "error", err)
+		return fmt.Errorf("failed to get creator info: %w", err)
+	}
+
+	senderName := creator.Email
+	if creator.Name != "" {
+		senderName = creator.Name
+	}
+
+	msg, err := s.emailBuilder.BuildSecureSendNotifyEmail(recipientEmail, senderName, send.Name, sendURL)
+	if err != nil {
+		return fmt.Errorf("failed to build send notification email: %w", err)
+	}
+
+	if err := s.emailSender.Send(ctx, msg); err != nil {
+		s.logger.Error("failed to send secure send notification email",
+			"recipient", recipientEmail,
+			"send_uuid", sendUUID,
+			"error", err)
+		return fmt.Errorf("failed to send notification email: %w", err)
+	}
+
+	s.logger.Info("secure send notification email sent",
+		"recipient", recipientEmail,
+		"send_uuid", sendUUID)
+
+	return nil
 }
 
 // checkRemoveSendPolicy checks if the RemoveSend policy blocks this user

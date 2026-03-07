@@ -90,6 +90,7 @@ func (a *App) Run(ctx context.Context) error {
 	userActivityRepo := gormrepo.NewUserActivityRepository(a.db.DB())
 	excludedDomainRepo := gormrepo.NewExcludedDomainRepository(a.db.DB())
 	compatTelemetryRepo := gormrepo.NewCompatTelemetryRepository(a.db.DB())
+	verdictRepo := gormrepo.NewTelemetryAIVerdictRepository(a.db.DB())
 	preferencesRepo := gormrepo.NewPreferencesRepository(a.db.DB())
 	invitationRepo := gormrepo.NewInvitationRepository(a.db.DB())
 
@@ -260,7 +261,7 @@ func (a *App) Run(ctx context.Context) error {
 	)
 
 	// Send service
-	sendService := service.NewSendService(sendRepo, userRepo, orgUserRepo, orgPolicyRepo, serviceLogger)
+	sendService := service.NewSendService(sendRepo, userRepo, orgUserRepo, orgPolicyRepo, emailSender, emailBuilder, serviceLogger)
 
 	// Organization policy enforcement services
 	policyEnforcementService := service.NewPolicyEnforcementService(organizationPolicyService)
@@ -311,6 +312,10 @@ func (a *App) Run(ctx context.Context) error {
 	itemShareHandler := httpHandler.NewItemShareHandler(itemShareService)
 	excludedDomainHandler := httpHandler.NewExcludedDomainHandler(excludedDomainService)
 	compatTelemetryHandler := httpHandler.NewCompatTelemetryHandler(compatTelemetryService)
+
+	// AI telemetry analysis handler (optional — requires ai.enabled + ai.api_key)
+	aiTelemetryAnalysisService := service.NewAITelemetryAnalysisService(&a.config.AI, compatTelemetryRepo, verdictRepo, serviceLogger)
+	aiTelemetryHandler := httpHandler.NewAITelemetryHandler(aiTelemetryAnalysisService)
 	// Organization handlers
 	organizationHandler := httpHandler.NewOrganizationHandler(organizationService, organizationPolicyService, subscriptionRepo, userActivityService)
 	teamHandler := httpHandler.NewTeamHandler(teamService, userActivityService, organizationService)
@@ -395,6 +400,7 @@ func (a *App) Run(ctx context.Context) error {
 		scimService,
 		keyEscrowHandler,
 		compatTelemetryHandler,
+		aiTelemetryHandler,
 	)
 
 	// Create server

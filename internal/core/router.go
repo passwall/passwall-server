@@ -49,6 +49,7 @@ func SetupRouter(
 	scimService service.SCIMService,
 	keyEscrowHandler *httpHandler.KeyEscrowHandler,
 	compatTelemetryHandler *httpHandler.CompatTelemetryHandler,
+	aiTelemetryHandler *httpHandler.AITelemetryHandler,
 ) *gin.Engine {
 	// Create router without default middleware
 	router := gin.New()
@@ -174,6 +175,14 @@ func SetupRouter(
 		publicSendsGroup.POST("/:access_id/password", sendHandler.VerifyPassword)
 	}
 
+	// Compatibility telemetry ingest — optional auth so events are collected
+	// even when a client's token has expired or is missing.
+	telemetryGroup := router.Group("/api")
+	telemetryGroup.Use(httpHandler.OptionalAuthMiddleware(authService))
+	{
+		telemetryGroup.POST("/telemetry/compat", compatTelemetryHandler.Ingest)
+	}
+
 	// API routes (require authentication)
 	apiGroup := router.Group("/api")
 	apiGroup.Use(httpHandler.AuthMiddleware(authService))
@@ -192,8 +201,7 @@ func SetupRouter(
 		// Support endpoint (authenticated users only)
 		apiGroup.POST("/support", supportHandler.SendSupportEmail)
 
-		// Compatibility telemetry ingest (authenticated extension clients)
-		apiGroup.POST("/telemetry/compat", compatTelemetryHandler.Ingest)
+		// NOTE: telemetry ingest moved above apiGroup (optional auth).
 
 		// Modern Items API (unified endpoint for all types)
 		apiGroup.POST("/items", itemHandler.Create)
@@ -235,6 +243,7 @@ func SetupRouter(
 			sendsGroup.GET("/:uuid", sendHandler.GetByUUID)
 			sendsGroup.PUT("/:uuid", sendHandler.Update)
 			sendsGroup.DELETE("/:uuid", sendHandler.Delete)
+			sendsGroup.POST("/:uuid/notify", sendHandler.Notify)
 		}
 
 		// Excluded Domains API (for "Turn off Passwall for this site")
@@ -325,6 +334,9 @@ func SetupRouter(
 			adminGroup.GET("/telemetry/compat", compatTelemetryHandler.ListAdmin)
 			adminGroup.GET("/telemetry/compat/summary", compatTelemetryHandler.ListSummaryAdmin)
 			adminGroup.POST("/telemetry/compat/cleanup", compatTelemetryHandler.CleanupAdmin)
+			adminGroup.GET("/telemetry/compat/analyze", aiTelemetryHandler.Analyze)
+			adminGroup.GET("/telemetry/compat/analyze/verdicts", aiTelemetryHandler.ListVerdicts)
+			adminGroup.DELETE("/telemetry/compat/analyze/verdicts", aiTelemetryHandler.ResetVerdicts)
 
 			// Custom icons management (admin only)
 			adminGroup.GET("/icons", iconsHandler.ListCustomIcons)

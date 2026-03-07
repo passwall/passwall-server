@@ -19,14 +19,12 @@ func NewCompatTelemetryHandler(service service.CompatTelemetryService) *CompatTe
 	return &CompatTelemetryHandler{service: service}
 }
 
-// Ingest handles compatibility telemetry ingestion from authenticated clients.
+// Ingest handles compatibility telemetry ingestion.
+// The endpoint uses OptionalAuthMiddleware: if a valid token is present the
+// event is attributed to the user; otherwise userID is 0 (anonymous).
 // POST /api/telemetry/compat
 func (h *CompatTelemetryHandler) Ingest(c *gin.Context) {
-	userID, err := GetUserID(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
-	}
+	userID, _ := GetUserID(c) // 0 when unauthenticated — that's fine
 
 	var req service.CompatTelemetryBatchRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

@@ -258,3 +258,39 @@ func (h *SendHandler) VerifyPassword(c *gin.Context) {
 
 	c.JSON(http.StatusOK, dto)
 }
+
+// Notify handles POST /api/sends/:uuid/notify (authenticated - sends email to recipient)
+func (h *SendHandler) Notify(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := GetCurrentUserID(c)
+
+	sendUUID, ok := GetStringParam(c, "uuid")
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "uuid is required"})
+		return
+	}
+
+	var req struct {
+		Email string `json:"email" binding:"required,email"`
+		URL   string `json:"url" binding:"required,url"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "valid email and url are required"})
+		return
+	}
+
+	if err := h.service.NotifyRecipient(ctx, userID, sendUUID, req.Email, req.URL); err != nil {
+		if errors.Is(err, repository.ErrForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+			return
+		}
+		if errors.Is(err, repository.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "send not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to send notification email"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "notification sent"})
+}

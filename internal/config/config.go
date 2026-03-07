@@ -19,6 +19,7 @@ type Config struct {
 	Email      EmailConfig      `mapstructure:"email"`
 	Stripe     StripeConfig     `mapstructure:"stripe"`
 	RevenueCat RevenueCatConfig `mapstructure:"revenuecat"`
+	AI         AIConfig         `mapstructure:"ai"`
 }
 
 // ServerConfig contains server-related configuration
@@ -117,6 +118,18 @@ type RevenueCatProductConfig struct {
 	ProductID    string `mapstructure:"product_id"`    // RevenueCat product ID (e.g., "passwall_pro_monthly")
 	PlanCode     string `mapstructure:"plan_code"`     // Internal plan code (e.g., "pro-monthly")
 	BillingCycle string `mapstructure:"billing_cycle"` // "monthly" or "yearly"
+}
+
+// AIConfig holds configuration for the AI-powered telemetry analysis.
+// Uses the OpenAI-compatible chat completions API format so it works with
+// OpenAI, Anthropic (via proxy), Azure OpenAI, or self-hosted models.
+type AIConfig struct {
+	Enabled  bool   `mapstructure:"enabled"`  // Enable AI analysis endpoints
+	Provider string `mapstructure:"provider"` // "openai", "anthropic", or "custom"
+	APIKey   string `mapstructure:"api_key"`  // API key / bearer token
+	BaseURL  string `mapstructure:"base_url"` // Base URL (e.g. https://api.openai.com/v1)
+	Model    string `mapstructure:"model"`    // Model name (e.g. gpt-4o, claude-sonnet-4-20250514)
+	Timeout  int    `mapstructure:"timeout"`  // Request timeout in seconds (default 60)
 }
 
 // LoaderOptions contains options for loading configuration
@@ -293,6 +306,14 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("email.gmail_client_id", "")
 	v.SetDefault("email.gmail_client_secret", "")
 	v.SetDefault("email.gmail_refresh_token", "")
+
+	// AI defaults
+	v.SetDefault("ai.enabled", false)
+	v.SetDefault("ai.provider", "openai")
+	v.SetDefault("ai.api_key", "")
+	v.SetDefault("ai.base_url", "https://api.openai.com/v1")
+	v.SetDefault("ai.model", "gpt-4o")
+	v.SetDefault("ai.timeout", 60)
 }
 
 // bindEnvVariables binds environment variables for backwards compatibility
@@ -345,6 +366,14 @@ func bindEnvVariables(v *viper.Viper) {
 
 	// RevenueCat bindings (for mobile in-app purchases)
 	bind("revenuecat.webhook_secret", "PW_REVENUECAT_WEBHOOK_SECRET", "REVENUECAT_WEBHOOK_SECRET")
+
+	// AI bindings
+	bind("ai.enabled", "PW_AI_ENABLED")
+	bind("ai.provider", "PW_AI_PROVIDER")
+	bind("ai.api_key", "PW_AI_API_KEY", "OPENAI_API_KEY")
+	bind("ai.base_url", "PW_AI_BASE_URL")
+	bind("ai.model", "PW_AI_MODEL")
+	bind("ai.timeout", "PW_AI_TIMEOUT")
 }
 
 // createDefaultConfigFile creates a config file with default values

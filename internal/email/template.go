@@ -19,6 +19,7 @@ const (
 	TemplateEmergencyAccepted    TemplateType = "emergency-accepted"
 	TemplateEmergencyRecoveryReq TemplateType = "emergency-recovery-request"
 	TemplateEmergencyRecoveryOK  TemplateType = "emergency-recovery-approved"
+	TemplateSendNotify           TemplateType = "send-notify"
 )
 
 // TemplateData holds data for email templates
@@ -41,6 +42,10 @@ type TemplateData struct {
 	GrantorName  string
 	GranteeName  string
 	EmergencyURL string
+	// Secure send fields
+	SendURL        string
+	SendSenderName string
+	SendName       string
 }
 
 // TemplateManager handles email template rendering
@@ -106,6 +111,12 @@ func NewTemplateManager() (*TemplateManager, error) {
 		return nil, fmt.Errorf("failed to parse emergency recovery approved template: %w", err)
 	}
 	tm.templates[TemplateEmergencyRecoveryOK] = eaRecoveryOKTmpl
+
+	sendNotifyTmpl, err := template.New("send-notify").Parse(secureSendNotifyEmailTemplate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse send notify template: %w", err)
+	}
+	tm.templates[TemplateSendNotify] = sendNotifyTmpl
 
 	return tm, nil
 }
@@ -553,6 +564,36 @@ const shareNoticeEmailTemplate = `<!DOCTYPE html>
     </table>
 </body>
 </html>`
+
+// secureSendNotifyEmailTemplate is the HTML template for secure send notifications
+const secureSendNotifyEmailTemplate = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>You received a Secure Send</title></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background-color:#f5f5f5;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5;padding:40px 20px;"><tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background-color:#fff;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+<tr><td style="padding:40px 40px 20px;text-align:center;border-bottom:1px solid #e0e0e0;"><h1 style="margin:0;font-size:32px;font-weight:700;color:#1a1a1a;"><span style="color:#3b82f6;">Pass</span>wall</h1></td></tr>
+<tr><td style="padding:40px;">
+<h2 style="margin:0 0 20px;font-size:24px;font-weight:600;color:#1a1a1a;">🔒 You received a Secure Send</h2>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#4a5568;"><strong>{{.SendSenderName}}</strong> has sent you an encrypted message via Passwall Secure Send.</p>
+{{if .SendName}}<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#4a5568;">Subject: <strong>{{.SendName}}</strong></p>{{end}}
+<p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:#4a5568;">Click the button below to view the encrypted content. No Passwall account is required.</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;"><tr><td align="center">
+<a href="{{.SendURL}}" style="display:inline-block;padding:14px 32px;background-color:#3b82f6;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;font-size:16px;">View Secure Send</a>
+</td></tr></table>
+<p style="margin:0 0 10px;font-size:14px;line-height:1.6;color:#718096;text-align:center;">Or copy and paste this link into your browser:</p>
+<p style="margin:0 0 20px;font-size:13px;line-height:1.6;color:#3b82f6;text-align:center;word-break:break-all;">{{.SendURL}}</p>
+<div style="background-color:#dbeafe;border-left:4px solid #3b82f6;padding:16px;margin:20px 0;border-radius:4px;">
+<p style="margin:0;font-size:14px;color:#1e40af;"><strong>🔐 End-to-end encrypted:</strong> The content is decrypted locally in your browser. The decryption key is embedded in the link and never stored on our servers.</p>
+</div>
+<div style="background-color:#fef3c7;border-left:4px solid #f59e0b;padding:16px;margin:20px 0;border-radius:4px;">
+<p style="margin:0;font-size:14px;color:#92400e;"><strong>⚠️ Note:</strong> This link may expire or have a limited number of views. Open it as soon as possible.</p>
+</div>
+</td></tr>
+<tr><td style="padding:30px 40px;background-color:#f7fafc;border-top:1px solid #e0e0e0;border-radius:0 0 8px 8px;">
+<p style="margin:0 0 10px;font-size:14px;color:#718096;text-align:center;">This is an automated message, please do not reply.</p>
+<p style="margin:0;font-size:12px;color:#a0aec0;text-align:center;">© {{.Year}} Passwall. All rights reserved.</p>
+</td></tr></table></td></tr></table></body></html>`
 
 // emergencyInviteEmailTemplate is the HTML template for emergency access invitations
 const emergencyInviteEmailTemplate = `<!DOCTYPE html>

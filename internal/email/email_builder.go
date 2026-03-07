@@ -291,6 +291,40 @@ func currentYear() int {
 	return time.Now().Year()
 }
 
+// BuildSecureSendNotifyEmail builds a secure send notification email
+func (b *EmailBuilder) BuildSecureSendNotifyEmail(to, senderName, sendName, sendURL string) (*EmailMessage, error) {
+	if to == "" {
+		return nil, fmt.Errorf("recipient email is required")
+	}
+	if sendURL == "" {
+		return nil, fmt.Errorf("send URL is required")
+	}
+
+	data := &TemplateData{
+		SendSenderName: senderName,
+		SendName:       sendName,
+		SendURL:        sendURL,
+		Year:           currentYear(),
+	}
+
+	htmlBody, err := b.templateManager.Render(TemplateSendNotify, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to render send notify template: %w", err)
+	}
+
+	subject := "You received a Secure Send"
+	if senderName != "" {
+		subject = fmt.Sprintf("%s sent you a secure message via Passwall", senderName)
+	}
+
+	return &EmailMessage{
+		To:      to,
+		From:    b.defaultFrom,
+		Subject: subject,
+		Body:    htmlBody,
+	}, nil
+}
+
 // BuildCustomEmail builds a custom email with provided subject and body
 func (b *EmailBuilder) BuildCustomEmail(to, subject, htmlBody string) (*EmailMessage, error) {
 	if to == "" {

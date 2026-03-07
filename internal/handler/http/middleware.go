@@ -71,6 +71,46 @@ func AuthMiddleware(authService service.AuthService) gin.HandlerFunc {
 	}
 }
 
+// OptionalAuthMiddleware tries to validate a JWT token if present, but does
+// NOT abort the request when the token is missing or invalid. If auth succeeds
+// the user context values are set exactly like AuthMiddleware; otherwise the
+// request continues unauthenticated. This is useful for endpoints like
+// telemetry ingest that should accept data from both logged-in and
+// logged-out (or token-expired) clients.
+func OptionalAuthMiddleware(authService service.AuthService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.Next()
+			return
+		}
+
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			c.Next()
+			return
+		}
+
+		claims, err := authService.ValidateToken(c.Request.Context(), parts[1])
+		if err != nil {
+			// Token invalid/expired — continue without user context.
+			c.Next()
+			return
+		}
+
+		c.Set(constants.ContextKeyUserID, claims.UserID)
+		c.Set(constants.ContextKeyEmail, claims.Email)
+		c.Set(constants.ContextKeySchema, claims.Schema)
+		c.Set(constants.ContextKeyUserRole, claims.Role)
+		c.Set(constants.ContextKeyTokenUUID, claims.UUID.String())
+
+		ctx := database.WithSchema(c.Request.Context(), claims.Schema)
+		c.Request = c.Request.WithContext(ctx)
+
+		c.Next()
+	}
+}
+
 // CORSMiddleware handles CORS with a dynamic origin whitelist.
 //
 // Allowed origins are built from:
