@@ -201,10 +201,9 @@ func (h *SendHandler) Delete(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "send deleted"})
 }
 
-// Access handles GET /api/sends/access/:access_id
+// Access handles GET /api/sends/access/:access_id (public — no auth required)
 func (h *SendHandler) Access(c *gin.Context) {
 	ctx := c.Request.Context()
-	userID := GetCurrentUserID(c)
 
 	accessID, ok := GetStringParam(c, "access_id")
 	if !ok {
@@ -212,7 +211,7 @@ func (h *SendHandler) Access(c *gin.Context) {
 		return
 	}
 
-	dto, err := h.service.GetByAccessID(ctx, accessID, userID)
+	dto, err := h.service.GetByAccessID(ctx, accessID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "send not found or expired"})

@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/internal/service"
-	uuid "github.com/satori/go.uuid"
 )
 
 const maxManualGrantDuration = 5 * 365 * 24 * time.Hour
@@ -459,7 +459,7 @@ func (h *AdminSubscriptionsHandler) GrantManual(c *gin.Context) {
 
 	if sub == nil || subErr != nil {
 		sub = &domain.Subscription{
-			UUID:           uuid.NewV4(),
+			UUID:           uuid.New(),
 			OrganizationID: orgID,
 		}
 	}

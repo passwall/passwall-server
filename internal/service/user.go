@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/pkg/constants"
-	uuid "github.com/satori/go.uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -113,7 +113,7 @@ func (s *userService) CreateByAdmin(ctx context.Context, req *domain.CreateUserB
 	// Server stores: bcrypt(HKDF(masterKey, info="auth"))
 	hashedPassword, err := bcrypt.GenerateFromPassword(
 		[]byte(req.MasterPasswordHash),
-		bcrypt.DefaultCost,
+		constants.BcryptCost,
 	)
 	if err != nil {
 		s.logger.Error("failed to hash password", "error", err)
@@ -147,7 +147,7 @@ func (s *userService) CreateByAdmin(ctx context.Context, req *domain.CreateUserB
 
 	// Create user with zero-knowledge fields from admin
 	user := &domain.User{
-		UUID:                   uuid.NewV4(),
+		UUID:                   uuid.New(),
 		Name:                   req.Name,
 		Email:                  req.Email,
 		MasterPasswordHash:     string(hashedPassword),
@@ -236,7 +236,7 @@ func (s *userService) CreateByAdmin(ctx context.Context, req *domain.CreateUserB
 }
 
 func generateSchemaFromEmail(email string) string {
-	return "user_" + uuid.NewV5(uuid.NamespaceURL, email).String()[:8]
+	return "user_" + uuid.NewSHA1(uuid.NameSpaceURL, []byte(email)).String()[:8]
 }
 
 func (s *userService) createDefaultPersonalVaultFolders(ctx context.Context, orgID, userID uint) error {
@@ -250,7 +250,7 @@ func (s *userService) createDefaultPersonalVaultFolders(ctx context.Context, org
 		}
 
 		folder := &domain.OrganizationFolder{
-			UUID:            uuid.NewV4(),
+			UUID:            uuid.New(),
 			OrganizationID:  orgID,
 			CreatedByUserID: userID,
 			Name:            folderName,

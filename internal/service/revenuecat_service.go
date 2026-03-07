@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/config"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/pkg/revenuecat"
-	uuid "github.com/satori/go.uuid"
 )
 
 // Common errors for RevenueCat service
@@ -166,7 +166,7 @@ func (s *revenueCatService) HandleWebhook(ctx context.Context, payload []byte, s
 // All mobile subscriptions are applied to the user's Personal Vault (stable per user).
 func (s *revenueCatService) resolveUserAndOrg(ctx context.Context, appUserID string) (*domain.User, *domain.Organization, error) {
 	// Validate UUID format
-	_, err := uuid.FromString(appUserID)
+	_, err := uuid.Parse(appUserID)
 	if err != nil {
 		s.logger.Error("Invalid app_user_id format (not a valid UUID)",
 			"app_user_id", appUserID,

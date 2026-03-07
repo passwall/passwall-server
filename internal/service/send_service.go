@@ -8,16 +8,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
-	uuid "github.com/satori/go.uuid"
+	"github.com/passwall/passwall-server/pkg/constants"
 	"golang.org/x/crypto/bcrypt"
 )
 
 // SendService defines the business logic for Secure Send
 type SendService interface {
 	Create(ctx context.Context, creatorID uint, req *domain.CreateSendRequest) (*domain.Send, error)
-	GetByAccessID(ctx context.Context, accessID string, requesterUserID uint) (*domain.SendAccessDTO, error)
+	GetByAccessID(ctx context.Context, accessID string) (*domain.SendAccessDTO, error)
 	VerifySendPassword(ctx context.Context, accessID string, password string) (*domain.SendAccessDTO, error)
 	GetByUUID(ctx context.Context, creatorID uint, sendUUID string) (*domain.Send, error)
 	List(ctx context.Context, creatorID uint) ([]*domain.Send, error)
@@ -85,7 +86,7 @@ func (s *sendService) Create(ctx context.Context, creatorID uint, req *domain.Cr
 	}
 
 	send := &domain.Send{
-		UUID:           uuid.NewV4(),
+		UUID:           uuid.New(),
 		AccessID:       accessID,
 		CreatorID:      creatorID,
 		OrganizationID: req.OrganizationID,
@@ -100,7 +101,7 @@ func (s *sendService) Create(ctx context.Context, creatorID uint, req *domain.Cr
 	}
 
 	if req.Password != nil && *req.Password != "" {
-		hashed, err := bcrypt.GenerateFromPassword([]byte(*req.Password), bcrypt.DefaultCost)
+		hashed, err := bcrypt.GenerateFromPassword([]byte(*req.Password), constants.BcryptCost)
 		if err != nil {
 			return nil, fmt.Errorf("failed to hash password: %w", err)
 		}
@@ -119,7 +120,7 @@ func (s *sendService) Create(ctx context.Context, creatorID uint, req *domain.Cr
 	return send, nil
 }
 
-func (s *sendService) GetByAccessID(ctx context.Context, accessID string, requesterUserID uint) (*domain.SendAccessDTO, error) {
+func (s *sendService) GetByAccessID(ctx context.Context, accessID string) (*domain.SendAccessDTO, error) {
 	send, err := s.sendRepo.GetByAccessID(ctx, accessID)
 	if err != nil {
 		return nil, err
@@ -251,7 +252,7 @@ func (s *sendService) Update(ctx context.Context, creatorID uint, sendUUID strin
 		if *req.Password == "" {
 			send.Password = nil
 		} else {
-			hashed, err := bcrypt.GenerateFromPassword([]byte(*req.Password), bcrypt.DefaultCost)
+			hashed, err := bcrypt.GenerateFromPassword([]byte(*req.Password), constants.BcryptCost)
 			if err != nil {
 				return nil, fmt.Errorf("failed to hash password: %w", err)
 			}

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/pkg/stripe"
-	uuid "github.com/satori/go.uuid"
 )
 
 // SubscriptionService handles subscription operations
@@ -132,7 +132,7 @@ func (s *subscriptionService) Create(ctx context.Context, orgID uint, planCode s
 	}
 
 	sub := &domain.Subscription{
-		UUID:                 uuid.NewV4(),
+		UUID:                 uuid.New(),
 		OrganizationID:       orgID,
 		PlanID:               plan.ID,
 		State:                domain.SubStateActive,

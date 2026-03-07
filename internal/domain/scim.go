@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"time"
 
-	uuid "github.com/satori/go.uuid"
+	"github.com/google/uuid"
 )
 
 // SCIMToken represents an API bearer token used by IdP directory sync (SCIM 2.0)

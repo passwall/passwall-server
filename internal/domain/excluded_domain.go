@@ -3,7 +3,7 @@ package domain
 import (
 	"time"
 
-	uuid "github.com/satori/go.uuid"
+	"github.com/google/uuid"
 )
 
 // ExcludedDomain represents a domain where Passwall is disabled for a specific user

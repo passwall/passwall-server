@@ -23,20 +23,21 @@ type Config struct {
 
 // ServerConfig contains server-related configuration
 type ServerConfig struct {
-	Env                        string  `mapstructure:"env"`
-	Host                       string  `mapstructure:"host"`
-	Port                       string  `mapstructure:"port"`
-	Domain                     string  `mapstructure:"domain"`
-	Passphrase                 string  `mapstructure:"passphrase"`
-	Secret                     string  `mapstructure:"secret"`
-	Timeout                    int     `mapstructure:"timeout"`
-	GeneratedPasswordLength    int     `mapstructure:"generated_password_length"`
-	AccessTokenExpireDuration  string  `mapstructure:"access_token_expire_duration"`
-	RefreshTokenExpireDuration string  `mapstructure:"refresh_token_expire_duration"`
-	FrontendURL                string  `mapstructure:"frontend_url"`
-	RecaptchaSecretKey         string  `mapstructure:"recaptcha_secret_key"`
-	RecaptchaThreshold         float64 `mapstructure:"recaptcha_threshold"`
-	EscrowMasterKey            string  `mapstructure:"escrow_master_key"` // hex-encoded 256-bit key for SSO key escrow
+	Env                        string   `mapstructure:"env"`
+	Host                       string   `mapstructure:"host"`
+	Port                       string   `mapstructure:"port"`
+	Domain                     string   `mapstructure:"domain"`
+	Passphrase                 string   `mapstructure:"passphrase"`
+	Secret                     string   `mapstructure:"secret"`
+	Timeout                    int      `mapstructure:"timeout"`
+	GeneratedPasswordLength    int      `mapstructure:"generated_password_length"`
+	AccessTokenExpireDuration  string   `mapstructure:"access_token_expire_duration"`
+	RefreshTokenExpireDuration string   `mapstructure:"refresh_token_expire_duration"`
+	FrontendURL                string   `mapstructure:"frontend_url"`
+	AllowedOrigins             []string `mapstructure:"allowed_origins"`
+	RecaptchaSecretKey         string   `mapstructure:"recaptcha_secret_key"`
+	RecaptchaThreshold         float64  `mapstructure:"recaptcha_threshold"`
+	EscrowMasterKey            string   `mapstructure:"escrow_master_key"` // hex-encoded 256-bit key for SSO key escrow
 }
 
 // DatabaseConfig contains database-related configuration
@@ -195,6 +196,30 @@ func (c *Config) Validate() error {
 	if c.Server.Secret == "" || c.Server.Secret == "add-your-key-to-here" {
 		return fmt.Errorf("server.secret must be set to a secure value")
 	}
+
+	// In production, reject well-known weak secrets that may remain from dev setups
+	if c.Server.Env == "prod" || c.Server.Env == "production" {
+		weakValues := []string{
+			"devsecret", "devpassphrase", "password", "secret",
+			"changeme", "test", "12345678", "passphrase",
+		}
+		for _, weak := range weakValues {
+			if strings.EqualFold(c.Server.Passphrase, weak) {
+				return fmt.Errorf("server.passphrase is a known weak value — generate a strong random key for production")
+			}
+			if strings.EqualFold(c.Server.Secret, weak) {
+				return fmt.Errorf("server.secret is a known weak value — generate a strong random key for production")
+			}
+		}
+		// Enforce minimum key length in production (at least 16 characters)
+		if len(c.Server.Passphrase) < 16 {
+			return fmt.Errorf("server.passphrase must be at least 16 characters in production")
+		}
+		if len(c.Server.Secret) < 16 {
+			return fmt.Errorf("server.secret must be at least 16 characters in production")
+		}
+	}
+
 	if c.Server.FrontendURL == "" {
 		return fmt.Errorf("server.frontend_url is required for email links, CORS, and OAuth redirects")
 	}
@@ -227,6 +252,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("server.access_token_expire_duration", "30m")
 	v.SetDefault("server.refresh_token_expire_duration", "15d")
 	v.SetDefault("server.frontend_url", "http://localhost:5173")
+	v.SetDefault("server.allowed_origins", []string{})
 	v.SetDefault("server.recaptcha_secret_key", "")
 	v.SetDefault("server.recaptcha_threshold", 0.5)
 
@@ -275,6 +301,7 @@ func bindEnvVariables(v *viper.Viper) {
 	bind("server.access_token_expire_duration", "PW_SERVER_ACCESS_TOKEN_EXPIRE_DURATION")
 	bind("server.refresh_token_expire_duration", "PW_SERVER_REFRESH_TOKEN_EXPIRE_DURATION")
 	bind("server.frontend_url", "PW_SERVER_FRONTEND_URL", "FRONTEND_URL")
+	bind("server.allowed_origins", "PW_SERVER_ALLOWED_ORIGINS", "ALLOWED_ORIGINS")
 	bind("server.recaptcha_secret_key", "PW_RECAPTCHA_SECRET_KEY", "RECAPTCHA_SECRET_KEY")
 	bind("server.recaptcha_threshold", "PW_RECAPTCHA_THRESHOLD", "RECAPTCHA_THRESHOLD")
 

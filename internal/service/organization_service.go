@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
-	uuid "github.com/satori/go.uuid"
 	"gorm.io/gorm"
 )
 
@@ -250,7 +250,7 @@ func (s *organizationService) Create(ctx context.Context, userID uint, req *doma
 
 			now := time.Now()
 			sub := &domain.Subscription{
-				UUID:           uuid.NewV4(),
+				UUID:           uuid.New(),
 				OrganizationID: org.ID,
 				PlanID:         freePlan.ID,
 				State:          domain.SubStateActive,

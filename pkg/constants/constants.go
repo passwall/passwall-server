@@ -29,6 +29,11 @@ const (
 	MaxPageSize = 50000
 )
 
+// BcryptCost is the bcrypt hash cost used for all password hashing in the application.
+// Cost 12 provides ~4× more brute-force resistance than the default (10).
+// This applies to master password hashes and Secure Send passwords.
+const BcryptCost = 12
+
 func IsDev() bool {
 	return os.Getenv("APP_ENV") == "dev"
 }

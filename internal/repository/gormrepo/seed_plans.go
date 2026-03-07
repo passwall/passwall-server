@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/config"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/pkg/logger"
-	uuid "github.com/satori/go.uuid"
 	"gorm.io/gorm"
 )
 
@@ -81,7 +81,7 @@ func SeedPlans(ctx context.Context, db *gorm.DB, planConfigs []config.PlanConfig
 
 			// Create new plan
 			plan := domain.Plan{
-				UUID:           uuid.NewV4(),
+				UUID:           uuid.New(),
 				Code:           pc.Code,
 				Name:           pc.Name,
 				BillingCycle:   domain.BillingCycle(pc.BillingCycle),
@@ -160,7 +160,7 @@ func SeedDefaultSubscriptions(ctx context.Context, db *gorm.DB) error {
 	return db.Transaction(func(tx *gorm.DB) error {
 		for _, org := range orgs {
 			sub := &domain.Subscription{
-				UUID:           uuid.NewV4(),
+				UUID:           uuid.New(),
 				OrganizationID: org.ID,
 				PlanID:         freePlan.ID,
 				State:          domain.SubStateActive,

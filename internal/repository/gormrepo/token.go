@@ -5,10 +5,10 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/pkg/hash"
-	uuid "github.com/satori/go.uuid"
 	"gorm.io/gorm"
 )
 

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	uuid "github.com/satori/go.uuid"
+	"github.com/google/uuid"
 )
 
 // OrganizationItem represents a vault item shared within an organization

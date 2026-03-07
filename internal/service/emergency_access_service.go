@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/email"
 	"github.com/passwall/passwall-server/internal/repository"
-	uuid "github.com/satori/go.uuid"
 )
 
 // EmergencyAccessService defines the business logic for emergency access
@@ -75,7 +75,7 @@ func (s *emergencyAccessService) Invite(ctx context.Context, grantorID uint, gra
 	}
 
 	ea := &domain.EmergencyAccess{
-		UUID:         uuid.NewV4(),
+		UUID:         uuid.New(),
 		GrantorID:    grantorID,
 		GranteeEmail: granteeEmail,
 		Status:       domain.EAStatusInvited,

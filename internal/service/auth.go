@@ -2,21 +2,24 @@ package service
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/email"
 	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/pkg/constants"
 	"github.com/passwall/passwall-server/pkg/database"
 	"github.com/passwall/passwall-server/pkg/hash"
-	uuid "github.com/satori/go.uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -27,6 +30,16 @@ var (
 	ErrDeviceLimit     = errors.New("device limit exceeded for current plan")
 	ErrLoginBlocked    = errors.New("login temporarily blocked")
 )
+
+// parseUUIDOrNil parses a UUID string, returning uuid.Nil on failure.
+// Replaces the removed satori/go.uuid FromStringOrNil helper.
+func parseUUIDOrNil(s string) uuid.UUID {
+	id, err := uuid.Parse(s)
+	if err != nil {
+		return uuid.Nil
+	}
+	return id
+}
 
 type AuthConfig struct {
 	JWTSecret            string
@@ -118,7 +131,7 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 	// Server stores: bcrypt(HKDF(masterKey, info="auth"))
 	hashedPassword, err := bcrypt.GenerateFromPassword(
 		[]byte(req.MasterPasswordHash),
-		bcrypt.DefaultCost,
+		constants.BcryptCost,
 	)
 	if err != nil {
 		s.logger.Error("failed to hash password", "error", err)
@@ -134,7 +147,7 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 
 	// Create user with modern encryption fields
 	user := &domain.User{
-		UUID:                   uuid.NewV4(),
+		UUID:                   uuid.New(),
 		Name:                   req.Name,
 		Email:                  req.Email,
 		MasterPasswordHash:     string(hashedPassword),
@@ -320,8 +333,8 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 	}
 
 	// Create JWT tokens
-	sessionUUID := uuid.NewV4()
-	deviceUUID := uuid.FromStringOrNil(creds.DeviceID)
+	sessionUUID := uuid.New()
+	deviceUUID := parseUUIDOrNil(creds.DeviceID)
 	if creds.DeviceID != "" && deviceUUID != uuid.Nil {
 		sessionUUID = deviceUUID
 	}
@@ -416,8 +429,8 @@ func (s *authService) IssueTokenForUser(ctx context.Context, userID uint, app st
 		return nil, errors.New("email not verified")
 	}
 
-	sessionUUID := uuid.NewV4()
-	deviceUUID := uuid.FromStringOrNil(deviceID)
+	sessionUUID := uuid.New()
+	deviceUUID := parseUUIDOrNil(deviceID)
 	if deviceID != "" && deviceUUID != uuid.Nil {
 		sessionUUID = deviceUUID
 		_ = s.tokenRepo.DeleteBySessionUUID(ctx, sessionUUID.String())
@@ -577,11 +590,11 @@ func (s *authService) RefreshToken(ctx context.Context, refreshToken string) (*d
 	}
 
 	// Create new tokens
-	sid := uuid.NewV4()
+	sid := uuid.New()
 	if sessionUUID != "" {
-		sid = uuid.FromStringOrNil(sessionUUID)
+		sid = parseUUIDOrNil(sessionUUID)
 		if sid == uuid.Nil {
-			sid = uuid.NewV4()
+			sid = uuid.New()
 		}
 	}
 	tokenDetails, err := s.createToken(user, sid)
@@ -651,7 +664,7 @@ func (s *authService) ValidateToken(ctx context.Context, tokenString string) (*d
 		Email:  user.Email,
 		Schema: user.Schema,
 		Role:   user.GetRoleName(),
-		UUID:   uuid.FromStringOrNil(tokenUUID),
+		UUID:   parseUUIDOrNil(tokenUUID),
 		Exp:    int64(exp),
 	}, nil
 }
@@ -677,8 +690,8 @@ func (s *authService) createToken(user *domain.User, sessionUUID uuid.UUID) (*do
 	td := &domain.TokenDetails{
 		AtExpiresTime: time.Now().Add(accessTokenDuration),
 		RtExpiresTime: time.Now().Add(refreshTokenDuration),
-		AtUUID:        uuid.NewV4(),
-		RtUUID:        uuid.NewV4(),
+		AtUUID:        uuid.New(),
+		RtUUID:        uuid.New(),
 		SessionUUID:   sessionUUID,
 	}
 
@@ -756,12 +769,14 @@ func (s *authService) PreLogin(ctx context.Context, email string) (*domain.PreLo
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
 		// Don't reveal if user exists (prevents user enumeration)
-		// Return default config with fake salt
-		fakeSalt := []byte(email + "fake-salt-for-non-existent-user-padding-to-32-bytes-xxxx")
+		// Use HMAC-SHA256(secret, email) to generate a deterministic-per-email,
+		// but secret-dependent fake salt that an attacker cannot reproduce
+		// without knowing the server secret.
+		fakeSalt := generateFakeSalt(s.config.JWTSecret, email)
 		return &domain.PreLoginResponse{
 			KdfType:       domain.KdfTypePBKDF2,
 			KdfIterations: domain.PBKDF2DefaultIterations,
-			KdfSalt:       fmt.Sprintf("%x", fakeSalt[:32]),
+			KdfSalt:       fakeSalt,
 		}, nil
 	}
 
@@ -772,11 +787,11 @@ func (s *authService) PreLogin(ctx context.Context, email string) (*domain.PreLo
 	if err := kdfConfig.ValidateForPrelogin(); err != nil {
 		s.logger.Error("KDF downgrade attack detected", "email", email, "error", err)
 		// Return default config to prevent attack (with fake salt)
-		fakeSalt := []byte(email + "downgrade-attack-fake-salt-padding-32-bytes-xxxxx")
+		fakeSalt := generateFakeSalt(s.config.JWTSecret, email)
 		return &domain.PreLoginResponse{
 			KdfType:       domain.KdfTypePBKDF2,
 			KdfIterations: domain.PBKDF2DefaultIterations,
-			KdfSalt:       fmt.Sprintf("%x", fakeSalt[:32]),
+			KdfSalt:       fakeSalt,
 		}, nil
 	}
 
@@ -787,6 +802,17 @@ func (s *authService) PreLogin(ctx context.Context, email string) (*domain.PreLo
 		KdfParallelism: user.KdfParallelism,
 		KdfSalt:        user.KdfSalt,
 	}, nil
+}
+
+// generateFakeSalt produces a deterministic, secret-keyed salt for non-existent users.
+// HMAC(secret, "prelogin-fake-salt:" + email) → 32 bytes (64 hex chars),
+// matching the real per-user KDF salt format.
+// This prevents user enumeration because attackers cannot distinguish the fake salt
+// from a real one without knowing the JWT secret.
+func generateFakeSalt(secret, email string) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte("prelogin-fake-salt:" + email))
+	return hex.EncodeToString(mac.Sum(nil)) // 32 bytes = 64 hex chars
 }
 
 // ChangeMasterPassword changes user's master password
@@ -809,7 +835,7 @@ func (s *authService) ChangeMasterPassword(ctx context.Context, req *domain.Chan
 	// Hash new master password hash
 	newHashedPassword, err := bcrypt.GenerateFromPassword(
 		[]byte(req.NewMasterPasswordHash),
-		bcrypt.DefaultCost,
+		constants.BcryptCost,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to hash new password: %w", err)
@@ -852,7 +878,7 @@ func (s *authService) ChangeMasterPassword(ctx context.Context, req *domain.Chan
 }
 
 func generateSchema(email string) string {
-	return "user_" + uuid.NewV5(uuid.NamespaceURL, email).String()[:8]
+	return "user_" + uuid.NewSHA1(uuid.NameSpaceURL, []byte(email)).String()[:8]
 }
 
 // createPersonalOrganization creates a Personal Vault organization row (without user membership yet).
@@ -932,7 +958,7 @@ func (s *authService) createDefaultPersonalVaultFolders(ctx context.Context, org
 		}
 
 		folder := &domain.OrganizationFolder{
-			UUID:            uuid.NewV4(),
+			UUID:            uuid.New(),
 			OrganizationID:  orgID,
 			CreatedByUserID: userID,
 			Name:            folderName,

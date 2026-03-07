@@ -58,7 +58,7 @@ func SetupRouter(
 	router.Use(logger.GinRecovery())
 
 	// Global middleware
-	router.Use(httpHandler.CORSMiddleware())
+	router.Use(httpHandler.CORSMiddleware(serverConfig))
 	router.Use(httpHandler.SecurityMiddleware())
 
 	// Health check endpoint (no auth required)
@@ -148,6 +148,7 @@ func SetupRouter(
 		)
 		authGroup.POST("/signin",
 			httpHandler.RateLimitMiddleware(authRateLimiter),
+			recaptchaMiddleware,
 			authHandler.SignIn,
 		)
 		authGroup.POST("/refresh",
@@ -164,6 +165,13 @@ func SetupRouter(
 
 		// No rate limit on token check (it's already authenticated)
 		authGroup.POST("/check", authHandler.CheckToken)
+	}
+
+	// Public Secure Send access (no auth required — recipients don't need accounts)
+	publicSendsGroup := router.Group("/api/sends/access")
+	{
+		publicSendsGroup.GET("/:access_id", sendHandler.Access)
+		publicSendsGroup.POST("/:access_id/password", sendHandler.VerifyPassword)
 	}
 
 	// API routes (require authentication)
@@ -227,8 +235,6 @@ func SetupRouter(
 			sendsGroup.GET("/:uuid", sendHandler.GetByUUID)
 			sendsGroup.PUT("/:uuid", sendHandler.Update)
 			sendsGroup.DELETE("/:uuid", sendHandler.Delete)
-			sendsGroup.GET("/access/:access_id", sendHandler.Access)
-			sendsGroup.POST("/access/:access_id/password", sendHandler.VerifyPassword)
 		}
 
 		// Excluded Domains API (for "Turn off Passwall for this site")

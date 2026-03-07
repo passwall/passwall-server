@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
-	uuid "github.com/satori/go.uuid"
 	"gorm.io/gorm"
 )
 
@@ -20,7 +20,7 @@ func NewEmergencyAccessRepository(db *gorm.DB) repository.EmergencyAccessReposit
 
 func (r *emergencyAccessRepository) Create(ctx context.Context, ea *domain.EmergencyAccess) error {
 	if ea.UUID == uuid.Nil {
-		ea.UUID = uuid.NewV4()
+		ea.UUID = uuid.New()
 	}
 	return r.db.WithContext(ctx).Create(ea).Error
 }

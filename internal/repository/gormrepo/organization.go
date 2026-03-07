@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
-	uuid "github.com/satori/go.uuid"
 	"gorm.io/gorm"
 )
 
@@ -24,7 +24,7 @@ func NewOrganizationRepository(db *gorm.DB) repository.OrganizationRepository {
 func (r *organizationRepository) Create(ctx context.Context, org *domain.Organization) error {
 	// Generate UUID if not set
 	if org.UUID == uuid.Nil {
-		org.UUID = uuid.NewV4()
+		org.UUID = uuid.New()
 	}
 
 	return r.db.WithContext(ctx).Create(org).Error

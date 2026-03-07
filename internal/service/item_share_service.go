@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/email"
 	"github.com/passwall/passwall-server/internal/repository"
-	uuid "github.com/satori/go.uuid"
 )
 
 // ErrShareInviteSent indicates a signup email was sent for non-registered recipient.
@@ -170,7 +170,7 @@ func (s *itemShareService) createShareInternal(
 	}
 
 	share := &domain.ItemShare{
-		UUID:             uuid.NewV4(),
+		UUID:             uuid.New(),
 		ItemUUID:         item.UUID,
 		OrganizationID:   item.OrganizationID,
 		OwnerID:          ownerID,

@@ -3,7 +3,7 @@ package domain
 import (
 	"time"
 
-	uuid "github.com/satori/go.uuid"
+	"github.com/google/uuid"
 )
 
 // UserSubscription represents a user's personal subscription to a plan (e.g., Pro)

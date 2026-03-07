@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/authz"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
-	uuid "github.com/satori/go.uuid"
 )
 
 type organizationItemService struct {
@@ -131,7 +131,7 @@ func (s *organizationItemService) Create(ctx context.Context, orgID, userID uint
 
 	// Create item
 	item := &domain.OrganizationItem{
-		UUID:            uuid.NewV4(),
+		UUID:            uuid.New(),
 		OrganizationID:  orgID,
 		CollectionID:    req.CollectionID,
 		ItemType:        req.ItemType,

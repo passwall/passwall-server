@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
-	uuid "github.com/satori/go.uuid"
 )
 
 // OrganizationPolicyService defines the business logic for organization policies
@@ -173,7 +173,7 @@ func (s *organizationPolicyService) UpdatePolicy(ctx context.Context, orgID, use
 
 	if policy == nil {
 		policy = &domain.OrganizationPolicy{
-			UUID:           uuid.NewV4(),
+			UUID:           uuid.New(),
 			OrganizationID: orgID,
 			Type:           policyType,
 			Enabled:        false,

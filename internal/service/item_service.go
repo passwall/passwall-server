@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/pkg/constants"
-	uuid "github.com/satori/go.uuid"
 )
 
 // ItemService interface for vault items
@@ -93,7 +93,7 @@ func (s *itemService) Create(ctx context.Context, schema string, req *CreateItem
 
 	// Create item
 	item := &domain.Item{
-		UUID:       uuid.NewV4(),
+		UUID:       uuid.New(),
 		ItemType:   req.ItemType,
 		Data:       req.Data,
 		ItemKeyEnc: req.ItemKeyEnc,

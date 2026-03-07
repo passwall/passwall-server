@@ -6,9 +6,9 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
-	uuid "github.com/satori/go.uuid"
 )
 
 type excludedDomainService struct {
@@ -45,7 +45,7 @@ func (s *excludedDomainService) Create(ctx context.Context, userID uint, req *do
 
 	// Create excluded domain
 	excludedDomain := &domain.ExcludedDomain{
-		UUID:   uuid.NewV4(),
+		UUID:   uuid.New(),
 		UserID: userID,
 		Domain: normalizedDomain,
 	}

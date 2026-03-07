@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/passwall/passwall-server/internal/config"
 	"github.com/passwall/passwall-server/internal/service"
 	"github.com/passwall/passwall-server/pkg/constants"
 	"github.com/passwall/passwall-server/pkg/database"
@@ -70,11 +71,49 @@ func AuthMiddleware(authService service.AuthService) gin.HandlerFunc {
 	}
 }
 
-// CORSMiddleware handles CORS
-func CORSMiddleware() gin.HandlerFunc {
+// CORSMiddleware handles CORS with a dynamic origin whitelist.
+//
+// Allowed origins are built from:
+//  1. server.frontend_url (always included)
+//  2. server.allowed_origins (additional origins, e.g. staging URLs)
+//
+// Chrome extensions send "chrome-extension://<id>" as the Origin header;
+// add the full origin to allowed_origins for each extension build.
+//
+// Mobile apps (React Native, iOS, Android) do NOT send an Origin header,
+// so they are unaffected by CORS and work without any configuration.
+func CORSMiddleware(cfg *config.ServerConfig) gin.HandlerFunc {
+	// Build the set of allowed origins once at startup.
+	allowed := make(map[string]struct{})
+
+	// frontend_url is always trusted.
+	if cfg.FrontendURL != "" {
+		allowed[strings.TrimRight(cfg.FrontendURL, "/")] = struct{}{}
+	}
+
+	// Extra origins from config (extensions, staging, etc.).
+	for _, o := range cfg.AllowedOrigins {
+		o = strings.TrimSpace(o)
+		if o != "" {
+			allowed[strings.TrimRight(o, "/")] = struct{}{}
+		}
+	}
+
 	return func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		origin := c.GetHeader("Origin")
+
+		if origin != "" {
+			normalized := strings.TrimRight(origin, "/")
+			if _, ok := allowed[normalized]; ok {
+				c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+				c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
+			// If origin is not allowed, no CORS headers are set —
+			// the browser will block the request automatically.
+		}
+		// When no Origin header is present (server-to-server, mobile apps,
+		// curl, etc.) no CORS headers are needed.
+
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, X-User-Schema")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
 

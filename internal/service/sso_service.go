@@ -16,8 +16,8 @@ import (
 
 	"github.com/beevik/etree"
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/google/uuid"
 	dsig "github.com/russellhaering/goxmldsig"
-	uuid "github.com/satori/go.uuid"
 	"golang.org/x/oauth2"
 
 	"github.com/passwall/passwall-server/internal/domain"
@@ -118,7 +118,7 @@ func (s *ssoService) CreateConnection(ctx context.Context, orgID, userID uint, r
 		return nil, fmt.Errorf("domain is already configured for another organization")
 	}
 
-	connUUID := uuid.NewV4()
+	connUUID := uuid.New()
 
 	conn := &domain.SSOConnection{
 		UUID:           connUUID,
@@ -755,7 +755,7 @@ func (s *ssoService) completeSSOLogin(ctx context.Context, conn *domain.SSOConne
 func (s *ssoService) jitProvisionMember(ctx context.Context, conn *domain.SSOConnection, user *domain.User) (*domain.OrganizationUser, error) {
 	now := time.Now()
 	orgUser := &domain.OrganizationUser{
-		UUID:            uuid.NewV4(),
+		UUID:            uuid.New(),
 		OrganizationID:  conn.OrganizationID,
 		UserID:          user.ID,
 		Role:            conn.DefaultRole,

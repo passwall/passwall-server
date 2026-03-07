@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	uuid "github.com/satori/go.uuid"
+	"github.com/google/uuid"
 )
 
 // UserDTO is the data transfer object for User

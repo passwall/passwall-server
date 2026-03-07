@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
-	uuid "github.com/satori/go.uuid"
 	"gorm.io/gorm"
 )
 
@@ -22,7 +22,7 @@ func NewOrganizationUserRepository(db *gorm.DB) repository.OrganizationUserRepos
 func (r *organizationUserRepository) Create(ctx context.Context, orgUser *domain.OrganizationUser) error {
 	// Generate UUID if not set
 	if orgUser.UUID == uuid.Nil {
-		orgUser.UUID = uuid.NewV4()
+		orgUser.UUID = uuid.New()
 	}
 
 	return r.db.WithContext(ctx).Create(orgUser).Error

@@ -3,8 +3,8 @@ package domain
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/pkg/constants"
-	uuid "github.com/satori/go.uuid"
 )
 
 // KdfType represents the key derivation function type

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
-	uuid "github.com/satori/go.uuid"
 	"gorm.io/gorm"
 )
 
@@ -23,7 +23,7 @@ func NewCollectionRepository(db *gorm.DB) repository.CollectionRepository {
 func (r *collectionRepository) Create(ctx context.Context, collection *domain.Collection) error {
 	// Generate UUID if not set
 	if collection.UUID == uuid.Nil {
-		collection.UUID = uuid.NewV4()
+		collection.UUID = uuid.New()
 	}
 
 	return r.db.WithContext(ctx).Create(collection).Error

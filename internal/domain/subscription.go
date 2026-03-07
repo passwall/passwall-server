@@ -3,7 +3,7 @@ package domain
 import (
 	"time"
 
-	uuid "github.com/satori/go.uuid"
+	"github.com/google/uuid"
 )
 
 // SubscriptionState represents the state of a subscription

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	uuid "github.com/satori/go.uuid"
+	"github.com/google/uuid"
 
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
@@ -89,7 +89,7 @@ func (s *scimService) CreateToken(ctx context.Context, orgID uint, req *domain.C
 	}
 
 	token := &domain.SCIMToken{
-		UUID:           uuid.NewV4(),
+		UUID:           uuid.New(),
 		OrganizationID: orgID,
 		Label:          req.Label,
 		TokenHash:      hashToken(plainToken),
@@ -242,7 +242,7 @@ func (s *scimService) CreateUser(ctx context.Context, orgID uint, scimUser *doma
 
 	now := time.Now()
 	orgUser := &domain.OrganizationUser{
-		UUID:            uuid.NewV4(),
+		UUID:            uuid.New(),
 		OrganizationID:  orgID,
 		UserID:          existingUser.ID,
 		Role:            domain.OrgRoleMember,
@@ -402,7 +402,7 @@ func (s *scimService) GetGroup(ctx context.Context, orgID uint, groupID string) 
 
 func (s *scimService) CreateGroup(ctx context.Context, orgID uint, scimGroup *domain.SCIMGroup) (*domain.SCIMGroup, error) {
 	team := &domain.Team{
-		UUID:           uuid.NewV4(),
+		UUID:           uuid.New(),
 		OrganizationID: orgID,
 		Name:           scimGroup.DisplayName,
 	}

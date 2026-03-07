@@ -3,7 +3,7 @@ package domain
 import (
 	"time"
 
-	uuid "github.com/satori/go.uuid"
+	"github.com/google/uuid"
 )
 
 // EmergencyAccessStatus represents the status of an emergency access grant

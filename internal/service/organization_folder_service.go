@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
-	uuid "github.com/satori/go.uuid"
 )
 
 type organizationFolderService struct {
@@ -54,7 +54,7 @@ func (s *organizationFolderService) Create(ctx context.Context, orgID, userID ui
 	}
 
 	folder := &domain.OrganizationFolder{
-		UUID:            uuid.NewV4(),
+		UUID:            uuid.New(),
 		OrganizationID:  orgID,
 		CreatedByUserID: userID,
 		Name:            req.Name,

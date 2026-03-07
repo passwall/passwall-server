@@ -12,9 +12,9 @@ func Create(name, token string, expire time.Time) *http.Cookie {
 		Value:    token,
 		Expires:  expire,
 		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
-		// TODO : add secure flag
-		// Secure:   true,
 	}
 }
 
@@ -25,6 +25,8 @@ func Delete(cookieName string) *http.Cookie {
 		Value:    "",
 		Expires:  time.Unix(0, 0),
 		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
 	}
 }

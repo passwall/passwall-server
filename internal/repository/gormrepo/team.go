@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
-	uuid "github.com/satori/go.uuid"
 	"gorm.io/gorm"
 )
 
@@ -22,7 +22,7 @@ func NewTeamRepository(db *gorm.DB) repository.TeamRepository {
 func (r *teamRepository) Create(ctx context.Context, team *domain.Team) error {
 	// Generate UUID if not set
 	if team.UUID == uuid.Nil {
-		team.UUID = uuid.NewV4()
+		team.UUID = uuid.New()
 	}
 
 	return r.db.WithContext(ctx).Create(team).Error

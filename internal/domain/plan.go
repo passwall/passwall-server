@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	uuid "github.com/satori/go.uuid"
+	"github.com/google/uuid"
 )
 
 // PlanFeatures represents feature flags for a plan

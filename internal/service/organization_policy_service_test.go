@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
-	uuid "github.com/satori/go.uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -624,7 +624,7 @@ func TestIsPolicyEnabled_Enabled(t *testing.T) {
 	ctx := context.Background()
 
 	s.policyRepo.add(&domain.OrganizationPolicy{
-		ID: 1, UUID: uuid.NewV4(), OrganizationID: policyTestOrgID,
+		ID: 1, UUID: uuid.New(), OrganizationID: policyTestOrgID,
 		Type: domain.PolicyRequireTwoFactor, Enabled: true,
 	})
 
@@ -639,7 +639,7 @@ func TestIsPolicyEnabled_Disabled(t *testing.T) {
 	ctx := context.Background()
 
 	s.policyRepo.add(&domain.OrganizationPolicy{
-		ID: 1, UUID: uuid.NewV4(), OrganizationID: policyTestOrgID,
+		ID: 1, UUID: uuid.New(), OrganizationID: policyTestOrgID,
 		Type: domain.PolicyRequireTwoFactor, Enabled: false,
 	})
 
@@ -655,7 +655,7 @@ func TestGetPolicyData_EnabledReturnsData(t *testing.T) {
 
 	expectedData := domain.PolicyData{"min_length": float64(12)}
 	s.policyRepo.add(&domain.OrganizationPolicy{
-		ID: 1, UUID: uuid.NewV4(), OrganizationID: policyTestOrgID,
+		ID: 1, UUID: uuid.New(), OrganizationID: policyTestOrgID,
 		Type: domain.PolicyMasterPWRequirements, Enabled: true, Data: expectedData,
 	})
 
@@ -670,7 +670,7 @@ func TestGetPolicyData_DisabledReturnsNil(t *testing.T) {
 	ctx := context.Background()
 
 	s.policyRepo.add(&domain.OrganizationPolicy{
-		ID: 1, UUID: uuid.NewV4(), OrganizationID: policyTestOrgID,
+		ID: 1, UUID: uuid.New(), OrganizationID: policyTestOrgID,
 		Type: domain.PolicyMasterPWRequirements, Enabled: false,
 		Data: domain.PolicyData{"min_length": float64(12)},
 	})
@@ -696,15 +696,15 @@ func TestListEnabledPolicies(t *testing.T) {
 	ctx := context.Background()
 
 	s.policyRepo.add(&domain.OrganizationPolicy{
-		ID: 1, UUID: uuid.NewV4(), OrganizationID: policyTestOrgID,
+		ID: 1, UUID: uuid.New(), OrganizationID: policyTestOrgID,
 		Type: domain.PolicyRequireTwoFactor, Enabled: true,
 	})
 	s.policyRepo.add(&domain.OrganizationPolicy{
-		ID: 2, UUID: uuid.NewV4(), OrganizationID: policyTestOrgID,
+		ID: 2, UUID: uuid.New(), OrganizationID: policyTestOrgID,
 		Type: domain.PolicyMasterPWRequirements, Enabled: false,
 	})
 	s.policyRepo.add(&domain.OrganizationPolicy{
-		ID: 3, UUID: uuid.NewV4(), OrganizationID: policyTestOrgID,
+		ID: 3, UUID: uuid.New(), OrganizationID: policyTestOrgID,
 		Type: domain.PolicySingleOrganization, Enabled: true,
 	})
 
@@ -727,12 +727,12 @@ func TestGetActivePolicySummary(t *testing.T) {
 	ctx := context.Background()
 
 	s.policyRepo.add(&domain.OrganizationPolicy{
-		ID: 1, UUID: uuid.NewV4(), OrganizationID: policyTestOrgID,
+		ID: 1, UUID: uuid.New(), OrganizationID: policyTestOrgID,
 		Type: domain.PolicyRequireTwoFactor, Enabled: true,
 		Data: domain.PolicyData{"grace_period_hours": float64(48)},
 	})
 	s.policyRepo.add(&domain.OrganizationPolicy{
-		ID: 2, UUID: uuid.NewV4(), OrganizationID: policyTestOrgID,
+		ID: 2, UUID: uuid.New(), OrganizationID: policyTestOrgID,
 		Type: domain.PolicyMasterPWRequirements, Enabled: false,
 		Data: domain.PolicyData{"min_length": float64(12)},
 	})
@@ -761,7 +761,7 @@ func TestGetActivePolicySummary_MemberAllowed(t *testing.T) {
 	ctx := context.Background()
 
 	s.policyRepo.add(&domain.OrganizationPolicy{
-		ID: 1, UUID: uuid.NewV4(), OrganizationID: policyTestOrgID,
+		ID: 1, UUID: uuid.New(), OrganizationID: policyTestOrgID,
 		Type: domain.PolicyRequireTwoFactor, Enabled: true,
 	})
 
@@ -848,7 +848,7 @@ func TestListPolicies_MergesPersistedWithDefinitions(t *testing.T) {
 
 	// Pre-persist one enabled policy
 	s.policyRepo.add(&domain.OrganizationPolicy{
-		ID: 1, UUID: uuid.NewV4(), OrganizationID: policyTestOrgID,
+		ID: 1, UUID: uuid.New(), OrganizationID: policyTestOrgID,
 		Type: domain.PolicyRequireTwoFactor, Enabled: true,
 	})
 

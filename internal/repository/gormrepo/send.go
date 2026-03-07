@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
-	uuid "github.com/satori/go.uuid"
 	"gorm.io/gorm"
 )
 
@@ -21,7 +21,7 @@ func NewSendRepository(db *gorm.DB) repository.SendRepository {
 
 func (r *sendRepository) Create(ctx context.Context, send *domain.Send) error {
 	if send.UUID == uuid.Nil {
-		send.UUID = uuid.NewV4()
+		send.UUID = uuid.New()
 	}
 	return r.db.WithContext(ctx).Create(send).Error
 }

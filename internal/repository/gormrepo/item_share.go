@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
-	uuid "github.com/satori/go.uuid"
 	"gorm.io/gorm"
 )
 
@@ -23,7 +23,7 @@ func NewItemShareRepository(db *gorm.DB) repository.ItemShareRepository {
 func (r *itemShareRepository) Create(ctx context.Context, share *domain.ItemShare) error {
 	// Generate UUID if not set
 	if share.UUID == uuid.Nil {
-		share.UUID = uuid.NewV4()
+		share.UUID = uuid.New()
 	}
 
 	return r.db.WithContext(ctx).Create(share).Error

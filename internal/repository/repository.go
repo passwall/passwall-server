@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
-	uuid "github.com/satori/go.uuid"
 )
 
 // Common errors
