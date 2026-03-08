@@ -15,6 +15,11 @@ type FeatureService interface {
 	CanUseTeams(ctx context.Context, orgID uint) (bool, error)
 	CanAccessAudit(ctx context.Context, orgID uint) (bool, error)
 	CanUseSSO(ctx context.Context, orgID uint) (bool, error)
+	CanUseBreachMonitoring(ctx context.Context, orgID uint) (bool, error)
+	CanUsePasskeys(ctx context.Context, orgID uint) (bool, error)
+	CanUseSharedItems(ctx context.Context, orgID uint) (bool, error)
+	CanUseSecureSend(ctx context.Context, orgID uint) (bool, error)
+	CanUseEmergencyAccess(ctx context.Context, orgID uint) (bool, error)
 	GetFeatures(ctx context.Context, orgID uint) (*domain.PlanFeatures, error)
 }
 
@@ -154,44 +159,58 @@ func (s *featureService) CanCreateItem(ctx context.Context, orgID uint) (bool, e
 
 // CanUseTeams checks if organization can use teams feature
 func (s *featureService) CanUseTeams(ctx context.Context, orgID uint) (bool, error) {
-	sub, err := s.getSubscriptionWithPlan(ctx, orgID)
-	if err != nil {
-		return false, err
-	}
-
-	if !sub.Plan.Features.Teams {
-		return false, ErrFeatureNotAvailable
-	}
-
-	return true, nil
+	return s.checkBooleanFeature(ctx, orgID, func(f domain.PlanFeatures) bool {
+		return f.Teams
+	})
 }
 
 // CanAccessAudit checks if organization can access audit logs
 func (s *featureService) CanAccessAudit(ctx context.Context, orgID uint) (bool, error) {
-	sub, err := s.getSubscriptionWithPlan(ctx, orgID)
-	if err != nil {
-		return false, err
-	}
-
-	if !sub.Plan.Features.Audit {
-		return false, ErrFeatureNotAvailable
-	}
-
-	return true, nil
+	return s.checkBooleanFeature(ctx, orgID, func(f domain.PlanFeatures) bool {
+		return f.Audit
+	})
 }
 
 // CanUseSSO checks if organization can use SSO
 func (s *featureService) CanUseSSO(ctx context.Context, orgID uint) (bool, error) {
-	sub, err := s.getSubscriptionWithPlan(ctx, orgID)
-	if err != nil {
-		return false, err
-	}
+	return s.checkBooleanFeature(ctx, orgID, func(f domain.PlanFeatures) bool {
+		return f.SSO
+	})
+}
 
-	if !sub.Plan.Features.SSO {
-		return false, ErrFeatureNotAvailable
-	}
+// CanUseBreachMonitoring checks if organization can use dark web / breach monitoring
+func (s *featureService) CanUseBreachMonitoring(ctx context.Context, orgID uint) (bool, error) {
+	return s.checkBooleanFeature(ctx, orgID, func(f domain.PlanFeatures) bool {
+		return f.BreachMonitoring
+	})
+}
 
-	return true, nil
+// CanUsePasskeys checks if organization can use passkeys feature
+func (s *featureService) CanUsePasskeys(ctx context.Context, orgID uint) (bool, error) {
+	return s.checkBooleanFeature(ctx, orgID, func(f domain.PlanFeatures) bool {
+		return f.Passkeys
+	})
+}
+
+// CanUseSharedItems checks if organization can use shared items feature
+func (s *featureService) CanUseSharedItems(ctx context.Context, orgID uint) (bool, error) {
+	return s.checkBooleanFeature(ctx, orgID, func(f domain.PlanFeatures) bool {
+		return f.SharedItems
+	})
+}
+
+// CanUseSecureSend checks if organization can use secure send feature
+func (s *featureService) CanUseSecureSend(ctx context.Context, orgID uint) (bool, error) {
+	return s.checkBooleanFeature(ctx, orgID, func(f domain.PlanFeatures) bool {
+		return f.SecureSend
+	})
+}
+
+// CanUseEmergencyAccess checks if organization can use emergency access feature
+func (s *featureService) CanUseEmergencyAccess(ctx context.Context, orgID uint) (bool, error) {
+	return s.checkBooleanFeature(ctx, orgID, func(f domain.PlanFeatures) bool {
+		return f.EmergencyAccess
+	})
 }
 
 // GetFeatures returns all features available to an organization
@@ -206,4 +225,21 @@ func (s *featureService) GetFeatures(ctx context.Context, orgID uint) (*domain.P
 	}
 
 	return &sub.Plan.Features, nil
+}
+
+func (s *featureService) checkBooleanFeature(
+	ctx context.Context,
+	orgID uint,
+	isEnabled func(domain.PlanFeatures) bool,
+) (bool, error) {
+	sub, err := s.getSubscriptionWithPlan(ctx, orgID)
+	if err != nil {
+		return false, err
+	}
+
+	if !isEnabled(sub.Plan.Features) {
+		return false, ErrFeatureNotAvailable
+	}
+
+	return true, nil
 }

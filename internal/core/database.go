@@ -107,6 +107,14 @@ func AutoMigrate(db database.Database) error {
 		return fmt.Errorf("failed to migrate emergency access / send tables: %w", err)
 	}
 
+	// Breach Monitoring tables
+	if err := db.AutoMigrate(
+		&domain.MonitoredEmail{},
+		&domain.BreachRecord{},
+	); err != nil {
+		return fmt.Errorf("failed to migrate breach monitoring tables: %w", err)
+	}
+
 	// SSO & SCIM tables (Enterprise features)
 	if err := db.AutoMigrate(
 		&domain.SSOConnection{},

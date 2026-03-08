@@ -20,6 +20,15 @@ type Config struct {
 	Stripe     StripeConfig     `mapstructure:"stripe"`
 	RevenueCat RevenueCatConfig `mapstructure:"revenuecat"`
 	AI         AIConfig         `mapstructure:"ai"`
+	HIBP       HIBPConfig       `mapstructure:"hibp"`
+}
+
+// HIBPConfig contains configuration for HIBP breach monitoring.
+type HIBPConfig struct {
+	APIKey             string `mapstructure:"api_key"`              // HIBP API key (required for breach lookups)
+	CheckIntervalHours int    `mapstructure:"check_interval_hours"` // Background check interval in hours
+	RateLimitMs        int    `mapstructure:"rate_limit_ms"`        // Minimum delay between HIBP API calls
+	MaxRetries         int    `mapstructure:"max_retries"`          // Retry count for rate-limit/transient failures
 }
 
 // ServerConfig contains server-related configuration
@@ -99,12 +108,18 @@ type PlanConfig struct {
 
 // PlanFeatures defines feature availability for a plan
 type PlanFeatures struct {
-	Sharing         bool `mapstructure:"sharing"`          // Item sharing enabled
-	Teams           bool `mapstructure:"teams"`            // Team management enabled
-	Audit           bool `mapstructure:"audit"`            // Audit logs enabled
-	SSO             bool `mapstructure:"sso"`              // Single Sign-On enabled
-	APIAccess       bool `mapstructure:"api_access"`       // API access enabled
-	PrioritySupport bool `mapstructure:"priority_support"` // Priority support enabled
+	Sharing          bool `mapstructure:"sharing"`           // Item sharing enabled
+	SharedItems      bool `mapstructure:"shared_items"`      // Shared items feature enabled
+	SecureSend       bool `mapstructure:"secure_send"`       // Secure send feature enabled
+	Passkeys         bool `mapstructure:"passkeys"`          // Passkeys feature enabled
+	EmergencyAccess  bool `mapstructure:"emergency_access"`  // Emergency access feature enabled
+	Teams            bool `mapstructure:"teams"`             // Team management enabled
+	Audit            bool `mapstructure:"audit"`             // Audit logs enabled
+	SSO              bool `mapstructure:"sso"`               // Single Sign-On enabled
+	APIAccess        bool `mapstructure:"api_access"`        // API access enabled
+	PrioritySupport  bool `mapstructure:"priority_support"`  // Priority support enabled
+	Policies         bool `mapstructure:"policies"`          // Organization policies enabled
+	BreachMonitoring bool `mapstructure:"breach_monitoring"` // Dark web / breach monitoring enabled
 }
 
 // RevenueCatConfig contains RevenueCat in-app purchase configuration
@@ -314,6 +329,12 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("ai.base_url", "https://api.openai.com/v1")
 	v.SetDefault("ai.model", "gpt-4o")
 	v.SetDefault("ai.timeout", 60)
+
+	// HIBP defaults
+	v.SetDefault("hibp.api_key", "")
+	v.SetDefault("hibp.check_interval_hours", 24)
+	v.SetDefault("hibp.rate_limit_ms", 1600)
+	v.SetDefault("hibp.max_retries", 3)
 }
 
 // bindEnvVariables binds environment variables for backwards compatibility
@@ -374,6 +395,12 @@ func bindEnvVariables(v *viper.Viper) {
 	bind("ai.base_url", "PW_AI_BASE_URL")
 	bind("ai.model", "PW_AI_MODEL")
 	bind("ai.timeout", "PW_AI_TIMEOUT")
+
+	// HIBP bindings (breach monitoring)
+	bind("hibp.api_key", "PW_HIBP_API_KEY", "HIBP_API_KEY")
+	bind("hibp.check_interval_hours", "PW_HIBP_CHECK_INTERVAL_HOURS")
+	bind("hibp.rate_limit_ms", "PW_HIBP_RATE_LIMIT_MS")
+	bind("hibp.max_retries", "PW_HIBP_MAX_RETRIES")
 }
 
 // createDefaultConfigFile creates a config file with default values

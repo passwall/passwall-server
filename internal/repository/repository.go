@@ -237,6 +237,7 @@ type OrganizationItemRepository interface {
 	ListByOrganization(ctx context.Context, filter OrganizationItemFilter) ([]*domain.OrganizationItem, int64, error)
 	ListByCollection(ctx context.Context, collectionID uint) ([]*domain.OrganizationItem, error)
 	MoveItemsToCollection(ctx context.Context, fromCollectionID uint, toCollectionID uint) error
+	CountByOrganizationID(ctx context.Context, orgID uint) (int, error)
 	Update(ctx context.Context, item *domain.OrganizationItem) error
 	Delete(ctx context.Context, id uint) error
 	SoftDelete(ctx context.Context, id uint) error

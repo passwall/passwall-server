@@ -15,20 +15,22 @@ import (
 	"github.com/passwall/passwall-server/internal/service"
 	"github.com/passwall/passwall-server/pkg/constants"
 	"github.com/passwall/passwall-server/pkg/database"
+	"github.com/passwall/passwall-server/pkg/hibp"
 	"github.com/passwall/passwall-server/pkg/logger"
 	stripeClient "github.com/passwall/passwall-server/pkg/stripe"
 )
 
 // App represents the application
 type App struct {
-	config          *config.Config
-	db              database.Database
-	server          *http.Server
-	tokenCleanup    *cleanup.TokenCleanup
-	activityCleanup *cleanup.ActivityCleanup
-	logCleanup      *cleanup.LogCleanup
-	sendCleanup     *cleanup.SendCleanup
-	emailSender     email.Sender
+	config              *config.Config
+	db                  database.Database
+	server              *http.Server
+	tokenCleanup        *cleanup.TokenCleanup
+	activityCleanup     *cleanup.ActivityCleanup
+	logCleanup          *cleanup.LogCleanup
+	sendCleanup         *cleanup.SendCleanup
+	breachMonitorWorker *cleanup.BreachMonitorWorker
+	emailSender         email.Sender
 }
 
 // New creates a new application instance with the given context
@@ -263,6 +265,17 @@ func (a *App) Run(ctx context.Context) error {
 	// Send service
 	sendService := service.NewSendService(sendRepo, userRepo, orgUserRepo, orgPolicyRepo, emailSender, emailBuilder, serviceLogger)
 
+	// HIBP clients
+	hibpClient := hibp.NewClient(a.config.HIBP.APIKey, a.config.HIBP.RateLimitMs, a.config.HIBP.MaxRetries)
+	pwnedPasswordsClient := hibp.NewPwnedPasswordsClient(0, 0) // defaults: 60 min TTL, 10k entries
+
+	// Feature service (used for plan-based feature gating)
+	featureService := service.NewFeatureService(organizationService, subscriptionRepo, orgItemRepo)
+
+	// Breach monitoring
+	breachMonitorRepo := gormrepo.NewBreachMonitorRepository(a.db.DB())
+	breachMonitorService := service.NewBreachMonitorService(breachMonitorRepo, hibpClient, featureService, orgUserRepo)
+
 	// Organization policy enforcement services
 	policyEnforcementService := service.NewPolicyEnforcementService(organizationPolicyService)
 	_ = policyEnforcementService // Available for injection into other services
@@ -359,6 +372,12 @@ func (a *App) Run(ctx context.Context) error {
 	scimHandler := httpHandler.NewSCIMHandler(scimService, organizationService)
 	keyEscrowHandler := httpHandler.NewKeyEscrowHandler(keyEscrowService, organizationService)
 
+	// Breach monitor handler
+	breachMonitorHandler := httpHandler.NewBreachMonitorHandler(breachMonitorService)
+
+	// Compromised password check handler (batch HIBP Pwned Passwords)
+	compromisedCheckHandler := httpHandler.NewCompromisedCheckHandler(pwnedPasswordsClient)
+
 	// Icons handler (public favicon service with protection)
 	iconsHandler := httpHandler.NewIconsHandler(serviceLogger)
 
@@ -399,6 +418,8 @@ func (a *App) Run(ctx context.Context) error {
 		scimHandler,
 		scimService,
 		keyEscrowHandler,
+		breachMonitorHandler,
+		compromisedCheckHandler,
 		compatTelemetryHandler,
 		aiTelemetryHandler,
 	)
@@ -425,11 +446,24 @@ func (a *App) Run(ctx context.Context) error {
 	// Initialize send cleanup service (runs every 6 hours)
 	a.sendCleanup = cleanup.NewSendCleanup(sendRepo, 6*time.Hour)
 
+	// Initialize breach monitor worker (runs at configured interval, default 24h)
+	breachCheckInterval := time.Duration(a.config.HIBP.CheckIntervalHours) * time.Hour
+	if breachCheckInterval < 1*time.Hour {
+		breachCheckInterval = 24 * time.Hour
+	}
+	a.breachMonitorWorker = cleanup.NewBreachMonitorWorker(
+		breachMonitorRepo,
+		breachMonitorService,
+		featureService,
+		breachCheckInterval,
+	)
+
 	// Start cleanup services in background (using application context)
 	go a.tokenCleanup.Start(ctx)
 	go a.activityCleanup.Start(ctx)
 	go a.logCleanup.Start(ctx)
 	go a.sendCleanup.Start(ctx)
+	go a.breachMonitorWorker.Start(ctx)
 
 	// Start server in a goroutine
 	serverErrChan := make(chan error, 1)

@@ -48,6 +48,8 @@ func SetupRouter(
 	scimHandler *httpHandler.SCIMHandler,
 	scimService service.SCIMService,
 	keyEscrowHandler *httpHandler.KeyEscrowHandler,
+	breachMonitorHandler *httpHandler.BreachMonitorHandler,
+	compromisedCheckHandler *httpHandler.CompromisedCheckHandler,
 	compatTelemetryHandler *httpHandler.CompatTelemetryHandler,
 	aiTelemetryHandler *httpHandler.AITelemetryHandler,
 ) *gin.Engine {
@@ -194,6 +196,9 @@ func SetupRouter(
 		// Policy & settings definitions catalog (authenticated, no org context needed)
 		apiGroup.GET("/policies/definitions", organizationPolicyHandler.ListPolicyDefinitions)
 		apiGroup.GET("/settings/definitions", organizationSettingsHandler.ListSettingsDefinitions)
+
+		// Compromised password check (batch SHA-1 hash check via HIBP Pwned Passwords)
+		apiGroup.POST("/compromised-check", compromisedCheckHandler.BatchCheck)
 
 		// Auth protected routes
 		apiGroup.POST("/signout", authHandler.SignOut)
@@ -416,6 +421,18 @@ func SetupRouter(
 			orgsGroup.POST("/:id/scim/tokens", scimHandler.CreateToken)
 			orgsGroup.GET("/:id/scim/tokens", scimHandler.ListTokens)
 			orgsGroup.DELETE("/:id/scim/tokens/:tokenId", scimHandler.RevokeToken)
+
+			// Breach Monitoring (dark web monitoring)
+			breachMonitorGroup := orgsGroup.Group("/:id/breach-monitor")
+			{
+				breachMonitorGroup.POST("/emails", breachMonitorHandler.AddEmail)
+				breachMonitorGroup.GET("/emails", breachMonitorHandler.ListEmails)
+				breachMonitorGroup.DELETE("/emails/:emailId", breachMonitorHandler.RemoveEmail)
+				breachMonitorGroup.POST("/check", breachMonitorHandler.CheckEmails)
+				breachMonitorGroup.GET("/breaches", breachMonitorHandler.ListBreaches)
+				breachMonitorGroup.PATCH("/breaches/:breachId/dismiss", breachMonitorHandler.DismissBreach)
+				breachMonitorGroup.GET("/summary", breachMonitorHandler.GetSummary)
+			}
 
 			// Payment & Billing routes
 			orgsGroup.POST("/:id/checkout", paymentHandler.CreateCheckoutSession)

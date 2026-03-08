@@ -1,0 +1,27 @@
+---
+description: Passwall workspace and project overview; reduces need for AI to re-scan the repo every time
+alwaysApply: true
+---
+
+# Passwall Workspace Overview
+
+This workspace contains multiple repos for the **Passwall** product. High-level context:
+
+| Project | Folder | Tech | Purpose |
+|---------|--------|------|---------|
+| **Extension** | passwall-extension | Vue 3, Pinia, Manifest V3 | Browser extension (Chrome/Firefox) |
+| **Server** | passwall-server | Go, PostgreSQL, REST API | Backend API, auth, encryption |
+| **Vault** | passwall-vault | React 18, TypeScript, TanStack Router/Query, shadcn/ui, Tailwind | Main web app (vault UI) |
+| **Web** | passwall-web | Next.js, React, TypeScript | Marketing / landing / website |
+| **Mobile** | passwall-mobile | React Native, TypeScript | Mobile app |
+| **Org** | passwall-org | Docs, nginx, business | Documentation, business plan, ops configs |
+
+## Relationships
+
+- **Extension**, **Vault**, **Web**, **Mobile** talk to **Server** via REST API.
+- **Vault** is the main management UI; Extension and Mobile sync with the same account.
+- **Org** holds Stripe, pricing, compliance, and technical security docs.
+
+## Project rules
+
+Each project has its own `.cursorrules` at repo root defining that project’s language, architecture, and security rules. Follow the relevant project’s rules when answering.

@@ -56,13 +56,19 @@ func SeedPlans(ctx context.Context, db *gorm.DB, planConfigs []config.PlanConfig
 				existing.MaxCollections = pc.MaxCollections
 				existing.MaxItems = pc.MaxItems
 				existing.Features = domain.PlanFeatures{
-					Items:           pc.MaxItems, // Same as MaxItems for backward compatibility
-					Sharing:         pc.Features.Sharing,
-					Teams:           pc.Features.Teams,
-					Audit:           pc.Features.Audit,
-					SSO:             pc.Features.SSO,
-					APIAccess:       pc.Features.APIAccess,
-					PrioritySupport: pc.Features.PrioritySupport,
+					Items:            pc.MaxItems, // Same as MaxItems for backward compatibility
+					Sharing:          pc.Features.Sharing,
+					SharedItems:      pc.Features.SharedItems,
+					SecureSend:       pc.Features.SecureSend,
+					Passkeys:         pc.Features.Passkeys,
+					EmergencyAccess:  pc.Features.EmergencyAccess,
+					Teams:            pc.Features.Teams,
+					Audit:            pc.Features.Audit,
+					SSO:              pc.Features.SSO,
+					APIAccess:        pc.Features.APIAccess,
+					PrioritySupport:  pc.Features.PrioritySupport,
+					Policies:         pc.Features.Policies,
+					BreachMonitoring: pc.Features.BreachMonitoring,
 				}
 				existing.IsActive = true
 
@@ -92,13 +98,19 @@ func SeedPlans(ctx context.Context, db *gorm.DB, planConfigs []config.PlanConfig
 				MaxCollections: pc.MaxCollections,
 				MaxItems:       pc.MaxItems,
 				Features: domain.PlanFeatures{
-					Items:           pc.MaxItems, // Same as MaxItems for backward compatibility
-					Sharing:         pc.Features.Sharing,
-					Teams:           pc.Features.Teams,
-					Audit:           pc.Features.Audit,
-					SSO:             pc.Features.SSO,
-					APIAccess:       pc.Features.APIAccess,
-					PrioritySupport: pc.Features.PrioritySupport,
+					Items:            pc.MaxItems, // Same as MaxItems for backward compatibility
+					Sharing:          pc.Features.Sharing,
+					SharedItems:      pc.Features.SharedItems,
+					SecureSend:       pc.Features.SecureSend,
+					Passkeys:         pc.Features.Passkeys,
+					EmergencyAccess:  pc.Features.EmergencyAccess,
+					Teams:            pc.Features.Teams,
+					Audit:            pc.Features.Audit,
+					SSO:              pc.Features.SSO,
+					APIAccess:        pc.Features.APIAccess,
+					PrioritySupport:  pc.Features.PrioritySupport,
+					Policies:         pc.Features.Policies,
+					BreachMonitoring: pc.Features.BreachMonitoring,
 				},
 				IsActive: true,
 			}

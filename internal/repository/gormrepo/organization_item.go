@@ -197,6 +197,15 @@ func (r *organizationItemRepository) MoveItemsToCollection(ctx context.Context, 
 		Update("collection_id", toCollectionID).Error
 }
 
+func (r *organizationItemRepository) CountByOrganizationID(ctx context.Context, orgID uint) (int, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&domain.OrganizationItem{}).
+		Where("organization_id = ? AND deleted_at IS NULL", orgID).
+		Count(&count).Error
+	return int(count), err
+}
+
 func (r *organizationItemRepository) Update(ctx context.Context, item *domain.OrganizationItem) error {
 	// Clear associations
 	item.Organization = nil

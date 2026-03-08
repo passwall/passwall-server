@@ -11,14 +11,19 @@ import (
 
 // PlanFeatures represents feature flags for a plan
 type PlanFeatures struct {
-	Items           *int `json:"items"`            // Max items (null = unlimited)
-	Sharing         bool `json:"sharing"`          // Item sharing enabled
-	Teams           bool `json:"teams"`            // Team management enabled
-	Audit           bool `json:"audit"`            // Audit logs enabled
-	SSO             bool `json:"sso"`              // Single Sign-On enabled
-	APIAccess       bool `json:"api_access"`       // API access enabled
-	PrioritySupport bool `json:"priority_support"` // Priority support enabled
-	Policies        bool `json:"policies"`         // Organization policies enabled
+	Items            *int `json:"items"`             // Max items (null = unlimited)
+	Sharing          bool `json:"sharing"`           // Item sharing enabled
+	SharedItems      bool `json:"shared_items"`      // Shared items feature enabled
+	SecureSend       bool `json:"secure_send"`       // Secure Send feature enabled
+	Passkeys         bool `json:"passkeys"`          // Passkeys feature enabled
+	EmergencyAccess  bool `json:"emergency_access"`  // Emergency access feature enabled
+	Teams            bool `json:"teams"`             // Team management enabled
+	Audit            bool `json:"audit"`             // Audit logs enabled
+	SSO              bool `json:"sso"`               // Single Sign-On enabled
+	APIAccess        bool `json:"api_access"`        // API access enabled
+	PrioritySupport  bool `json:"priority_support"`  // Priority support enabled
+	Policies         bool `json:"policies"`          // Organization policies enabled
+	BreachMonitoring bool `json:"breach_monitoring"` // Dark web / breach monitoring enabled
 }
 
 // Scan implements sql.Scanner for PlanFeatures (JSONB)

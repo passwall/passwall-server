@@ -223,6 +223,7 @@ type OrganizationDTO struct {
 	CreatedByUserEmail *string            `json:"created_by_user_email,omitempty"`
 	CreatedByUserName  *string            `json:"created_by_user_name,omitempty"`
 	Plan               OrganizationPlan   `json:"plan"`
+	PlanFeatures       *PlanFeatures      `json:"plan_features,omitempty"`
 	MaxUsers           int                `json:"max_users"`
 	MaxCollections     int                `json:"max_collections"`
 	Status             OrganizationStatus `json:"status"`
@@ -287,6 +288,9 @@ func ToOrganizationDTOWithSubscription(org *Organization, sub *Subscription) *Or
 	if sub.Plan == nil {
 		return dto
 	}
+
+	planFeatures := sub.Plan.Features
+	dto.PlanFeatures = &planFeatures
 
 	planCode := sub.Plan.Code
 
