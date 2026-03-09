@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"regexp"
 	"strconv"
 	"strings"
@@ -13,8 +14,12 @@ import (
 )
 
 const compatTelemetryDedupeWindow = 7 * 24 * time.Hour
+const compatTelemetryIngestTimeout = 10 * time.Second
+const compatTelemetrySuccessSamplePercent = 20
 
 var compatDomainPattern = regexp.MustCompile(`^[a-z0-9.-]+\.[a-z]{2,}$`)
+var compatPathDynamicUUIDPattern = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+var compatPathDynamicTokenPattern = regexp.MustCompile(`(?i)^[a-z0-9_-]{20,}$`)
 
 // CompatTelemetryBatchRequest is a batched ingest payload from clients.
 type CompatTelemetryBatchRequest struct {
@@ -41,6 +46,13 @@ type CompatTelemetryEventPayload struct {
 	UsernameFieldCount int  `json:"username_field_count"`
 	CaptchaDetected    bool `json:"captcha_detected"`
 	BotBlocked         bool `json:"bot_blocked"`
+
+	StepIndex              int    `json:"step_index"`
+	PrevStepHadIdentifier  bool   `json:"prev_step_had_identifier"`
+	CurrStepHasPassword    bool   `json:"curr_step_has_password"`
+	FieldVisibilityIssue   bool   `json:"field_visibility_issue"`
+	FormMethod             string `json:"form_method"`
+	DetectedFieldSignature string `json:"detected_field_signature"`
 
 	ExtVersion     string `json:"ext_version"`
 	Browser        string `json:"browser"`
@@ -103,6 +115,13 @@ func (s *compatTelemetryService) IngestBatch(
 			CaptchaDetected:    normalized.CaptchaDetected,
 			BotBlocked:         normalized.BotBlocked,
 
+			StepIndex:              normalized.StepIndex,
+			PrevStepHadIdentifier:  normalized.PrevStepHadIdentifier,
+			CurrStepHasPassword:    normalized.CurrStepHasPassword,
+			FieldVisibilityIssue:   normalized.FieldVisibilityIssue,
+			FormMethod:             normalized.FormMethod,
+			DetectedFieldSignature: normalized.DetectedFieldSignature,
+
 			ExtVersion:     normalized.ExtVersion,
 			Browser:        normalized.Browser,
 			BrowserVersion: normalized.BrowserVersion,
@@ -113,7 +132,13 @@ func (s *compatTelemetryService) IngestBatch(
 		})
 	}
 
-	existingSet, err := s.repo.ListExistingCompatKeys(ctx, time.Now().Add(-compatTelemetryDedupeWindow))
+	// Ingest endpoint is often called via short-lived/background client requests.
+	// Detach from request cancellation so telemetry writes are not dropped when the
+	// client closes the connection early (e.g. sendBeacon/page unload).
+	ingestCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), compatTelemetryIngestTimeout)
+	defer cancel()
+
+	existingSet, err := s.repo.ListExistingCompatKeys(ingestCtx, time.Now().Add(-compatTelemetryDedupeWindow))
 	if err != nil {
 		s.logger.Warn("failed to load existing telemetry keys for dedupe", "error", err)
 		existingSet = nil
@@ -126,6 +151,9 @@ func (s *compatTelemetryService) IngestBatch(
 
 	filtered := make([]*domain.CompatTelemetryEvent, 0, len(events))
 	for _, e := range events {
+		if shouldSampleOutCompatEvent(e) {
+			continue
+		}
 		key := compatDedupeKeyString(e.DomainETLD1, e.PagePath, e.EventName, normErrorCodeForDedupe(e.ErrorCode), e.FlowType, e.Surface, e.Succeeded)
 		if _, exists := keySet[key]; exists {
 			continue
@@ -138,7 +166,7 @@ func (s *compatTelemetryService) IngestBatch(
 		return 0, nil
 	}
 
-	if err := s.repo.CreateBatch(ctx, filtered); err != nil {
+	if err := s.repo.CreateBatch(ingestCtx, filtered); err != nil {
 		s.logger.Error("failed to ingest compatibility telemetry", "count", len(filtered), "error", err)
 		return 0, err
 	}
@@ -206,9 +234,7 @@ func normalizeCompatPayload(payload CompatTelemetryEventPayload) (*CompatTelemet
 	}
 
 	pagePath := truncateLower(payload.PagePath, 512)
-	if pagePath == "" {
-		pagePath = normalizedDomain
-	}
+	pagePath = normalizeCompatPagePath(pagePath, normalizedDomain)
 
 	occurredAt := strings.TrimSpace(payload.OccurredAt)
 	if occurredAt != "" {
@@ -236,6 +262,10 @@ func normalizeCompatPayload(payload CompatTelemetryEventPayload) (*CompatTelemet
 		timingMS = &clamped
 	}
 
+	stepIndex := clampInt(payload.StepIndex, 0, 10)
+	formMethod := truncateLower(payload.FormMethod, 32)
+	detectedFieldSig := truncate(payload.DetectedFieldSignature, 255)
+
 	return &CompatTelemetryEventPayload{
 		EventName:    eventName,
 		EventVersion: eventVersion,
@@ -254,6 +284,13 @@ func normalizeCompatPayload(payload CompatTelemetryEventPayload) (*CompatTelemet
 		UsernameFieldCount: usernameCount,
 		CaptchaDetected:    payload.CaptchaDetected,
 		BotBlocked:         payload.BotBlocked,
+
+		StepIndex:              stepIndex,
+		PrevStepHadIdentifier:  payload.PrevStepHadIdentifier,
+		CurrStepHasPassword:    payload.CurrStepHasPassword,
+		FieldVisibilityIssue:   payload.FieldVisibilityIssue,
+		FormMethod:             formMethod,
+		DetectedFieldSignature: detectedFieldSig,
 
 		ExtVersion:     extVersion,
 		Browser:        browser,
@@ -288,4 +325,86 @@ func clampInt(value int, min int, max int) int {
 	}
 
 	return value
+}
+
+func shouldSampleOutCompatEvent(e *domain.CompatTelemetryEvent) bool {
+	if e == nil {
+		return false
+	}
+	// Keep all failed/error events; sample only successful/no-error noise.
+	if !e.Succeeded || strings.TrimSpace(e.ErrorCode) != "" {
+		return false
+	}
+
+	key := strings.Join([]string{
+		e.DomainETLD1, e.PagePath, e.EventName, e.FlowType, e.Surface, strconv.FormatBool(e.Succeeded),
+	}, "|")
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(key))
+	return int(h.Sum32()%100) >= compatTelemetrySuccessSamplePercent
+}
+
+func normalizeCompatPagePath(raw string, domain string) string {
+	raw = strings.ToLower(strings.TrimSpace(raw))
+	if raw == "" {
+		return domain
+	}
+
+	raw = strings.TrimPrefix(raw, "https://")
+	raw = strings.TrimPrefix(raw, "http://")
+	if idx := strings.IndexAny(raw, "?#"); idx >= 0 {
+		raw = raw[:idx]
+	}
+	raw = strings.TrimSpace(raw)
+
+	if strings.HasPrefix(raw, "/") {
+		raw = domain + raw
+	}
+	if raw == "" || !strings.HasPrefix(raw, domain) {
+		raw = domain
+	}
+
+	suffix := strings.TrimPrefix(raw, domain)
+	if suffix == "" || suffix == "/" {
+		return domain
+	}
+
+	parts := strings.Split(strings.TrimPrefix(suffix, "/"), "/")
+	for i := range parts {
+		parts[i] = normalizeCompatPathSegment(parts[i])
+	}
+	path := strings.Join(parts, "/")
+	if path == "" {
+		return domain
+	}
+	return truncate(domain+"/"+path, 512)
+}
+
+func normalizeCompatPathSegment(seg string) string {
+	seg = strings.TrimSpace(strings.ToLower(seg))
+	if seg == "" {
+		return ""
+	}
+	if compatPathDynamicUUIDPattern.MatchString(seg) {
+		return ":id"
+	}
+	if isAllDigits(seg) && len(seg) >= 4 {
+		return ":n"
+	}
+	if compatPathDynamicTokenPattern.MatchString(seg) {
+		return ":id"
+	}
+	return seg
+}
+
+func isAllDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, ch := range s {
+		if ch < '0' || ch > '9' {
+			return false
+		}
+	}
+	return true
 }

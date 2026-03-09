@@ -33,6 +33,13 @@ type CompatTelemetryEvent struct {
 	CaptchaDetected bool `gorm:"not null;default:false" json:"captcha_detected"`
 	BotBlocked      bool `gorm:"not null;default:false" json:"bot_blocked"`
 
+	StepIndex              int    `gorm:"not null;default:0" json:"step_index"`
+	PrevStepHadIdentifier  bool   `gorm:"not null;default:false" json:"prev_step_had_identifier"`
+	CurrStepHasPassword    bool   `gorm:"not null;default:false" json:"curr_step_has_password"`
+	FieldVisibilityIssue   bool   `gorm:"not null;default:false" json:"field_visibility_issue"`
+	FormMethod             string `gorm:"type:varchar(32)" json:"form_method"`
+	DetectedFieldSignature string `gorm:"type:varchar(255)" json:"detected_field_signature"`
+
 	ExtVersion     string `gorm:"type:varchar(64)" json:"ext_version"`
 	Browser        string `gorm:"type:varchar(64)" json:"browser"`
 	BrowserVersion string `gorm:"type:varchar(64)" json:"browser_version"`
@@ -58,4 +65,11 @@ type CompatTelemetrySummaryRow struct {
 	Count       int64     `json:"count"`
 	FirstSeen   time.Time `json:"first_seen"`
 	LastSeen    time.Time `json:"last_seen"`
+
+	MaxStepIndex            int    `json:"max_step_index"`
+	HasPrevStepIdentifier   bool   `json:"has_prev_step_identifier"`
+	HasCurrStepPassword     bool   `json:"has_curr_step_password"`
+	HasFieldVisibilityIssue bool   `json:"has_field_visibility_issue"`
+	TopFormMethod           string `json:"top_form_method"`
+	TopFieldSignature       string `json:"top_field_signature"`
 }

@@ -129,7 +129,13 @@ func (r *compatTelemetryRepository) ListSummary(
 ) ([]*domain.CompatTelemetrySummaryRow, int64, error) {
 	base := r.db.WithContext(ctx).Model(&domain.CompatTelemetryEvent{}).Select(
 		`domain_etld1, COALESCE(NULLIF(TRIM(page_path),''), domain_etld1) AS page_path, event_name, COALESCE(NULLIF(error_code,''), 'none') AS error_code, flow_type, surface, succeeded,
-		 COUNT(*) AS count, MIN(created_at) AS first_seen, MAX(created_at) AS last_seen`,
+		 COUNT(*) AS count, MIN(created_at) AS first_seen, MAX(created_at) AS last_seen,
+		 MAX(step_index) AS max_step_index,
+		 BOOL_OR(prev_step_had_identifier) AS has_prev_step_identifier,
+		 BOOL_OR(curr_step_has_password) AS has_curr_step_password,
+		 BOOL_OR(field_visibility_issue) AS has_field_visibility_issue,
+		 MODE() WITHIN GROUP (ORDER BY form_method) AS top_form_method,
+		 MODE() WITHIN GROUP (ORDER BY detected_field_signature) AS top_field_signature`,
 	).Group(
 		`domain_etld1, COALESCE(NULLIF(TRIM(page_path),''), domain_etld1), event_name, COALESCE(NULLIF(error_code,''), 'none'), flow_type, surface, succeeded`,
 	)

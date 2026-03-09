@@ -204,13 +204,39 @@ func (s *aiTelemetryAnalysisService) Analyze(
 	)
 
 	prompt := s.buildPrompt(newSummaries, total)
+	llmCallStartedAt := time.Now()
+	s.logger.Info("AI telemetry LLM request started",
+		"provider", s.aiConfig.Provider,
+		"model", s.aiConfig.Model,
+		"new_groups", len(newSummaries),
+	)
 	raw, err := s.callLLM(ctx, prompt)
 	if err != nil {
+		s.logger.Error("AI telemetry LLM request failed",
+			"provider", s.aiConfig.Provider,
+			"model", s.aiConfig.Model,
+			"new_groups", len(newSummaries),
+			"duration_ms", time.Since(llmCallStartedAt).Milliseconds(),
+			"error", err,
+		)
 		return nil, fmt.Errorf("AI analysis failed: %w", err)
 	}
+	s.logger.Info("AI telemetry LLM request succeeded",
+		"provider", s.aiConfig.Provider,
+		"model", s.aiConfig.Model,
+		"new_groups", len(newSummaries),
+		"duration_ms", time.Since(llmCallStartedAt).Milliseconds(),
+		"response_bytes", len(raw),
+	)
 
 	newResults, summary, err := s.parseResponse(raw)
 	if err != nil {
+		s.logger.Warn("AI telemetry response parse failed, returning raw summary",
+			"provider", s.aiConfig.Provider,
+			"model", s.aiConfig.Model,
+			"new_groups", len(newSummaries),
+			"error", err,
+		)
 		// Parsing failed — return raw as summary with cached results.
 		return &TelemetryAnalysisResponse{
 			AnalyzedAt:  time.Now(),
@@ -321,6 +347,15 @@ The browser extension runs a content script on every page. It scans for login/si
 - **change_password**: Password change form.
 - **unknown**: Could not determine the form's purpose.
 
+### Step-Level Telemetry Fields:
+The extension emits additional context about multi-step form state:
+- **step_index**: 0=not multi-step, 1=identifier step, 2=password step.
+- **prev_step_had_identifier**: true if the previous step had a username/email field (set when step_index >= 2).
+- **curr_step_has_password**: true if the current step has a visible password field.
+- **field_visibility_issue**: true if password fields exist in the DOM but are hidden/invisible.
+- **form_method**: How the form was detected (form_based, formless, multi_step, contenteditable, unknown).
+- **detected_field_signature**: Compact summary of visible fields (e.g. "p1,e1,u1" = 1 password, 1 email, 1 username; "e1" = only email; "hp1" = 1 hidden password).
+
 ### Key Rules for Classification:
 1. NO_PASSWORD_FIELD on the ROOT page (page_path = domain only, no path) → almost always **expected** (homepage, not a login page).
 2. NO_PASSWORD_FIELD followed by multi_step success on the same domain → **expected** (multi-step login working correctly).
@@ -330,13 +365,28 @@ The browser extension runs a content script on every page. It scans for login/si
 6. High failure count on major/popular websites → higher severity.
 7. error_code empty + succeeded=true → **expected** (successful operation, no issue).
 
+### Scenario-Specific Reasoning Guide:
+When writing the "reasoning" field, write a concrete, descriptive sentence that explains what happened on that specific site. Use the telemetry signals (step_index, field_visibility, field_signature, page_path) to be as specific as possible. Examples of GOOD reasoning:
+
+- "Multi-step login page: username/email was successfully detected on step 1, but the password field on the second page was not found despite existing in the DOM (field_visibility_issue=true). The extension could not interact with the hidden password input."
+- "This is a standard login page with a visible password field (p1,e1,u1). Detection succeeded — no issue."
+- "SPA login form on example.com/signin renders inputs lazily after JavaScript execution. The extension scanned before React hydration completed. Low count suggests the MutationObserver rescan usually catches it."
+- "Password field is inside a cross-origin iframe hosted on auth.thirdparty.com. Browser Same-Origin Policy prevents content script access. This is an inherent browser limitation — not a bug in the extension."
+- "The site uses a custom web component (Shadow DOM) for its password input. The extension's shadow DOM traversal hit its scan depth limit before reaching the input."
+- "Homepage of example.com (root path, no /login or /signin). The extension scanned but found no login form — this is expected behavior on non-login pages."
+- "Multi-step login: identifier step detected correctly (e1,u1). After submitting username, the password step never appeared. This may indicate the site uses a redirect-based flow that breaks step continuity."
+- "Traditional form-based login page. Extension detected the form but autofill was not observed by the site's submission handler (SUBMIT_NOT_OBSERVED). The site may use JavaScript-only form submission."
+- "CAPTCHA or bot challenge detected on the login page. The extension cannot bypass security challenges — this is expected and should be skipped."
+
+Do NOT write generic reasoning like "This is a failure event" or "Error occurred on this domain". Always describe the specific scenario.
+
 ## Your Task
 
 Analyze each row of telemetry summary data below. For each row, determine:
 1. **classification**: One of "bug", "expected", "needs_investigation", "known_limitation"
 2. **severity**: One of "critical", "high", "medium", "low", "info"
-3. **reasoning**: A brief explanation (1-2 sentences) of why you chose this classification.
-4. **suggested_action**: What the PassWall team should do about this (1 sentence).
+3. **reasoning**: A concrete, scenario-specific description (2-3 sentences) explaining what happened on this site, using telemetry signals. Describe the situation as you would explain it to a developer who needs to fix it.
+4. **suggested_action**: What the PassWall team should do about this (1-2 sentences).
 
 Then provide a high-level **summary** paragraph covering the overall health and top priorities.
 
@@ -345,15 +395,23 @@ Then provide a high-level **summary** paragraph covering the overall health and 
 `)
 
 	sb.WriteString(fmt.Sprintf("New event groups to analyze: %d (from total %d)\n\n", total, len(summaries)))
-	sb.WriteString("| # | domain | page_path | error_code | flow_type | surface | succeeded | count | first_seen | last_seen |\n")
-	sb.WriteString("|---|--------|-----------|------------|-----------|---------|-----------|-------|------------|----------|\n")
+	sb.WriteString("| # | domain | page_path | error_code | flow_type | surface | succeeded | count | step | prev_id | curr_pw | vis_issue | form_method | field_sig | first_seen | last_seen |\n")
+	sb.WriteString("|---|--------|-----------|------------|-----------|---------|-----------|-------|------|---------|---------|-----------|-------------|-----------|------------|----------|\n")
 
 	for i, row := range summaries {
 		errorCode := row.ErrorCode
 		if errorCode == "" {
 			errorCode = "(none)"
 		}
-		sb.WriteString(fmt.Sprintf("| %d | %s | %s | %s | %s | %s | %v | %d | %s | %s |\n",
+		fieldSig := row.TopFieldSignature
+		if fieldSig == "" {
+			fieldSig = "—"
+		}
+		formMethod := row.TopFormMethod
+		if formMethod == "" {
+			formMethod = "—"
+		}
+		sb.WriteString(fmt.Sprintf("| %d | %s | %s | %s | %s | %s | %v | %d | %d | %v | %v | %v | %s | %s | %s | %s |\n",
 			i+1,
 			row.DomainETLD1,
 			row.PagePath,
@@ -362,6 +420,12 @@ Then provide a high-level **summary** paragraph covering the overall health and 
 			row.Surface,
 			row.Succeeded,
 			row.Count,
+			row.MaxStepIndex,
+			row.HasPrevStepIdentifier,
+			row.HasCurrStepPassword,
+			row.HasFieldVisibilityIssue,
+			formMethod,
+			fieldSig,
 			row.FirstSeen.Format("2006-01-02"),
 			row.LastSeen.Format("2006-01-02"),
 		))
@@ -471,6 +535,12 @@ func (s *aiTelemetryAnalysisService) callLLM(ctx context.Context, prompt string)
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		s.logger.Error("AI telemetry LLM returned non-200 status",
+			"provider", s.aiConfig.Provider,
+			"model", s.aiConfig.Model,
+			"status_code", resp.StatusCode,
+			"response_bytes", len(respBody),
+		)
 		return "", fmt.Errorf("LLM returned status %d: %s", resp.StatusCode, string(respBody))
 	}
 
