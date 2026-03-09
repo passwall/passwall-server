@@ -119,6 +119,7 @@ type PlanFeatures struct {
 	APIAccess        bool `mapstructure:"api_access"`        // API access enabled
 	PrioritySupport  bool `mapstructure:"priority_support"`  // Priority support enabled
 	Policies         bool `mapstructure:"policies"`          // Organization policies enabled
+	SecurityInsights bool `mapstructure:"security_insights"` // Security Insights dashboard (score, weak, reused, 2FA)
 	BreachMonitoring bool `mapstructure:"breach_monitoring"` // Dark web / breach monitoring enabled
 }
 

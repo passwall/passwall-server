@@ -68,6 +68,7 @@ func SeedPlans(ctx context.Context, db *gorm.DB, planConfigs []config.PlanConfig
 					APIAccess:        pc.Features.APIAccess,
 					PrioritySupport:  pc.Features.PrioritySupport,
 					Policies:         pc.Features.Policies,
+					SecurityInsights: pc.Features.SecurityInsights,
 					BreachMonitoring: pc.Features.BreachMonitoring,
 				}
 				existing.IsActive = true
@@ -110,6 +111,7 @@ func SeedPlans(ctx context.Context, db *gorm.DB, planConfigs []config.PlanConfig
 					APIAccess:        pc.Features.APIAccess,
 					PrioritySupport:  pc.Features.PrioritySupport,
 					Policies:         pc.Features.Policies,
+					SecurityInsights: pc.Features.SecurityInsights,
 					BreachMonitoring: pc.Features.BreachMonitoring,
 				},
 				IsActive: true,
