@@ -177,10 +177,10 @@ func SetupRouter(
 		publicSendsGroup.POST("/:access_id/password", sendHandler.VerifyPassword)
 	}
 
-	// Compatibility telemetry ingest — optional auth so events are collected
-	// even when a client's token has expired or is missing.
+	// Compatibility telemetry ingest — requires authentication so only
+	// real Passwall users can submit telemetry data.
 	telemetryGroup := router.Group("/api")
-	telemetryGroup.Use(httpHandler.OptionalAuthMiddleware(authService))
+	telemetryGroup.Use(httpHandler.AuthMiddleware(authService))
 	{
 		telemetryGroup.POST("/telemetry/compat", compatTelemetryHandler.Ingest)
 	}
