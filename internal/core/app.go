@@ -30,6 +30,7 @@ type App struct {
 	logCleanup          *cleanup.LogCleanup
 	sendCleanup         *cleanup.SendCleanup
 	breachMonitorWorker *cleanup.BreachMonitorWorker
+	subscriptionWorker  *cleanup.SubscriptionWorker
 	emailSender         email.Sender
 }
 
@@ -458,12 +459,16 @@ func (a *App) Run(ctx context.Context) error {
 		breachCheckInterval,
 	)
 
+	// Initialize subscription expiry worker (runs every 6 hours)
+	a.subscriptionWorker = cleanup.NewSubscriptionWorker(subscriptionService, serviceLogger, 6*time.Hour)
+
 	// Start cleanup services in background (using application context)
 	go a.tokenCleanup.Start(ctx)
 	go a.activityCleanup.Start(ctx)
 	go a.logCleanup.Start(ctx)
 	go a.sendCleanup.Start(ctx)
 	go a.breachMonitorWorker.Start(ctx)
+	go a.subscriptionWorker.Run(ctx)
 
 	// Start server in a goroutine
 	serverErrChan := make(chan error, 1)

@@ -24,6 +24,7 @@ type SubscriptionService interface {
 	Renew(ctx context.Context, subID uint) error
 	HandlePaymentSuccess(ctx context.Context, stripeSubID string) error
 	HandlePaymentFailed(ctx context.Context, stripeSubID string) error
+	GetByStripeSubscriptionID(ctx context.Context, stripeSubID string) (*domain.Subscription, error)
 	ExpireSubscription(ctx context.Context, subID uint) error
 	CheckExpiredSubscriptions(ctx context.Context) error
 }
@@ -200,6 +201,11 @@ func (s *subscriptionService) GetByID(ctx context.Context, id uint) (*domain.Sub
 // GetByOrganizationID retrieves the active subscription for an organization
 func (s *subscriptionService) GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error) {
 	return s.subRepo.GetByOrganizationID(ctx, orgID)
+}
+
+// GetByStripeSubscriptionID retrieves a subscription by its Stripe subscription ID
+func (s *subscriptionService) GetByStripeSubscriptionID(ctx context.Context, stripeSubID string) (*domain.Subscription, error) {
+	return s.subRepo.GetByStripeSubscriptionID(ctx, stripeSubID)
 }
 
 // Update updates a subscription

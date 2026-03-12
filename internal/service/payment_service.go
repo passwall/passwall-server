@@ -662,6 +662,15 @@ func (s *paymentService) handleOrgSubscriptionUpdate(ctx context.Context, sub st
 		return s.subscriptionService.HandlePaymentSuccess(ctx, sub.ID)
 	} else if sub.Status == stripe.SubscriptionStatusPastDue {
 		return s.subscriptionService.HandlePaymentFailed(ctx, sub.ID)
+	} else if sub.Status == stripe.SubscriptionStatusCanceled {
+		dbSub, err := s.subscriptionService.GetByStripeSubscriptionID(ctx, sub.ID)
+		if err != nil {
+			s.logger.Warn("Subscription not found for canceled update", "stripe_subscription_id", sub.ID)
+			return nil
+		}
+		if dbSub.State != domain.SubStateExpired {
+			return s.subscriptionService.ExpireSubscription(ctx, dbSub.ID)
+		}
 	}
 
 	return nil
@@ -677,8 +686,22 @@ func (s *paymentService) handleSubscriptionDeleted(ctx context.Context, event st
 
 	s.logger.Info("🗑️  Subscription deleted", "subscription_id", sub.ID, "customer_id", sub.Customer.ID, "status", sub.Status)
 
-	// Subscription deletion is now handled by SubscriptionService
-	// This webhook is logged for audit purposes
+	dbSub, err := s.subscriptionService.GetByStripeSubscriptionID(ctx, sub.ID)
+	if err != nil {
+		s.logger.Warn("Subscription not found in DB for deleted webhook, skipping", "stripe_subscription_id", sub.ID)
+		return nil
+	}
+
+	if dbSub.State == domain.SubStateExpired {
+		return nil
+	}
+
+	if err := s.subscriptionService.ExpireSubscription(ctx, dbSub.ID); err != nil {
+		s.logger.Error("Failed to expire subscription on Stripe deletion", "subscription_id", dbSub.ID, "error", err)
+		return fmt.Errorf("failed to expire subscription: %w", err)
+	}
+
+	s.logger.Info("✅ Subscription expired after Stripe deletion", "subscription_id", dbSub.ID)
 	return nil
 }
 
