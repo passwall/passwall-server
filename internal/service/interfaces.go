@@ -30,6 +30,17 @@ type AuthService interface {
 	// Use token UUID (from JWT claims) to locate and revoke the session.
 	SignOut(ctx context.Context, tokenUUID string) error
 	ValidateSchema(ctx context.Context, schema string) error
+
+	// Two-Factor Authentication
+	SetupTwoFactor(ctx context.Context, userID uint) (*domain.TwoFactorSetupResponse, error)
+	ConfirmTwoFactor(ctx context.Context, userID uint, code string) error
+	DisableTwoFactor(ctx context.Context, userID uint, masterPasswordHash string, totpCode string) error
+	GetTwoFactorStatus(ctx context.Context, userID uint) (*domain.TwoFactorStatusResponse, error)
+	VerifyTwoFactorSignIn(ctx context.Context, twoFactorToken string, totpCode string) (*domain.AuthResponse, error)
+
+	// Organization 2FA compliance
+	GetTwoFactorCompliance(ctx context.Context, requesterUserID uint, orgID uint) (*domain.TwoFactorComplianceResponse, error)
+	GetMandatoryTwoFactorSetupRequirement(ctx context.Context, userID uint) (*domain.TwoFactorSetupRequirement, error)
 }
 
 // NOTE: Legacy service interfaces removed (Login, BankAccount, CreditCard, Note, Email, Server)

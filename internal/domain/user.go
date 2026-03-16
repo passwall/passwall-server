@@ -64,6 +64,11 @@ type User struct {
 	IsSystemUser bool   `json:"is_system_user" gorm:"default:false;index"` // System users (e.g., super admin) cannot be deleted
 	Language     string `json:"language" gorm:"type:varchar(10);default:'en'"`
 
+	// Two-Factor Authentication
+	TwoFactorEnabled       bool    `json:"two_factor_enabled" gorm:"default:false"`
+	TwoFactorSecret        *string `json:"-" gorm:"type:varchar(255)"` // TOTP secret (base32-encoded)
+	TwoFactorRecoveryCodes *string `json:"-" gorm:"type:text"`         // JSON array of hashed recovery codes
+
 	// Stripe integration for personal subscriptions
 	StripeCustomerID *string `json:"-" gorm:"type:varchar(255);index"` // Stripe customer ID for user-level billing
 

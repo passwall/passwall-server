@@ -67,6 +67,21 @@ func AuthMiddleware(authService service.AuthService) gin.HandlerFunc {
 		ctx := database.WithSchema(c.Request.Context(), schemaToUse)
 		c.Request = c.Request.WithContext(ctx)
 
+		// Enforce mandatory org-level 2FA setup for authenticated APIs.
+		// Allow only setup/status/disable endpoints and signout until setup is complete.
+		if req, err := authService.GetMandatoryTwoFactorSetupRequirement(c.Request.Context(), claims.UserID); err == nil && req != nil {
+			path := c.Request.URL.Path
+			allowedPath := strings.HasPrefix(path, "/api/users/me/2fa/") || path == "/api/signout"
+			if !allowedPath {
+				c.JSON(http.StatusForbidden, gin.H{
+					"error":                    "two_factor_setup_required",
+					"require_two_factor_setup": req,
+				})
+				c.Abort()
+				return
+			}
+		}
+
 		c.Next()
 	}
 }

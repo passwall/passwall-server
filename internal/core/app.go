@@ -364,6 +364,9 @@ func (a *App) Run(ctx context.Context) error {
 	// Send handler
 	sendHandler := httpHandler.NewSendHandler(sendService)
 
+	// Two-Factor Authentication handler
+	twoFactorHandler := httpHandler.NewTwoFactorHandler(authService)
+
 	// Organization policy & settings handlers
 	organizationPolicyHandler := httpHandler.NewOrganizationPolicyHandler(organizationPolicyService)
 	organizationSettingsHandler := httpHandler.NewOrganizationSettingsHandler(organizationSettingsService)
@@ -388,6 +391,7 @@ func (a *App) Run(ctx context.Context) error {
 		authService,
 		policyFirewallService,
 		authHandler,
+		twoFactorHandler,
 		activityHandler,
 		organizationActivityHandler,
 		itemHandler,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
@@ -195,6 +196,19 @@ func (s *organizationPolicyService) UpdatePolicy(ctx context.Context, orgID, use
 
 	if req.Data != nil {
 		policy.Data = req.Data
+	}
+
+	// Auto-populate enabled_at for 2FA policy when first enabled
+	if enabling && policyType == domain.PolicyRequireTwoFactor {
+		if _, hasEnabledAt := policy.Data["enabled_at"]; !hasEnabledAt {
+			if policy.Data == nil {
+				policy.Data = make(domain.PolicyData)
+			}
+			policy.Data["enabled_at"] = time.Now().UTC().Format(time.RFC3339)
+		}
+		if _, hasGrace := policy.Data["grace_period_days"]; !hasGrace {
+			policy.Data["grace_period_days"] = float64(7)
+		}
 	}
 
 	if err := s.policyRepo.Update(ctx, policy); err != nil {

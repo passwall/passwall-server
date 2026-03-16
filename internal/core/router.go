@@ -17,6 +17,7 @@ func SetupRouter(
 	authService service.AuthService,
 	firewallService service.PolicyFirewallService,
 	authHandler *httpHandler.AuthHandler,
+	twoFactorHandler *httpHandler.TwoFactorHandler,
 	activityHandler *httpHandler.ActivityHandler,
 	organizationActivityHandler *httpHandler.OrganizationActivityHandler,
 	itemHandler *httpHandler.ItemHandler,
@@ -168,6 +169,12 @@ func SetupRouter(
 
 		// No rate limit on token check (it's already authenticated)
 		authGroup.POST("/check", authHandler.CheckToken)
+
+		// Two-Factor Authentication verification (during sign-in, no JWT auth)
+		authGroup.POST("/2fa/verify",
+			httpHandler.RateLimitMiddleware(authRateLimiter),
+			twoFactorHandler.Verify,
+		)
 	}
 
 	// Public Secure Send access (no auth required — recipients don't need accounts)
@@ -274,6 +281,15 @@ func SetupRouter(
 			httpHandler.RateLimitMiddleware(changePasswordRateLimiter),
 			authHandler.ChangeMasterPassword,
 		)
+
+		// Two-Factor Authentication management (authenticated)
+		twoFactorGroup := apiGroup.Group("/users/me/2fa")
+		{
+			twoFactorGroup.GET("/status", twoFactorHandler.Status)
+			twoFactorGroup.POST("/setup", twoFactorHandler.Setup)
+			twoFactorGroup.POST("/confirm", twoFactorHandler.Confirm)
+			twoFactorGroup.POST("/disable", twoFactorHandler.Disable)
+		}
 		apiGroup.GET("/users/me/rsa-keys", userHandler.CheckRSAKeys)
 		apiGroup.GET("/users/me/rsa-private-key", userHandler.GetRSAPrivateKeyEnc)
 		apiGroup.POST("/users/me/rsa-keys", userHandler.StoreRSAKeys)
@@ -403,6 +419,9 @@ func SetupRouter(
 			orgsGroup.GET("/:id/policies/active", organizationPolicyHandler.GetActivePolicies)
 			orgsGroup.GET("/:id/policies/:policyType", organizationPolicyHandler.GetPolicy)
 			orgsGroup.PUT("/:id/policies/:policyType", organizationPolicyHandler.UpdatePolicy)
+
+			// 2FA compliance (org admin dashboard)
+			orgsGroup.GET("/:id/2fa-compliance", twoFactorHandler.Compliance)
 
 			// SSO connection management (org admin)
 			orgsGroup.POST("/:id/sso", ssoHandler.CreateConnection)

@@ -301,6 +301,27 @@ func (f *fakeAuthService) SignOut(_ context.Context, _ string) error { return ni
 func (f *fakeAuthService) ValidateSchema(_ context.Context, _ string) error {
 	return nil
 }
+func (f *fakeAuthService) SetupTwoFactor(_ context.Context, _ uint) (*domain.TwoFactorSetupResponse, error) {
+	return nil, nil
+}
+func (f *fakeAuthService) ConfirmTwoFactor(_ context.Context, _ uint, _ string) error {
+	return nil
+}
+func (f *fakeAuthService) DisableTwoFactor(_ context.Context, _ uint, _ string, _ string) error {
+	return nil
+}
+func (f *fakeAuthService) GetTwoFactorStatus(_ context.Context, _ uint) (*domain.TwoFactorStatusResponse, error) {
+	return nil, nil
+}
+func (f *fakeAuthService) VerifyTwoFactorSignIn(_ context.Context, _ string, _ string) (*domain.AuthResponse, error) {
+	return nil, nil
+}
+func (f *fakeAuthService) GetTwoFactorCompliance(_ context.Context, _ uint, _ uint) (*domain.TwoFactorComplianceResponse, error) {
+	return nil, nil
+}
+func (f *fakeAuthService) GetMandatoryTwoFactorSetupRequirement(_ context.Context, _ uint) (*domain.TwoFactorSetupRequirement, error) {
+	return nil, nil
+}
 
 // inactiveSSOConnRepo is a fake that always returns the same connection from GetByDomain
 // (even if inactive). This lets us test the InitiateLogin path where a domain

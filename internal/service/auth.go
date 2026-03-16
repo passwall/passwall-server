@@ -339,6 +339,18 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 		sessionUUID = deviceUUID
 	}
 
+	// If user has 2FA enabled, return a temporary 2FA token instead of full auth tokens
+	if user.TwoFactorEnabled && user.TwoFactorSecret != nil {
+		tfToken, err := s.createTwoFactorToken(user, sessionUUID, deviceUUID, creds.App, creds.LogoutOtherDevices)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create 2FA token: %w", err)
+		}
+		return &domain.AuthResponse{
+			TwoFactorRequired: true,
+			TwoFactorToken:    tfToken,
+		}, nil
+	}
+
 	// Replace tokens for this client session (prevents orphan sessions after tab close).
 	// Note: sessionUUID is expected to be globally unique (UUIDv4); Vault uses per-email persisted UUID.
 	if creds.DeviceID != "" && deviceUUID != uuid.Nil {
@@ -382,6 +394,9 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 	// Check organization policy requirements (non-blocking, informational)
 	policyReqs := s.collectPolicyRequirements(ctx, user)
 
+	// Check if org policy requires 2FA setup (blocking for past-grace-period users)
+	twoFactorSetupReq := s.checkTwoFactorSetupRequired(ctx, user)
+
 	// Process any pending org invitations for this user (e.g. invite link signup)
 	if err := s.processPendingOrgInvitations(ctx, user); err != nil {
 		s.logger.Error("failed to process pending org invitations", "user_id", user.ID, "error", err)
@@ -406,10 +421,12 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 			Role:                   user.GetRoleName(),
 			IsVerified:             user.IsVerified,
 			Language:               user.Language,
+			TwoFactorEnabled:       user.TwoFactorEnabled,
 			PersonalOrganizationID: user.PersonalOrganizationID,
 			DefaultOrganizationID:  user.DefaultOrganizationID,
 		},
-		PolicyRequirements: policyReqs,
+		RequireTwoFactorSetup: twoFactorSetupReq,
+		PolicyRequirements:    policyReqs,
 	}, nil
 }
 
@@ -469,6 +486,7 @@ func (s *authService) IssueTokenForUser(ctx context.Context, userID uint, app st
 			Role:                   user.GetRoleName(),
 			IsVerified:             user.IsVerified,
 			Language:               user.Language,
+			TwoFactorEnabled:       user.TwoFactorEnabled,
 			PersonalOrganizationID: user.PersonalOrganizationID,
 			DefaultOrganizationID:  user.DefaultOrganizationID,
 		},
@@ -1073,6 +1091,9 @@ func (s *authService) collectPolicyRequirements(ctx context.Context, user *domai
 		for _, p := range policies {
 			switch p.Type {
 			case domain.PolicyRequireTwoFactor:
+				if user.TwoFactorEnabled {
+					continue
+				}
 				reqs = append(reqs, domain.PolicyRequirement{
 					OrganizationID:   m.OrganizationID,
 					OrganizationName: orgName,
@@ -1129,6 +1150,136 @@ func (s *authService) collectPolicyRequirements(ctx context.Context, user *domai
 	}
 
 	return reqs
+}
+
+// checkTwoFactorSetupRequired checks whether any organization the user belongs to
+// has the "Require Two-Factor" policy enabled, and the user hasn't set up 2FA yet.
+// Returns nil if no action is needed, or a requirement descriptor otherwise.
+func (s *authService) checkTwoFactorSetupRequired(ctx context.Context, user *domain.User) *domain.TwoFactorSetupRequirement {
+	if user.TwoFactorEnabled {
+		return nil
+	}
+	if s.policyRepo == nil {
+		return nil
+	}
+
+	memberships, err := s.orgUserRepo.ListByUser(ctx, user.ID)
+	if err != nil {
+		return nil
+	}
+
+	for _, m := range memberships {
+		if m == nil || m.Status == domain.OrgUserStatusInvited {
+			continue
+		}
+		// Owners/admins are exempt from enforcement (they manage the policy).
+		if m.Role == domain.OrgRoleOwner || m.Role == domain.OrgRoleAdmin {
+			continue
+		}
+
+		policies, err := s.policyRepo.ListEnabledByOrganization(ctx, m.OrganizationID)
+		if err != nil || len(policies) == 0 {
+			continue
+		}
+
+		for _, p := range policies {
+			if p.Type != domain.PolicyRequireTwoFactor {
+				continue
+			}
+
+			orgName := ""
+			if org, err := s.orgRepo.GetByID(ctx, m.OrganizationID); err == nil {
+				orgName = org.Name
+			}
+
+			req := &domain.TwoFactorSetupRequirement{
+				OrganizationID:   m.OrganizationID,
+				OrganizationName: orgName,
+				IsMandatory:      true,
+			}
+
+			// Parse grace period from policy data
+			graceDays := 0
+			if v, ok := p.Data["grace_period_days"].(float64); ok {
+				graceDays = int(v)
+			}
+			if enabledAtStr, ok := p.Data["enabled_at"].(string); ok && graceDays > 0 {
+				if enabledAt, err := time.Parse(time.RFC3339, enabledAtStr); err == nil {
+					deadline := enabledAt.AddDate(0, 0, graceDays)
+					deadlineUnix := deadline.Unix()
+					req.GraceDeadline = &deadlineUnix
+					req.IsMandatory = time.Now().After(deadline)
+				}
+			}
+
+			return req
+		}
+	}
+
+	return nil
+}
+
+// GetTwoFactorCompliance returns 2FA adoption statistics for an organization.
+// Only org owners/admins can access this report.
+func (s *authService) GetTwoFactorCompliance(ctx context.Context, requesterUserID uint, orgID uint) (*domain.TwoFactorComplianceResponse, error) {
+	membership, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, requesterUserID)
+	if err != nil || membership == nil {
+		return nil, repository.ErrForbidden
+	}
+	if membership.Role != domain.OrgRoleOwner && membership.Role != domain.OrgRoleAdmin {
+		return nil, repository.ErrForbidden
+	}
+
+	members, err := s.orgUserRepo.ListByOrganization(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list org members: %w", err)
+	}
+
+	resp := &domain.TwoFactorComplianceResponse{}
+
+	for _, m := range members {
+		if m == nil || m.Status == domain.OrgUserStatusInvited {
+			continue
+		}
+
+		user, err := s.userRepo.GetByID(ctx, m.UserID)
+		if err != nil {
+			continue
+		}
+
+		member := domain.TwoFactorComplianceMember{
+			UserID:           user.ID,
+			Email:            user.Email,
+			Name:             user.Name,
+			TwoFactorEnabled: user.TwoFactorEnabled,
+			Role:             string(m.Role),
+		}
+
+		resp.Members = append(resp.Members, member)
+		resp.TotalMembers++
+
+		if user.TwoFactorEnabled {
+			resp.CompliantCount++
+		} else {
+			resp.NonCompliantCount++
+		}
+	}
+
+	return resp, nil
+}
+
+// GetMandatoryTwoFactorSetupRequirement returns mandatory 2FA setup requirement
+// for the current user, if any.
+func (s *authService) GetMandatoryTwoFactorSetupRequirement(ctx context.Context, userID uint) (*domain.TwoFactorSetupRequirement, error) {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+	req := s.checkTwoFactorSetupRequired(ctx, user)
+	if req == nil || !req.IsMandatory {
+		return nil, nil
+	}
+	return req, nil
 }
 
 // getUserOrgIDs returns the IDs of organizations a user actively belongs to.

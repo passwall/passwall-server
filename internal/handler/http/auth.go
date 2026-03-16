@@ -149,6 +149,12 @@ func (h *AuthHandler) SignIn(c *gin.Context) {
 		return
 	}
 
+	// For 2FA challenge responses we don't have full auth payload yet.
+	if authResponse.TwoFactorRequired {
+		c.JSON(http.StatusOK, authResponse)
+		return
+	}
+
 	// Log successful signin
 	go func() {
 		_ = h.activityService.LogActivity(context.Background(), &domain.CreateActivityRequest{

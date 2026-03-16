@@ -63,21 +63,57 @@ type Credentials struct {
 	ClientIP string `json:"-"`
 }
 
-// AuthResponse represents the authentication response
+// AuthResponse represents the authentication response.
+// When TwoFactorRequired is true, only TwoFactorToken is populated;
+// the client must verify TOTP before receiving real tokens.
 type AuthResponse struct {
-	AccessToken           string       `json:"access_token"`
-	RefreshToken          string       `json:"refresh_token"`
-	Type                  string       `json:"type"`                               // "Bearer"
+	AccessToken           string       `json:"access_token,omitempty"`
+	RefreshToken          string       `json:"refresh_token,omitempty"`
+	Type                  string       `json:"type,omitempty"`                     // "Bearer"
 	AccessTokenExpiresAt  int64        `json:"access_token_expires_at,omitempty"`  // unix seconds
 	RefreshTokenExpiresAt int64        `json:"refresh_token_expires_at,omitempty"` // unix seconds
-	ProtectedUserKey      string       `json:"protected_user_key"`
-	KdfConfig             *KdfConfig   `json:"kdf_config"`
-	User                  *UserAuthDTO `json:"user"`
+	ProtectedUserKey      string       `json:"protected_user_key,omitempty"`
+	KdfConfig             *KdfConfig   `json:"kdf_config,omitempty"`
+	User                  *UserAuthDTO `json:"user,omitempty"`
+
+	// Two-Factor Authentication fields (set when 2FA is required)
+	TwoFactorRequired bool   `json:"two_factor_required,omitempty"`
+	TwoFactorToken    string `json:"two_factor_token,omitempty"`
+
+	// Set when an org policy requires 2FA but the user hasn't set it up.
+	// Clients must redirect to mandatory 2FA setup before showing vault content.
+	RequireTwoFactorSetup *TwoFactorSetupRequirement `json:"require_two_factor_setup,omitempty"`
 
 	// PolicyRequirements informs clients about actions the user must take
 	// to comply with organization policies (e.g., enable 2FA).
 	// Non-nil only when there are outstanding requirements.
 	PolicyRequirements []PolicyRequirement `json:"policy_requirements,omitempty"`
+}
+
+// TwoFactorSetupRequirement signals that the user must enable 2FA to comply
+// with an organization policy.
+type TwoFactorSetupRequirement struct {
+	OrganizationID   uint   `json:"organization_id"`
+	OrganizationName string `json:"organization_name"`
+	GraceDeadline    *int64 `json:"grace_deadline,omitempty"` // Unix seconds; nil = immediate enforcement
+	IsMandatory      bool   `json:"is_mandatory"`             // true when grace period expired or not set
+}
+
+// TwoFactorComplianceResponse provides 2FA adoption stats for an organization.
+type TwoFactorComplianceResponse struct {
+	TotalMembers      int                         `json:"total_members"`
+	CompliantCount    int                         `json:"compliant_count"`
+	NonCompliantCount int                         `json:"non_compliant_count"`
+	Members           []TwoFactorComplianceMember `json:"members"`
+}
+
+// TwoFactorComplianceMember represents a single member's 2FA status.
+type TwoFactorComplianceMember struct {
+	UserID           uint   `json:"user_id"`
+	Email            string `json:"email"`
+	Name             string `json:"name"`
+	TwoFactorEnabled bool   `json:"two_factor_enabled"`
+	Role             string `json:"role"`
 }
 
 // PolicyRequirement represents a compliance action required by an organization policy
@@ -122,6 +158,7 @@ type UserAuthDTO struct {
 	Role                   string `json:"role"`
 	IsVerified             bool   `json:"is_verified"`
 	Language               string `json:"language"`
+	TwoFactorEnabled       bool   `json:"two_factor_enabled"`
 	PersonalOrganizationID uint   `json:"personal_organization_id"`
 	DefaultOrganizationID  uint   `json:"default_organization_id"`
 }
