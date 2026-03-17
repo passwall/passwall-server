@@ -53,7 +53,7 @@ func (h *CollectionHandler) Create(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := GetCurrentUserID(c)
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -95,7 +95,7 @@ func (h *CollectionHandler) List(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := GetCurrentUserID(c)
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}

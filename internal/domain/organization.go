@@ -59,6 +59,7 @@ func IsMultiUserPlan(plan string) bool {
 type Organization struct {
 	ID        uint      `gorm:"primary_key" json:"id"`
 	UUID      uuid.UUID `gorm:"type:uuid;not null" json:"uuid"`
+	PublicID  string    `gorm:"type:varchar(12)" json:"public_id"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 
@@ -215,6 +216,7 @@ func (ou *OrganizationUser) CanManageCollections() bool {
 type OrganizationDTO struct {
 	ID                 uint               `json:"id"`
 	UUID               uuid.UUID          `json:"uuid"`
+	PublicID           string             `json:"public_id"`
 	Name               string             `json:"name"`
 	BillingEmail       string             `json:"billing_email"`
 	IsDefault          bool               `json:"is_default"`
@@ -352,6 +354,7 @@ func ToOrganizationDTO(org *Organization) *OrganizationDTO {
 	dto := &OrganizationDTO{
 		ID:                 org.ID,
 		UUID:               org.UUID,
+		PublicID:           org.PublicID,
 		Name:               org.Name,
 		BillingEmail:       org.BillingEmail,
 		IsDefault:          org.IsDefault,

@@ -38,7 +38,7 @@ func (h *SSOHandler) CreateConnection(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := GetCurrentUserID(c)
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -72,7 +72,7 @@ func (h *SSOHandler) CreateConnection(c *gin.Context) {
 func (h *SSOHandler) ListConnections(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -100,7 +100,7 @@ func (h *SSOHandler) ListConnections(c *gin.Context) {
 func (h *SSOHandler) GetConnection(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -142,7 +142,7 @@ func (h *SSOHandler) UpdateConnection(c *gin.Context) {
 	if !ok {
 		return
 	}
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -189,7 +189,7 @@ func (h *SSOHandler) DeleteConnection(c *gin.Context) {
 	if !ok {
 		return
 	}
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -225,7 +225,7 @@ func (h *SSOHandler) ActivateConnection(c *gin.Context) {
 	if !ok {
 		return
 	}
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}

@@ -248,6 +248,14 @@ func (f *fakeOrgRepo) GetByID(_ context.Context, id uint) (*domain.Organization,
 func (f *fakeOrgRepo) GetByUUID(_ context.Context, _ string) (*domain.Organization, error) {
 	return nil, repository.ErrNotFound
 }
+func (f *fakeOrgRepo) GetByPublicID(_ context.Context, publicID string) (*domain.Organization, error) {
+	for _, org := range f.orgs {
+		if org.PublicID == publicID {
+			return org, nil
+		}
+	}
+	return nil, repository.ErrNotFound
+}
 func (f *fakeOrgRepo) GetDefaultByOwnerID(_ context.Context, _ uint) (*domain.Organization, error) {
 	return nil, repository.ErrNotFound
 }

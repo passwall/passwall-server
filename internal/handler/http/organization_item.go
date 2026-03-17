@@ -43,7 +43,7 @@ func (h *OrganizationItemHandler) Create(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := GetCurrentUserID(c)
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -99,7 +99,7 @@ func (h *OrganizationItemHandler) ListByOrganization(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := GetCurrentUserID(c)
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}

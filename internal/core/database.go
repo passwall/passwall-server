@@ -126,6 +126,49 @@ func AutoMigrate(db database.Database) error {
 		return fmt.Errorf("failed to migrate SSO/SCIM tables: %w", err)
 	}
 
+	// Backfill public_id for any organizations that don't have one yet,
+	// then create a unique index. This is idempotent.
+	if err := backfillOrgPublicIDs(db); err != nil {
+		return fmt.Errorf("failed to backfill organization public_ids: %w", err)
+	}
+
 	logger.Infof("✓ Database schema migrated successfully")
+	return nil
+}
+
+func backfillOrgPublicIDs(db database.Database) error {
+	gormDB := db.DB()
+
+	var orgs []domain.Organization
+	if err := gormDB.Where("public_id IS NULL OR public_id = ''").Find(&orgs).Error; err != nil {
+		return err
+	}
+
+	if len(orgs) > 0 {
+		logger.Infof("Backfilling public_id for %d organization(s)...", len(orgs))
+	}
+
+	for i := range orgs {
+		pid, err := domain.GeneratePublicID()
+		if err != nil {
+			return fmt.Errorf("generate public_id for org %d: %w", orgs[i].ID, err)
+		}
+		if err := gormDB.Model(&orgs[i]).Update("public_id", pid).Error; err != nil {
+			return fmt.Errorf("update public_id for org %d: %w", orgs[i].ID, err)
+		}
+	}
+
+	if len(orgs) > 0 {
+		logger.Infof("✓ Backfilled public_id for %d organization(s)", len(orgs))
+	}
+
+	if err := gormDB.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_organizations_public_id
+		ON organizations (public_id)
+		WHERE public_id IS NOT NULL AND public_id != ''
+	`).Error; err != nil {
+		return fmt.Errorf("create unique index on public_id: %w", err)
+	}
+
 	return nil
 }

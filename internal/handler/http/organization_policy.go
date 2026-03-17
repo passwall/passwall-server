@@ -32,7 +32,7 @@ func (h *OrganizationPolicyHandler) ListPolicies(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := GetCurrentUserID(c)
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -65,7 +65,7 @@ func (h *OrganizationPolicyHandler) GetPolicy(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := GetCurrentUserID(c)
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -103,7 +103,7 @@ func (h *OrganizationPolicyHandler) UpdatePolicy(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := GetCurrentUserID(c)
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -153,7 +153,7 @@ func (h *OrganizationPolicyHandler) GetActivePolicies(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := GetCurrentUserID(c)
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}

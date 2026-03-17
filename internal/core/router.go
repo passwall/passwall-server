@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/passwall/passwall-server/internal/config"
 	httpHandler "github.com/passwall/passwall-server/internal/handler/http"
+	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/internal/service"
 	"github.com/passwall/passwall-server/pkg/logger"
 )
@@ -16,6 +17,7 @@ func SetupRouter(
 	serverConfig *config.ServerConfig,
 	authService service.AuthService,
 	firewallService service.PolicyFirewallService,
+	orgRepo repository.OrganizationRepository,
 	authHandler *httpHandler.AuthHandler,
 	twoFactorHandler *httpHandler.TwoFactorHandler,
 	activityHandler *httpHandler.ActivityHandler,
@@ -373,8 +375,11 @@ func SetupRouter(
 		// ORGANIZATIONS API
 		// ============================================================
 
-		// Organizations CRUD (firewall middleware checks IP-based access per org)
+		// Organizations CRUD
+		// OrgPublicIDResolverMiddleware resolves the short public_id in :id to a numeric org ID,
+		// then FirewallMiddleware checks IP-based access for that org.
 		orgsGroup := apiGroup.Group("/organizations")
+		orgsGroup.Use(httpHandler.OrgPublicIDResolverMiddleware(orgRepo))
 		orgsGroup.Use(httpHandler.FirewallMiddleware(firewallService))
 		{
 			orgsGroup.POST("", organizationHandler.Create)

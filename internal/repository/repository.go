@@ -114,6 +114,7 @@ type OrganizationRepository interface {
 	Create(ctx context.Context, org *domain.Organization) error
 	GetByID(ctx context.Context, id uint) (*domain.Organization, error)
 	GetByUUID(ctx context.Context, uuid string) (*domain.Organization, error)
+	GetByPublicID(ctx context.Context, publicID string) (*domain.Organization, error)
 	GetDefaultByOwnerID(ctx context.Context, ownerUserID uint) (*domain.Organization, error)
 	List(ctx context.Context, filter ListFilter) ([]*domain.Organization, *ListResult, error)
 	ListForUser(ctx context.Context, userID uint) ([]*domain.Organization, error)

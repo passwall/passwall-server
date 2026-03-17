@@ -25,7 +25,7 @@ type addEmailRequest struct {
 
 // AddEmail handles POST /api/organizations/:id/breach-monitor/emails
 func (h *BreachMonitorHandler) AddEmail(c *gin.Context) {
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -48,7 +48,7 @@ func (h *BreachMonitorHandler) AddEmail(c *gin.Context) {
 
 // ListEmails handles GET /api/organizations/:id/breach-monitor/emails
 func (h *BreachMonitorHandler) ListEmails(c *gin.Context) {
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -65,7 +65,7 @@ func (h *BreachMonitorHandler) ListEmails(c *gin.Context) {
 
 // RemoveEmail handles DELETE /api/organizations/:id/breach-monitor/emails/:emailId
 func (h *BreachMonitorHandler) RemoveEmail(c *gin.Context) {
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -85,7 +85,7 @@ func (h *BreachMonitorHandler) RemoveEmail(c *gin.Context) {
 
 // CheckEmails handles POST /api/organizations/:id/breach-monitor/check
 func (h *BreachMonitorHandler) CheckEmails(c *gin.Context) {
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -101,7 +101,7 @@ func (h *BreachMonitorHandler) CheckEmails(c *gin.Context) {
 
 // ListBreaches handles GET /api/organizations/:id/breach-monitor/breaches
 func (h *BreachMonitorHandler) ListBreaches(c *gin.Context) {
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -118,7 +118,7 @@ func (h *BreachMonitorHandler) ListBreaches(c *gin.Context) {
 
 // DismissBreach handles PATCH /api/organizations/:id/breach-monitor/breaches/:breachId/dismiss
 func (h *BreachMonitorHandler) DismissBreach(c *gin.Context) {
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -138,7 +138,7 @@ func (h *BreachMonitorHandler) DismissBreach(c *gin.Context) {
 
 // GetSummary handles GET /api/organizations/:id/breach-monitor/summary
 func (h *BreachMonitorHandler) GetSummary(c *gin.Context) {
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}

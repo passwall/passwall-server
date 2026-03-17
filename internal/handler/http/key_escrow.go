@@ -39,7 +39,7 @@ func (h *KeyEscrowHandler) Enroll(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := GetCurrentUserID(c)
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -78,7 +78,7 @@ func (h *KeyEscrowHandler) GetStatus(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := GetCurrentUserID(c)
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -103,7 +103,7 @@ func (h *KeyEscrowHandler) Revoke(c *gin.Context) {
 	ctx := c.Request.Context()
 	callerID := GetCurrentUserID(c)
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}

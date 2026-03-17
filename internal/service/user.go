@@ -444,6 +444,7 @@ func (s *userService) CheckOwnership(ctx context.Context, userID uint) (*domain.
 			result.IsSoleOwner = true
 			result.Organizations = append(result.Organizations, domain.SoleOwnerOrganization{
 				ID:          org.ID,
+				PublicID:    org.PublicID,
 				Name:        org.Name,
 				MemberCount: totalMembers,
 				CanTransfer: totalMembers > 1, // Can transfer if there are other members

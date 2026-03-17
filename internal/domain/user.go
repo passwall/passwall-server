@@ -121,6 +121,7 @@ type OwnershipCheckResult struct {
 // SoleOwnerOrganization represents an organization where user is the sole owner
 type SoleOwnerOrganization struct {
 	ID          uint   `json:"id"`
+	PublicID    string `json:"public_id"` // For API calls that use org in URL path
 	Name        string `json:"name"`
 	MemberCount int    `json:"member_count"`
 	CanTransfer bool   `json:"can_transfer"` // True if there are other members to transfer to

@@ -28,7 +28,7 @@ func NewOrganizationFolderHandler(svc service.OrganizationFolderService) *Organi
 // @Failure 403 {object} map[string]string
 // @Router /organizations/{id}/folders [get]
 func (h *OrganizationFolderHandler) ListByOrganization(c *gin.Context) {
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -60,7 +60,7 @@ func (h *OrganizationFolderHandler) ListByOrganization(c *gin.Context) {
 // @Failure 403 {object} map[string]string
 // @Router /organizations/{id}/folders [post]
 func (h *OrganizationFolderHandler) Create(c *gin.Context) {
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -99,7 +99,7 @@ func (h *OrganizationFolderHandler) Create(c *gin.Context) {
 // @Failure 403 {object} map[string]string
 // @Router /organizations/{id}/folders/{folderId} [put]
 func (h *OrganizationFolderHandler) Update(c *gin.Context) {
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -142,7 +142,7 @@ func (h *OrganizationFolderHandler) Update(c *gin.Context) {
 // @Failure 403 {object} map[string]string
 // @Router /organizations/{id}/folders/{folderId} [delete]
 func (h *OrganizationFolderHandler) Delete(c *gin.Context) {
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}

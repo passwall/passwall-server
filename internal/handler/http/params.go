@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/passwall/passwall-server/pkg/constants"
 )
 
 // GetUintParam extracts a uint parameter from the URL
@@ -51,6 +52,23 @@ func GetStringParam(c *gin.Context, paramName string) (string, bool) {
 		return "", false
 	}
 	return val, true
+}
+
+// GetResolvedOrgID retrieves the numeric organization ID that was resolved
+// from a public_id by OrgPublicIDResolverMiddleware. Returns 0, false if the
+// middleware has not run or the value is missing.
+func GetResolvedOrgID(c *gin.Context) (uint, bool) {
+	val, exists := c.Get(constants.ContextKeyOrgID)
+	if !exists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "organization identifier is required"})
+		return 0, false
+	}
+	orgID, ok := val.(uint)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid organization context"})
+		return 0, false
+	}
+	return orgID, true
 }
 
 // GetCurrentUserID extracts user ID from context (helper for handlers)

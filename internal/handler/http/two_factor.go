@@ -127,7 +127,7 @@ func (h *TwoFactorHandler) Status(c *gin.Context) {
 
 // Compliance returns 2FA adoption statistics for an organization (admin only)
 func (h *TwoFactorHandler) Compliance(c *gin.Context) {
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}

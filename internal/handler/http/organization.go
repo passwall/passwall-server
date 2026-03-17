@@ -130,7 +130,7 @@ func (h *OrganizationHandler) GetByID(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := GetCurrentUserID(c)
 
-	id, ok := GetUintParam(c, "id")
+	id, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -172,7 +172,7 @@ func (h *OrganizationHandler) Update(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := GetCurrentUserID(c)
 
-	id, ok := GetUintParam(c, "id")
+	id, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -217,7 +217,7 @@ func (h *OrganizationHandler) Delete(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := GetCurrentUserID(c)
 
-	id, ok := GetUintParam(c, "id")
+	id, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -256,7 +256,7 @@ func (h *OrganizationHandler) InviteUser(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := GetCurrentUserID(c)
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -294,7 +294,7 @@ func (h *OrganizationHandler) GetMembers(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := GetCurrentUserID(c)
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -334,7 +334,7 @@ func (h *OrganizationHandler) UpdateMemberRole(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := GetCurrentUserID(c)
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -377,7 +377,7 @@ func (h *OrganizationHandler) RemoveMember(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := GetCurrentUserID(c)
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -456,7 +456,7 @@ func (h *OrganizationHandler) ConfirmProvisionedMember(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := GetCurrentUserID(c)
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}

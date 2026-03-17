@@ -22,9 +22,16 @@ func NewOrganizationRepository(db *gorm.DB) repository.OrganizationRepository {
 }
 
 func (r *organizationRepository) Create(ctx context.Context, org *domain.Organization) error {
-	// Generate UUID if not set
 	if org.UUID == uuid.Nil {
 		org.UUID = uuid.New()
+	}
+
+	if org.PublicID == "" {
+		pid, err := domain.GeneratePublicID()
+		if err != nil {
+			return fmt.Errorf("generate public_id: %w", err)
+		}
+		org.PublicID = pid
 	}
 
 	return r.db.WithContext(ctx).Create(org).Error
@@ -45,6 +52,18 @@ func (r *organizationRepository) GetByID(ctx context.Context, id uint) (*domain.
 func (r *organizationRepository) GetByUUID(ctx context.Context, uuidStr string) (*domain.Organization, error) {
 	var org domain.Organization
 	err := r.db.WithContext(ctx).Where("uuid = ?", uuidStr).First(&org).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, repository.ErrNotFound
+		}
+		return nil, err
+	}
+	return &org, nil
+}
+
+func (r *organizationRepository) GetByPublicID(ctx context.Context, publicID string) (*domain.Organization, error) {
+	var org domain.Organization
+	err := r.db.WithContext(ctx).Where("public_id = ?", publicID).First(&org).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, repository.ErrNotFound

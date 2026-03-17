@@ -53,7 +53,7 @@ func NewPaymentHandler(
 func (h *PaymentHandler) CreateCheckoutSession(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -131,7 +131,7 @@ func (h *PaymentHandler) CreateCheckoutSession(c *gin.Context) {
 func (h *PaymentHandler) GetBillingInfo(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -165,7 +165,7 @@ func (h *PaymentHandler) GetBillingInfo(c *gin.Context) {
 func (h *PaymentHandler) CancelSubscription(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -204,7 +204,7 @@ func (h *PaymentHandler) CancelSubscription(c *gin.Context) {
 func (h *PaymentHandler) ReactivateSubscription(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -241,7 +241,7 @@ func (h *PaymentHandler) ReactivateSubscription(c *gin.Context) {
 func (h *PaymentHandler) SyncSubscription(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
@@ -275,7 +275,7 @@ func (h *PaymentHandler) SyncSubscription(c *gin.Context) {
 func (h *PaymentHandler) PreviewSeatChange(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -329,7 +329,7 @@ func (h *PaymentHandler) PreviewSeatChange(c *gin.Context) {
 func (h *PaymentHandler) UpdateSubscriptionSeats(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -386,7 +386,7 @@ func (h *PaymentHandler) UpdateSubscriptionSeats(c *gin.Context) {
 func (h *PaymentHandler) PreviewPlanChange(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -436,7 +436,7 @@ func (h *PaymentHandler) PreviewPlanChange(c *gin.Context) {
 func (h *PaymentHandler) ChangePlan(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}

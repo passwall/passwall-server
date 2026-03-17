@@ -390,6 +390,7 @@ func (a *App) Run(ctx context.Context) error {
 		&a.config.Server,
 		authService,
 		policyFirewallService,
+		orgRepo,
 		authHandler,
 		twoFactorHandler,
 		activityHandler,

@@ -36,7 +36,7 @@ func NewSCIMHandler(
 func (h *SCIMHandler) CreateToken(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -64,7 +64,7 @@ func (h *SCIMHandler) CreateToken(c *gin.Context) {
 func (h *SCIMHandler) ListTokens(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}
@@ -86,7 +86,7 @@ func (h *SCIMHandler) ListTokens(c *gin.Context) {
 func (h *SCIMHandler) RevokeToken(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	orgID, ok := GetUintParam(c, "id")
+	orgID, ok := GetResolvedOrgID(c)
 	if !ok {
 		return
 	}

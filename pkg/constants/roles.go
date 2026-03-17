@@ -7,6 +7,7 @@ const (
 	ContextKeySchema    = "schema"
 	ContextKeyUserRole  = "user_role"
 	ContextKeyTokenUUID = "token_uuid"
+	ContextKeyOrgID     = "resolved_org_id"
 )
 
 // User role names
