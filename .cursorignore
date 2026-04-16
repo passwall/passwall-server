@@ -1,0 +1,29 @@
+.git/
+node_modules/
+build/
+dist/
+bin/
+target/
+.cache/
+.tmp/
+tmp/
+coverage/
+coverage.out
+*.out
+*.test
+reports/
+
+# Logs
+*.log
+*.tmp
+*.pid
+
+# Archives
+*.zip
+*.gz
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+*.iml

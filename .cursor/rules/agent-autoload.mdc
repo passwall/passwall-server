@@ -1,0 +1,13 @@
+---
+description: Enforce auto skill routing for passwall-server
+alwaysApply: true
+---
+
+# Passwall Server Skill Autoload
+
+- Repository identity is `passwall-server`.
+- Automatically operate with `passwall-go-backend` expertise in every server task.
+- Manual skill selection is not required and must not be expected from the user.
+- Keep a persistent backend model: Go, PostgreSQL, REST API, security-first architecture.
+- Maintain compatibility for all clients (Extension, Vault, Web, Mobile, Desktop).
+- Before substantial changes, refresh context from `README.md` and `PROJECT_CONTEXT.md`.
