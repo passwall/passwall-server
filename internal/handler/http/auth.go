@@ -392,3 +392,50 @@ func (h *AuthHandler) ResendVerificationCode(c *gin.Context) {
 		"message": "Verification code resent. Please check your email.",
 	})
 }
+
+// RequestRecoveryDelete starts auth-free account deletion flow by email.
+func (h *AuthHandler) RequestRecoveryDelete(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	var req domain.RecoveryDeleteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
+		return
+	}
+
+	// Generic response is always returned to avoid account enumeration.
+	if err := h.authService.RequestRecoveryDelete(ctx, req.Email); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to process request"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "If the account exists, a confirmation email has been sent.",
+	})
+}
+
+// ConfirmRecoveryDelete confirms auth-free account deletion using one-time token.
+func (h *AuthHandler) ConfirmRecoveryDelete(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	var req domain.RecoveryDeleteConfirmRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
+		return
+	}
+
+	if err := h.authService.ConfirmRecoveryDelete(ctx, req.Token); err != nil {
+		if errors.Is(err, service.ErrUnauthorized) || errors.Is(err, service.ErrExpiredToken) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete account"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Account deleted successfully",
+	})
+}

@@ -309,6 +309,12 @@ func (f *fakeAuthService) SignOut(_ context.Context, _ string) error { return ni
 func (f *fakeAuthService) ValidateSchema(_ context.Context, _ string) error {
 	return nil
 }
+func (f *fakeAuthService) RequestRecoveryDelete(_ context.Context, _ string) error {
+	return nil
+}
+func (f *fakeAuthService) ConfirmRecoveryDelete(_ context.Context, _ string) error {
+	return nil
+}
 func (f *fakeAuthService) SetupTwoFactor(_ context.Context, _ uint) (*domain.TwoFactorSetupResponse, error) {
 	return nil, nil
 }

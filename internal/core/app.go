@@ -90,6 +90,7 @@ func (a *App) Run(ctx context.Context) error {
 	userRepo := gormrepo.NewUserRepository(a.db.DB())
 	tokenRepo := gormrepo.NewTokenRepository(a.db.DB())
 	verificationRepo := gormrepo.NewVerificationRepository(a.db.DB())
+	accountDeletionTokenRepo := gormrepo.NewAccountDeletionTokenRepository(a.db.DB())
 	userActivityRepo := gormrepo.NewUserActivityRepository(a.db.DB())
 	excludedDomainRepo := gormrepo.NewExcludedDomainRepository(a.db.DB())
 	compatTelemetryRepo := gormrepo.NewCompatTelemetryRepository(a.db.DB())
@@ -166,9 +167,9 @@ func (a *App) Run(ctx context.Context) error {
 	organizationPolicyService := service.NewOrganizationPolicyService(orgPolicyRepo, orgUserRepo, subscriptionRepo, serviceLogger)
 	failedLoginTracker := service.NewFailedLoginTracker(organizationPolicyService)
 
-	authService := service.NewAuthService(userRepo, tokenRepo, verificationRepo, orgRepo, orgUserRepo, orgFolderRepo, invitationRepo, subscriptionRepo, orgPolicyRepo, failedLoginTracker, userActivityService, emailSender, emailBuilder, authConfig, serviceLogger)
 	userService := service.NewUserService(
 		userRepo,
+		tokenRepo,
 		orgRepo,
 		orgUserRepo,
 		orgFolderRepo,
@@ -179,6 +180,7 @@ func (a *App) Run(ctx context.Context) error {
 		userActivityRepo,
 		serviceLogger,
 	)
+	authService := service.NewAuthService(userRepo, tokenRepo, verificationRepo, accountDeletionTokenRepo, orgRepo, orgUserRepo, orgFolderRepo, invitationRepo, subscriptionRepo, orgPolicyRepo, failedLoginTracker, userActivityService, userService, emailSender, emailBuilder, authConfig, serviceLogger)
 	userNotificationPreferencesService := service.NewUserNotificationPreferencesService(preferencesRepo, serviceLogger)
 	userAppearancePreferencesService := service.NewUserAppearancePreferencesService(preferencesRepo, serviceLogger)
 	invitationService := service.NewInvitationService(invitationRepo, userRepo, orgRepo, emailSender, emailBuilder, serviceLogger)

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -48,19 +49,21 @@ type AuthConfig struct {
 }
 
 type authService struct {
-	userRepo         repository.UserRepository
-	tokenRepo        repository.TokenRepository
-	verificationRepo repository.VerificationRepository
-	orgRepo          repository.OrganizationRepository
-	orgUserRepo      repository.OrganizationUserRepository
-	orgFolderRepo    repository.OrganizationFolderRepository
-	invitationRepo   repository.InvitationRepository
-	subRepo          interface {
+	userRepo                 repository.UserRepository
+	tokenRepo                repository.TokenRepository
+	verificationRepo         repository.VerificationRepository
+	accountDeletionTokenRepo repository.AccountDeletionTokenRepository
+	orgRepo                  repository.OrganizationRepository
+	orgUserRepo              repository.OrganizationUserRepository
+	orgFolderRepo            repository.OrganizationFolderRepository
+	invitationRepo           repository.InvitationRepository
+	subRepo                  interface {
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
 	}
 	policyRepo         repository.OrganizationPolicyRepository
 	failedLoginTracker FailedLoginTracker
 	activityService    UserActivityService
+	userService        UserService
 	emailSender        email.Sender
 	emailBuilder       *email.EmailBuilder
 	config             *AuthConfig
@@ -72,6 +75,7 @@ func NewAuthService(
 	userRepo repository.UserRepository,
 	tokenRepo repository.TokenRepository,
 	verificationRepo repository.VerificationRepository,
+	accountDeletionTokenRepo repository.AccountDeletionTokenRepository,
 	orgRepo repository.OrganizationRepository,
 	orgUserRepo repository.OrganizationUserRepository,
 	orgFolderRepo repository.OrganizationFolderRepository,
@@ -82,29 +86,34 @@ func NewAuthService(
 	policyRepo repository.OrganizationPolicyRepository,
 	failedLoginTracker FailedLoginTracker,
 	activityService UserActivityService,
+	userService UserService,
 	emailSender email.Sender,
 	emailBuilder *email.EmailBuilder,
 	config *AuthConfig,
 	logger Logger,
 ) AuthService {
 	return &authService{
-		userRepo:           userRepo,
-		tokenRepo:          tokenRepo,
-		verificationRepo:   verificationRepo,
-		orgRepo:            orgRepo,
-		orgUserRepo:        orgUserRepo,
-		orgFolderRepo:      orgFolderRepo,
-		invitationRepo:     invitationRepo,
-		subRepo:            subRepo,
-		policyRepo:         policyRepo,
-		failedLoginTracker: failedLoginTracker,
-		activityService:    activityService,
-		emailSender:        emailSender,
-		emailBuilder:       emailBuilder,
-		config:             config,
-		logger:             logger,
+		userRepo:                 userRepo,
+		tokenRepo:                tokenRepo,
+		verificationRepo:         verificationRepo,
+		accountDeletionTokenRepo: accountDeletionTokenRepo,
+		orgRepo:                  orgRepo,
+		orgUserRepo:              orgUserRepo,
+		orgFolderRepo:            orgFolderRepo,
+		invitationRepo:           invitationRepo,
+		subRepo:                  subRepo,
+		policyRepo:               policyRepo,
+		failedLoginTracker:       failedLoginTracker,
+		activityService:          activityService,
+		userService:              userService,
+		emailSender:              emailSender,
+		emailBuilder:             emailBuilder,
+		config:                   config,
+		logger:                   logger,
 	}
 }
+
+const recoveryDeleteTokenTTL = 20 * time.Minute
 
 func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*domain.User, error) {
 	// Validate request
@@ -1320,4 +1329,136 @@ func (s *authService) ValidateSchema(ctx context.Context, schema string) error {
 	}
 
 	return nil
+}
+
+func (s *authService) RequestRecoveryDelete(ctx context.Context, email string) error {
+	normalizedEmail := strings.TrimSpace(email)
+	if normalizedEmail == "" {
+		return nil
+	}
+
+	user, err := s.userRepo.GetByEmail(ctx, normalizedEmail)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil
+		}
+		return err
+	}
+
+	if err := s.accountDeletionTokenRepo.DeleteByUserID(ctx, user.ID); err != nil {
+		return err
+	}
+
+	tokenSecret, err := generateRecoveryDeleteSecret(32)
+	if err != nil {
+		return err
+	}
+	tokenUUID := uuid.New()
+	tokenHash := hash.SHA256(tokenSecret)
+	tokenRow := &domain.AccountDeletionToken{
+		UUID:      tokenUUID,
+		UserID:    user.ID,
+		TokenHash: tokenHash,
+		ExpiresAt: time.Now().Add(recoveryDeleteTokenTTL),
+	}
+	if err := s.accountDeletionTokenRepo.Create(ctx, tokenRow); err != nil {
+		return err
+	}
+
+	confirmationToken := fmt.Sprintf("%s.%s", tokenUUID.String(), tokenSecret)
+	go s.sendRecoveryDeleteEmail(normalizedEmail, confirmationToken)
+	return nil
+}
+
+func (s *authService) ConfirmRecoveryDelete(ctx context.Context, token string) error {
+	tokenUUID, tokenSecret, err := parseRecoveryDeleteToken(token)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
+	tokenRow, err := s.accountDeletionTokenRepo.GetByUUID(ctx, tokenUUID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return ErrUnauthorized
+		}
+		return err
+	}
+
+	if tokenRow.IsExpired() {
+		_ = s.accountDeletionTokenRepo.DeleteByUUID(ctx, tokenUUID)
+		return ErrExpiredToken
+	}
+
+	expectedHash := tokenRow.TokenHash
+	actualHash := hash.SHA256(tokenSecret)
+	if subtle.ConstantTimeCompare([]byte(expectedHash), []byte(actualHash)) != 1 {
+		return ErrUnauthorized
+	}
+
+	user, err := s.userRepo.GetByID(ctx, tokenRow.UserID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			_ = s.accountDeletionTokenRepo.DeleteByUUID(ctx, tokenUUID)
+			return nil
+		}
+		return err
+	}
+
+	if err := s.accountDeletionTokenRepo.DeleteByUUID(ctx, tokenUUID); err != nil {
+		return err
+	}
+	if err := s.accountDeletionTokenRepo.DeleteByUserID(ctx, user.ID); err != nil {
+		return err
+	}
+
+	return s.userService.DeleteForRecovery(ctx, user.ID, user.Schema)
+}
+
+func generateRecoveryDeleteSecret(length int) (string, error) {
+	raw := make([]byte, length)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(raw), nil
+}
+
+func parseRecoveryDeleteToken(token string) (string, string, error) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 2 {
+		return "", "", errors.New("invalid token")
+	}
+	if _, err := uuid.Parse(parts[0]); err != nil {
+		return "", "", errors.New("invalid token")
+	}
+	if parts[1] == "" {
+		return "", "", errors.New("invalid token")
+	}
+	return parts[0], parts[1], nil
+}
+
+func (s *authService) sendRecoveryDeleteEmail(emailAddress string, token string) {
+	emailCtx := context.Background()
+	deleteURL := fmt.Sprintf("%s/forgot-password?token=%s", s.emailBuilderFrontendURL(), token)
+	body := fmt.Sprintf(
+		"<p>You requested to permanently delete your Passwall account.</p>"+
+			"<p>If this was you, confirm within 20 minutes:</p>"+
+			"<p><a href=\"%s\">Confirm account deletion</a></p>"+
+			"<p>If you did not request this, you can ignore this email.</p>",
+		deleteURL,
+	)
+	message, err := s.emailBuilder.BuildCustomEmail(emailAddress, "Confirm account deletion", body)
+	if err != nil {
+		s.logger.Error("failed to build recovery delete email", "error", err)
+		return
+	}
+	if err := s.emailSender.Send(emailCtx, message); err != nil {
+		s.logger.Error("failed to send recovery delete email", "error", err)
+	}
+}
+
+func (s *authService) emailBuilderFrontendURL() string {
+	if s.emailBuilder == nil {
+		return ""
+	}
+	return strings.TrimRight(strings.TrimSpace(s.emailBuilder.GetFrontendURL()), "/")
 }

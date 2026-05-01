@@ -30,6 +30,8 @@ type AuthService interface {
 	// Use token UUID (from JWT claims) to locate and revoke the session.
 	SignOut(ctx context.Context, tokenUUID string) error
 	ValidateSchema(ctx context.Context, schema string) error
+	RequestRecoveryDelete(ctx context.Context, email string) error
+	ConfirmRecoveryDelete(ctx context.Context, token string) error
 
 	// Two-Factor Authentication
 	SetupTwoFactor(ctx context.Context, userID uint) (*domain.TwoFactorSetupResponse, error)
@@ -61,6 +63,7 @@ type UserService interface {
 	CheckOwnership(ctx context.Context, userID uint) (*domain.OwnershipCheckResult, error)
 	TransferOwnership(ctx context.Context, req *domain.TransferOwnershipRequest) error
 	DeleteWithOrganizations(ctx context.Context, userID uint, organizationIDs []uint, schema string) error
+	DeleteForRecovery(ctx context.Context, userID uint, schema string) error
 }
 
 // UserNotificationPreferencesService defines business logic for notification preferences.

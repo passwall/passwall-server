@@ -132,6 +132,10 @@ func SetupRouter(
 	verificationRateLimiter := httpHandler.NewRateLimiter(100*time.Second, 3)
 	// Password change: 3 requests per 5 minutes per IP (limits brute-force of old master password hash)
 	changePasswordRateLimiter := httpHandler.NewRateLimiter(100*time.Second, 3)
+	// Recovery delete request: 2 requests per 10 minutes per IP
+	recoveryDeleteRequestLimiter := httpHandler.NewRateLimiter(300*time.Second, 2)
+	// Recovery delete confirm: 6 requests per 10 minutes per IP
+	recoveryDeleteConfirmLimiter := httpHandler.NewRateLimiter(100*time.Second, 6)
 
 	// Create reCAPTCHA middleware (optional - only applies if token is sent)
 	recaptchaMiddleware := httpHandler.OptionalRecaptchaMiddleware(
@@ -167,6 +171,16 @@ func SetupRouter(
 		authGroup.POST("/resend-verification",
 			httpHandler.RateLimitMiddleware(verificationRateLimiter),
 			authHandler.ResendVerificationCode,
+		)
+		authGroup.POST("/recover-delete/request",
+			httpHandler.RateLimitMiddleware(recoveryDeleteRequestLimiter),
+			recaptchaMiddleware,
+			authHandler.RequestRecoveryDelete,
+		)
+		authGroup.POST("/recover-delete/confirm",
+			httpHandler.RateLimitMiddleware(recoveryDeleteConfirmLimiter),
+			recaptchaMiddleware,
+			authHandler.ConfirmRecoveryDelete,
 		)
 
 		// No rate limit on token check (it's already authenticated)

@@ -50,6 +50,7 @@ func AutoMigrate(db database.Database) error {
 		&domain.User{},
 		&domain.Token{},
 		&domain.VerificationCode{},
+		&domain.AccountDeletionToken{},
 		&domain.UserActivity{},
 	); err != nil {
 		return fmt.Errorf("failed to migrate core auth tables: %w", err)

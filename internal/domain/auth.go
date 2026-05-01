@@ -193,6 +193,16 @@ type ChangeMasterPasswordRequest struct {
 	NewKdfSalt   string     `json:"new_kdf_salt,omitempty"`
 }
 
+// RecoveryDeleteRequest represents a request to start account recovery deletion.
+type RecoveryDeleteRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+// RecoveryDeleteConfirmRequest represents a request to confirm account deletion with token.
+type RecoveryDeleteConfirmRequest struct {
+	Token string `json:"token" binding:"required"`
+}
+
 // ErrValidation represents a validation error
 type ErrValidation struct {
 	Field   string

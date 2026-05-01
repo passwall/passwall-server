@@ -109,6 +109,16 @@ type VerificationRepository interface {
 	Migrate() error
 }
 
+// AccountDeletionTokenRepository defines account deletion token data access methods.
+type AccountDeletionTokenRepository interface {
+	Create(ctx context.Context, token *domain.AccountDeletionToken) error
+	GetByUUID(ctx context.Context, tokenUUID string) (*domain.AccountDeletionToken, error)
+	DeleteByUUID(ctx context.Context, tokenUUID string) error
+	DeleteByUserID(ctx context.Context, userID uint) error
+	DeleteExpired(ctx context.Context) (int64, error)
+	Migrate() error
+}
+
 // OrganizationRepository defines organization data access methods
 type OrganizationRepository interface {
 	Create(ctx context.Context, org *domain.Organization) error

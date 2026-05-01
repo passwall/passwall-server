@@ -15,6 +15,7 @@ import (
 
 type userService struct {
 	repo               repository.UserRepository
+	tokenRepo          repository.TokenRepository
 	orgRepo            repository.OrganizationRepository
 	orgUserRepo        repository.OrganizationUserRepository
 	orgFolderRepo      repository.OrganizationFolderRepository
@@ -29,6 +30,7 @@ type userService struct {
 // NewUserService creates a new user service
 func NewUserService(
 	repo repository.UserRepository,
+	tokenRepo repository.TokenRepository,
 	orgRepo repository.OrganizationRepository,
 	orgUserRepo repository.OrganizationUserRepository,
 	orgFolderRepo repository.OrganizationFolderRepository,
@@ -41,6 +43,7 @@ func NewUserService(
 ) UserService {
 	return &userService{
 		repo:               repo,
+		tokenRepo:          tokenRepo,
 		orgRepo:            orgRepo,
 		orgUserRepo:        orgUserRepo,
 		orgFolderRepo:      orgFolderRepo,
@@ -378,6 +381,11 @@ func (s *userService) Delete(ctx context.Context, id uint, schema string) error 
 		return err
 	}
 
+	if err := s.tokenRepo.Delete(ctx, int(id)); err != nil {
+		s.logger.Error("failed to delete tokens while deleting user", "id", id, "error", err)
+		return err
+	}
+
 	if err := s.repo.Delete(ctx, id, schema); err != nil {
 		s.logger.Error("failed to delete user", "id", id, "schema", schema, "error", err)
 		return err
@@ -385,6 +393,52 @@ func (s *userService) Delete(ctx context.Context, id uint, schema string) error 
 
 	s.logger.Info("user deleted", "id", id, "schema", schema)
 	return nil
+}
+
+// DeleteForRecovery deletes user and enforces recovery-delete policy:
+// - organizations owned by the user are deleted first (except personal vault),
+// - then user is removed from remaining memberships,
+// - then user row and schema are hard deleted.
+func (s *userService) DeleteForRecovery(ctx context.Context, userID uint, schema string) error {
+	user, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if user.IsSystemUser {
+		return repository.ErrForbidden
+	}
+
+	orgMemberships, err := s.orgUserRepo.ListByUser(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	ownedOrgIDs := make([]uint, 0)
+	for _, orgMembership := range orgMemberships {
+		if orgMembership == nil || orgMembership.Role != domain.OrgRoleOwner {
+			continue
+		}
+		org, orgErr := s.orgRepo.GetByID(ctx, orgMembership.OrganizationID)
+		if orgErr != nil {
+			if errors.Is(orgErr, repository.ErrNotFound) {
+				continue
+			}
+			return orgErr
+		}
+		if org.IsPersonal {
+			continue
+		}
+		ownedOrgIDs = append(ownedOrgIDs, org.ID)
+	}
+
+	for _, orgID := range ownedOrgIDs {
+		if err := s.orgRepo.Delete(ctx, orgID); err != nil {
+			s.logger.Error("failed to delete owned organization during recovery delete", "user_id", userID, "org_id", orgID, "error", err)
+			return err
+		}
+	}
+
+	return s.Delete(ctx, userID, schema)
 }
 
 func (s *userService) ChangeMasterPassword(ctx context.Context, req *domain.ChangeMasterPasswordRequest) error {

@@ -31,6 +31,11 @@ func NewEmailBuilder(frontendURL, defaultFrom string) (*EmailBuilder, error) {
 	}, nil
 }
 
+// GetFrontendURL returns the configured frontend URL used for links.
+func (b *EmailBuilder) GetFrontendURL() string {
+	return b.frontendURL
+}
+
 // BuildVerificationEmail builds a verification email message
 func (b *EmailBuilder) BuildVerificationEmail(to, name, code string) (*EmailMessage, error) {
 	if to == "" {
