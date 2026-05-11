@@ -1411,7 +1411,13 @@ func (s *authService) ConfirmRecoveryDelete(ctx context.Context, token string) e
 		return err
 	}
 
-	return s.userService.DeleteForRecovery(ctx, user.ID, user.Schema)
+	userEmail := user.Email
+	if err := s.userService.DeleteForRecovery(ctx, user.ID, user.Schema); err != nil {
+		return err
+	}
+
+	go s.sendRecoveryDeleteCompleteEmail(userEmail)
+	return nil
 }
 
 func generateRecoveryDeleteSecret(length int) (string, error) {
@@ -1438,21 +1444,26 @@ func parseRecoveryDeleteToken(token string) (string, string, error) {
 
 func (s *authService) sendRecoveryDeleteEmail(emailAddress string, token string) {
 	emailCtx := context.Background()
-	deleteURL := fmt.Sprintf("%s/forgot-password?token=%s", s.emailBuilderFrontendURL(), token)
-	body := fmt.Sprintf(
-		"<p>You requested to permanently delete your Passwall account.</p>"+
-			"<p>If this was you, confirm within 20 minutes:</p>"+
-			"<p><a href=\"%s\">Confirm account deletion</a></p>"+
-			"<p>If you did not request this, you can ignore this email.</p>",
-		deleteURL,
-	)
-	message, err := s.emailBuilder.BuildCustomEmail(emailAddress, "Confirm account deletion", body)
+	deleteURL := fmt.Sprintf("%s/recover-delete?token=%s", s.emailBuilderFrontendURL(), token)
+	message, err := s.emailBuilder.BuildRecoveryDeleteRequestEmail(emailAddress, deleteURL)
 	if err != nil {
 		s.logger.Error("failed to build recovery delete email", "error", err)
 		return
 	}
 	if err := s.emailSender.Send(emailCtx, message); err != nil {
 		s.logger.Error("failed to send recovery delete email", "error", err)
+	}
+}
+
+func (s *authService) sendRecoveryDeleteCompleteEmail(emailAddress string) {
+	emailCtx := context.Background()
+	message, err := s.emailBuilder.BuildRecoveryDeleteCompleteEmail(emailAddress)
+	if err != nil {
+		s.logger.Error("failed to build recovery delete complete email", "error", err)
+		return
+	}
+	if err := s.emailSender.Send(emailCtx, message); err != nil {
+		s.logger.Error("failed to send recovery delete complete email", "error", err)
 	}
 }
 

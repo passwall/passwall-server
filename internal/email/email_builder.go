@@ -330,6 +330,59 @@ func (b *EmailBuilder) BuildSecureSendNotifyEmail(to, senderName, sendName, send
 	}, nil
 }
 
+// BuildRecoveryDeleteRequestEmail builds the account deletion confirmation email
+func (b *EmailBuilder) BuildRecoveryDeleteRequestEmail(to, deleteURL string) (*EmailMessage, error) {
+	if to == "" {
+		return nil, fmt.Errorf("recipient email is required")
+	}
+	if deleteURL == "" {
+		return nil, fmt.Errorf("delete URL is required")
+	}
+
+	data := &TemplateData{
+		DeleteURL: deleteURL,
+		Year:      currentYear(),
+	}
+
+	htmlBody, err := b.templateManager.Render(TemplateRecoveryDeleteRequest, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to render recover-delete-request template: %w", err)
+	}
+
+	return &EmailMessage{
+		To:      to,
+		From:    b.defaultFrom,
+		Subject: "Confirm your Passwall account deletion",
+		Body:    htmlBody,
+		BCC:     []string{"hello@passwall.io"},
+	}, nil
+}
+
+// BuildRecoveryDeleteCompleteEmail notifies the user (and hello@passwall.io) that deletion succeeded
+func (b *EmailBuilder) BuildRecoveryDeleteCompleteEmail(to string) (*EmailMessage, error) {
+	if to == "" {
+		return nil, fmt.Errorf("recipient email is required")
+	}
+
+	data := &TemplateData{
+		UserEmail: to,
+		Year:      currentYear(),
+	}
+
+	htmlBody, err := b.templateManager.Render(TemplateRecoveryDeleteComplete, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to render recover-delete-complete template: %w", err)
+	}
+
+	return &EmailMessage{
+		To:      to,
+		From:    b.defaultFrom,
+		Subject: "Your Passwall account has been deleted",
+		Body:    htmlBody,
+		BCC:     []string{"hello@passwall.io"},
+	}, nil
+}
+
 // BuildCustomEmail builds a custom email with provided subject and body
 func (b *EmailBuilder) BuildCustomEmail(to, subject, htmlBody string) (*EmailMessage, error) {
 	if to == "" {

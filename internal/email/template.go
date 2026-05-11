@@ -11,15 +11,17 @@ import (
 type TemplateType string
 
 const (
-	TemplateVerification         TemplateType = "verification"
-	TemplateInvitation           TemplateType = "invitation"
-	TemplateShareInvite          TemplateType = "share-invite"
-	TemplateShareNotice          TemplateType = "share-notice"
-	TemplateEmergencyInvite      TemplateType = "emergency-invite"
-	TemplateEmergencyAccepted    TemplateType = "emergency-accepted"
-	TemplateEmergencyRecoveryReq TemplateType = "emergency-recovery-request"
-	TemplateEmergencyRecoveryOK  TemplateType = "emergency-recovery-approved"
-	TemplateSendNotify           TemplateType = "send-notify"
+	TemplateVerification           TemplateType = "verification"
+	TemplateInvitation             TemplateType = "invitation"
+	TemplateShareInvite            TemplateType = "share-invite"
+	TemplateShareNotice            TemplateType = "share-notice"
+	TemplateEmergencyInvite        TemplateType = "emergency-invite"
+	TemplateEmergencyAccepted      TemplateType = "emergency-accepted"
+	TemplateEmergencyRecoveryReq   TemplateType = "emergency-recovery-request"
+	TemplateEmergencyRecoveryOK    TemplateType = "emergency-recovery-approved"
+	TemplateSendNotify             TemplateType = "send-notify"
+	TemplateRecoveryDeleteRequest  TemplateType = "recover-delete-request"
+	TemplateRecoveryDeleteComplete TemplateType = "recover-delete-complete"
 )
 
 // TemplateData holds data for email templates
@@ -46,6 +48,9 @@ type TemplateData struct {
 	SendURL        string
 	SendSenderName string
 	SendName       string
+	// Recover-delete fields
+	DeleteURL string
+	UserEmail string
 }
 
 // TemplateManager handles email template rendering
@@ -117,6 +122,18 @@ func NewTemplateManager() (*TemplateManager, error) {
 		return nil, fmt.Errorf("failed to parse send notify template: %w", err)
 	}
 	tm.templates[TemplateSendNotify] = sendNotifyTmpl
+
+	recoverDeleteRequestTmpl, err := template.New("recover-delete-request").Parse(recoverDeleteRequestEmailTemplate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse recover-delete-request template: %w", err)
+	}
+	tm.templates[TemplateRecoveryDeleteRequest] = recoverDeleteRequestTmpl
+
+	recoverDeleteCompleteTmpl, err := template.New("recover-delete-complete").Parse(recoverDeleteCompleteEmailTemplate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse recover-delete-complete template: %w", err)
+	}
+	tm.templates[TemplateRecoveryDeleteComplete] = recoverDeleteCompleteTmpl
 
 	return tm, nil
 }
@@ -678,6 +695,59 @@ const emergencyRecoveryApprovedEmailTemplate = `<!DOCTYPE html>
 <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;"><tr><td align="center">
 <a href="{{.EmergencyURL}}" style="display:inline-block;padding:14px 32px;background-color:#10b981;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;font-size:16px;">View Vault</a>
 </td></tr></table>
+</td></tr>
+<tr><td style="padding:30px 40px;background-color:#f7fafc;border-top:1px solid #e0e0e0;border-radius:0 0 8px 8px;">
+<p style="margin:0 0 10px;font-size:14px;color:#718096;text-align:center;">This is an automated message, please do not reply.</p>
+<p style="margin:0;font-size:12px;color:#a0aec0;text-align:center;">© {{.Year}} Passwall. All rights reserved.</p>
+</td></tr></table></td></tr></table></body></html>`
+
+// recoverDeleteRequestEmailTemplate is sent when a user requests account deletion
+const recoverDeleteRequestEmailTemplate = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Confirm Account Deletion</title></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background-color:#f5f5f5;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5;padding:40px 20px;"><tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+<tr><td style="padding:40px 40px 20px;text-align:center;border-bottom:1px solid #e0e0e0;">
+<h1 style="margin:0;font-size:32px;font-weight:700;color:#1a1a1a;"><span style="color:#3b82f6;">Pass</span>wall</h1>
+</td></tr>
+<tr><td style="padding:40px;">
+<h2 style="margin:0 0 20px;font-size:24px;font-weight:600;color:#1a1a1a;">Confirm Account Deletion</h2>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#4a5568;">We received a request to permanently delete your Passwall account.</p>
+<p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:#4a5568;">If this was you, click the button below to confirm. This link expires in <strong>20 minutes</strong>.</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;"><tr><td align="center">
+<a href="{{.DeleteURL}}" style="display:inline-block;padding:14px 32px;background-color:#e53e3e;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;font-size:16px;">Confirm Account Deletion</a>
+</td></tr></table>
+<p style="margin:0 0 10px;font-size:14px;line-height:1.6;color:#718096;text-align:center;">Or copy and paste this link into your browser:</p>
+<p style="margin:0 0 24px;font-size:13px;line-height:1.6;color:#3b82f6;text-align:center;word-break:break-all;">{{.DeleteURL}}</p>
+<div style="background-color:#fed7d7;border-left:4px solid #e53e3e;padding:16px;margin:20px 0;border-radius:4px;">
+<p style="margin:0;font-size:14px;color:#9b2c2c;"><strong>Warning:</strong> This action is permanent and cannot be undone. All your vault data will be deleted immediately.</p>
+</div>
+<p style="margin:20px 0 0;font-size:14px;line-height:1.6;color:#718096;">If you did not request this, you can safely ignore this email. Your account will not be deleted.</p>
+</td></tr>
+<tr><td style="padding:30px 40px;background-color:#f7fafc;border-top:1px solid #e0e0e0;border-radius:0 0 8px 8px;">
+<p style="margin:0 0 10px;font-size:14px;color:#718096;text-align:center;">This is an automated message, please do not reply.</p>
+<p style="margin:0;font-size:12px;color:#a0aec0;text-align:center;">© {{.Year}} Passwall. All rights reserved.</p>
+</td></tr></table></td></tr></table></body></html>`
+
+// recoverDeleteCompleteEmailTemplate is sent after a successful account deletion
+const recoverDeleteCompleteEmailTemplate = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Account Deleted</title></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background-color:#f5f5f5;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5;padding:40px 20px;"><tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+<tr><td style="padding:40px 40px 20px;text-align:center;border-bottom:1px solid #e0e0e0;">
+<h1 style="margin:0;font-size:32px;font-weight:700;color:#1a1a1a;"><span style="color:#3b82f6;">Pass</span>wall</h1>
+</td></tr>
+<tr><td style="padding:40px;">
+<h2 style="margin:0 0 20px;font-size:24px;font-weight:600;color:#1a1a1a;">Account Successfully Deleted</h2>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#4a5568;">Your Passwall account associated with <strong>{{.UserEmail}}</strong> has been permanently deleted.</p>
+<p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:#4a5568;">All your vault data, organizations, and account information have been removed from our systems.</p>
+<div style="background-color:#f0fff4;border-left:4px solid #38a169;padding:16px;margin:20px 0;border-radius:4px;">
+<p style="margin:0;font-size:14px;color:#276749;"><strong>Fresh start:</strong> You can create a new Passwall account at any time using the same or a different email address.</p>
+</div>
+<p style="margin:20px 0 0;font-size:14px;line-height:1.6;color:#718096;">If you did not request this deletion or believe this was done in error, please contact us immediately at <a href="mailto:hello@passwall.io" style="color:#3b82f6;">hello@passwall.io</a>.</p>
 </td></tr>
 <tr><td style="padding:30px 40px;background-color:#f7fafc;border-top:1px solid #e0e0e0;border-radius:0 0 8px 8px;">
 <p style="margin:0 0 10px;font-size:14px;color:#718096;text-align:center;">This is an automated message, please do not reply.</p>
