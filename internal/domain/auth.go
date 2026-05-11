@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,12 +11,23 @@ import (
 type SignUpRequest struct {
 	Name               string     `json:"name" validate:"max=100"`
 	Email              string     `json:"email" validate:"required,email"`
+	SignupSource       string     `json:"signup_source,omitempty"`
 	MasterPasswordHash string     `json:"master_password_hash" validate:"required"` // HKDF(masterKey, info="auth")
 	ProtectedUserKey   string     `json:"protected_user_key" validate:"required"`   // EncString: "2.iv|ct|mac"
 	KdfConfig          *KdfConfig `json:"kdf_config" validate:"required"`
 	KdfSalt            string     `json:"kdf_salt" validate:"required"`          // hex-encoded random salt from client
 	EncryptedOrgKey    string     `json:"encrypted_org_key" validate:"required"` // Organization key encrypted with User Key
 }
+
+const (
+	SignupSourceVault         = "vault"
+	SignupSourceMobileIOS     = "mobile_ios"
+	SignupSourceMobileAndroid = "mobile_android"
+	SignupSourceWeb           = "web"
+	SignupSourceExtension     = "extension"
+	SignupSourceDesktop       = "desktop"
+	SignupSourceUnknown       = "unknown"
+)
 
 // Validate validates the signup request
 func (r *SignUpRequest) Validate() error {
@@ -43,7 +55,24 @@ func (r *SignUpRequest) Validate() error {
 		return err
 	}
 
+	r.SignupSource = NormalizeSignupSource(r.SignupSource)
+
 	return nil
+}
+
+func NormalizeSignupSource(source string) string {
+	normalized := strings.TrimSpace(strings.ToLower(source))
+	switch normalized {
+	case SignupSourceVault,
+		SignupSourceMobileIOS,
+		SignupSourceMobileAndroid,
+		SignupSourceWeb,
+		SignupSourceExtension,
+		SignupSourceDesktop:
+		return normalized
+	default:
+		return SignupSourceUnknown
+	}
 }
 
 // Credentials represents user login credentials

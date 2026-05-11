@@ -37,6 +37,8 @@ type User struct {
 	Name   string `json:"name" gorm:"type:varchar(255)"`
 	Email  string `json:"email" gorm:"type:varchar(255);uniqueIndex;not null"`
 	Schema string `json:"schema" gorm:"type:varchar(255);uniqueIndex;not null"`
+	// SignupSource records where account creation originated (vault/mobile/etc).
+	SignupSource string `json:"signup_source" gorm:"type:varchar(32);not null;default:'unknown';index"`
 
 	// Organization pointers (per user)
 	PersonalOrganizationID uint `json:"personal_organization_id" gorm:"not null"`

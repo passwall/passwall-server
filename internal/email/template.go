@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
+	"strings"
 	"time"
 )
 
@@ -27,6 +28,7 @@ const (
 // TemplateData holds data for email templates
 type TemplateData struct {
 	Name             string
+	SignupSource     string
 	Code             string
 	ExpiryTime       string
 	Year             int
@@ -154,7 +156,7 @@ func (tm *TemplateManager) Render(templateType TemplateType, data interface{}) (
 }
 
 // BuildVerificationEmail builds a verification email with the given parameters
-func BuildVerificationEmail(frontendURL, to, name, code string) (*TemplateData, error) {
+func BuildVerificationEmail(frontendURL, to, name, code, signupSource string) (*TemplateData, error) {
 	if frontendURL == "" {
 		return nil, fmt.Errorf("frontend URL is required for verification emails")
 	}
@@ -163,11 +165,31 @@ func BuildVerificationEmail(frontendURL, to, name, code string) (*TemplateData, 
 
 	return &TemplateData{
 		Name:            name,
+		SignupSource:    humanizeSignupSource(signupSource),
 		Code:            code,
 		ExpiryTime:      "15 minutes",
 		Year:            time.Now().Year(),
 		VerificationURL: verificationURL,
 	}, nil
+}
+
+func humanizeSignupSource(source string) string {
+	switch strings.TrimSpace(strings.ToLower(source)) {
+	case "vault":
+		return "Vault"
+	case "mobile_ios":
+		return "Mobile (iOS)"
+	case "mobile_android":
+		return "Mobile (Android)"
+	case "web":
+		return "Web"
+	case "extension":
+		return "Browser Extension"
+	case "desktop":
+		return "Desktop App"
+	default:
+		return "Unknown"
+	}
 }
 
 // verificationEmailTemplate is the HTML template for verification emails
@@ -200,6 +222,9 @@ const verificationEmailTemplate = `<!DOCTYPE html>
                             </h2>
                             <p style="margin: 0 0 20px; font-size: 16px; line-height: 1.6; color: #4a5568;">
                                 Thank you for signing up with Passwall. To complete your registration and secure your account, please verify your email address.
+                            </p>
+                            <p style="margin: 0 0 20px; font-size: 14px; line-height: 1.6; color: #718096;">
+                                Signup source: <strong style="color: #1a1a1a;">{{.SignupSource}}</strong>
                             </p>
                             
                             <!-- Verification Code -->

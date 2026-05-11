@@ -169,6 +169,7 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 		KdfMemory:              req.KdfConfig.Memory,
 		KdfParallelism:         req.KdfConfig.Parallelism,
 		KdfSalt:                req.KdfSalt, // Random salt from client
+		SignupSource:           req.SignupSource,
 		RoleID:                 constants.RoleIDMember,
 		IsVerified:             false,
 	}
@@ -242,7 +243,7 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 		emailCtx := context.Background()
 
 		// Build verification email message
-		message, err := s.emailBuilder.BuildVerificationEmail(req.Email, req.Name, code)
+		message, err := s.emailBuilder.BuildVerificationEmail(req.Email, req.Name, code, req.SignupSource)
 		if err != nil {
 			s.logger.Error("failed to build verification email", "email", req.Email, "error", err)
 			return
@@ -260,8 +261,9 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 			UserID:       user.ID,
 			ActivityType: domain.ActivityTypeAccountCreated,
 			Details: CreateActivityDetails(map[string]interface{}{
-				"kdf_type":   user.KdfType.String(),
-				"iterations": user.KdfIterations,
+				"kdf_type":      user.KdfType.String(),
+				"iterations":    user.KdfIterations,
+				"signup_source": user.SignupSource,
 			}),
 		})
 	}()

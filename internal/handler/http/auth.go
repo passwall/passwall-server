@@ -375,7 +375,7 @@ func (h *AuthHandler) ResendVerificationCode(c *gin.Context) {
 		emailCtx := context.Background()
 
 		// Build verification email message
-		message, err := h.emailBuilder.BuildVerificationEmail(req.Email, "", code)
+		message, err := h.emailBuilder.BuildVerificationEmail(req.Email, "", code, domain.SignupSourceUnknown)
 		if err != nil {
 			// Log error but don't fail the request
 			return

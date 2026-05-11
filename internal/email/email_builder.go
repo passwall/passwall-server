@@ -37,7 +37,7 @@ func (b *EmailBuilder) GetFrontendURL() string {
 }
 
 // BuildVerificationEmail builds a verification email message
-func (b *EmailBuilder) BuildVerificationEmail(to, name, code string) (*EmailMessage, error) {
+func (b *EmailBuilder) BuildVerificationEmail(to, name, code, signupSource string) (*EmailMessage, error) {
 	if to == "" {
 		return nil, fmt.Errorf("recipient email is required")
 	}
@@ -47,7 +47,7 @@ func (b *EmailBuilder) BuildVerificationEmail(to, name, code string) (*EmailMess
 	}
 
 	// Build template data
-	data, err := BuildVerificationEmail(b.frontendURL, to, name, code)
+	data, err := BuildVerificationEmail(b.frontendURL, to, name, code, signupSource)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build template data: %w", err)
 	}
