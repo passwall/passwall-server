@@ -127,13 +127,13 @@ func (h *InvitationHandler) GetPending(c *gin.Context) {
 
 	user, err := h.userService.GetByID(ctx, userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user info"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user info", "details": err.Error()})
 		return
 	}
 
 	invitations, err := h.invitationService.GetPendingInvitations(ctx, user.Email)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get pending invitations"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get pending invitations", "details": err.Error()})
 		return
 	}
 
