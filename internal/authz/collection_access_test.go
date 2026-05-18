@@ -133,6 +133,81 @@ func TestComputeCollectionAccess_MergesDirectAndTeamGrants(t *testing.T) {
 	}
 }
 
+func TestComputeCollectionAccess_HidePasswords(t *testing.T) {
+	t.Parallel()
+
+	orgUser := &domain.OrganizationUser{ID: 99, Role: domain.OrgRoleMember}
+
+	t.Run("direct grant sets hide_passwords", func(t *testing.T) {
+		t.Parallel()
+		access, err := ComputeCollectionAccess(
+			context.Background(), orgUser, 100,
+			&fakeCollectionUserRepo{grant: &domain.CollectionUser{CanRead: true, HidePasswords: true}},
+			&fakeCollectionTeamRepo{},
+			&fakeTeamUserRepo{},
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !access.HidePasswords {
+			t.Fatal("expected HidePasswords=true from direct grant")
+		}
+	})
+
+	t.Run("team grant sets hide_passwords", func(t *testing.T) {
+		t.Parallel()
+		access, err := ComputeCollectionAccess(
+			context.Background(), orgUser, 100,
+			&fakeCollectionUserRepo{},
+			&fakeCollectionTeamRepo{grants: []*domain.CollectionTeam{
+				{TeamID: 10, CanRead: true, HidePasswords: true},
+			}},
+			&fakeTeamUserRepo{memberships: []*domain.TeamUser{{TeamID: 10}}},
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !access.HidePasswords {
+			t.Fatal("expected HidePasswords=true from team grant")
+		}
+	})
+
+	t.Run("restrictive wins across grants", func(t *testing.T) {
+		t.Parallel()
+		access, err := ComputeCollectionAccess(
+			context.Background(), orgUser, 100,
+			&fakeCollectionUserRepo{grant: &domain.CollectionUser{CanRead: true, HidePasswords: false}},
+			&fakeCollectionTeamRepo{grants: []*domain.CollectionTeam{
+				{TeamID: 10, CanRead: true, HidePasswords: true},
+			}},
+			&fakeTeamUserRepo{memberships: []*domain.TeamUser{{TeamID: 10}}},
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !access.HidePasswords {
+			t.Fatal("expected HidePasswords=true (restrictive wins)")
+		}
+	})
+
+	t.Run("admin never gets hide_passwords", func(t *testing.T) {
+		t.Parallel()
+		admin := &domain.OrganizationUser{Role: domain.OrgRoleAdmin}
+		access, err := ComputeCollectionAccess(
+			context.Background(), admin, 100,
+			&fakeCollectionUserRepo{grant: &domain.CollectionUser{CanRead: true, HidePasswords: true}},
+			&fakeCollectionTeamRepo{},
+			&fakeTeamUserRepo{},
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if access.HidePasswords {
+			t.Fatal("admin should never have HidePasswords=true")
+		}
+	})
+}
+
 func TestComputeCollectionAccess_ErrorPropagation(t *testing.T) {
 	t.Parallel()
 

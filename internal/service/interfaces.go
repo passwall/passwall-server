@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/passwall/passwall-server/internal/authz"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
 )
@@ -176,6 +177,8 @@ type OrganizationItemService interface {
 	ListByCollection(ctx context.Context, collectionID, userID uint) ([]*domain.OrganizationItem, error)
 	Update(ctx context.Context, id, userID uint, req *UpdateOrgItemRequest) (*domain.OrganizationItem, error)
 	Delete(ctx context.Context, id, userID uint) (*domain.OrganizationItem, error)
+	GetCollectionAccess(ctx context.Context, orgID, userID, collectionID uint) (*authz.CollectionAccess, error)
+	GetAutofillSecret(ctx context.Context, itemID, userID uint) (*domain.OrganizationItem, error)
 }
 
 // ItemShareService defines the business logic for organization item sharing

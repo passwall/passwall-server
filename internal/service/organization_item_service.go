@@ -452,3 +452,61 @@ func (s *organizationItemService) Delete(ctx context.Context, id, userID uint) (
 	s.logger.Info("organization item deleted", "item_id", id, "user_id", userID)
 	return item, nil
 }
+
+func (s *organizationItemService) GetCollectionAccess(ctx context.Context, orgID, userID, collectionID uint) (*authz.CollectionAccess, error) {
+	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	if err != nil {
+		return nil, repository.ErrForbidden
+	}
+
+	return authz.ComputeCollectionAccess(
+		ctx,
+		orgUser,
+		collectionID,
+		s.collectionUserRepo,
+		s.collectionTeamRepo,
+		s.teamUserRepo,
+	)
+}
+
+// GetAutofillSecret returns the full item data for autofill purposes,
+// bypassing hide_passwords redaction. Access is still checked.
+func (s *organizationItemService) GetAutofillSecret(ctx context.Context, itemID, userID uint) (*domain.OrganizationItem, error) {
+	item, err := s.itemRepo.GetByID(ctx, itemID)
+	if err != nil {
+		return nil, fmt.Errorf("item not found: %w", err)
+	}
+
+	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, item.OrganizationID, userID)
+	if err != nil {
+		return nil, repository.ErrForbidden
+	}
+
+	if orgUser.IsAdmin() || orgUser.AccessAll {
+		return item, nil
+	}
+
+	if item.CollectionID == nil {
+		if item.CreatedByUserID != userID {
+			return nil, repository.ErrForbidden
+		}
+		return item, nil
+	}
+
+	access, err := authz.ComputeCollectionAccess(
+		ctx,
+		orgUser,
+		*item.CollectionID,
+		s.collectionUserRepo,
+		s.collectionTeamRepo,
+		s.teamUserRepo,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if !access.CanRead {
+		return nil, repository.ErrForbidden
+	}
+
+	return item, nil
+}

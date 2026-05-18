@@ -50,7 +50,7 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*domain.
 	var user domain.User
 
 	// Only get non-deleted users (hard delete won't return anything anyway)
-	err := r.db.WithContext(ctx).Preload("Role.Permissions").Where("email = ?", email).First(&user).Error
+	err := r.db.WithContext(ctx).Preload("Role.Permissions").Where("LOWER(email) = LOWER(?)", email).First(&user).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, repository.ErrNotFound

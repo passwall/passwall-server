@@ -13,17 +13,20 @@ import (
 )
 
 type OrganizationItemHandler struct {
-	service        service.OrganizationItemService
-	activityLogger *service.ActivityLogger
+	service           service.OrganizationItemService
+	policyEnforcement service.PolicyEnforcementService
+	activityLogger    *service.ActivityLogger
 }
 
 func NewOrganizationItemHandler(
 	svc service.OrganizationItemService,
 	activityService service.UserActivityService,
+	policyEnforcement service.PolicyEnforcementService,
 ) *OrganizationItemHandler {
 	return &OrganizationItemHandler{
-		service:        svc,
-		activityLogger: service.NewActivityLogger(activityService),
+		service:           svc,
+		policyEnforcement: policyEnforcement,
+		activityLogger:    service.NewActivityLogger(activityService),
 	}
 }
 
@@ -52,6 +55,13 @@ func (h *OrganizationItemHandler) Create(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
 		return
+	}
+
+	if h.policyEnforcement != nil && req.ItemType == domain.ItemTypeCard {
+		if err := h.policyEnforcement.CheckCardTypeAllowed(ctx, orgID); err != nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	item, err := h.service.Create(ctx, orgID, userID, &req)
@@ -156,8 +166,21 @@ func (h *OrganizationItemHandler) ListByOrganization(c *gin.Context) {
 	}
 
 	dtos := make([]*domain.OrganizationItemDTO, len(items))
+	accessCache := make(map[uint]*bool)
 	for i, item := range items {
 		dtos[i] = domain.ToOrganizationItemDTO(item)
+		if item.CollectionID != nil {
+			cid := *item.CollectionID
+			if _, ok := accessCache[cid]; !ok {
+				access, err := h.service.GetCollectionAccess(ctx, orgID, userID, cid)
+				hide := err == nil && access.HidePasswords
+				accessCache[cid] = &hide
+			}
+			if accessCache[cid] != nil && *accessCache[cid] {
+				dtos[i].HidePasswords = true
+				dtos[i].Data = ""
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, dtos)
@@ -192,8 +215,18 @@ func (h *OrganizationItemHandler) ListByCollection(c *gin.Context) {
 	}
 
 	dtos := make([]*domain.OrganizationItemDTO, len(items))
+	var hidePasswords *bool
 	for i, item := range items {
 		dtos[i] = domain.ToOrganizationItemDTO(item)
+		if hidePasswords == nil && item.CollectionID != nil {
+			access, err := h.service.GetCollectionAccess(ctx, item.OrganizationID, userID, *item.CollectionID)
+			hide := err == nil && access.HidePasswords
+			hidePasswords = &hide
+		}
+		if hidePasswords != nil && *hidePasswords {
+			dtos[i].HidePasswords = true
+			dtos[i].Data = ""
+		}
 	}
 
 	c.JSON(http.StatusOK, dtos)
@@ -232,7 +265,16 @@ func (h *OrganizationItemHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, domain.ToOrganizationItemDTO(item))
+	dto := domain.ToOrganizationItemDTO(item)
+	if item.CollectionID != nil {
+		access, err := h.service.GetCollectionAccess(ctx, item.OrganizationID, userID, *item.CollectionID)
+		if err == nil && access.HidePasswords {
+			dto.HidePasswords = true
+			dto.Data = ""
+		}
+	}
+
+	c.JSON(http.StatusOK, dto)
 }
 
 // Update godoc
@@ -333,4 +375,43 @@ func (h *OrganizationItemHandler) Delete(c *gin.Context) {
 		}
 		_ = h.activityLogger.LogActivity(ctx, userID, domain.ActivityTypeItemDeleted, ipAddress, userAgent, details)
 	}
+}
+
+// AutofillSecret godoc
+// @Summary Get item secret for autofill
+// @Description Returns full encrypted data for autofill, bypassing hide_passwords redaction
+// @Tags organization-items
+// @Produce json
+// @Param id path int true "Item ID"
+// @Success 200 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /org-items/{id}/autofill-secret [get]
+func (h *OrganizationItemHandler) AutofillSecret(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := GetCurrentUserID(c)
+
+	id, ok := GetUintParam(c, "id")
+	if !ok {
+		return
+	}
+
+	item, err := h.service.GetAutofillSecret(ctx, id, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+			return
+		}
+		if errors.Is(err, repository.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "item not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get item"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":   item.ID,
+		"data": item.Data,
+	})
 }

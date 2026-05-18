@@ -297,12 +297,22 @@ func ToOrganizationDTOWithSubscription(org *Organization, sub *Subscription) *Or
 	planCode := sub.Plan.Code
 
 	// Map plan code like "business-yearly" -> "business"
+	var resolvedPlan OrganizationPlan
 	if idx := len(planCode) - len("-monthly"); idx > 0 && planCode[idx:] == "-monthly" {
-		dto.Plan = OrganizationPlan(planCode[:idx])
+		resolvedPlan = OrganizationPlan(planCode[:idx])
 	} else if idx := len(planCode) - len("-yearly"); idx > 0 && planCode[idx:] == "-yearly" {
-		dto.Plan = OrganizationPlan(planCode[:idx])
+		resolvedPlan = OrganizationPlan(planCode[:idx])
 	} else if planCode != "" {
-		dto.Plan = OrganizationPlan(planCode)
+		resolvedPlan = OrganizationPlan(planCode)
+	}
+
+	// Personal vaults can only be free or pro regardless of subscription plan code.
+	if org.IsPersonal && !IsPersonalVaultPlan(string(resolvedPlan)) {
+		resolvedPlan = PlanPro
+	}
+
+	if resolvedPlan != "" {
+		dto.Plan = resolvedPlan
 	}
 
 	// Limits: nil means unlimited. UI treats 999 as unlimited.

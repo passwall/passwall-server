@@ -21,9 +21,10 @@ type TeamMembershipReader interface {
 }
 
 type CollectionAccess struct {
-	CanRead  bool
-	CanWrite bool
-	CanAdmin bool
+	CanRead       bool
+	CanWrite      bool
+	CanAdmin      bool
+	HidePasswords bool
 }
 
 func ComputeCollectionAccess(
@@ -54,6 +55,7 @@ func ComputeCollectionAccess(
 		result.CanRead = result.CanRead || direct.CanRead
 		result.CanWrite = result.CanWrite || direct.CanWrite
 		result.CanAdmin = result.CanAdmin || direct.CanAdmin
+		result.HidePasswords = result.HidePasswords || direct.HidePasswords
 	} else if err != nil && err != repository.ErrNotFound {
 		return nil, fmt.Errorf("failed to load direct collection access: %w", err)
 	}
@@ -82,6 +84,7 @@ func ComputeCollectionAccess(
 		result.CanRead = result.CanRead || ta.CanRead
 		result.CanWrite = result.CanWrite || ta.CanWrite
 		result.CanAdmin = result.CanAdmin || ta.CanAdmin
+		result.HidePasswords = result.HidePasswords || ta.HidePasswords
 	}
 
 	return result, nil

@@ -45,6 +45,9 @@ type subscriptionService struct {
 		GetByCode(ctx context.Context, code string) (*domain.Plan, error)
 		GetByID(ctx context.Context, id uint) (*domain.Plan, error)
 	}
+	orgRepo interface {
+		GetByID(ctx context.Context, id uint) (*domain.Organization, error)
+	}
 	orgService OrganizationService
 	// emailService interface for sending emails (optional - can be nil)
 	emailService interface {
@@ -74,6 +77,9 @@ func NewSubscriptionService(
 		GetByCode(ctx context.Context, code string) (*domain.Plan, error)
 		GetByID(ctx context.Context, id uint) (*domain.Plan, error)
 	},
+	orgRepo interface {
+		GetByID(ctx context.Context, id uint) (*domain.Organization, error)
+	},
 	orgService OrganizationService,
 	emailService interface {
 		SendPaymentFailedEmail(ctx context.Context, sub *domain.Subscription) error
@@ -85,6 +91,7 @@ func NewSubscriptionService(
 	return &subscriptionService{
 		subRepo:      subRepo,
 		planRepo:     planRepo,
+		orgRepo:      orgRepo,
 		orgService:   orgService,
 		emailService: emailService,
 		stripe:       stripe,
@@ -108,6 +115,24 @@ func (s *subscriptionService) Create(ctx context.Context, orgID uint, planCode s
 			)
 			return existing, nil
 		}
+	}
+
+	// Enforce plan–organization type invariant:
+	// personal vaults can only have free/pro plans; multi-user plans require a non-personal org.
+	org, err := s.orgRepo.GetByID(ctx, orgID)
+	if err != nil {
+		s.logger.Error("subscription.create failed to get organization", "org_id", orgID, "error", err)
+		return nil, fmt.Errorf("organization not found: %w", err)
+	}
+	if org.IsPersonal && domain.IsMultiUserPlan(planCode) {
+		s.logger.Warn("subscription.create rejected: multi-user plan on personal vault",
+			"org_id", orgID, "plan_code", planCode)
+		return nil, fmt.Errorf("personal vaults can only use free or pro plans; create a separate organization for %s", planCode)
+	}
+	if !org.IsPersonal && domain.IsPersonalVaultPlan(planCode) && planCode != string(domain.PlanFree) {
+		s.logger.Warn("subscription.create rejected: personal plan on organization",
+			"org_id", orgID, "plan_code", planCode)
+		return nil, fmt.Errorf("pro plan is only available for personal vaults")
 	}
 
 	plan, err := s.planRepo.GetByCode(ctx, planCode)
@@ -215,6 +240,17 @@ func (s *subscriptionService) Update(ctx context.Context, sub *domain.Subscripti
 
 // Upgrade upgrades a subscription to a higher plan
 func (s *subscriptionService) Upgrade(ctx context.Context, orgID uint, planCode string) error {
+	org, err := s.orgRepo.GetByID(ctx, orgID)
+	if err != nil {
+		return fmt.Errorf("organization not found: %w", err)
+	}
+	if org.IsPersonal && domain.IsMultiUserPlan(planCode) {
+		return fmt.Errorf("personal vaults can only use free or pro plans")
+	}
+	if !org.IsPersonal && domain.IsPersonalVaultPlan(planCode) && planCode != string(domain.PlanFree) {
+		return fmt.Errorf("pro plan is only available for personal vaults")
+	}
+
 	sub, err := s.subRepo.GetByOrganizationID(ctx, orgID)
 	if err != nil {
 		return fmt.Errorf("failed to get subscription: %w", err)
@@ -243,6 +279,17 @@ func (s *subscriptionService) Upgrade(ctx context.Context, orgID uint, planCode 
 
 // Downgrade downgrades a subscription to a lower plan
 func (s *subscriptionService) Downgrade(ctx context.Context, orgID uint, planCode string) error {
+	org, err := s.orgRepo.GetByID(ctx, orgID)
+	if err != nil {
+		return fmt.Errorf("organization not found: %w", err)
+	}
+	if org.IsPersonal && domain.IsMultiUserPlan(planCode) {
+		return fmt.Errorf("personal vaults can only use free or pro plans")
+	}
+	if !org.IsPersonal && domain.IsPersonalVaultPlan(planCode) && planCode != string(domain.PlanFree) {
+		return fmt.Errorf("pro plan is only available for personal vaults")
+	}
+
 	sub, err := s.subRepo.GetByOrganizationID(ctx, orgID)
 	if err != nil {
 		return fmt.Errorf("failed to get subscription: %w", err)

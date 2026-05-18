@@ -214,27 +214,12 @@ func (h *InvitationHandler) Accept(c *gin.Context) {
 		return
 	}
 
-	// Accept invitation
-	if err := h.invitationService.AcceptInvitation(ctx, invitationID, userID); err != nil {
-		if errors.Is(err, repository.ErrForbidden) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-			return
-		}
-		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to accept invitation", "details": err.Error()})
-		return
-	}
-
-	if h.activityLogger != nil && targetInvitation.OrganizationID != nil {
-		org, _ := h.organizationService.GetByID(ctx, *targetInvitation.OrganizationID, userID)
-		orgName := ""
-		if org != nil {
-			orgName = org.Name
-		}
-		h.activityLogger.LogInvitationAccepted(ctx, userID, c.ClientIP(), c.GetHeader("User-Agent"), *targetInvitation.OrganizationID, orgName)
-	}
-
 	// If this is an organization invitation, add user to org using the invitee-wrapped org key.
-	if targetInvitation.OrganizationID != nil && targetInvitation.OrgRole != nil && targetInvitation.EncryptedOrgKey != nil {
+	isOrgInvitation := targetInvitation.OrganizationID != nil &&
+		targetInvitation.OrgRole != nil &&
+		targetInvitation.EncryptedOrgKey != nil
+
+	if isOrgInvitation {
 		if req.EncryptedOrgKey == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "encrypted_org_key is required for organization invitation acceptance"})
 			return
@@ -255,7 +240,28 @@ func (h *InvitationHandler) Accept(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to join organization", "details": err.Error()})
 			return
 		}
+	}
 
+	// Mark invitation as accepted only after organization membership succeeds.
+	if err := h.invitationService.AcceptInvitation(ctx, invitationID, userID); err != nil {
+		if errors.Is(err, repository.ErrForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to accept invitation", "details": err.Error()})
+		return
+	}
+
+	if h.activityLogger != nil && targetInvitation.OrganizationID != nil {
+		org, _ := h.organizationService.GetByID(ctx, *targetInvitation.OrganizationID, userID)
+		orgName := ""
+		if org != nil {
+			orgName = org.Name
+		}
+		h.activityLogger.LogInvitationAccepted(ctx, userID, c.ClientIP(), c.GetHeader("User-Agent"), *targetInvitation.OrganizationID, orgName)
+	}
+
+	if isOrgInvitation {
 		c.JSON(http.StatusOK, gin.H{
 			"message":         "invitation accepted and joined organization",
 			"organization_id": *targetInvitation.OrganizationID,

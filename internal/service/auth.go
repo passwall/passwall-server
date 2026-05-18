@@ -1030,12 +1030,28 @@ func (s *authService) processPendingOrgInvitations(ctx context.Context, user *do
 	// Check if user is already in the organization
 	existing, err := s.orgUserRepo.GetByOrgAndUser(ctx, *invitation.OrganizationID, user.ID)
 	if err == nil && existing != nil {
-		s.logger.Info("user already in organization", "org_id", *invitation.OrganizationID, "user_id", user.ID)
-		// Mark invitation as used
 		now := time.Now()
+		if existing.Status == domain.OrgUserStatusInvited {
+			existing.Status = domain.OrgUserStatusAccepted
+			existing.AcceptedAt = &now
+			if invitation.EncryptedOrgKey != nil && *invitation.EncryptedOrgKey != "" {
+				existing.EncryptedOrgKey = *invitation.EncryptedOrgKey
+			}
+			if err := s.orgUserRepo.Update(ctx, existing); err != nil {
+				return fmt.Errorf("failed to update pending org membership: %w", err)
+			}
+			s.logger.Info("accepted existing org membership from pending invitation", "org_id", *invitation.OrganizationID, "user_id", user.ID)
+		} else {
+			s.logger.Info("user already in organization", "org_id", *invitation.OrganizationID, "user_id", user.ID)
+		}
+
+		// Mark invitation as used
 		invitation.UsedAt = &now
 		_ = s.invitationRepo.Delete(ctx, invitation.ID)
 		return nil
+	}
+	if err != nil && !errors.Is(err, repository.ErrNotFound) {
+		return fmt.Errorf("failed to check existing org membership: %w", err)
 	}
 
 	// Add user to organization

@@ -76,6 +76,7 @@ func TestIsValidPolicyType(t *testing.T) {
 		PolicyPasswordGenerator, PolicyActivateAutofill, PolicyDefaultURIMatch,
 		PolicyRequireAutofillConfirm, PolicyRequireBrowserExtension, PolicyFirewallRules,
 		PolicyBlockDomainAccountCreation, PolicySendOptions, PolicyRemoveSend,
+		PolicyDisablePersonalVault, PolicyPasswordExpiration, PolicyRequireDeviceApproval,
 	}
 
 	for _, pt := range validTypes {
@@ -112,14 +113,17 @@ func TestGetPolicyTier(t *testing.T) {
 		expectedTier PolicyTier
 	}{
 		{PolicyRequireTwoFactor, PolicyTierTeam},
-		{PolicyRequireSSO, PolicyTierEnterprise},
+		{PolicyRequireSSO, PolicyTierBusiness},
 		{PolicyMasterPWRequirements, PolicyTierTeam},
 		{PolicySessionTimeout, PolicyTierBusiness},
-		{PolicyFailedLoginLimit, PolicyTierEnterprise},
+		{PolicyFailedLoginLimit, PolicyTierBusiness},
 		{PolicySingleOrganization, PolicyTierBusiness},
-		{PolicyFirewallRules, PolicyTierEnterprise},
+		{PolicyFirewallRules, PolicyTierBusiness},
 		{PolicyDisableExternalSharing, PolicyTierTeam},
 		{PolicyPasswordGenerator, PolicyTierTeam},
+		{PolicyDisablePersonalVault, PolicyTierBusiness},
+		{PolicyPasswordExpiration, PolicyTierBusiness},
+		{PolicyRequireDeviceApproval, PolicyTierBusiness},
 	}
 
 	for _, tt := range tests {
@@ -151,6 +155,7 @@ func TestGetPolicyDependencies(t *testing.T) {
 		{PolicySessionTimeout, []PolicyType{PolicySingleOrganization}},
 		{PolicyAccountRecovery, []PolicyType{PolicySingleOrganization}},
 		{PolicyDefaultURIMatch, []PolicyType{PolicySingleOrganization}},
+		{PolicyDisablePersonalVault, []PolicyType{PolicySingleOrganization}},
 
 		// Policies with no dependencies
 		{PolicyRequireTwoFactor, nil},
@@ -158,6 +163,8 @@ func TestGetPolicyDependencies(t *testing.T) {
 		{PolicyPasswordGenerator, nil},
 		{PolicyFirewallRules, nil},
 		{PolicyDisableExternalSharing, nil},
+		{PolicyPasswordExpiration, nil},
+		{PolicyRequireDeviceApproval, nil},
 	}
 
 	for _, tt := range tests {

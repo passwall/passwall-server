@@ -221,7 +221,7 @@ func (a *App) Run(ctx context.Context) error {
 	)
 
 	// Subscription service (needs organizationService, stripe client, email service optional, logger)
-	subscriptionService := service.NewSubscriptionService(subscriptionRepo, planRepo, organizationService, nil, stripeClientInstance, serviceLogger)
+	subscriptionService := service.NewSubscriptionService(subscriptionRepo, planRepo, orgRepo, organizationService, nil, stripeClientInstance, serviceLogger)
 
 	// Payment service - handles org subscriptions via Stripe webhooks
 	paymentService = service.NewPaymentService(stripeClientInstance, orgRepo, orgUserRepo, userRepo, subscriptionService, planRepo, userActivityService, a.config, serviceLogger)
@@ -281,7 +281,6 @@ func (a *App) Run(ctx context.Context) error {
 
 	// Organization policy enforcement services
 	policyEnforcementService := service.NewPolicyEnforcementService(organizationPolicyService)
-	_ = policyEnforcementService // Available for injection into other services
 	policyFirewallService := service.NewPolicyFirewallService(organizationPolicyService)
 
 	// Organization settings service (uses existing preferences repo)
@@ -336,7 +335,7 @@ func (a *App) Run(ctx context.Context) error {
 	organizationHandler := httpHandler.NewOrganizationHandler(organizationService, organizationPolicyService, subscriptionRepo, userActivityService)
 	teamHandler := httpHandler.NewTeamHandler(teamService, userActivityService, organizationService)
 	collectionHandler := httpHandler.NewCollectionHandler(collectionService, userActivityService, organizationService)
-	organizationItemHandler := httpHandler.NewOrganizationItemHandler(organizationItemService, userActivityService)
+	organizationItemHandler := httpHandler.NewOrganizationItemHandler(organizationItemService, userActivityService, policyEnforcementService)
 	organizationFolderHandler := httpHandler.NewOrganizationFolderHandler(organizationFolderService)
 
 	// Payment handlers

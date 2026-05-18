@@ -87,7 +87,7 @@ type OrganizationItemDTO struct {
 	OrganizationID     uint         `json:"organization_id"`
 	CollectionID       *uint        `json:"collection_id,omitempty"`
 	ItemType           ItemType     `json:"item_type"`
-	Data               string       `json:"data"` // Still encrypted
+	Data               string       `json:"data"` // Still encrypted (empty when hide_passwords=true)
 	Metadata           ItemMetadata `json:"metadata"`
 	IsFavorite         bool         `json:"is_favorite"`
 	FolderID           *uint        `json:"folder_id,omitempty"`
@@ -96,6 +96,7 @@ type OrganizationItemDTO struct {
 	AutoLogin          bool         `json:"auto_login"`
 	Revision           int64        `json:"revision"`
 	SyncVersion        int          `json:"sync_version"`
+	HidePasswords      bool         `json:"hide_passwords"`
 	CreatedByUserID    uint         `json:"created_by_user_id"`
 	CreatedByUserEmail string       `json:"created_by_user_email,omitempty"`
 	CreatedAt          time.Time    `json:"created_at"`

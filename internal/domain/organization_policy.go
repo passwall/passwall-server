@@ -45,6 +45,11 @@ const (
 	// Sharing & Send
 	PolicySendOptions PolicyType = "send_options"
 	PolicyRemoveSend  PolicyType = "remove_send"
+
+	// Compliance & Advanced
+	PolicyDisablePersonalVault  PolicyType = "disable_personal_vault"
+	PolicyPasswordExpiration    PolicyType = "password_expiration"
+	PolicyRequireDeviceApproval PolicyType = "require_device_approval"
 )
 
 // PolicyTier defines the minimum plan tier required for a policy
@@ -161,7 +166,7 @@ func AllPolicyDefinitions() []PolicyDefinition {
 		{
 			Type: PolicyRequireSSO, Name: "Require Single Sign-On",
 			Description: "Require non-owner/non-admin members to authenticate via SSO",
-			Category:    "authentication", Tier: PolicyTierEnterprise,
+			Category:    "authentication", Tier: PolicyTierBusiness,
 			Dependencies: []PolicyType{PolicySingleOrganization},
 		},
 		{
@@ -183,7 +188,7 @@ func AllPolicyDefinitions() []PolicyDefinition {
 		{
 			Type: PolicyFailedLoginLimit, Name: "Failed Login Attempt Limit",
 			Description: "Temporarily block IP after specified number of failed sign-in attempts",
-			Category:    "authentication", Tier: PolicyTierEnterprise,
+			Category:    "authentication", Tier: PolicyTierBusiness,
 		},
 		{
 			Type: PolicyAccountRecovery, Name: "Account Recovery Administration",
@@ -206,7 +211,7 @@ func AllPolicyDefinitions() []PolicyDefinition {
 		{
 			Type: PolicyEnforceDataOwnership, Name: "Enforce Organization Data Ownership",
 			Description: "All saved items belong to the organization, retained on member departure",
-			Category:    "vault", Tier: PolicyTierEnterprise,
+			Category:    "vault", Tier: PolicyTierBusiness,
 		},
 		{
 			Type: PolicyRemoveCardType, Name: "Remove Card Item Type",
@@ -253,12 +258,12 @@ func AllPolicyDefinitions() []PolicyDefinition {
 		{
 			Type: PolicyFirewallRules, Name: "Firewall Rules",
 			Description: "Restrict vault access by IP address, geographic location, or anonymous IP type",
-			Category:    "network", Tier: PolicyTierEnterprise,
+			Category:    "network", Tier: PolicyTierBusiness,
 		},
 		{
 			Type: PolicyBlockDomainAccountCreation, Name: "Block Domain Account Creation",
 			Description: "Prevent account creation outside the organization for claimed domain emails",
-			Category:    "network", Tier: PolicyTierEnterprise,
+			Category:    "network", Tier: PolicyTierBusiness,
 		},
 
 		// Sharing & Send
@@ -270,7 +275,25 @@ func AllPolicyDefinitions() []PolicyDefinition {
 		{
 			Type: PolicyRemoveSend, Name: "Remove Send",
 			Description: "Prevent non-admin members from creating or editing Sends",
-			Category:    "sharing", Tier: PolicyTierEnterprise,
+			Category:    "sharing", Tier: PolicyTierBusiness,
+		},
+
+		// Compliance & Advanced
+		{
+			Type: PolicyDisablePersonalVault, Name: "Disable Personal Vault",
+			Description: "Require members to store all items in organization collections only",
+			Category:    "vault", Tier: PolicyTierBusiness,
+			Dependencies: []PolicyType{PolicySingleOrganization},
+		},
+		{
+			Type: PolicyPasswordExpiration, Name: "Password Expiration",
+			Description: "Enforce periodic master password rotation after a configurable number of days",
+			Category:    "authentication", Tier: PolicyTierBusiness,
+		},
+		{
+			Type: PolicyRequireDeviceApproval, Name: "Require Device Approval",
+			Description: "Require admin approval before new devices or browsers can access the vault",
+			Category:    "authentication", Tier: PolicyTierBusiness,
 		},
 	}
 }

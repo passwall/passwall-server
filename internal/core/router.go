@@ -526,6 +526,7 @@ func SetupRouter(
 		orgItemsGroup := apiGroup.Group("/org-items")
 		{
 			orgItemsGroup.GET("/:id", organizationItemHandler.GetByID)
+			orgItemsGroup.GET("/:id/autofill-secret", organizationItemHandler.AutofillSecret)
 			orgItemsGroup.PUT("/:id", organizationItemHandler.Update)
 			orgItemsGroup.DELETE("/:id", organizationItemHandler.Delete)
 		}

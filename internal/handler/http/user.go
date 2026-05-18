@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/passwall/passwall-server/internal/domain"
@@ -353,6 +354,7 @@ func (h *UserHandler) GetPublicKey(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	email := c.Query("email")
+	email = strings.ToLower(strings.TrimSpace(email))
 	if email == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "email parameter is required"})
 		return

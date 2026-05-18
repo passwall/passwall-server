@@ -677,6 +677,27 @@ func (s *organizationService) AcceptInvitation(ctx context.Context, orgUserID ui
 		return fmt.Errorf("failed to ensure default team membership: %w", err)
 	}
 
+	// Keep unified invitations list in sync for legacy /org-invitations accept route.
+	user, userErr := s.userRepo.GetByID(ctx, userID)
+	if userErr != nil {
+		s.logger.Warn("failed to resolve user while syncing invitation acceptance", "user_id", userID, "error", userErr)
+	} else {
+		pendingInvitations, invErr := s.invitationService.GetPendingInvitations(ctx, user.Email)
+		if invErr != nil {
+			s.logger.Warn("failed to load pending invitations while syncing invitation acceptance", "user_id", userID, "error", invErr)
+		} else {
+			for _, inv := range pendingInvitations {
+				if inv == nil || inv.OrganizationID == nil || *inv.OrganizationID != orgUser.OrganizationID {
+					continue
+				}
+				if err := s.invitationService.AcceptInvitation(ctx, inv.ID, userID); err != nil {
+					s.logger.Warn("failed to mark matching invitation as accepted", "invitation_id", inv.ID, "user_id", userID, "error", err)
+				}
+				break
+			}
+		}
+	}
+
 	s.logger.Info("invitation accepted", "org_id", orgUser.OrganizationID, "user_id", userID)
 	return nil
 }

@@ -31,6 +31,8 @@ const (
 
 // Validate validates the signup request
 func (r *SignUpRequest) Validate() error {
+	r.Email = strings.ToLower(strings.TrimSpace(r.Email))
+
 	if r.Email == "" {
 		return ErrValidation{Field: "email", Message: "email is required"}
 	}

@@ -30,6 +30,15 @@ type PolicyEnforcementService interface {
 
 	// GetSessionTimeoutPolicy returns session timeout config or nil if not enabled
 	GetSessionTimeoutPolicy(ctx context.Context, orgID uint) (*SessionTimeoutPolicy, error)
+
+	// CheckCardTypeAllowed returns an error if card items are not allowed
+	CheckCardTypeAllowed(ctx context.Context, orgID uint) error
+
+	// CheckPersonalVaultAllowed returns an error if personal vault is disabled for the org
+	CheckPersonalVaultAllowed(ctx context.Context, orgID uint, role domain.OrganizationRole) error
+
+	// GetPasswordExpirationPolicy returns password expiration config or nil if not enabled
+	GetPasswordExpirationPolicy(ctx context.Context, orgID uint) (*PasswordExpirationPolicy, error)
 }
 
 // MasterPasswordPolicy captures the parsed config for master password requirements
@@ -63,6 +72,11 @@ type PasswordGeneratorPolicy struct {
 type SessionTimeoutPolicy struct {
 	MaxTimeoutMinutes int    `json:"max_timeout_minutes"`
 	TimeoutAction     string `json:"timeout_action"`
+}
+
+// PasswordExpirationPolicy captures the parsed config for password expiration
+type PasswordExpirationPolicy struct {
+	MaxAgeDays int `json:"max_age_days"`
 }
 
 type policyEnforcementService struct {
@@ -148,6 +162,39 @@ func (s *policyEnforcementService) GetSessionTimeoutPolicy(ctx context.Context, 
 	return parseSessionTimeoutPolicy(data), nil
 }
 
+func (s *policyEnforcementService) CheckCardTypeAllowed(ctx context.Context, orgID uint) error {
+	enabled, err := s.policyService.IsPolicyEnabled(ctx, orgID, domain.PolicyRemoveCardType)
+	if err != nil {
+		return err
+	}
+	if enabled {
+		return fmt.Errorf("organization policy prohibits credit card items")
+	}
+	return nil
+}
+
+func (s *policyEnforcementService) CheckPersonalVaultAllowed(ctx context.Context, orgID uint, role domain.OrganizationRole) error {
+	if role == domain.OrgRoleOwner || role == domain.OrgRoleAdmin {
+		return nil
+	}
+	enabled, err := s.policyService.IsPolicyEnabled(ctx, orgID, domain.PolicyDisablePersonalVault)
+	if err != nil {
+		return err
+	}
+	if enabled {
+		return fmt.Errorf("organization policy requires all items to be stored in organization collections")
+	}
+	return nil
+}
+
+func (s *policyEnforcementService) GetPasswordExpirationPolicy(ctx context.Context, orgID uint) (*PasswordExpirationPolicy, error) {
+	data, err := s.policyService.GetPolicyData(ctx, orgID, domain.PolicyPasswordExpiration)
+	if err != nil || data == nil {
+		return nil, err
+	}
+	return parsePasswordExpirationPolicy(data), nil
+}
+
 // --- Data parsers ---
 
 func parseMasterPasswordPolicy(data domain.PolicyData) *MasterPasswordPolicy {
@@ -224,6 +271,14 @@ func parseSessionTimeoutPolicy(data domain.PolicyData) *SessionTimeoutPolicy {
 	}
 	if v, ok := data["timeout_action"].(string); ok {
 		p.TimeoutAction = v
+	}
+	return p
+}
+
+func parsePasswordExpirationPolicy(data domain.PolicyData) *PasswordExpirationPolicy {
+	p := &PasswordExpirationPolicy{MaxAgeDays: 90}
+	if v, ok := data["max_age_days"].(float64); ok && v > 0 {
+		p.MaxAgeDays = int(v)
 	}
 	return p
 }

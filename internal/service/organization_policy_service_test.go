@@ -289,7 +289,7 @@ func TestListPolicies_TeamPlan_ShowsOnlyTeamPolicies(t *testing.T) {
 	assert.NotEmpty(t, policies, "team plan should have some policies")
 }
 
-func TestListPolicies_BusinessPlan_IncludesTeamAndBusiness(t *testing.T) {
+func TestListPolicies_BusinessPlan_IncludesAll(t *testing.T) {
 	t.Parallel()
 	s := newPolicyTestSetup("business-yearly")
 	ctx := context.Background()
@@ -297,12 +297,13 @@ func TestListPolicies_BusinessPlan_IncludesTeamAndBusiness(t *testing.T) {
 	policies, err := s.service.ListByOrganization(ctx, policyTestOrgID, policyTestOwnerID)
 	require.NoError(t, err)
 
+	assert.Equal(t, len(domain.AllPolicyDefinitions()), len(policies),
+		"business plan should show all policy definitions (no enterprise-only policies)")
+
 	tierSet := make(map[domain.PolicyTier]bool)
 	for _, p := range policies {
 		tier, _ := domain.GetPolicyTier(p.Type)
 		tierSet[tier] = true
-		assert.NotEqual(t, domain.PolicyTierEnterprise, tier,
-			"business plan should not include enterprise policies, got %s", p.Type)
 	}
 	assert.True(t, tierSet[domain.PolicyTierTeam], "business plan should include team-tier policies")
 	assert.True(t, tierSet[domain.PolicyTierBusiness], "business plan should include business-tier policies")
@@ -319,7 +320,7 @@ func TestListPolicies_EnterprisePlan_IncludesAll(t *testing.T) {
 		"enterprise plan should show all policy definitions")
 }
 
-func TestUpdatePolicy_PlanGating_TeamCannotEnableEnterprise(t *testing.T) {
+func TestUpdatePolicy_PlanGating_TeamCannotEnableBusiness_FirewallRules(t *testing.T) {
 	t.Parallel()
 	s := newPolicyTestSetup("team-monthly")
 	ctx := context.Background()
@@ -894,12 +895,8 @@ func TestListPolicies_PlanCodeWithMonthlySuffix(t *testing.T) {
 
 	policies, err := s.service.ListByOrganization(ctx, policyTestOrgID, policyTestOwnerID)
 	require.NoError(t, err)
-	assert.NotEmpty(t, policies, "business-monthly should resolve to business tier")
-
-	for _, p := range policies {
-		tier, _ := domain.GetPolicyTier(p.Type)
-		assert.NotEqual(t, domain.PolicyTierEnterprise, tier)
-	}
+	assert.Equal(t, len(domain.AllPolicyDefinitions()), len(policies),
+		"business-monthly should resolve to business tier and show all policies")
 }
 
 func TestListPolicies_PlanCodeWithYearlySuffix(t *testing.T) {

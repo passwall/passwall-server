@@ -2,6 +2,7 @@ package domain
 
 import (
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -57,6 +58,8 @@ type CreateInvitationRequest struct {
 
 // Validate validates the invitation request
 func (r *CreateInvitationRequest) Validate() error {
+	r.Email = strings.ToLower(strings.TrimSpace(r.Email))
+
 	if r.Email == "" {
 		return errors.New("email is required")
 	}

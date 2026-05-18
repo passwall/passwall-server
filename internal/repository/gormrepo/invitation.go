@@ -26,7 +26,7 @@ func (r *invitationRepository) Create(ctx context.Context, invitation *domain.In
 func (r *invitationRepository) GetByEmail(ctx context.Context, email string) (*domain.Invitation, error) {
 	var invitation domain.Invitation
 	err := r.db.WithContext(ctx).
-		Where("email = ? AND used_at IS NULL AND expires_at > ?", email, time.Now()).
+		Where("LOWER(email) = LOWER(?) AND used_at IS NULL AND expires_at > ?", email, time.Now()).
 		First(&invitation).Error
 
 	if err != nil {
@@ -68,7 +68,7 @@ func (r *invitationRepository) GetByID(ctx context.Context, id uint) (*domain.In
 func (r *invitationRepository) GetAllByEmail(ctx context.Context, email string) ([]*domain.Invitation, error) {
 	var invitations []*domain.Invitation
 	err := r.db.WithContext(ctx).
-		Where("email = ? AND used_at IS NULL AND expires_at > ?", email, time.Now()).
+		Where("LOWER(email) = LOWER(?) AND used_at IS NULL AND expires_at > ?", email, time.Now()).
 		Order("created_at DESC").
 		Find(&invitations).Error
 	if err != nil {

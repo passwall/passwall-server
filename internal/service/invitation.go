@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/passwall/passwall-server/internal/domain"
@@ -180,7 +181,7 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, invitationID u
 		return fmt.Errorf("user not found: %w", err)
 	}
 
-	if invitation.Email != user.Email {
+	if !strings.EqualFold(invitation.Email, user.Email) {
 		return repository.ErrForbidden
 	}
 
@@ -231,7 +232,7 @@ func (s *invitationService) DeclineInvitation(ctx context.Context, invitationID 
 		return fmt.Errorf("user not found: %w", err)
 	}
 
-	if invitation.Email != user.Email {
+	if !strings.EqualFold(invitation.Email, user.Email) {
 		return repository.ErrForbidden
 	}
 
