@@ -2,17 +2,22 @@ package service
 
 import (
 	"context"
+	"crypto/rsa"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
-	"encoding/xml"
 	"errors"
 	"fmt"
 	"testing"
 	"time"
 
-	"github.com/passwall/passwall-server/internal/domain"
-	"github.com/passwall/passwall-server/internal/repository"
+	"github.com/beevik/etree"
+	dsig "github.com/russellhaering/goxmldsig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/passwall/passwall-server/internal/domain"
+	"github.com/passwall/passwall-server/internal/repository"
 )
 
 // ─── Test fakes ─────────────────────────────────────────────────────────────────
@@ -422,35 +427,128 @@ func newTestSSOService(
 	}
 }
 
-func buildSAMLResponse(issuer, email, audience, recipient, notBefore, notOnOrAfter string) string {
-	return fmt.Sprintf(`<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
-		xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">
-		<saml:Issuer>%s</saml:Issuer>
-		<saml:Assertion>
-			<saml:Issuer>%s</saml:Issuer>
-			<saml:Subject>
-				<saml:NameID>%s</saml:NameID>
-				<saml:SubjectConfirmation>
-					<saml:SubjectConfirmationData Recipient="%s"/>
-				</saml:SubjectConfirmation>
-			</saml:Subject>
-			<saml:Conditions NotBefore="%s" NotOnOrAfter="%s">
-				<saml:AudienceRestriction>
-					<saml:Audience>%s</saml:Audience>
-				</saml:AudienceRestriction>
-			</saml:Conditions>
-			<saml:AttributeStatement>
-				<saml:Attribute Name="email">
-					<saml:AttributeValue>%s</saml:AttributeValue>
-				</saml:Attribute>
-			</saml:AttributeStatement>
-		</saml:Assertion>
-	</samlp:Response>`,
-		issuer, issuer, email, recipient, notBefore, notOnOrAfter, audience, email)
-}
-
 func mustB64(s string) string {
 	return base64.StdEncoding.EncodeToString([]byte(s))
+}
+
+const (
+	testIdPIssuer  = "https://idp.acme.com"
+	testSPEntityID = "https://api.passwall.io/sso/metadata/10"
+	testACSURL     = "https://api.passwall.io/sso/callback"
+)
+
+// samlFixtureOpts controls the contents of a SAML Response test fixture.
+type samlFixtureOpts struct {
+	issuer           string
+	email            string
+	audience         string
+	recipient        string
+	destination      string
+	notBefore        time.Time
+	notOnOrAfter     time.Time
+	subjNotOnOrAfter time.Time
+	includeAttribute bool
+}
+
+func defaultFixtureOpts() samlFixtureOpts {
+	now := time.Now().UTC()
+	return samlFixtureOpts{
+		issuer:           testIdPIssuer,
+		email:            "user@acme.com",
+		audience:         testSPEntityID,
+		recipient:        testACSURL,
+		destination:      testACSURL,
+		notBefore:        now.Add(-5 * time.Minute),
+		notOnOrAfter:     now.Add(30 * time.Minute),
+		subjNotOnOrAfter: now.Add(30 * time.Minute),
+		includeAttribute: true,
+	}
+}
+
+// samlResponseXML renders an unsigned SAML 2.0 Response document.
+func samlResponseXML(o samlFixtureOpts) string {
+	now := time.Now().UTC().Format(time.RFC3339)
+	attr := ""
+	if o.includeAttribute {
+		attr = fmt.Sprintf(
+			`<saml:AttributeStatement><saml:Attribute Name="email"><saml:AttributeValue>%s</saml:AttributeValue></saml:Attribute></saml:AttributeStatement>`,
+			o.email,
+		)
+	}
+	return fmt.Sprintf(`<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_response1" Version="2.0" IssueInstant="%s" Destination="%s"><saml:Issuer>%s</saml:Issuer><samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status><saml:Assertion ID="_assertion1" Version="2.0" IssueInstant="%s"><saml:Issuer>%s</saml:Issuer><saml:Subject><saml:NameID>%s</saml:NameID><saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer"><saml:SubjectConfirmationData Recipient="%s" NotOnOrAfter="%s"/></saml:SubjectConfirmation></saml:Subject><saml:Conditions NotBefore="%s" NotOnOrAfter="%s"><saml:AudienceRestriction><saml:Audience>%s</saml:Audience></saml:AudienceRestriction></saml:Conditions>%s</saml:Assertion></samlp:Response>`,
+		now, o.destination, o.issuer,
+		now, o.issuer, o.email,
+		o.recipient, o.subjNotOnOrAfter.Format(time.RFC3339),
+		o.notBefore.Format(time.RFC3339), o.notOnOrAfter.Format(time.RFC3339), o.audience, attr,
+	)
+}
+
+// signResponseRoot signs the root element (Response-level enveloped signature)
+// with the given key/cert and returns the base64-encoded signed document, as an
+// IdP would POST it back to the ACS.
+func signResponseRoot(t *testing.T, key *rsa.PrivateKey, cert *x509.Certificate, xmlStr string) string {
+	t.Helper()
+	doc := etree.NewDocument()
+	require.NoError(t, doc.ReadFromString(xmlStr))
+
+	keyStore := dsig.TLSCertKeyStore(tls.Certificate{
+		Certificate: [][]byte{cert.Raw},
+		PrivateKey:  key,
+	})
+	signingCtx := dsig.NewDefaultSigningContext(keyStore)
+
+	signed, err := signingCtx.SignEnveloped(doc.Root())
+	require.NoError(t, err)
+
+	out := etree.NewDocument()
+	out.SetRoot(signed)
+	str, err := out.WriteToString()
+	require.NoError(t, err)
+	return base64.StdEncoding.EncodeToString([]byte(str))
+}
+
+// newSignedSAMLEnv builds a fully wired SSO service with one active SAML
+// connection (configured with the returned signing certificate), a valid state,
+// and an accepted member, ready for HandleSAMLCallback happy-path testing.
+func newSignedSAMLEnv(t *testing.T) (*ssoService, *fakeSSOStateRepo, *rsa.PrivateKey, *x509.Certificate) {
+	t.Helper()
+	cert, key, certPEM := generateSelfSignedCert(t)
+
+	connRepo := newFakeSSOConnRepo()
+	connRepo.add(&domain.SSOConnection{
+		ID:             testConnID,
+		OrganizationID: testOrgID,
+		Protocol:       domain.SSOProtocolSAML,
+		Domain:         "acme.com",
+		Status:         domain.SSOStatusActive,
+		SPEntityID:     testSPEntityID,
+		SAMLConfig: &domain.SAMLConfig{
+			Certificate: certPEM,
+			EntityID:    testIdPIssuer,
+			SSOURL:      "https://idp.acme.com/sso",
+		},
+	})
+	stateRepo := newFakeSSOStateRepo()
+	stateRepo.states["valid-state"] = &domain.SSOState{
+		ID:             1,
+		State:          "valid-state",
+		ConnectionID:   testConnID,
+		OrganizationID: testOrgID,
+		ExpiresAt:      time.Now().Add(10 * time.Minute),
+	}
+	userRepo := newFakeUserRepo()
+	userRepo.add(&domain.User{ID: testUserID, Email: "user@acme.com"})
+	orgUserRepo := newFakeOrgUserRepo()
+	orgUserRepo.add(&domain.OrganizationUser{
+		OrganizationID: testOrgID,
+		UserID:         testUserID,
+		Status:         domain.OrgUserStatusAccepted,
+	})
+	orgRepo := newFakeOrgRepo()
+	orgRepo.add(&domain.Organization{ID: testOrgID, Name: "Acme Corp"})
+
+	svc := newTestSSOService(connRepo, stateRepo, userRepo, orgUserRepo, orgRepo, nil)
+	return svc, stateRepo, key, cert
 }
 
 // ─── HandleSAMLCallback Tests ───────────────────────────────────────────────────
@@ -652,233 +750,187 @@ func TestHandleSAMLCallback_MissingAssertion(t *testing.T) {
 	assert.ErrorIs(t, err, ErrSSOInvalidSAMLResponse)
 }
 
-func TestHandleSAMLCallback_UnsignedWhenSignatureRequired(t *testing.T) {
+func TestHandleSAMLCallback_HappyPath_SignedResponse(t *testing.T) {
 	t.Parallel()
-	_, _, certPEM := generateSelfSignedCert(t)
-	connRepo := newFakeSSOConnRepo()
-	connRepo.add(&domain.SSOConnection{
-		ID:             testConnID,
-		OrganizationID: testOrgID,
-		Protocol:       domain.SSOProtocolSAML,
-		Domain:         "acme.com",
-		Status:         domain.SSOStatusActive,
-		SPEntityID:     "https://api.passwall.io/sso/metadata/10",
-		SAMLConfig: &domain.SAMLConfig{
-			Certificate:         certPEM,
-			EntityID:            "https://idp.acme.com",
-			WantAssertionSigned: true, // require signature
-		},
-	})
-	stateRepo := newFakeSSOStateRepo()
-	stateRepo.states["valid-state"] = &domain.SSOState{
-		ID:             1,
-		State:          "valid-state",
-		ConnectionID:   testConnID,
-		OrganizationID: testOrgID,
-		ExpiresAt:      time.Now().Add(10 * time.Minute),
-	}
-	svc := newTestSSOService(connRepo, stateRepo, nil, nil, nil, nil)
+	svc, _, key, cert := newSignedSAMLEnv(t)
 	ctx := context.Background()
 
-	// Response with assertion but no Signature elements
-	now := time.Now().UTC()
-	xmlStr := buildSAMLResponse(
-		"https://idp.acme.com",
-		"user@acme.com",
-		"https://api.passwall.io/sso/metadata/10",
-		"https://api.passwall.io/sso/callback",
-		now.Add(-1*time.Minute).Format(time.RFC3339),
-		now.Add(10*time.Minute).Format(time.RFC3339),
-	)
-	_, err := svc.HandleSAMLCallback(ctx, "valid-state", mustB64(xmlStr))
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not signed")
+	signed := signResponseRoot(t, key, cert, samlResponseXML(defaultFixtureOpts()))
+
+	result, err := svc.HandleSAMLCallback(ctx, "valid-state", signed)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "test-access-token", result.AccessToken)
+	assert.Equal(t, testOrgID, result.Organization.ID)
+	assert.Equal(t, "user@acme.com", result.User.Email)
 }
 
-func TestHandleSAMLCallback_SignatureVerificationFails(t *testing.T) {
+func TestHandleSAMLCallback_UnsignedResponseRejected(t *testing.T) {
 	t.Parallel()
-	_, _, certPEM := generateSelfSignedCert(t)
-	connRepo := newFakeSSOConnRepo()
-	connRepo.add(&domain.SSOConnection{
-		ID:             testConnID,
-		OrganizationID: testOrgID,
-		Protocol:       domain.SSOProtocolSAML,
-		Domain:         "acme.com",
-		Status:         domain.SSOStatusActive,
-		SPEntityID:     "https://api.passwall.io/sso/metadata/10",
-		SAMLConfig: &domain.SAMLConfig{
-			Certificate:         certPEM,
-			EntityID:            "https://idp.acme.com",
-			WantAssertionSigned: false, // don't check for presence, but still verify if present
-		},
-	})
-	stateRepo := newFakeSSOStateRepo()
-	stateRepo.states["valid-state"] = &domain.SSOState{
-		ID:             1,
-		State:          "valid-state",
-		ConnectionID:   testConnID,
-		OrganizationID: testOrgID,
-		ExpiresAt:      time.Now().Add(10 * time.Minute),
-	}
-	svc := newTestSSOService(connRepo, stateRepo, nil, nil, nil, nil)
+	svc, _, _, _ := newSignedSAMLEnv(t)
+	ctx := context.Background()
+
+	// Unsigned response — signature validation is always enabled.
+	unsigned := mustB64(samlResponseXML(defaultFixtureOpts()))
+
+	_, err := svc.HandleSAMLCallback(ctx, "valid-state", unsigned)
+	assert.ErrorIs(t, err, ErrSSOInvalidSAMLResponse)
+}
+
+func TestHandleSAMLCallback_WrongCertificateRejected(t *testing.T) {
+	t.Parallel()
+	svc, _, _, _ := newSignedSAMLEnv(t)
+	ctx := context.Background()
+
+	// Sign with a DIFFERENT key/cert than the one configured on the connection.
+	otherCert, otherKey, _ := generateSelfSignedCert(t)
+	signed := signResponseRoot(t, otherKey, otherCert, samlResponseXML(defaultFixtureOpts()))
+
+	_, err := svc.HandleSAMLCallback(ctx, "valid-state", signed)
+	assert.ErrorIs(t, err, ErrSSOInvalidSAMLResponse)
+}
+
+func TestHandleSAMLCallback_IssuerMismatchRejected(t *testing.T) {
+	t.Parallel()
+	svc, _, key, cert := newSignedSAMLEnv(t)
+	ctx := context.Background()
+
+	opts := defaultFixtureOpts()
+	opts.issuer = "https://wrong-idp.evil.com" // not the configured IdP issuer
+	signed := signResponseRoot(t, key, cert, samlResponseXML(opts))
+
+	_, err := svc.HandleSAMLCallback(ctx, "valid-state", signed)
+	assert.ErrorIs(t, err, ErrSSOInvalidSAMLResponse)
+}
+
+func TestHandleSAMLCallback_RecipientMismatchRejected(t *testing.T) {
+	t.Parallel()
+	svc, _, key, cert := newSignedSAMLEnv(t)
+	ctx := context.Background()
+
+	opts := defaultFixtureOpts()
+	opts.recipient = "https://evil.com/sso/callback"
+	signed := signResponseRoot(t, key, cert, samlResponseXML(opts))
+
+	_, err := svc.HandleSAMLCallback(ctx, "valid-state", signed)
+	assert.ErrorIs(t, err, ErrSSOInvalidSAMLResponse)
+}
+
+func TestHandleSAMLCallback_AudienceMismatchRejected(t *testing.T) {
+	t.Parallel()
+	svc, _, key, cert := newSignedSAMLEnv(t)
+	ctx := context.Background()
+
+	opts := defaultFixtureOpts()
+	opts.audience = "https://evil.com/entity"
+	signed := signResponseRoot(t, key, cert, samlResponseXML(opts))
+
+	_, err := svc.HandleSAMLCallback(ctx, "valid-state", signed)
+	assert.ErrorIs(t, err, ErrSSOInvalidSAMLResponse)
+}
+
+func TestHandleSAMLCallback_ExpiredAssertionRejected(t *testing.T) {
+	t.Parallel()
+	svc, _, key, cert := newSignedSAMLEnv(t)
 	ctx := context.Background()
 
 	now := time.Now().UTC()
-	xmlStr := buildSAMLResponse(
-		"https://idp.acme.com",
-		"user@acme.com",
-		"https://api.passwall.io/sso/metadata/10",
-		"https://api.passwall.io/sso/callback",
-		now.Add(-1*time.Minute).Format(time.RFC3339),
-		now.Add(10*time.Minute).Format(time.RFC3339),
-	)
-	// Signature verification should fail because the XML is not actually signed
-	_, err := svc.HandleSAMLCallback(ctx, "valid-state", mustB64(xmlStr))
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "signature verification failed")
+	opts := defaultFixtureOpts()
+	opts.notBefore = now.Add(-2 * time.Hour)
+	opts.notOnOrAfter = now.Add(-1 * time.Hour)
+	opts.subjNotOnOrAfter = now.Add(-1 * time.Hour)
+	signed := signResponseRoot(t, key, cert, samlResponseXML(opts))
+
+	_, err := svc.HandleSAMLCallback(ctx, "valid-state", signed)
+	assert.ErrorIs(t, err, ErrSSOInvalidSAMLResponse)
 }
 
-func TestHandleSAMLCallback_IssuerMismatch(t *testing.T) {
+func TestHandleSAMLCallback_NotYetValidAssertionRejected(t *testing.T) {
 	t.Parallel()
-
-	// For this test, we need to bypass signature verification.
-	// We test issuer mismatch by checking the code path directly.
-	// Since verifySAMLXMLSignature is called before issuer check,
-	// we verify that the SAML envelope parsing handles issuer comparison correctly.
+	svc, _, key, cert := newSignedSAMLEnv(t)
+	ctx := context.Background()
 
 	now := time.Now().UTC()
-	xmlStr := buildSAMLResponse(
-		"https://wrong-idp.evil.com", // wrong issuer
-		"user@acme.com",
-		"https://api.passwall.io/sso/metadata/10",
-		"https://api.passwall.io/sso/callback",
-		now.Add(-1*time.Minute).Format(time.RFC3339),
-		now.Add(10*time.Minute).Format(time.RFC3339),
-	)
+	opts := defaultFixtureOpts()
+	opts.notBefore = now.Add(1 * time.Hour) // assertion not yet valid
+	signed := signResponseRoot(t, key, cert, samlResponseXML(opts))
 
-	// Verify envelope parsing captures issuer correctly
-	var env samlResponseEnvelope
-	err := xml.Unmarshal([]byte(xmlStr), &env)
+	_, err := svc.HandleSAMLCallback(ctx, "valid-state", signed)
+	assert.ErrorIs(t, err, ErrSSOInvalidSAMLResponse)
+}
+
+func TestHandleSAMLCallback_EmailDomainMismatchRejected(t *testing.T) {
+	t.Parallel()
+	svc, _, key, cert := newSignedSAMLEnv(t)
+	ctx := context.Background()
+
+	opts := defaultFixtureOpts()
+	opts.email = "attacker@evil.com" // valid assertion but wrong email domain
+	signed := signResponseRoot(t, key, cert, samlResponseXML(opts))
+
+	_, err := svc.HandleSAMLCallback(ctx, "valid-state", signed)
+	assert.ErrorIs(t, err, ErrSSODomainMismatch)
+}
+
+// TestHandleSAMLCallback_XSWInjectedAssertion ensures an attacker cannot inject
+// a forged assertion alongside a legitimately signed one. Tampering with the
+// signed document must invalidate it rather than letting the forged assertion
+// be trusted.
+func TestHandleSAMLCallback_XSWInjectedAssertion(t *testing.T) {
+	t.Parallel()
+	svc, _, key, cert := newSignedSAMLEnv(t)
+	ctx := context.Background()
+
+	// Legitimately sign a response for the real user.
+	signed := signResponseRoot(t, key, cert, samlResponseXML(defaultFixtureOpts()))
+
+	// Decode, inject a forged unsigned assertion with an attacker email, re-encode.
+	rawSigned, err := base64.StdEncoding.DecodeString(signed)
 	require.NoError(t, err)
-	assert.Equal(t, "https://wrong-idp.evil.com", env.Assertion.Issuer.Value)
-	// In the real flow, this would be compared against conn.SAMLConfig.EntityID
-}
+	doc := etree.NewDocument()
+	require.NoError(t, doc.ReadFromBytes(rawSigned))
 
-func TestHandleSAMLCallback_DomainMismatch_EmailDomain(t *testing.T) {
-	t.Parallel()
+	forged := samlResponseXML(samlFixtureOpts{
+		issuer:           testIdPIssuer,
+		email:            "attacker@acme.com",
+		audience:         testSPEntityID,
+		recipient:        testACSURL,
+		destination:      testACSURL,
+		notBefore:        time.Now().UTC().Add(-5 * time.Minute),
+		notOnOrAfter:     time.Now().UTC().Add(30 * time.Minute),
+		subjNotOnOrAfter: time.Now().UTC().Add(30 * time.Minute),
+		includeAttribute: true,
+	})
+	forgedDoc := etree.NewDocument()
+	require.NoError(t, forgedDoc.ReadFromString(forged))
+	forgedAssertion := forgedDoc.Root().FindElement("Assertion")
+	require.NotNil(t, forgedAssertion)
+	doc.Root().AddChild(forgedAssertion.Copy())
 
-	// Test that extractSAMLEmail + matchesDomain rejects cross-domain emails
-	now := time.Now().UTC()
-	xmlStr := buildSAMLResponse(
-		"https://idp.acme.com",
-		"attacker@evil.com", // wrong domain for acme.com
-		"https://api.passwall.io/sso/metadata/10",
-		"https://api.passwall.io/sso/callback",
-		now.Add(-1*time.Minute).Format(time.RFC3339),
-		now.Add(10*time.Minute).Format(time.RFC3339),
-	)
-	var env samlResponseEnvelope
-	err := xml.Unmarshal([]byte(xmlStr), &env)
+	tampered, err := doc.WriteToString()
 	require.NoError(t, err)
+	encoded := base64.StdEncoding.EncodeToString([]byte(tampered))
 
-	email := extractSAMLEmail(env.Assertion)
-	assert.Equal(t, "attacker@evil.com", email)
-	assert.False(t, matchesDomain(email, "acme.com"))
-}
-
-func TestHandleSAMLCallback_ExpiredAssertion(t *testing.T) {
-	t.Parallel()
-
-	// Verify time parsing for expired assertions
-	past := time.Now().UTC().Add(-1 * time.Hour)
-	notOnOrAfter := past.Format(time.RFC3339)
-
-	parsed, err := parseSAMLTime(notOnOrAfter)
-	require.NoError(t, err)
-
-	now := time.Now().UTC()
-	// Replicating sso_service.go logic: !now.Before(notOnOrAfter.Add(2*time.Minute))
-	assert.False(t, now.Before(parsed.Add(2*time.Minute)), "assertion should be detected as expired")
-}
-
-func TestHandleSAMLCallback_NotYetValidAssertion(t *testing.T) {
-	t.Parallel()
-
-	future := time.Now().UTC().Add(1 * time.Hour)
-	notBefore := future.Format(time.RFC3339)
-
-	parsed, err := parseSAMLTime(notBefore)
-	require.NoError(t, err)
-
-	now := time.Now().UTC()
-	// Replicating: now.Before(notBefore.Add(-2*time.Minute))
-	assert.True(t, now.Before(parsed.Add(-2*time.Minute)), "assertion should be detected as not yet valid")
-}
-
-func TestHandleSAMLCallback_RecipientMismatch(t *testing.T) {
-	t.Parallel()
-
-	// Verify recipient URL comparison
-	assert.True(t, urlsEqualWithoutTrailingSlash(
-		"https://api.passwall.io/sso/callback",
-		"https://api.passwall.io/sso/callback",
-	))
-	assert.False(t, urlsEqualWithoutTrailingSlash(
-		"https://evil.com/sso/callback",
-		"https://api.passwall.io/sso/callback",
-	))
-}
-
-func TestHandleSAMLCallback_AudienceMismatch(t *testing.T) {
-	t.Parallel()
-
-	// Verify audience URL comparison
-	assert.True(t, urlsEqualWithoutTrailingSlash(
-		"https://api.passwall.io/sso/metadata/10",
-		"https://api.passwall.io/sso/metadata/10",
-	))
-	assert.False(t, urlsEqualWithoutTrailingSlash(
-		"https://evil.com/entity",
-		"https://api.passwall.io/sso/metadata/10",
-	))
+	result, err := svc.HandleSAMLCallback(ctx, "valid-state", encoded)
+	if err == nil {
+		// If processing somehow succeeded, it must NOT have trusted the forged
+		// attacker assertion.
+		require.NotNil(t, result)
+		assert.Equal(t, "user@acme.com", result.User.Email,
+			"forged assertion must never be trusted")
+	}
 }
 
 func TestHandleSAMLCallback_StateCleanedUpAfterUse(t *testing.T) {
 	t.Parallel()
-
-	stateRepo := newFakeSSOStateRepo()
-	stateRepo.states["oneshot-state"] = &domain.SSOState{
-		ID:             1,
-		State:          "oneshot-state",
-		ConnectionID:   testConnID,
-		OrganizationID: testOrgID,
-		ExpiresAt:      time.Now().Add(10 * time.Minute),
-	}
-
-	_, _, certPEM := generateSelfSignedCert(t)
-	connRepo := newFakeSSOConnRepo()
-	connRepo.add(&domain.SSOConnection{
-		ID:             testConnID,
-		OrganizationID: testOrgID,
-		Protocol:       domain.SSOProtocolSAML,
-		Domain:         "acme.com",
-		Status:         domain.SSOStatusActive,
-		SAMLConfig:     &domain.SAMLConfig{Certificate: certPEM, EntityID: "https://idp.acme.com"},
-	})
-
-	svc := newTestSSOService(connRepo, stateRepo, nil, nil, nil, nil)
+	svc, stateRepo, key, cert := newSignedSAMLEnv(t)
 	ctx := context.Background()
 
-	// Execute (will fail at signature verification, but state cleanup runs in defer)
-	_, _ = svc.HandleSAMLCallback(ctx, "oneshot-state", mustB64(buildSAMLResponse(
-		"https://idp.acme.com", "user@acme.com",
-		"aud", "rec",
-		time.Now().UTC().Format(time.RFC3339),
-		time.Now().UTC().Add(10*time.Minute).Format(time.RFC3339),
-	)))
+	signed := signResponseRoot(t, key, cert, samlResponseXML(defaultFixtureOpts()))
+	_, _ = svc.HandleSAMLCallback(ctx, "valid-state", signed)
 
-	// State should be cleaned up
-	_, err := stateRepo.GetByState(context.Background(), "oneshot-state")
+	// State must be deleted after processing (single use), regardless of outcome.
+	_, err := stateRepo.GetByState(context.Background(), "valid-state")
 	assert.ErrorIs(t, err, repository.ErrNotFound, "state should be deleted after callback processing")
 }
 
@@ -1065,6 +1117,7 @@ func TestInitiateLogin_InactiveConnection(t *testing.T) {
 
 func TestInitiateLogin_SAML_GeneratesRedirect(t *testing.T) {
 	t.Parallel()
+	_, _, certPEM := generateSelfSignedCert(t)
 	connRepo := newFakeSSOConnRepo()
 	connRepo.add(&domain.SSOConnection{
 		ID:             testConnID,
@@ -1072,9 +1125,11 @@ func TestInitiateLogin_SAML_GeneratesRedirect(t *testing.T) {
 		Protocol:       domain.SSOProtocolSAML,
 		Domain:         "acme.com",
 		Status:         domain.SSOStatusActive,
+		SPEntityID:     testSPEntityID,
 		SAMLConfig: &domain.SAMLConfig{
-			EntityID: "https://idp.acme.com",
-			SSOURL:   "https://idp.acme.com/saml/login",
+			EntityID:    "https://idp.acme.com",
+			SSOURL:      "https://idp.acme.com/saml/login",
+			Certificate: certPEM,
 		},
 	})
 	stateRepo := newFakeSSOStateRepo()
@@ -1086,7 +1141,9 @@ func TestInitiateLogin_SAML_GeneratesRedirect(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// gosaml2 builds an HTTP-Redirect AuthnRequest: SSO URL + SAMLRequest + RelayState.
 	assert.Contains(t, redirectURL, "https://idp.acme.com/saml/login")
+	assert.Contains(t, redirectURL, "SAMLRequest=")
 	assert.Contains(t, redirectURL, "RelayState=")
 
 	// Verify state was persisted
@@ -1100,6 +1157,7 @@ func TestInitiateLogin_SAML_GeneratesRedirect(t *testing.T) {
 
 func TestInitiateLogin_RedirectURLValidation(t *testing.T) {
 	t.Parallel()
+	_, _, certPEM := generateSelfSignedCert(t)
 	connRepo := newFakeSSOConnRepo()
 	connRepo.add(&domain.SSOConnection{
 		ID:             testConnID,
@@ -1107,9 +1165,11 @@ func TestInitiateLogin_RedirectURLValidation(t *testing.T) {
 		Protocol:       domain.SSOProtocolSAML,
 		Domain:         "acme.com",
 		Status:         domain.SSOStatusActive,
+		SPEntityID:     testSPEntityID,
 		SAMLConfig: &domain.SAMLConfig{
-			EntityID: "https://idp.acme.com",
-			SSOURL:   "https://idp.acme.com/saml/login",
+			EntityID:    "https://idp.acme.com",
+			SSOURL:      "https://idp.acme.com/saml/login",
+			Certificate: certPEM,
 		},
 	})
 

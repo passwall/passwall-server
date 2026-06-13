@@ -1,0 +1,36 @@
+---
+description: Passwall Memory Bank protocol; load cross-repo operating memory before substantial work and update it after.
+alwaysApply: true
+---
+
+# Passwall Memory Bank
+
+Tüm Passwall repolarının ortak hafızası şu klasördedir (mutlak yol, ayrı git kökleri olduğu için):
+
+`/Users/yakuter/projects/passwall/passwall-org/memory-bank/`
+
+## İşe başlamadan önce (oku)
+
+- `operations.md` — Now / Next / Blocked / Recently Done (her zaman oku).
+- `decisions.md` — kalıcı kararlar ve gerekçeleri.
+- İş ilgili bir konuysa `knowledge/` içindeki ilgili dosya (ürün, fiyat, güvenlik, roadmap, compliance).
+- Repoya özel iş için o reponun `README.md` ve varsa `PROJECT_CONTEXT.md` dosyası.
+- Repo rolü/stack'i için `repo-index.md`.
+
+## Anlamlı bir iş bitince (güncelle)
+
+- `operations.md`: tamamlananı `Recently Done`'a taşı; `Now` / `Next` / `Blocked` bölümlerini güncelle. Tarih: YYYY-MM-DD.
+- Kalıcı bir karar verildiyse `decisions.md`'ye tarihli, gerekçeli kayıt ekle.
+
+## İlkeler
+
+- Büyük dokümanları memory'ye kopyalama; canonical dokümana link ver.
+- Güvenlik, fiyat, auth, encryption, compliance kararlarında varsayım yapma; canonical memory ve kaynak dokümanı esas al.
+- Fiyat çakışmasında `docs/PASSWALL_SUBSCRIPTION_PLANS_AND_PRICING.md` + Stripe ID dokümanları doğruluk kaynağıdır.
+
+## Komutlar
+
+- "Passwall context yükle" / "nerede kalmıştım" → operations + decisions oku, kısa özet ver.
+- "operations güncelle" / "handoff güncelle" → operations.md'yi güncelle.
+- "karar kaydet" → decisions.md'ye kayıt ekle.
+- "memory bank güncelle" → tüm memory dosyalarını gözden geçir.

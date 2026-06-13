@@ -306,16 +306,24 @@ func (h *SSOHandler) OIDCCallback(c *gin.Context) {
 	}
 	errParam := c.Query("error")
 
+	// Resolve the client redirect base BEFORE processing, because the SSO state
+	// (which carries the redirect URL) is single-use and gets deleted during
+	// callback handling. Looking it up afterwards on the error path would fail
+	// and send the user to the default vault URL instead of their origin.
+	redirectBase := ""
+	if stateLookup := state; stateLookup != "" {
+		if base, err := h.ssoService.GetRedirectURLByState(ctx, stateLookup); err == nil {
+			redirectBase = base
+		}
+	} else if relayState != "" {
+		if base, err := h.ssoService.GetRedirectURLByState(ctx, relayState); err == nil {
+			redirectBase = base
+		}
+	}
+
 	if errParam != "" {
 		errDesc := c.Query("error_description")
 		logger.Warnf("SSO OIDCCallback provider error: state=%s error=%s description=%s", state, errParam, errDesc)
-		redirectBase := ""
-		if state != "" {
-			base, err := h.ssoService.GetRedirectURLByState(ctx, state)
-			if err == nil {
-				redirectBase = base
-			}
-		}
 		h.redirectToVaultCallback(c, redirectBase, false, "", errParam, errDesc)
 		return
 	}
@@ -341,18 +349,6 @@ func (h *SSOHandler) OIDCCallback(c *gin.Context) {
 	}
 	if err != nil {
 		logger.Errorf("SSO callback failed: state=%s relay_state_present=%t err=%v", state, relayState != "", err)
-		redirectBase := ""
-		if state != "" {
-			base, lookupErr := h.ssoService.GetRedirectURLByState(ctx, state)
-			if lookupErr == nil {
-				redirectBase = base
-			}
-		} else if relayState != "" {
-			base, lookupErr := h.ssoService.GetRedirectURLByState(ctx, relayState)
-			if lookupErr == nil {
-				redirectBase = base
-			}
-		}
 		if errors.Is(err, service.ErrSSOInvalidState) {
 			h.redirectToVaultCallback(c, redirectBase, false, "", "invalid_state", "invalid or expired SSO state")
 			return

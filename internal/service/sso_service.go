@@ -7,16 +7,15 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
-	"encoding/xml"
 	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 	"time"
 
-	"github.com/beevik/etree"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/google/uuid"
+	saml2 "github.com/russellhaering/gosaml2"
 	dsig "github.com/russellhaering/goxmldsig"
 	"golang.org/x/oauth2"
 
@@ -415,21 +414,61 @@ func (s *ssoService) initiateSAML(ctx context.Context, conn *domain.SSOConnectio
 		s.logger.Error("SSO SAML initiate missing SSO URL", "conn_id", conn.ID)
 		return "", fmt.Errorf("SAML SSO URL is not configured")
 	}
+
+	sp, err := s.buildSAMLServiceProvider(conn)
+	if err != nil {
+		s.logger.Error("SSO SAML initiate build service provider failed", "conn_id", conn.ID, "err", err)
+		return "", err
+	}
+
 	if err := s.stateRepo.Create(ctx, ssoState); err != nil {
 		s.logger.Error("SSO SAML initiate persist state failed", "conn_id", conn.ID, "err", err)
 		return "", fmt.Errorf("failed to persist SSO state: %w", err)
 	}
 
-	idpURL, err := url.Parse(cfg.SSOURL)
+	// Build a standards-compliant AuthnRequest (HTTP-Redirect binding):
+	// deflated + base64 + URL-encoded SAMLRequest with RelayState. Required by
+	// most IdPs (Okta, Entra/Azure AD, Google, OneLogin) for SP-initiated SSO.
+	authURL, err := sp.BuildAuthURL(ssoState.State)
 	if err != nil {
-		s.logger.Error("SSO SAML initiate invalid SSO URL", "conn_id", conn.ID, "sso_url", cfg.SSOURL, "err", err)
-		return "", fmt.Errorf("invalid SAML SSO URL: %w", err)
+		s.logger.Error("SSO SAML initiate build auth URL failed", "conn_id", conn.ID, "err", err)
+		return "", fmt.Errorf("failed to build SAML AuthnRequest: %w", err)
 	}
-	q := idpURL.Query()
-	q.Set("RelayState", ssoState.State)
-	idpURL.RawQuery = q.Encode()
 	s.logger.Info("SSO SAML redirect URL generated", "conn_id", conn.ID)
-	return idpURL.String(), nil
+	return authURL, nil
+}
+
+// buildSAMLServiceProvider constructs a gosaml2 SP bound to a single SSO
+// connection's IdP configuration. Signature validation is always enabled
+// (SkipSignatureValidation defaults to false), and gosaml2 enforces issuer,
+// recipient, audience, status and time conditions while protecting against
+// XML Signature Wrapping (XSW) attacks.
+func (s *ssoService) buildSAMLServiceProvider(conn *domain.SSOConnection) (*saml2.SAMLServiceProvider, error) {
+	cfg := conn.SAMLConfig
+	if cfg == nil {
+		return nil, ErrSSOProtocolMismatch
+	}
+	cert, err := parseIdPCertificate(cfg.Certificate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse IdP certificate: %w", err)
+	}
+	certStore := &dsig.MemoryX509CertificateStore{
+		Roots: []*x509.Certificate{cert},
+	}
+	sp := &saml2.SAMLServiceProvider{
+		IdentityProviderSSOURL:      cfg.SSOURL,
+		IdentityProviderIssuer:      cfg.EntityID,
+		AssertionConsumerServiceURL: s.callbackURL(),
+		ServiceProviderIssuer:       conn.SPEntityID,
+		AudienceURI:                 conn.SPEntityID,
+		IDPCertificateStore:         certStore,
+		// SP request signing is not honored yet: no SP key material is
+		// provisioned. Most IdPs accept unsigned AuthnRequests.
+		SignAuthnRequests: false,
+		NameIdFormat:      cfg.NameIDFormat,
+		Clock:             dsig.NewRealClock(),
+	}
+	return sp, nil
 }
 
 // HandleOIDCCallback processes the IdP's authorization code callback
@@ -522,11 +561,13 @@ func (s *ssoService) HandleOIDCCallback(ctx context.Context, stateParam, code st
 		s.logger.Error("SSO OIDC callback missing email claim", "conn_id", conn.ID, "email_claim", emailClaim)
 		return nil, fmt.Errorf("email claim is missing in id_token")
 	}
-	if verified, exists := claims["email_verified"]; exists {
-		if vb, ok := verified.(bool); ok && !vb {
-			s.logger.Warn("SSO OIDC callback email not verified", "conn_id", conn.ID, "email", email)
-			return nil, fmt.Errorf("email is not verified by identity provider")
-		}
+	// Reject only when the IdP explicitly reports the email as unverified.
+	// Handles both the boolean form and the string form ("false"/"0"/"no")
+	// some IdPs emit. A missing claim is accepted for broad IdP compatibility
+	// (e.g. Azure AD does not always include email_verified).
+	if verified, exists := claims["email_verified"]; exists && isEmailVerifiedFalse(verified) {
+		s.logger.Warn("SSO OIDC callback email not verified", "conn_id", conn.ID, "email", email)
+		return nil, fmt.Errorf("email is not verified by identity provider")
 	}
 	if !matchesDomain(email, conn.Domain) {
 		s.logger.Warn("SSO OIDC callback domain mismatch", "conn_id", conn.ID, "email", email, "expected_domain", conn.Domain)
@@ -567,75 +608,33 @@ func (s *ssoService) HandleSAMLCallback(ctx context.Context, relayState, samlRes
 		return nil, ErrSSOProtocolMismatch
 	}
 
-	decoded, err := base64.StdEncoding.DecodeString(samlResponse)
+	sp, err := s.buildSAMLServiceProvider(conn)
 	if err != nil {
-		decoded, err = base64.RawStdEncoding.DecodeString(samlResponse)
-		if err != nil {
-			s.logger.Error("SSO SAML callback decode failed", "conn_id", conn.ID, "err", err)
-			return nil, ErrSSOInvalidSAMLResponse
+		s.logger.Error("SSO SAML callback build service provider failed", "conn_id", conn.ID, "err", err)
+		return nil, err
+	}
+
+	// gosaml2 performs XSW-safe processing: it validates the XML digital
+	// signature, then extracts claims ONLY from the signature-validated
+	// element (also running an xml-roundtrip-validator). Issuer, recipient,
+	// status and SubjectConfirmation NotOnOrAfter are enforced internally.
+	assertionInfo, err := sp.RetrieveAssertionInfo(samlResponse)
+	if err != nil {
+		s.logger.Error("SSO SAML callback assertion validation failed", "conn_id", conn.ID, "err", err)
+		return nil, fmt.Errorf("%w: %v", ErrSSOInvalidSAMLResponse, err)
+	}
+	if wi := assertionInfo.WarningInfo; wi != nil {
+		if wi.InvalidTime {
+			s.logger.Error("SSO SAML callback assertion outside valid time window", "conn_id", conn.ID)
+			return nil, fmt.Errorf("%w: assertion outside valid time window", ErrSSOInvalidSAMLResponse)
+		}
+		if wi.NotInAudience {
+			s.logger.Error("SSO SAML callback assertion audience mismatch", "conn_id", conn.ID, "expected", conn.SPEntityID)
+			return nil, fmt.Errorf("%w: assertion audience mismatch", ErrSSOInvalidSAMLResponse)
 		}
 	}
 
-	var resp samlResponseEnvelope
-	if err := xml.Unmarshal(decoded, &resp); err != nil {
-		s.logger.Error("SSO SAML callback XML parse failed", "conn_id", conn.ID, "err", err)
-		return nil, ErrSSOInvalidSAMLResponse
-	}
-	if resp.Assertion == nil {
-		s.logger.Error("SSO SAML callback missing assertion", "conn_id", conn.ID)
-		return nil, ErrSSOInvalidSAMLResponse
-	}
-	if conn.SAMLConfig.WantAssertionSigned {
-		if !resp.hasSignature() && !resp.Assertion.hasSignature() {
-			s.logger.Error("SSO SAML callback unsigned assertion/response", "conn_id", conn.ID)
-			return nil, fmt.Errorf("SAML response/assertion is not signed")
-		}
-	}
-
-	if err := verifySAMLXMLSignature(decoded, conn.SAMLConfig.Certificate); err != nil {
-		s.logger.Error("SSO SAML callback signature verification failed", "conn_id", conn.ID, "err", err)
-		return nil, fmt.Errorf("SAML signature verification failed: %w", err)
-	}
-
-	if conn.SAMLConfig.EntityID != "" {
-		issuer := strings.TrimSpace(resp.Assertion.Issuer.Value)
-		if issuer == "" {
-			issuer = strings.TrimSpace(resp.Issuer.Value)
-		}
-		if issuer != "" && issuer != strings.TrimSpace(conn.SAMLConfig.EntityID) {
-			s.logger.Error("SSO SAML callback issuer mismatch", "conn_id", conn.ID, "issuer", issuer, "expected", strings.TrimSpace(conn.SAMLConfig.EntityID))
-			return nil, fmt.Errorf("SAML issuer mismatch")
-		}
-	}
-	now := time.Now().UTC()
-	if resp.Assertion.Conditions.NotBefore != "" {
-		notBefore, err := parseSAMLTime(resp.Assertion.Conditions.NotBefore)
-		if err == nil && now.Before(notBefore.Add(-2*time.Minute)) {
-			s.logger.Error("SSO SAML callback assertion not yet valid", "conn_id", conn.ID)
-			return nil, fmt.Errorf("SAML assertion not yet valid")
-		}
-	}
-	if resp.Assertion.Conditions.NotOnOrAfter != "" {
-		notOnOrAfter, err := parseSAMLTime(resp.Assertion.Conditions.NotOnOrAfter)
-		if err == nil && !now.Before(notOnOrAfter.Add(2*time.Minute)) {
-			s.logger.Error("SSO SAML callback assertion expired", "conn_id", conn.ID)
-			return nil, fmt.Errorf("SAML assertion expired")
-		}
-	}
-	if recipient := strings.TrimSpace(resp.Assertion.Subject.SubjectConfirmation.SubjectConfirmationData.Recipient); recipient != "" {
-		if !urlsEqualWithoutTrailingSlash(recipient, s.callbackURL()) {
-			s.logger.Error("SSO SAML callback recipient mismatch", "conn_id", conn.ID, "recipient", recipient, "expected", s.callbackURL())
-			return nil, fmt.Errorf("SAML recipient mismatch")
-		}
-	}
-	if audience := strings.TrimSpace(resp.Assertion.Conditions.AudienceRestriction.Audience); audience != "" {
-		if !urlsEqualWithoutTrailingSlash(audience, conn.SPEntityID) {
-			s.logger.Error("SSO SAML callback audience mismatch", "conn_id", conn.ID, "audience", audience, "expected", conn.SPEntityID)
-			return nil, fmt.Errorf("SAML audience mismatch")
-		}
-	}
-
-	email := extractSAMLEmail(resp.Assertion)
+	email := extractSAMLEmailFromAssertion(assertionInfo)
 	if email == "" {
 		s.logger.Error("SSO SAML callback missing email in assertion", "conn_id", conn.ID)
 		return nil, fmt.Errorf("email is missing in SAML assertion")
@@ -834,144 +833,58 @@ func matchesDomain(email, domain string) bool {
 	return len(parts) == 2 && parts[1] == strings.ToLower(domain)
 }
 
-type samlResponseEnvelope struct {
-	XMLName   xml.Name       `xml:"Response"`
-	Issuer    samlTextNode   `xml:"Issuer"`
-	Signature *xmlSignature  `xml:"Signature"`
-	Assertion *samlAssertion `xml:"Assertion"`
+// samlEmailAttributeNames are the common SAML attribute names IdPs use to
+// convey the user's email address.
+var samlEmailAttributeNames = []string{
+	"email", "mail", "emailaddress", "User.email",
+	"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
+	"urn:oid:0.9.2342.19200300.100.1.3",
 }
 
-func (r *samlResponseEnvelope) hasSignature() bool {
-	return r != nil && r.Signature != nil
-}
-
-type samlAssertion struct {
-	Issuer     samlTextNode   `xml:"Issuer"`
-	Signature  *xmlSignature  `xml:"Signature"`
-	Subject    samlSubject    `xml:"Subject"`
-	Conditions samlConditions `xml:"Conditions"`
-	Attributes samlAttrStmt   `xml:"AttributeStatement"`
-}
-
-func (a *samlAssertion) hasSignature() bool {
-	return a != nil && a.Signature != nil
-}
-
-type xmlSignature struct {
-	XMLName xml.Name `xml:"Signature"`
-}
-
-type samlTextNode struct {
-	Value string `xml:",chardata"`
-}
-
-type samlSubject struct {
-	NameID              samlTextNode            `xml:"NameID"`
-	SubjectConfirmation samlSubjectConfirmation `xml:"SubjectConfirmation"`
-}
-
-type samlSubjectConfirmation struct {
-	SubjectConfirmationData samlSubjectConfirmationData `xml:"SubjectConfirmationData"`
-}
-
-type samlSubjectConfirmationData struct {
-	Recipient string `xml:"Recipient,attr"`
-}
-
-type samlConditions struct {
-	NotBefore           string                  `xml:"NotBefore,attr"`
-	NotOnOrAfter        string                  `xml:"NotOnOrAfter,attr"`
-	AudienceRestriction samlAudienceRestriction `xml:"AudienceRestriction"`
-}
-
-type samlAudienceRestriction struct {
-	Audience string `xml:"Audience"`
-}
-
-type samlAttrStmt struct {
-	Attributes []samlAttribute `xml:"Attribute"`
-}
-
-type samlAttribute struct {
-	Name   string             `xml:"Name,attr"`
-	Values []samlAttributeVal `xml:"AttributeValue"`
-}
-
-type samlAttributeVal struct {
-	Value string `xml:",chardata"`
-}
-
-func extractSAMLEmail(assertion *samlAssertion) string {
-	if assertion == nil {
+// extractSAMLEmailFromAssertion pulls the user's email from a
+// signature-validated gosaml2 AssertionInfo. It prefers well-known attribute
+// names, then falls back to any attribute value containing an "@", and finally
+// to the NameID. Operating on AssertionInfo (not raw XML) keeps extraction tied
+// to the cryptographically verified assertion.
+func extractSAMLEmailFromAssertion(info *saml2.AssertionInfo) string {
+	if info == nil {
 		return ""
 	}
-	for _, attr := range assertion.Attributes.Attributes {
-		name := strings.ToLower(strings.TrimSpace(attr.Name))
-		switch name {
-		case "email", "mail", "emailaddress",
-			"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
-			"urn:oid:0.9.2342.19200300.100.1.3":
-			for _, v := range attr.Values {
-				value := strings.TrimSpace(v.Value)
-				if strings.Contains(value, "@") {
-					return value
-				}
+	for _, name := range samlEmailAttributeNames {
+		if v := strings.TrimSpace(info.Values.Get(name)); strings.Contains(v, "@") {
+			return v
+		}
+	}
+	for key := range info.Values {
+		for _, v := range info.Values.GetAll(key) {
+			if val := strings.TrimSpace(v); strings.Contains(val, "@") {
+				return val
 			}
 		}
 	}
-	nameID := strings.TrimSpace(assertion.Subject.NameID.Value)
-	if strings.Contains(nameID, "@") {
+	if nameID := strings.TrimSpace(info.NameID); strings.Contains(nameID, "@") {
 		return nameID
 	}
 	return ""
-}
-
-func parseSAMLTime(raw string) (time.Time, error) {
-	if raw == "" {
-		return time.Time{}, fmt.Errorf("empty")
-	}
-	if t, err := time.Parse(time.RFC3339Nano, raw); err == nil {
-		return t, nil
-	}
-	return time.Parse(time.RFC3339, raw)
-}
-
-func urlsEqualWithoutTrailingSlash(a, b string) bool {
-	a = strings.TrimRight(strings.TrimSpace(a), "/")
-	b = strings.TrimRight(strings.TrimSpace(b), "/")
-	return a != "" && b != "" && strings.EqualFold(a, b)
 }
 
 func (s *ssoService) callbackURL() string {
 	return strings.TrimRight(s.baseURL, "/") + "/sso/callback"
 }
 
-// verifySAMLXMLSignature cryptographically verifies the XML digital signature
-// in a SAML response against the IdP's x509 certificate.
-func verifySAMLXMLSignature(xmlBytes []byte, pemCertificate string) error {
-	cert, err := parseIdPCertificate(pemCertificate)
-	if err != nil {
-		return fmt.Errorf("failed to parse IdP certificate: %w", err)
+// isEmailVerifiedFalse reports whether an OIDC email_verified claim explicitly
+// indicates the email is NOT verified, supporting both boolean and string forms.
+func isEmailVerifiedFalse(v interface{}) bool {
+	switch val := v.(type) {
+	case bool:
+		return !val
+	case string:
+		switch strings.ToLower(strings.TrimSpace(val)) {
+		case "false", "0", "no":
+			return true
+		}
 	}
-
-	certStore := dsig.MemoryX509CertificateStore{
-		Roots: []*x509.Certificate{cert},
-	}
-
-	validationCtx := dsig.NewDefaultValidationContext(&certStore)
-	validationCtx.Clock = dsig.NewFakeClockAt(time.Now())
-
-	doc := etree.NewDocument()
-	if err := doc.ReadFromBytes(xmlBytes); err != nil {
-		return fmt.Errorf("failed to parse SAML XML: %w", err)
-	}
-
-	_, err = validationCtx.Validate(doc.Root())
-	if err != nil {
-		return fmt.Errorf("XML signature validation failed: %w", err)
-	}
-
-	return nil
+	return false
 }
 
 // parseIdPCertificate parses an x509 certificate from PEM or raw base64.
