@@ -110,8 +110,6 @@ func (s *stubPolicyEnforcementService) GetPasswordExpirationPolicy(ctx context.C
 func TestOrganizationItemHandler_Create(t *testing.T) {
 	t.Parallel()
 
-	gin.SetMode(gin.TestMode)
-
 	buildRouter := func(itemSvc service.OrganizationItemService, policySvc service.PolicyEnforcementService) *gin.Engine {
 		handler := &OrganizationItemHandler{
 			service:           itemSvc,

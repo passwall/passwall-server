@@ -109,7 +109,6 @@ func (s *stubDirectorySubs) GetEffectiveByOrganizationIDs(_ context.Context, org
 }
 
 func newDirectoryTestRouter(users *stubDirectoryUsers, activities *stubDirectoryActivities, subs *stubDirectorySubs, key string) *gin.Engine {
-	gin.SetMode(gin.TestMode)
 	handler := NewAdminDirectoryHandler(users, activities, subs, nil)
 	router := gin.New()
 	group := router.Group("/api/admin/directory")
