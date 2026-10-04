@@ -48,6 +48,9 @@ type ServerConfig struct {
 	RecaptchaSecretKey         string   `mapstructure:"recaptcha_secret_key"`
 	RecaptchaThreshold         float64  `mapstructure:"recaptcha_threshold"`
 	EscrowMasterKey            string   `mapstructure:"escrow_master_key"` // hex-encoded 256-bit key for SSO key escrow
+	// AdminAPIKey is the bearer credential for the read-only admin directory API.
+	// It is not a user session token. Empty disables that API.
+	AdminAPIKey string `mapstructure:"admin_api_key"`
 }
 
 // DatabaseConfig contains database-related configuration
@@ -249,6 +252,10 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	if err := normalizeAdminAPIKey(c.Server.Env, &c.Server.AdminAPIKey); err != nil {
+		return err
+	}
+
 	if c.Server.FrontendURL == "" {
 		return fmt.Errorf("server.frontend_url is required for email links, CORS, and OAuth redirects")
 	}
@@ -297,6 +304,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("server.allowed_origins", []string{})
 	v.SetDefault("server.recaptcha_secret_key", "")
 	v.SetDefault("server.recaptcha_threshold", 0.5)
+	v.SetDefault("server.admin_api_key", "")
 
 	// Database defaults
 	v.SetDefault("database.name", "passwall")
@@ -360,6 +368,7 @@ func bindEnvVariables(v *viper.Viper) {
 	bind("server.allowed_origins", "PW_SERVER_ALLOWED_ORIGINS", "ALLOWED_ORIGINS")
 	bind("server.recaptcha_secret_key", "PW_RECAPTCHA_SECRET_KEY", "RECAPTCHA_SECRET_KEY")
 	bind("server.recaptcha_threshold", "PW_RECAPTCHA_THRESHOLD", "RECAPTCHA_THRESHOLD")
+	bind("server.admin_api_key", "PW_SERVER_ADMIN_API_KEY")
 
 	// Database bindings
 	bind("database.name", "PW_DB_NAME", "POSTGRES_DB")
@@ -422,6 +431,31 @@ func createDefaultConfigFile(v *viper.Viper, configFile string) error {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
+	return nil
+}
+
+// normalizeAdminAPIKey trims the directory credential and rejects weak values when one is set.
+// An empty key disables the admin directory API; it is not generated automatically.
+func normalizeAdminAPIKey(env string, key *string) error {
+	trimmed := strings.TrimSpace(*key)
+	*key = trimmed
+	if trimmed == "" {
+		return nil
+	}
+	if len(trimmed) < 16 {
+		return fmt.Errorf("server.admin_api_key must be at least 16 characters when set")
+	}
+	if env == "prod" || env == "production" {
+		weakValues := []string{
+			"password", "secret", "changeme", "admin", "test",
+			"12345678", "add-your-key-to-here",
+		}
+		for _, weak := range weakValues {
+			if strings.EqualFold(trimmed, weak) {
+				return fmt.Errorf("server.admin_api_key is a known weak value — set a long random secret or leave it empty to disable the admin directory API")
+			}
+		}
+	}
 	return nil
 }
 

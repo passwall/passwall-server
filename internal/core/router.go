@@ -46,6 +46,7 @@ func SetupRouter(
 	adminSubscriptionsHandler *httpHandler.AdminSubscriptionsHandler,
 	adminMailHandler *httpHandler.AdminMailHandler,
 	adminLogsHandler *httpHandler.AdminLogsHandler,
+	adminDirectoryHandler *httpHandler.AdminDirectoryHandler,
 	iconsHandler *httpHandler.IconsHandler,
 	ssoHandler *httpHandler.SSOHandler,
 	scimHandler *httpHandler.SCIMHandler,
@@ -198,6 +199,17 @@ func SetupRouter(
 	{
 		publicSendsGroup.GET("/:access_id", sendHandler.Access)
 		publicSendsGroup.POST("/:access_id/password", sendHandler.VerifyPassword)
+	}
+
+	// Read-only admin directory. Authenticated with the configured service
+	// credential, not an end-user session. See PROJECT_CONTEXT.md.
+	adminDirectoryLimiter := httpHandler.NewRateLimiter(500*time.Millisecond, 120)
+	adminDirectory := router.Group("/api/admin/directory")
+	adminDirectory.Use(httpHandler.RateLimitMiddleware(adminDirectoryLimiter))
+	adminDirectory.Use(httpHandler.AdminServiceAuthMiddleware(serverConfig.AdminAPIKey))
+	{
+		adminDirectory.GET("/users", adminDirectoryHandler.ListUsers)
+		adminDirectory.GET("/users/:id", adminDirectoryHandler.GetUser)
 	}
 
 	// Compatibility telemetry ingest — requires authentication so only

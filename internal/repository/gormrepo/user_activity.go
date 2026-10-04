@@ -59,6 +59,37 @@ func (r *userActivityRepository) GetLastActivity(ctx context.Context, userID uin
 	return &activity, nil
 }
 
+// GetLastSignInTimes returns the newest sign-in timestamp stored for each requested user.
+// Only activity_type "signin" is considered. An empty input returns an empty map.
+func (r *userActivityRepository) GetLastSignInTimes(ctx context.Context, userIDs []uint) (map[uint]time.Time, error) {
+	out := make(map[uint]time.Time)
+	if len(userIDs) == 0 {
+		return out, nil
+	}
+
+	type row struct {
+		UserID      uint      `gorm:"column:user_id"`
+		LastLoginAt time.Time `gorm:"column:last_login_at"`
+	}
+	var rows []row
+	err := r.db.WithContext(ctx).
+		Model(&domain.UserActivity{}).
+		Select("user_id, MAX(created_at) AS last_login_at").
+		Where("user_id IN ? AND activity_type = ?", userIDs, domain.ActivityTypeSignIn).
+		Group("user_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		if row.UserID == 0 || row.LastLoginAt.IsZero() {
+			continue
+		}
+		out[row.UserID] = row.LastLoginAt
+	}
+	return out, nil
+}
+
 func (r *userActivityRepository) List(ctx context.Context, filter repository.ActivityFilter) ([]*domain.UserActivity, int64, error) {
 	var activities []*domain.UserActivity
 	var total int64

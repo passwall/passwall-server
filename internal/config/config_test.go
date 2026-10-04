@@ -178,6 +178,30 @@ func TestLoad_BackwardsCompatibility(t *testing.T) {
 	assert.Equal(t, "prod", cfg.Server.Env)
 }
 
+func TestConfig_AdminAPIKey(t *testing.T) {
+	t.Setenv("PW_SERVER_ADMIN_API_KEY", "  directory-service-key  ")
+
+	tempDir := t.TempDir()
+	configFile := filepath.Join(tempDir, "config.yml")
+	cfg, err := Load(LoaderOptions{
+		ConfigFile: configFile,
+		EnvPrefix:  "PW",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "directory-service-key", cfg.Server.AdminAPIKey)
+
+	short := *cfg
+	short.Server.AdminAPIKey = "too-short"
+	err = short.Validate()
+	assert.ErrorContains(t, err, "server.admin_api_key must be at least 16 characters")
+
+	disabled := *cfg
+	disabled.Server.AdminAPIKey = "   "
+	err = disabled.Validate()
+	assert.NoError(t, err)
+	assert.Empty(t, disabled.Server.AdminAPIKey)
+}
+
 func TestLoad_NonExistentConfigFile(t *testing.T) {
 	tempDir := t.TempDir()
 	configFile := filepath.Join(tempDir, "config.yml")
