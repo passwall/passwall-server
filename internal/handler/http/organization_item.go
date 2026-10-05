@@ -186,6 +186,47 @@ func (h *OrganizationItemHandler) ListByOrganization(c *gin.Context) {
 	c.JSON(http.StatusOK, dtos)
 }
 
+func (h *OrganizationItemHandler) ListV2(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := GetCurrentUserID(c)
+	orgID, ok := GetResolvedOrgID(c)
+	if !ok {
+		return
+	}
+
+	req := service.OrganizationItemsV2Request{Cursor: strings.TrimSpace(c.Query("cursor"))}
+	if value := c.Query("limit"); value != "" {
+		limit, err := strconv.Atoi(value)
+		if err != nil || limit < 1 || limit > 500 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "limit must be between 1 and 500"})
+			return
+		}
+		req.Limit = limit
+	}
+	if value := c.Query("since_revision"); value != "" {
+		revision, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || revision < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "since_revision must be a non-negative integer"})
+			return
+		}
+		req.SinceRevision = revision
+	}
+
+	response, err := h.service.ListV2(ctx, orgID, userID, req)
+	if err != nil {
+		switch {
+		case errors.Is(err, repository.ErrInvalidInput):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid cursor or sync parameters"})
+		case errors.Is(err, repository.ErrForbidden):
+			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list item changes"})
+		}
+		return
+	}
+	c.JSON(http.StatusOK, response)
+}
+
 // ListByCollection godoc
 // @Summary List items in collection
 // @Description Get all items in a collection

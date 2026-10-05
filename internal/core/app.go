@@ -58,7 +58,7 @@ func New(ctx context.Context) (*App, error) {
 	}
 
 	if cfg.Database.AutoMigrate {
-		if err := AutoMigrate(db); err != nil {
+		if err := MigrateDatabase(ctx, db); err != nil {
 			_ = db.Close()
 			return nil, fmt.Errorf("failed to migrate database: %w", err)
 		}
@@ -93,9 +93,6 @@ func (a *App) Run(ctx context.Context) error {
 	_ = gormrepo.NewRoleRepository(a.db.DB())
 	_ = gormrepo.NewPermissionRepository(a.db.DB())
 
-	// Modern flexible items repository
-	itemRepo := gormrepo.NewItemRepository(a.db.DB())
-
 	// User and auth repos
 	userRepo := gormrepo.NewUserRepository(a.db.DB())
 	tokenRepo := gormrepo.NewTokenRepository(a.db.DB())
@@ -124,8 +121,6 @@ func (a *App) Run(ctx context.Context) error {
 	emergencyAccessRepo := gormrepo.NewEmergencyAccessRepository(a.db.DB())
 	// Send repo
 	sendRepo := gormrepo.NewSendRepository(a.db.DB())
-
-	// NOTE: Legacy repos removed - all item types now use ItemRepository with type field
 
 	// Initialize logger adapter for services
 	serviceLogger := logger.NewAdapter()
@@ -169,6 +164,17 @@ func (a *App) Run(ctx context.Context) error {
 	// Initialize subscription repos before auth service (used for plan-based device limits)
 	subscriptionRepo := gormrepo.NewSubscriptionRepository(a.db.DB())
 	planRepo := gormrepo.NewPlanRepository(a.db.DB())
+	txManager := gormrepo.NewTxManager(a.db.DB())
+	personalVaultProvisioner := service.NewPersonalVaultProvisioner(
+		txManager,
+		userRepo,
+		orgRepo,
+		orgUserRepo,
+		collectionRepo,
+		orgFolderRepo,
+		subscriptionRepo,
+		planRepo,
+	)
 
 	// Organization policy repo (needed by auth service for policy requirements on sign-in)
 	orgPolicyRepo := gormrepo.NewOrganizationPolicyRepository(a.db.DB())
@@ -182,21 +188,21 @@ func (a *App) Run(ctx context.Context) error {
 		tokenRepo,
 		orgRepo,
 		orgUserRepo,
-		orgFolderRepo,
+		orgItemRepo,
 		teamUserRepo,
 		collectionUserRepo,
 		itemShareRepo,
 		invitationRepo,
 		userActivityRepo,
 		serviceLogger,
+		txManager,
+		personalVaultProvisioner,
 	)
-	authService := service.NewAuthService(userRepo, tokenRepo, verificationRepo, accountDeletionTokenRepo, orgRepo, orgUserRepo, orgFolderRepo, invitationRepo, subscriptionRepo, orgPolicyRepo, failedLoginTracker, userActivityService, userService, emailSender, emailBuilder, authConfig, serviceLogger)
+	authService := service.NewAuthService(userRepo, tokenRepo, verificationRepo, accountDeletionTokenRepo, orgRepo, orgUserRepo, invitationRepo, subscriptionRepo, orgPolicyRepo, failedLoginTracker, userActivityService, userService, emailSender, emailBuilder, authConfig, serviceLogger, personalVaultProvisioner)
 	userNotificationPreferencesService := service.NewUserNotificationPreferencesService(preferencesRepo, serviceLogger)
 	userAppearancePreferencesService := service.NewUserAppearancePreferencesService(preferencesRepo, serviceLogger)
 	invitationService := service.NewInvitationService(invitationRepo, userRepo, orgRepo, emailSender, emailBuilder, serviceLogger)
 
-	// Modern flexible items service (handles all item types)
-	itemService := service.NewItemService(itemRepo, serviceLogger)
 	itemShareService := service.NewItemShareService(
 		itemShareRepo,
 		orgItemRepo,
@@ -252,6 +258,7 @@ func (a *App) Run(ctx context.Context) error {
 		subscriptionRepo,
 		serviceLogger,
 	)
+	featureService := service.NewFeatureService(organizationService, subscriptionRepo, orgItemRepo)
 
 	// Organization items service (shared vault)
 	organizationItemService := service.NewOrganizationItemService(
@@ -261,6 +268,7 @@ func (a *App) Run(ctx context.Context) error {
 		collectionTeamRepo,
 		teamUserRepo,
 		orgUserRepo,
+		featureService,
 		serviceLogger,
 	)
 	organizationFolderService := service.NewOrganizationFolderService(orgFolderRepo, orgItemRepo, orgUserRepo, serviceLogger)
@@ -281,9 +289,6 @@ func (a *App) Run(ctx context.Context) error {
 	// HIBP clients
 	hibpClient := hibp.NewClient(a.config.HIBP.APIKey, a.config.HIBP.RateLimitMs, a.config.HIBP.MaxRetries)
 	pwnedPasswordsClient := hibp.NewPwnedPasswordsClient(0, 0) // defaults: 60 min TTL, 10k entries
-
-	// Feature service (used for plan-based feature gating)
-	featureService := service.NewFeatureService(organizationService, subscriptionRepo, orgItemRepo)
 
 	// Breach monitoring
 	breachMonitorRepo := gormrepo.NewBreachMonitorRepository(a.db.DB())
@@ -332,8 +337,6 @@ func (a *App) Run(ctx context.Context) error {
 	userPreferencesHandler := httpHandler.NewUserPreferencesHandler(preferencesService)
 	invitationHandler := httpHandler.NewInvitationHandler(invitationService, userService, organizationService, userActivityService)
 
-	// Modern handlers (all item types use ItemHandler now)
-	itemHandler := httpHandler.NewItemHandler(itemService)
 	itemShareHandler := httpHandler.NewItemShareHandler(itemShareService)
 	excludedDomainHandler := httpHandler.NewExcludedDomainHandler(excludedDomainService)
 	compatTelemetryHandler := httpHandler.NewCompatTelemetryHandler(compatTelemetryService)
@@ -408,7 +411,6 @@ func (a *App) Run(ctx context.Context) error {
 		twoFactorHandler,
 		activityHandler,
 		organizationActivityHandler,
-		itemHandler,
 		itemShareHandler,
 		excludedDomainHandler,
 		userHandler,

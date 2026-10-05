@@ -8,7 +8,7 @@ import (
 
 // AdminDirectorySchemaVersion is the contract version for the read-only admin directory API.
 // Additive JSON fields do not change this value. Increment it only when a client would break.
-const AdminDirectorySchemaVersion = 1
+const AdminDirectorySchemaVersion = 2
 
 // AdminDirectorySubscriptionUnknown is returned when no subscription row is stored
 // for the user's personal organization.
@@ -30,7 +30,6 @@ type AdminDirectoryUser struct {
 	LastActivityAt    *time.Time                 `json:"last_activity_at"`
 	Plan              *AdminDirectoryPlan        `json:"plan"`
 	Subscription      AdminDirectorySubscription `json:"subscription"`
-	Vault             AdminDirectoryItemCounts   `json:"vault"`
 	OrganizationItems AdminDirectoryItemCounts   `json:"organization_items"`
 	OrganizationCount int                        `json:"organization_count"`
 	CollectionCount   int                        `json:"collection_count"`
@@ -53,13 +52,10 @@ type AdminDirectoryItemCounts struct {
 // AdminDirectorySignals is count-only usage data loaded for one account.
 // It is an input to NewAdminDirectoryUser and is not itself a response body.
 //
-// VaultKnown is false when the personal items table cannot be counted.
 // Organization item counts are always known: a nil map means the account created none.
 // Numeric fields are known zeros when no matching row is stored.
 type AdminDirectorySignals struct {
 	LastActivityAt    *time.Time
-	VaultKnown        bool
-	VaultByType       map[ItemType]int
 	OrgItemsByType    map[ItemType]int
 	OrganizationCount int
 	CollectionCount   int
@@ -107,7 +103,7 @@ type AdminDirectoryUserResponse struct {
 // sub is the effective subscription of the user's personal organization. A nil subscription,
 // or a subscription whose plan row is missing, leaves plan null and status "unknown"
 // (status is the stored state when the subscription row exists).
-// signals carries count-only usage data. Vault counts stay null when signals.VaultKnown is false.
+// signals carries count-only usage data.
 func NewAdminDirectoryUser(user *User, lastLogin *time.Time, sub *Subscription, signals AdminDirectorySignals) AdminDirectoryUser {
 	dto := AdminDirectoryUser{
 		Subscription: AdminDirectorySubscription{Status: AdminDirectorySubscriptionUnknown},
@@ -135,7 +131,6 @@ func NewAdminDirectoryUser(user *User, lastLogin *time.Time, sub *Subscription, 
 		active := signals.LastActivityAt.UTC()
 		dto.LastActivityAt = &active
 	}
-	dto.Vault = directoryItemCounts(signals.VaultKnown, signals.VaultByType)
 	dto.OrganizationItems = directoryItemCounts(true, signals.OrgItemsByType)
 	dto.OrganizationCount = nonNegative(signals.OrganizationCount)
 	dto.CollectionCount = nonNegative(signals.CollectionCount)

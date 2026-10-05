@@ -26,12 +26,12 @@ func (r *collectionRepository) Create(ctx context.Context, collection *domain.Co
 		collection.UUID = uuid.New()
 	}
 
-	return r.db.WithContext(ctx).Create(collection).Error
+	return dbFromContext(ctx, r.db).Create(collection).Error
 }
 
 func (r *collectionRepository) GetByID(ctx context.Context, id uint) (*domain.Collection, error) {
 	var collection domain.Collection
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Organization").
 		Where("id = ? AND deleted_at IS NULL", id).
 		First(&collection).Error
@@ -47,7 +47,7 @@ func (r *collectionRepository) GetByID(ctx context.Context, id uint) (*domain.Co
 
 func (r *collectionRepository) GetByUUID(ctx context.Context, uuidStr string) (*domain.Collection, error) {
 	var collection domain.Collection
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Organization").
 		Where("uuid = ? AND deleted_at IS NULL", uuidStr).
 		First(&collection).Error
@@ -63,7 +63,7 @@ func (r *collectionRepository) GetByUUID(ctx context.Context, uuidStr string) (*
 
 func (r *collectionRepository) GetByName(ctx context.Context, orgID uint, name string) (*domain.Collection, error) {
 	var collection domain.Collection
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Where("organization_id = ? AND name = ? AND deleted_at IS NULL", orgID, name).
 		First(&collection).Error
 
@@ -78,7 +78,7 @@ func (r *collectionRepository) GetByName(ctx context.Context, orgID uint, name s
 
 func (r *collectionRepository) GetDefaultByOrganization(ctx context.Context, orgID uint) (*domain.Collection, error) {
 	var collection domain.Collection
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Where("organization_id = ? AND is_default = true AND deleted_at IS NULL", orgID).
 		First(&collection).Error
 
@@ -94,7 +94,7 @@ func (r *collectionRepository) GetDefaultByOrganization(ctx context.Context, org
 
 func (r *collectionRepository) ListByOrganization(ctx context.Context, orgID uint) ([]*domain.Collection, error) {
 	var collections []*domain.Collection
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Where("organization_id = ? AND deleted_at IS NULL", orgID).
 		Order("name ASC").
 		Find(&collections).Error
@@ -111,7 +111,7 @@ func (r *collectionRepository) ListForUser(ctx context.Context, orgID, userID ui
 	// Complex query: Get collections where user has direct access OR team access
 	// First, get organization_user_id for the user
 	var orgUserID uint
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Model(&domain.OrganizationUser{}).
 		Select("id").
 		Where("organization_id = ? AND user_id = ?", orgID, userID).
@@ -150,7 +150,7 @@ func (r *collectionRepository) ListForUser(ctx context.Context, orgID, userID ui
 		ORDER BY collections.name ASC
 	`
 
-	err = r.db.WithContext(ctx).
+	err = dbFromContext(ctx, r.db).
 		Raw(query, orgID, orgUserID, orgUserID).
 		Scan(&collections).Error
 
@@ -168,17 +168,17 @@ func (r *collectionRepository) Update(ctx context.Context, collection *domain.Co
 	collection.TeamAccess = nil
 	collection.Items = nil
 
-	return r.db.WithContext(ctx).Save(collection).Error
+	return dbFromContext(ctx, r.db).Save(collection).Error
 }
 
 func (r *collectionRepository) Delete(ctx context.Context, id uint) error {
 	// Hard delete - will cascade delete collection_users, collection_teams
-	return r.db.WithContext(ctx).Unscoped().Delete(&domain.Collection{}, id).Error
+	return dbFromContext(ctx, r.db).Unscoped().Delete(&domain.Collection{}, id).Error
 }
 
 func (r *collectionRepository) SoftDelete(ctx context.Context, id uint) error {
 	now := time.Now()
-	return r.db.WithContext(ctx).
+	return dbFromContext(ctx, r.db).
 		Model(&domain.Collection{}).
 		Where("id = ?", id).
 		Update("deleted_at", now).Error
@@ -186,7 +186,7 @@ func (r *collectionRepository) SoftDelete(ctx context.Context, id uint) error {
 
 func (r *collectionRepository) GetItemCount(ctx context.Context, collectionID uint) (int, error) {
 	var count int64
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Model(&domain.OrganizationItem{}).
 		Where("collection_id = ? AND deleted_at IS NULL", collectionID).
 		Count(&count).Error
@@ -196,7 +196,7 @@ func (r *collectionRepository) GetItemCount(ctx context.Context, collectionID ui
 
 func (r *collectionRepository) GetUserCount(ctx context.Context, collectionID uint) (int, error) {
 	var count int64
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Model(&domain.CollectionUser{}).
 		Where("collection_id = ?", collectionID).
 		Count(&count).Error
@@ -206,7 +206,7 @@ func (r *collectionRepository) GetUserCount(ctx context.Context, collectionID ui
 
 func (r *collectionRepository) GetTeamCount(ctx context.Context, collectionID uint) (int, error) {
 	var count int64
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Model(&domain.CollectionTeam{}).
 		Where("collection_id = ?", collectionID).
 		Count(&count).Error

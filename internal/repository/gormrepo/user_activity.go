@@ -20,13 +20,13 @@ func NewUserActivityRepository(db *gorm.DB) repository.UserActivityRepository {
 }
 
 func (r *userActivityRepository) Create(ctx context.Context, activity *domain.UserActivity) error {
-	return r.db.WithContext(ctx).Create(activity).Error
+	return dbFromContext(ctx, r.db).Create(activity).Error
 }
 
 func (r *userActivityRepository) GetByUserID(ctx context.Context, userID uint, limit int) ([]*domain.UserActivity, error) {
 	var activities []*domain.UserActivity
 
-	query := r.db.WithContext(ctx).
+	query := dbFromContext(ctx, r.db).
 		Where("user_id = ?", userID).
 		Order("created_at DESC")
 
@@ -44,7 +44,7 @@ func (r *userActivityRepository) GetByUserID(ctx context.Context, userID uint, l
 func (r *userActivityRepository) GetLastActivity(ctx context.Context, userID uint, activityType domain.ActivityType) (*domain.UserActivity, error) {
 	var activity domain.UserActivity
 
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Where("user_id = ? AND activity_type = ?", userID, activityType).
 		Order("created_at DESC").
 		First(&activity).Error
@@ -72,7 +72,7 @@ func (r *userActivityRepository) GetLastSignInTimes(ctx context.Context, userIDs
 		LastLoginAt time.Time `gorm:"column:last_login_at"`
 	}
 	var rows []row
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Model(&domain.UserActivity{}).
 		Select("user_id, MAX(created_at) AS last_login_at").
 		Where("user_id IN ? AND activity_type = ?", userIDs, domain.ActivityTypeSignIn).
@@ -94,7 +94,7 @@ func (r *userActivityRepository) List(ctx context.Context, filter repository.Act
 	var activities []*domain.UserActivity
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&domain.UserActivity{})
+	query := dbFromContext(ctx, r.db).Model(&domain.UserActivity{})
 
 	// Apply filters
 	if filter.UserID != nil {
@@ -135,7 +135,7 @@ func (r *userActivityRepository) ListByUserIDs(ctx context.Context, userIDs []ui
 		return activities, nil
 	}
 
-	query := r.db.WithContext(ctx).
+	query := dbFromContext(ctx, r.db).
 		Where("user_id IN ?", userIDs).
 		Order("created_at DESC")
 
@@ -154,7 +154,7 @@ func (r *userActivityRepository) ListByUserIDs(ctx context.Context, userIDs []ui
 }
 
 func (r *userActivityRepository) DeleteByUserID(ctx context.Context, userID uint) error {
-	return r.db.WithContext(ctx).
+	return dbFromContext(ctx, r.db).
 		Where("user_id = ?", userID).
 		Delete(&domain.UserActivity{}).Error
 }
@@ -162,7 +162,7 @@ func (r *userActivityRepository) DeleteByUserID(ctx context.Context, userID uint
 func (r *userActivityRepository) DeleteOldActivities(ctx context.Context, olderThan time.Duration) (int64, error) {
 	cutoffTime := time.Now().Add(-olderThan)
 
-	result := r.db.WithContext(ctx).
+	result := dbFromContext(ctx, r.db).
 		Where("created_at < ?", cutoffTime).
 		Delete(&domain.UserActivity{})
 

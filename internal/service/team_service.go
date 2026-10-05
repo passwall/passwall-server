@@ -35,7 +35,7 @@ func NewTeamService(
 
 func (s *teamService) Create(ctx context.Context, orgID uint, userID uint, req *domain.CreateTeamRequest) (*domain.Team, error) {
 	// Check if user can manage teams (admin or manager)
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
 		return nil, repository.ErrForbidden
 	}
@@ -287,7 +287,7 @@ func (s *teamService) RemoveMember(ctx context.Context, teamID uint, teamUserID 
 // Helper methods for permission checking
 
 func (s *teamService) checkOrgMembership(ctx context.Context, orgID, userID uint) error {
-	_, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	_, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
 		if err == repository.ErrNotFound {
 			return repository.ErrForbidden
@@ -298,7 +298,7 @@ func (s *teamService) checkOrgMembership(ctx context.Context, orgID, userID uint
 }
 
 func (s *teamService) checkTeamManagePermission(ctx context.Context, orgID, userID uint) error {
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
 		return repository.ErrForbidden
 	}
@@ -312,7 +312,7 @@ func (s *teamService) checkTeamManagePermission(ctx context.Context, orgID, user
 
 func (s *teamService) checkTeamMemberManagePermission(ctx context.Context, orgID, teamID, userID uint) error {
 	// Organization admins can always manage
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
 		return repository.ErrForbidden
 	}

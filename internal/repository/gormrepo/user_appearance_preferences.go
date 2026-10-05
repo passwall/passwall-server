@@ -21,7 +21,7 @@ func NewUserAppearancePreferencesRepository(db *gorm.DB) repository.UserAppearan
 
 func (r *userAppearancePreferencesRepository) GetByUserID(ctx context.Context, userID uint) (*domain.UserAppearancePreferences, error) {
 	var prefs domain.UserAppearancePreferences
-	err := r.db.WithContext(ctx).Where("user_id = ?", userID).First(&prefs).Error
+	err := dbFromContext(ctx, r.db).Where("user_id = ?", userID).First(&prefs).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, repository.ErrNotFound
@@ -39,7 +39,7 @@ func (r *userAppearancePreferencesRepository) Upsert(ctx context.Context, prefs 
 	// Ensure UpdatedAt changes on updates.
 	prefs.UpdatedAt = time.Now()
 
-	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
+	return dbFromContext(ctx, r.db).Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "user_id"}},
 		DoUpdates: clause.AssignmentColumns([]string{
 			"theme",

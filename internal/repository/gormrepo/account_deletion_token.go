@@ -20,12 +20,12 @@ func NewAccountDeletionTokenRepository(db *gorm.DB) repository.AccountDeletionTo
 }
 
 func (r *accountDeletionTokenRepository) Create(ctx context.Context, token *domain.AccountDeletionToken) error {
-	return r.db.WithContext(ctx).Create(token).Error
+	return dbFromContext(ctx, r.db).Create(token).Error
 }
 
 func (r *accountDeletionTokenRepository) GetByUUID(ctx context.Context, tokenUUID string) (*domain.AccountDeletionToken, error) {
 	var token domain.AccountDeletionToken
-	err := r.db.WithContext(ctx).Where("uuid = ?", tokenUUID).First(&token).Error
+	err := dbFromContext(ctx, r.db).Where("uuid = ?", tokenUUID).First(&token).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, repository.ErrNotFound
@@ -36,15 +36,15 @@ func (r *accountDeletionTokenRepository) GetByUUID(ctx context.Context, tokenUUI
 }
 
 func (r *accountDeletionTokenRepository) DeleteByUUID(ctx context.Context, tokenUUID string) error {
-	return r.db.WithContext(ctx).Where("uuid = ?", tokenUUID).Delete(&domain.AccountDeletionToken{}).Error
+	return dbFromContext(ctx, r.db).Where("uuid = ?", tokenUUID).Delete(&domain.AccountDeletionToken{}).Error
 }
 
 func (r *accountDeletionTokenRepository) DeleteByUserID(ctx context.Context, userID uint) error {
-	return r.db.WithContext(ctx).Where("user_id = ?", userID).Delete(&domain.AccountDeletionToken{}).Error
+	return dbFromContext(ctx, r.db).Where("user_id = ?", userID).Delete(&domain.AccountDeletionToken{}).Error
 }
 
 func (r *accountDeletionTokenRepository) DeleteExpired(ctx context.Context) (int64, error) {
-	result := r.db.WithContext(ctx).Where("expires_at < ?", time.Now()).Delete(&domain.AccountDeletionToken{})
+	result := dbFromContext(ctx, r.db).Where("expires_at < ?", time.Now()).Delete(&domain.AccountDeletionToken{})
 	return result.RowsAffected, result.Error
 }
 

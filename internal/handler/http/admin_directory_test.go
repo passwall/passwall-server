@@ -226,7 +226,6 @@ func sampleDirectoryUser() *domain.User {
 		CreatedAt:              time.Date(2024, 3, 2, 15, 4, 5, 0, time.FixedZone("UTC+3", 3*60*60)),
 		Email:                  "ada@example.com",
 		Name:                   "Ada",
-		Schema:                 "user_7_vault",
 		PersonalOrganizationID: 42,
 		MasterPasswordHash:     "bcrypt-hash-do-not-leak",
 		ProtectedUserKey:       "2.iv|ciphertext|mac",
@@ -417,7 +416,7 @@ func TestAdminDirectory_GetUser(t *testing.T) {
 	byID := directoryRequest(t, router, http.MethodGet, "/api/admin/directory/users/7", testAdminDirectoryKey)
 	require.Equal(t, http.StatusOK, byID.Code)
 	payload := decodeJSON(t, byID)
-	assert.EqualValues(t, 1, payload["schema_version"])
+	assert.EqualValues(t, domain.AdminDirectorySchemaVersion, payload["schema_version"])
 	_, hasPagination := payload["pagination"]
 	assert.False(t, hasPagination)
 	assert.Equal(t, "ada@example.com", payload["data"].(map[string]any)["email"])
@@ -463,8 +462,6 @@ func TestNewAdminDirectoryUser_DoesNotCopySecrets(t *testing.T) {
 		Plan:  &domain.Plan{Code: "family-yearly", Name: "Family"},
 	}, domain.AdminDirectorySignals{
 		LastActivityAt:    &active,
-		VaultKnown:        true,
-		VaultByType:       map[domain.ItemType]int{domain.ItemTypePassword: 2, domain.ItemTypeSecureNote: 1},
 		OrgItemsByType:    map[domain.ItemType]int{domain.ItemTypeCard: 4},
 		OrganizationCount: 1,
 		CollectionCount:   2,
@@ -481,13 +478,10 @@ func TestNewAdminDirectoryUser_DoesNotCopySecrets(t *testing.T) {
 	assert.NotContains(t, body, user.ProtectedUserKey)
 	assert.NotContains(t, body, user.KdfSalt)
 	assert.NotContains(t, body, *user.TwoFactorSecret)
-	assert.NotContains(t, body, user.Schema)
 	assert.Contains(t, body, `"status":"trialing"`)
 	assert.Contains(t, body, `"code":"family-yearly"`)
 	assert.Contains(t, body, `"email_verified":false`)
-	assert.Contains(t, body, `"item_count":3`)
-	assert.Contains(t, body, `"password":2`)
-	assert.Contains(t, body, `"secure_note":1`)
+	assert.NotContains(t, body, `"vault":`)
 	assert.Contains(t, body, `"card":4`)
 	assert.Contains(t, body, `"organization_count":1`)
 	assert.Contains(t, body, `"signin_count":3`)
@@ -505,14 +499,7 @@ func TestAdminDirectory_UsageCounts(t *testing.T) {
 	users := &stubDirectoryUsers{listUsers: []*domain.User{user}, listTotal: 1}
 	stats := &stubDirectoryStats{byUser: map[uint]domain.AdminDirectorySignals{
 		user.ID: {
-			LastActivityAt: &lastActivity,
-			VaultKnown:     true,
-			VaultByType: map[domain.ItemType]int{
-				domain.ItemTypePassword:   8,
-				domain.ItemTypeSecureNote: 3,
-				domain.ItemTypeCard:       1,
-				domain.ItemType(77):       2,
-			},
+			LastActivityAt:    &lastActivity,
 			OrgItemsByType:    map[domain.ItemType]int{domain.ItemTypePassword: 4},
 			OrganizationCount: 2,
 			CollectionCount:   3,
@@ -527,20 +514,13 @@ func TestAdminDirectory_UsageCounts(t *testing.T) {
 	rec := directoryRequest(t, router, http.MethodGet, "/api/admin/directory/users", testAdminDirectoryKey)
 	require.Equal(t, http.StatusOK, rec.Code)
 	payload := decodeJSON(t, rec)
-	assert.EqualValues(t, 1, payload["schema_version"])
+	assert.EqualValues(t, domain.AdminDirectorySchemaVersion, payload["schema_version"])
 	record := payload["data"].([]any)[0].(map[string]any)
 	assert.Equal(t, true, record["email_verified"])
 	assert.Equal(t, lastActivity.UTC().Format(time.RFC3339Nano), record["last_activity_at"])
 	assert.Nil(t, record["last_login_at"])
 
-	vault := record["vault"].(map[string]any)
-	assert.EqualValues(t, 14, vault["item_count"])
-	byType := vault["by_type"].(map[string]any)
-	assert.EqualValues(t, 8, byType["password"])
-	assert.EqualValues(t, 3, byType["secure_note"])
-	assert.EqualValues(t, 1, byType["card"])
-	assert.EqualValues(t, 2, byType["unknown"])
-	assert.Len(t, byType, 4)
+	assert.NotContains(t, record, "vault")
 
 	orgItems := record["organization_items"].(map[string]any)
 	assert.EqualValues(t, 4, orgItems["item_count"])
@@ -570,9 +550,7 @@ func TestAdminDirectory_UnknownUsageIsNullOrZero(t *testing.T) {
 	record := decodeJSON(t, rec)["data"].(map[string]any)
 	assert.Equal(t, false, record["email_verified"])
 	assert.Nil(t, record["last_activity_at"])
-	vault := record["vault"].(map[string]any)
-	assert.Nil(t, vault["item_count"])
-	assert.Nil(t, vault["by_type"])
+	assert.NotContains(t, record, "vault")
 	orgItems := record["organization_items"].(map[string]any)
 	assert.EqualValues(t, 0, orgItems["item_count"])
 	assert.Empty(t, orgItems["by_type"].(map[string]any))

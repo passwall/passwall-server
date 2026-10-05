@@ -34,12 +34,12 @@ func (r *organizationRepository) Create(ctx context.Context, org *domain.Organiz
 		org.PublicID = pid
 	}
 
-	return r.db.WithContext(ctx).Create(org).Error
+	return dbFromContext(ctx, r.db).Create(org).Error
 }
 
 func (r *organizationRepository) GetByID(ctx context.Context, id uint) (*domain.Organization, error) {
 	var org domain.Organization
-	err := r.db.WithContext(ctx).Where("id = ?", id).First(&org).Error
+	err := dbFromContext(ctx, r.db).Where("id = ?", id).First(&org).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, repository.ErrNotFound
@@ -51,7 +51,7 @@ func (r *organizationRepository) GetByID(ctx context.Context, id uint) (*domain.
 
 func (r *organizationRepository) GetByUUID(ctx context.Context, uuidStr string) (*domain.Organization, error) {
 	var org domain.Organization
-	err := r.db.WithContext(ctx).Where("uuid = ?", uuidStr).First(&org).Error
+	err := dbFromContext(ctx, r.db).Where("uuid = ?", uuidStr).First(&org).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, repository.ErrNotFound
@@ -63,7 +63,7 @@ func (r *organizationRepository) GetByUUID(ctx context.Context, uuidStr string) 
 
 func (r *organizationRepository) GetByPublicID(ctx context.Context, publicID string) (*domain.Organization, error) {
 	var org domain.Organization
-	err := r.db.WithContext(ctx).Where("public_id = ?", publicID).First(&org).Error
+	err := dbFromContext(ctx, r.db).Where("public_id = ?", publicID).First(&org).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, repository.ErrNotFound
@@ -77,7 +77,7 @@ func (r *organizationRepository) List(ctx context.Context, filter repository.Lis
 	var orgs []*domain.Organization
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&domain.Organization{})
+	query := dbFromContext(ctx, r.db).Model(&domain.Organization{})
 
 	// Count total
 	if err := query.Count(&total).Error; err != nil {
@@ -139,7 +139,7 @@ func (r *organizationRepository) GetDefaultByOwnerID(ctx context.Context, ownerU
 	// Default org is defined by organizations.is_default=true.
 	// Do NOT couple this to organization_users.role or organizations.created_by_user_id; both can be
 	// missing/legacy in migrated data.
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Joins("JOIN organization_users ON organization_users.organization_id = organizations.id").
 		Where("organization_users.user_id = ?", ownerUserID).
 		Where("organization_users.status IN ?", []domain.OrganizationUserStatus{
@@ -163,7 +163,7 @@ func (r *organizationRepository) GetDefaultByOwnerID(ctx context.Context, ownerU
 func (r *organizationRepository) ListForUser(ctx context.Context, userID uint) ([]*domain.Organization, error) {
 	var orgs []*domain.Organization
 
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Joins("JOIN organization_users ON organization_users.organization_id = organizations.id").
 		Where("organization_users.user_id = ? AND organization_users.status IN ?", userID, []domain.OrganizationUserStatus{
 			domain.OrgUserStatusAccepted,
@@ -194,7 +194,7 @@ func (r *organizationRepository) ListForUser(ctx context.Context, userID uint) (
 		EncryptedOrgKey string `gorm:"column:encrypted_org_key"`
 	}
 	var keys []orgKeyRow
-	if err := r.db.WithContext(ctx).
+	if err := dbFromContext(ctx, r.db).
 		Table("organization_users").
 		Select("organization_id, encrypted_org_key").
 		Where("user_id = ? AND organization_id IN ?", userID, orgIDs).
@@ -216,13 +216,13 @@ func (r *organizationRepository) ListForUser(ctx context.Context, userID uint) (
 }
 
 func (r *organizationRepository) Update(ctx context.Context, org *domain.Organization) error {
-	return r.db.WithContext(ctx).Save(org).Error
+	return dbFromContext(ctx, r.db).Save(org).Error
 }
 
 func (r *organizationRepository) Delete(ctx context.Context, id uint) error {
 	// Personal Vault organizations are never deletable (by any flow).
 	var org domain.Organization
-	if err := r.db.WithContext(ctx).
+	if err := dbFromContext(ctx, r.db).
 		Select("id", "is_personal").
 		Where("id = ?", id).
 		First(&org).Error; err != nil {
@@ -237,7 +237,7 @@ func (r *organizationRepository) Delete(ctx context.Context, id uint) error {
 
 	// Purge organization data, but DO NOT delete organization row.
 	// We keep the org record to preserve billing/subscription history and auditability.
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return dbFromContext(ctx, r.db).Transaction(func(tx *gorm.DB) error {
 		// Items first (may reference collections)
 		if err := tx.Unscoped().
 			Where("organization_id = ?", id).
@@ -306,9 +306,73 @@ WHERE team_id IN (SELECT id FROM teams WHERE organization_id = ?)
 	})
 }
 
+func (r *organizationRepository) PurgePersonal(ctx context.Context, id uint) error {
+	var org domain.Organization
+	if err := dbFromContext(ctx, r.db).
+		Select("id", "is_personal").
+		Where("id = ?", id).
+		First(&org).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return repository.ErrNotFound
+		}
+		return err
+	}
+	if !org.IsPersonal {
+		return repository.ErrForbidden
+	}
+
+	return dbFromContext(ctx, r.db).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("organization_id = ?", id).Delete(&domain.ItemShare{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Unscoped().Where("organization_id = ?", id).Delete(&domain.OrganizationItem{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("organization_id = ?", id).Delete(&domain.Invitation{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec(`
+DELETE FROM collection_users
+WHERE collection_id IN (SELECT id FROM collections WHERE organization_id = ?)
+`, id).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec(`
+DELETE FROM collection_teams
+WHERE collection_id IN (SELECT id FROM collections WHERE organization_id = ?)
+   OR team_id IN (SELECT id FROM teams WHERE organization_id = ?)
+`, id, id).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec(`
+DELETE FROM team_users
+WHERE team_id IN (SELECT id FROM teams WHERE organization_id = ?)
+   OR organization_user_id IN (SELECT id FROM organization_users WHERE organization_id = ?)
+`, id, id).Error; err != nil {
+			return err
+		}
+		if err := tx.Unscoped().Where("organization_id = ?", id).Delete(&domain.OrganizationFolder{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Unscoped().Where("organization_id = ?", id).Delete(&domain.Team{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Unscoped().Where("organization_id = ?", id).Delete(&domain.Collection{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Unscoped().Where("organization_id = ?", id).Delete(&domain.OrganizationUser{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Unscoped().Where("organization_id = ?", id).Delete(&domain.Subscription{}).Error; err != nil {
+			return err
+		}
+		return tx.Unscoped().Delete(&domain.Organization{}, id).Error
+	})
+}
+
 func (r *organizationRepository) GetMemberCount(ctx context.Context, orgID uint) (int, error) {
 	var count int64
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Model(&domain.OrganizationUser{}).
 		Where("organization_id = ? AND status IN ?", orgID, []domain.OrganizationUserStatus{
 			domain.OrgUserStatusAccepted,
@@ -321,7 +385,7 @@ func (r *organizationRepository) GetMemberCount(ctx context.Context, orgID uint)
 
 func (r *organizationRepository) GetTeamCount(ctx context.Context, orgID uint) (int, error) {
 	var count int64
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Model(&domain.Team{}).
 		Where("organization_id = ? AND is_default = false", orgID).
 		Count(&count).Error
@@ -331,7 +395,7 @@ func (r *organizationRepository) GetTeamCount(ctx context.Context, orgID uint) (
 
 func (r *organizationRepository) GetCollectionCount(ctx context.Context, orgID uint) (int, error) {
 	var count int64
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Model(&domain.Collection{}).
 		Where("organization_id = ? AND deleted_at IS NULL AND is_default = false", orgID).
 		Count(&count).Error
@@ -341,7 +405,7 @@ func (r *organizationRepository) GetCollectionCount(ctx context.Context, orgID u
 
 func (r *organizationRepository) GetItemCount(ctx context.Context, orgID uint) (int, error) {
 	var count int64
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Model(&domain.OrganizationItem{}).
 		Where("organization_id = ? AND deleted_at IS NULL", orgID).
 		Count(&count).Error

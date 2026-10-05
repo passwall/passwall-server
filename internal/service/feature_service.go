@@ -12,6 +12,7 @@ type FeatureService interface {
 	CanCreateCollection(ctx context.Context, orgID uint) (bool, error)
 	CanInviteUser(ctx context.Context, orgID uint) (bool, error)
 	CanCreateItem(ctx context.Context, orgID uint) (bool, error)
+	CanWriteVault(ctx context.Context, orgID uint) (bool, error)
 	CanUseTeams(ctx context.Context, orgID uint) (bool, error)
 	CanAccessAudit(ctx context.Context, orgID uint) (bool, error)
 	CanUseSSO(ctx context.Context, orgID uint) (bool, error)
@@ -70,6 +71,9 @@ func (s *featureService) getSubscriptionWithPlan(ctx context.Context, orgID uint
 	if err != nil {
 		return nil, fmt.Errorf("failed to get subscription: %w", err)
 	}
+	if sub == nil || sub.Plan == nil {
+		return nil, fmt.Errorf("subscription or plan unavailable")
+	}
 
 	// Check if subscription allows write operations
 	if !sub.CanWrite() {
@@ -77,6 +81,14 @@ func (s *featureService) getSubscriptionWithPlan(ctx context.Context, orgID uint
 	}
 
 	return sub, nil
+}
+
+func (s *featureService) CanWriteVault(ctx context.Context, orgID uint) (bool, error) {
+	_, err := s.getSubscriptionWithPlan(ctx, orgID)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // CanInviteUser checks if organization can invite new users

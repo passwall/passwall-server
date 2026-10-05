@@ -30,7 +30,7 @@ func RunMigrations(ctx context.Context, runSeed bool) error {
 		return err
 	}
 
-	if err := AutoMigrate(db); err != nil {
+	if err := MigrateDatabase(ctx, db); err != nil {
 		_ = db.Close()
 		return err
 	}
@@ -72,32 +72,7 @@ func InitDatabase(cfg *config.Config) (database.Database, error) {
 	return db, nil
 }
 
-// AutoMigrate runs database migrations
-// This creates all tables from scratch with their FINAL structure
-// For production updates of existing databases, use SQL migration files in /migrations/
-func AutoMigrate(db database.Database) error {
-	err := db.Transaction(context.Background(), func(gormDB *gorm.DB) error {
-		// Serialize schema changes across replicas or concurrent deploy jobs.
-		if err := gormDB.Exec("SELECT pg_advisory_xact_lock(hashtext(?))", "passwall_schema_migration").Error; err != nil {
-			return fmt.Errorf("acquire migration lock: %w", err)
-		}
-
-		return autoMigrateSchema(gormDB)
-	})
-	if err != nil {
-		return err
-	}
-
-	logger.Infof("✓ Database schema migrated successfully")
-	return nil
-}
-
 func autoMigrateSchema(gormDB *gorm.DB) error {
-	// Create Item table first (used by personal vault)
-	if err := gormDB.AutoMigrate(&domain.Item{}); err != nil {
-		return fmt.Errorf("failed to migrate Item: %w", err)
-	}
-
 	// Core auth & user tables
 	if err := gormDB.AutoMigrate(
 		&domain.Role{},

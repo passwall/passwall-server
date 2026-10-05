@@ -30,7 +30,6 @@ type AuthService interface {
 	// SignOut revokes only the current session (device), not all sessions.
 	// Use token UUID (from JWT claims) to locate and revoke the session.
 	SignOut(ctx context.Context, tokenUUID string) error
-	ValidateSchema(ctx context.Context, schema string) error
 	RequestRecoveryDelete(ctx context.Context, email string) error
 	ConfirmRecoveryDelete(ctx context.Context, token string) error
 
@@ -46,9 +45,6 @@ type AuthService interface {
 	GetMandatoryTwoFactorSetupRequirement(ctx context.Context, userID uint) (*domain.TwoFactorSetupRequirement, error)
 }
 
-// NOTE: Legacy service interfaces removed (Login, BankAccount, CreditCard, Note, Email, Server)
-// All item types now use ItemService with flexible items architecture
-
 // UserService defines the business logic for users
 type UserService interface {
 	GetByID(ctx context.Context, id uint) (*domain.User, error)
@@ -57,14 +53,14 @@ type UserService interface {
 	Create(ctx context.Context, user *domain.User) error
 	CreateByAdmin(ctx context.Context, req *domain.CreateUserByAdminRequest) (*domain.User, error)
 	Update(ctx context.Context, id uint, user *domain.User) error
-	Delete(ctx context.Context, id uint, schema string) error
+	Delete(ctx context.Context, id uint) error
 	ChangeMasterPassword(ctx context.Context, req *domain.ChangeMasterPasswordRequest) error
 
 	// Ownership management
 	CheckOwnership(ctx context.Context, userID uint) (*domain.OwnershipCheckResult, error)
 	TransferOwnership(ctx context.Context, req *domain.TransferOwnershipRequest) error
-	DeleteWithOrganizations(ctx context.Context, userID uint, organizationIDs []uint, schema string) error
-	DeleteForRecovery(ctx context.Context, userID uint, schema string) error
+	DeleteWithOrganizations(ctx context.Context, userID uint, organizationIDs []uint) error
+	DeleteForRecovery(ctx context.Context, userID uint) error
 }
 
 // UserNotificationPreferencesService defines business logic for notification preferences.
@@ -174,6 +170,7 @@ type OrganizationItemService interface {
 	Create(ctx context.Context, orgID, userID uint, req *CreateOrgItemRequest) (*domain.OrganizationItem, error)
 	GetByID(ctx context.Context, id, userID uint) (*domain.OrganizationItem, error)
 	ListByOrganization(ctx context.Context, orgID, userID uint, filter repository.OrganizationItemFilter) ([]*domain.OrganizationItem, int64, error)
+	ListV2(ctx context.Context, orgID, userID uint, req OrganizationItemsV2Request) (*OrganizationItemsV2Response, error)
 	ListByCollection(ctx context.Context, collectionID, userID uint) ([]*domain.OrganizationItem, error)
 	Update(ctx context.Context, id, userID uint, req *UpdateOrgItemRequest) (*domain.OrganizationItem, error)
 	Delete(ctx context.Context, id, userID uint) (*domain.OrganizationItem, error)

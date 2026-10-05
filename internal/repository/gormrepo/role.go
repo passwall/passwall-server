@@ -20,7 +20,7 @@ func NewRoleRepository(db *gorm.DB) repository.RoleRepository {
 
 func (r *roleRepository) GetByID(ctx context.Context, id uint) (*domain.Role, error) {
 	var role domain.Role
-	err := r.db.WithContext(ctx).Preload("Permissions").Where("id = ?", id).First(&role).Error
+	err := dbFromContext(ctx, r.db).Preload("Permissions").Where("id = ?", id).First(&role).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, repository.ErrNotFound
@@ -32,7 +32,7 @@ func (r *roleRepository) GetByID(ctx context.Context, id uint) (*domain.Role, er
 
 func (r *roleRepository) GetByName(ctx context.Context, name string) (*domain.Role, error) {
 	var role domain.Role
-	err := r.db.WithContext(ctx).Preload("Permissions").Where("name = ?", name).First(&role).Error
+	err := dbFromContext(ctx, r.db).Preload("Permissions").Where("name = ?", name).First(&role).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, repository.ErrNotFound
@@ -44,7 +44,7 @@ func (r *roleRepository) GetByName(ctx context.Context, name string) (*domain.Ro
 
 func (r *roleRepository) List(ctx context.Context) ([]*domain.Role, error) {
 	var roles []*domain.Role
-	err := r.db.WithContext(ctx).Preload("Permissions").Find(&roles).Error
+	err := dbFromContext(ctx, r.db).Preload("Permissions").Find(&roles).Error
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func (r *roleRepository) List(ctx context.Context) ([]*domain.Role, error) {
 
 func (r *roleRepository) GetPermissions(ctx context.Context, roleID uint) ([]string, error) {
 	var permissions []string
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Table("permissions").
 		Select("permissions.name").
 		Joins("INNER JOIN role_permissions ON role_permissions.permission_id = permissions.id").

@@ -24,12 +24,12 @@ func (r *compatTelemetryRepository) CreateBatch(ctx context.Context, events []*d
 		return nil
 	}
 
-	return r.db.WithContext(ctx).Create(&events).Error
+	return dbFromContext(ctx, r.db).Create(&events).Error
 }
 
 func (r *compatTelemetryRepository) ListExistingCompatKeys(ctx context.Context, since time.Time) ([]repository.CompatTelemetryDedupeKey, error) {
 	var rows []repository.CompatTelemetryDedupeKey
-	err := r.db.WithContext(ctx).Model(&domain.CompatTelemetryEvent{}).
+	err := dbFromContext(ctx, r.db).Model(&domain.CompatTelemetryEvent{}).
 		Select(`domain_etld1, page_path, event_name,
 			COALESCE(NULLIF(TRIM(error_code),''), 'none') AS error_code,
 			flow_type, surface, succeeded`).
@@ -49,12 +49,12 @@ func (r *compatTelemetryRepository) List(
 		filtered int64
 	)
 
-	baseQuery := r.db.WithContext(ctx).Model(&domain.CompatTelemetryEvent{})
+	baseQuery := dbFromContext(ctx, r.db).Model(&domain.CompatTelemetryEvent{})
 	if err := baseQuery.Count(&total).Error; err != nil {
 		return nil, 0, 0, err
 	}
 
-	query := r.db.WithContext(ctx).Model(&domain.CompatTelemetryEvent{})
+	query := dbFromContext(ctx, r.db).Model(&domain.CompatTelemetryEvent{})
 	if filter.Domain != "" {
 		query = query.Where("domain_etld1 = ?", filter.Domain)
 	}
@@ -119,7 +119,7 @@ func (r *compatTelemetryRepository) List(
 }
 
 func (r *compatTelemetryRepository) DeleteOlderThan(ctx context.Context, before time.Time) (int64, error) {
-	res := r.db.WithContext(ctx).Where("created_at < ?", before).Delete(&domain.CompatTelemetryEvent{})
+	res := dbFromContext(ctx, r.db).Where("created_at < ?", before).Delete(&domain.CompatTelemetryEvent{})
 	return res.RowsAffected, res.Error
 }
 
@@ -127,7 +127,7 @@ func (r *compatTelemetryRepository) ListSummary(
 	ctx context.Context,
 	filter repository.CompatTelemetryListFilter,
 ) ([]*domain.CompatTelemetrySummaryRow, int64, error) {
-	base := r.db.WithContext(ctx).Model(&domain.CompatTelemetryEvent{}).Select(
+	base := dbFromContext(ctx, r.db).Model(&domain.CompatTelemetryEvent{}).Select(
 		`domain_etld1, COALESCE(NULLIF(TRIM(page_path),''), domain_etld1) AS page_path, event_name, COALESCE(NULLIF(error_code,''), 'none') AS error_code, flow_type, surface, succeeded,
 		 COUNT(*) AS count, MIN(created_at) AS first_seen, MAX(created_at) AS last_seen,
 		 MAX(step_index) AS max_step_index,
@@ -172,7 +172,7 @@ func (r *compatTelemetryRepository) ListSummary(
 	}
 
 	var total int64
-	countQuery := r.db.WithContext(ctx).Table("(?) AS sub", base)
+	countQuery := dbFromContext(ctx, r.db).Table("(?) AS sub", base)
 	if err := countQuery.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}

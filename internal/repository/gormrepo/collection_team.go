@@ -19,12 +19,12 @@ func NewCollectionTeamRepository(db *gorm.DB) repository.CollectionTeamRepositor
 }
 
 func (r *collectionTeamRepository) Create(ctx context.Context, ct *domain.CollectionTeam) error {
-	return r.db.WithContext(ctx).Create(ct).Error
+	return dbFromContext(ctx, r.db).Create(ct).Error
 }
 
 func (r *collectionTeamRepository) GetByID(ctx context.Context, id uint) (*domain.CollectionTeam, error) {
 	var ct domain.CollectionTeam
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Collection").
 		Preload("Team").
 		Where("id = ?", id).
@@ -41,7 +41,7 @@ func (r *collectionTeamRepository) GetByID(ctx context.Context, id uint) (*domai
 
 func (r *collectionTeamRepository) GetByCollectionAndTeam(ctx context.Context, collectionID, teamID uint) (*domain.CollectionTeam, error) {
 	var ct domain.CollectionTeam
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Collection").
 		Preload("Team").
 		Where("collection_id = ? AND team_id = ?", collectionID, teamID).
@@ -58,7 +58,7 @@ func (r *collectionTeamRepository) GetByCollectionAndTeam(ctx context.Context, c
 
 func (r *collectionTeamRepository) ListByCollection(ctx context.Context, collectionID uint) ([]*domain.CollectionTeam, error) {
 	var cts []*domain.CollectionTeam
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Team").
 		Where("collection_id = ?", collectionID).
 		Order("created_at ASC").
@@ -72,7 +72,7 @@ func (r *collectionTeamRepository) ListByCollection(ctx context.Context, collect
 
 func (r *collectionTeamRepository) ListByTeam(ctx context.Context, teamID uint) ([]*domain.CollectionTeam, error) {
 	var cts []*domain.CollectionTeam
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Collection").
 		Where("team_id = ?", teamID).
 		Order("created_at ASC").
@@ -89,15 +89,15 @@ func (r *collectionTeamRepository) Update(ctx context.Context, ct *domain.Collec
 	ct.Collection = nil
 	ct.Team = nil
 
-	return r.db.WithContext(ctx).Save(ct).Error
+	return dbFromContext(ctx, r.db).Save(ct).Error
 }
 
 func (r *collectionTeamRepository) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&domain.CollectionTeam{}, id).Error
+	return dbFromContext(ctx, r.db).Delete(&domain.CollectionTeam{}, id).Error
 }
 
 func (r *collectionTeamRepository) DeleteByCollectionAndTeam(ctx context.Context, collectionID, teamID uint) error {
-	return r.db.WithContext(ctx).
+	return dbFromContext(ctx, r.db).
 		Where("collection_id = ? AND team_id = ?", collectionID, teamID).
 		Delete(&domain.CollectionTeam{}).Error
 }

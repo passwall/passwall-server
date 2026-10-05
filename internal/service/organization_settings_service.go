@@ -122,7 +122,7 @@ func (s *organizationSettingsService) GetSettingsDefinitions() []domain.OrgSetti
 // --- Helpers ---
 
 func (s *organizationSettingsService) requireSettingsAccess(ctx context.Context, orgID, userID uint) error {
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return repository.ErrForbidden
@@ -139,7 +139,7 @@ func (s *organizationSettingsService) requireSettingsAccess(ctx context.Context,
 }
 
 func (s *organizationSettingsService) requireSettingsAdmin(ctx context.Context, orgID, userID uint) error {
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return repository.ErrForbidden

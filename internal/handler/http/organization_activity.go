@@ -69,7 +69,7 @@ func (h *OrganizationActivityHandler) ListOrganizationActivities(c *gin.Context)
 	}
 
 	// Membership check
-	if _, err := h.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID); err != nil {
+	if _, err := h.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID); err != nil {
 		if err == repository.ErrNotFound {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return

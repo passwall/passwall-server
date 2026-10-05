@@ -1,0 +1,98 @@
+openapi: 3.1.0
+info:
+  title: Passwall Server API
+  version: 2.0.0
+paths:
+  /api/v2/organizations/{id}/items:
+    get:
+      operationId: listOrganizationItemsV2
+      summary: Page through an organization vault or fetch changes after a revision
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+        - name: since_revision
+          in: query
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Revision-ordered item changes, including deletion tombstones
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationItemsV2Response"
+        "400":
+          description: Invalid cursor or query parameter
+        "401":
+          description: Authentication required
+        "403":
+          description: Active organization membership required
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    OrganizationItemsV2Response:
+      type: object
+      required: [items, next_cursor, revision]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrganizationItemChange"
+        next_cursor:
+          type: [string, "null"]
+        revision:
+          type: integer
+          format: int64
+    OrganizationItemChange:
+      type: object
+      required: [id, uuid, organization_id, revision, deleted]
+      properties:
+        id:
+          type: integer
+        uuid:
+          type: string
+          format: uuid
+        organization_id:
+          type: integer
+        collection_id:
+          type: [integer, "null"]
+        revision:
+          type: integer
+          format: int64
+        deleted:
+          type: boolean
+        deleted_at:
+          type: [string, "null"]
+          format: date-time
+        item_type:
+          type: integer
+        data:
+          type: string
+          description: End-to-end encrypted item ciphertext; omitted for tombstones.
+        metadata:
+          type: object
+          description: Item metadata; omitted for tombstones.
+          additionalProperties: true

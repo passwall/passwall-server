@@ -64,9 +64,8 @@ func TestDirectoryItemCounts(t *testing.T) {
 func TestNewAdminDirectoryUser_NilUser(t *testing.T) {
 	t.Parallel()
 
-	dto := NewAdminDirectoryUser(nil, nil, nil, AdminDirectorySignals{VaultKnown: true, SignInCount: 4})
+	dto := NewAdminDirectoryUser(nil, nil, nil, AdminDirectorySignals{SignInCount: 4})
 	assert.Equal(t, AdminDirectorySubscriptionUnknown, dto.Subscription.Status)
-	assert.Nil(t, dto.Vault.ItemCount)
 	assert.Equal(t, 0, dto.SignInCount)
 
 	encoded, err := json.Marshal(dto)
@@ -87,8 +86,6 @@ func TestNewAdminDirectoryUser_UsageNullsAndZeros(t *testing.T) {
 	assert.True(t, dto.EmailVerified)
 	require.NotNil(t, dto.LastActivityAt)
 	assert.True(t, dto.LastActivityAt.Equal(active.UTC()))
-	assert.Nil(t, dto.Vault.ItemCount)
-	assert.Nil(t, dto.Vault.ByType)
 	require.NotNil(t, dto.OrganizationItems.ItemCount)
 	assert.Equal(t, 0, *dto.OrganizationItems.ItemCount)
 	assert.Empty(t, dto.OrganizationItems.ByType)

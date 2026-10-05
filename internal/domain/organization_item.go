@@ -7,9 +7,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// OrganizationItem represents a vault item shared within an organization
-// Unlike personal items (in user schemas), org items are in the public schema
-// and encrypted with the organization key instead of user key
+// OrganizationItem represents an encrypted vault item owned by an organization.
+// Personal vaults and shared vaults use the same organization-backed storage.
 type OrganizationItem struct {
 	ID        uint       `gorm:"primary_key" json:"id"`
 	UUID      uuid.UUID  `gorm:"type:uuid;not null" json:"uuid"`
@@ -43,7 +42,7 @@ type OrganizationItem struct {
 	ArchivedAt *time.Time `json:"archived_at,omitempty"`
 
 	// Creator info
-	CreatedByUserID uint `json:"created_by_user_id" gorm:"not null;index"`
+	CreatedByUserID uint `json:"created_by_user_id" gorm:"index;constraint:OnDelete:SET NULL"`
 
 	// Associations
 	Organization *Organization `json:"organization,omitempty" gorm:"foreignKey:OrganizationID"`
@@ -102,6 +101,67 @@ type OrganizationItemDTO struct {
 	CreatedAt          time.Time    `json:"created_at"`
 	UpdatedAt          time.Time    `json:"updated_at"`
 	ArchivedAt         *time.Time   `json:"archived_at,omitempty"`
+}
+
+type OrganizationItemSyncDTO struct {
+	ID                 uint          `json:"id"`
+	UUID               uuid.UUID     `json:"uuid"`
+	SupportID          int64         `json:"support_id,omitempty"`
+	SupportIDFormatted string        `json:"support_id_formatted,omitempty"`
+	OrganizationID     uint          `json:"organization_id"`
+	CollectionID       *uint         `json:"collection_id,omitempty"`
+	ItemType           ItemType      `json:"item_type,omitempty"`
+	Data               string        `json:"data,omitempty"`
+	Metadata           *ItemMetadata `json:"metadata,omitempty"`
+	IsFavorite         bool          `json:"is_favorite,omitempty"`
+	FolderID           *uint         `json:"folder_id,omitempty"`
+	Reprompt           bool          `json:"reprompt,omitempty"`
+	AutoFill           bool          `json:"auto_fill,omitempty"`
+	AutoLogin          bool          `json:"auto_login,omitempty"`
+	Revision           int64         `json:"revision"`
+	SyncVersion        int           `json:"sync_version,omitempty"`
+	HidePasswords      bool          `json:"hide_passwords,omitempty"`
+	CreatedByUserID    uint          `json:"created_by_user_id,omitempty"`
+	CreatedAt          time.Time     `json:"created_at,omitempty"`
+	UpdatedAt          time.Time     `json:"updated_at,omitempty"`
+	ArchivedAt         *time.Time    `json:"archived_at,omitempty"`
+	Deleted            bool          `json:"deleted"`
+	DeletedAt          *time.Time    `json:"deleted_at,omitempty"`
+}
+
+func ToOrganizationItemSyncDTO(item *OrganizationItem) *OrganizationItemSyncDTO {
+	if item == nil {
+		return nil
+	}
+	dto := &OrganizationItemSyncDTO{
+		ID:             item.ID,
+		UUID:           item.UUID,
+		OrganizationID: item.OrganizationID,
+		CollectionID:   item.CollectionID,
+		Revision:       item.Revision,
+		Deleted:        item.DeletedAt != nil,
+		DeletedAt:      item.DeletedAt,
+	}
+	if dto.Deleted {
+		return dto
+	}
+	metadata := item.Metadata
+	dto.SupportID = item.SupportID
+	dto.SupportIDFormatted = item.FormatSupportID()
+	dto.ItemType = item.ItemType
+	dto.Data = item.Data
+	dto.Metadata = &metadata
+	dto.IsFavorite = item.IsFavorite
+	dto.FolderID = item.FolderID
+	dto.Reprompt = item.Reprompt
+	dto.AutoFill = item.AutoFill
+	dto.AutoLogin = item.AutoLogin
+	dto.SyncVersion = item.SyncVersion
+	dto.CreatedByUserID = item.CreatedByUserID
+	dto.CreatedAt = item.CreatedAt
+	dto.UpdatedAt = item.UpdatedAt
+	dto.ArchivedAt = item.ArchivedAt
+	return dto
 }
 
 // CreateOrganizationItemRequest for API requests

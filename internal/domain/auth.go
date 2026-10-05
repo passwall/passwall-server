@@ -173,7 +173,6 @@ type TokenDetails struct {
 type TokenClaims struct {
 	UserID uint      `json:"user_id"`
 	Email  string    `json:"email"`
-	Schema string    `json:"schema"`
 	Role   string    `json:"role"`
 	UUID   uuid.UUID `json:"uuid"`
 	Exp    int64     `json:"exp"`
@@ -185,7 +184,6 @@ type UserAuthDTO struct {
 	UUID                   string `json:"uuid"`
 	Email                  string `json:"email"`
 	Name                   string `json:"name"`
-	Schema                 string `json:"schema"`
 	Role                   string `json:"role"`
 	IsVerified             bool   `json:"is_verified"`
 	Language               string `json:"language"`

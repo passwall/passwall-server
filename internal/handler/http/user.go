@@ -217,7 +217,6 @@ func (h *UserHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	// Get user's schema before deletion
 	user, err := h.service.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
@@ -241,7 +240,7 @@ func (h *UserHandler) Delete(c *gin.Context) {
 		}()
 	}
 
-	if err := h.service.Delete(ctx, id, user.Schema); err != nil {
+	if err := h.service.Delete(ctx, id); err != nil {
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
@@ -572,14 +571,7 @@ func (h *UserHandler) DeleteWithOrganizations(c *gin.Context) {
 		return
 	}
 
-	// Get user to extract schema
-	user, err := h.service.GetByID(ctx, userID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
-		return
-	}
-
-	if err := h.service.DeleteWithOrganizations(ctx, userID, req.OrganizationIDs, user.Schema); err != nil {
+	if err := h.service.DeleteWithOrganizations(ctx, userID, req.OrganizationIDs); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

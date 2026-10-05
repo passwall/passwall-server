@@ -34,9 +34,8 @@ type User struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 
-	Name   string `json:"name" gorm:"type:varchar(255)"`
-	Email  string `json:"email" gorm:"type:varchar(255);uniqueIndex;not null"`
-	Schema string `json:"schema" gorm:"type:varchar(255);uniqueIndex;not null"`
+	Name  string `json:"name" gorm:"type:varchar(255)"`
+	Email string `json:"email" gorm:"type:varchar(255);uniqueIndex;not null"`
 	// SignupSource records where account creation originated (vault/mobile/etc).
 	SignupSource string `json:"signup_source" gorm:"type:varchar(32);not null;default:'unknown';index"`
 
@@ -74,8 +73,6 @@ type User struct {
 	// Stripe integration for personal subscriptions
 	StripeCustomerID *string `json:"-" gorm:"type:varchar(255);index"` // Stripe customer ID for user-level billing
 
-	// Stats (runtime calculated, not stored in DB)
-	ItemCount *int `json:"item_count,omitempty" gorm:"-"`
 }
 
 // TableName specifies the table name for User

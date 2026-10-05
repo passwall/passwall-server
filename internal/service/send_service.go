@@ -346,7 +346,7 @@ func (s *sendService) checkRemoveSendPolicy(ctx context.Context, orgID, userID u
 	}
 
 	// Check if user is admin/owner in org (admins are exempt)
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
 		return repository.ErrForbidden
 	}

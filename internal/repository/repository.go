@@ -33,23 +33,16 @@ type ListResult struct {
 	Filtered int64
 }
 
-// NOTE: Legacy repository interfaces removed (Login, BankAccount, CreditCard, Note, Email, Server)
-// All item types now use ItemRepository with flexible items architecture
-
 // UserRepository defines user data access methods
 type UserRepository interface {
 	GetByID(ctx context.Context, id uint) (*domain.User, error)
 	GetByUUID(ctx context.Context, uuid string) (*domain.User, error)
 	GetByEmail(ctx context.Context, email string) (*domain.User, error)
-	GetBySchema(ctx context.Context, schema string) (*domain.User, error)
 	List(ctx context.Context, filter ListFilter) ([]*domain.User, *ListResult, error)
-	GetItemCount(ctx context.Context, schema string) (int, error)
 	Create(ctx context.Context, user *domain.User) error
 	Update(ctx context.Context, user *domain.User) error
-	Delete(ctx context.Context, id uint, schema string) error
+	Delete(ctx context.Context, id uint) error
 	Migrate() error
-	CreateSchema(schema string) error
-	MigrateUserSchema(schema string) error
 }
 
 // UserNotificationPreferencesRepository defines data access for user notification preferences.
@@ -130,6 +123,7 @@ type OrganizationRepository interface {
 	ListForUser(ctx context.Context, userID uint) ([]*domain.Organization, error)
 	Update(ctx context.Context, org *domain.Organization) error
 	Delete(ctx context.Context, id uint) error
+	PurgePersonal(ctx context.Context, id uint) error
 
 	// Stats
 	GetMemberCount(ctx context.Context, orgID uint) (int, error)
@@ -144,6 +138,7 @@ type OrganizationUserRepository interface {
 	GetByID(ctx context.Context, id uint) (*domain.OrganizationUser, error)
 	GetByUUID(ctx context.Context, uuid string) (*domain.OrganizationUser, error)
 	GetByOrgAndUser(ctx context.Context, orgID, userID uint) (*domain.OrganizationUser, error)
+	GetActiveByOrgAndUser(ctx context.Context, orgID, userID uint) (*domain.OrganizationUser, error)
 	ListByOrganization(ctx context.Context, orgID uint) ([]*domain.OrganizationUser, error)
 	ListByUser(ctx context.Context, userID uint) ([]*domain.OrganizationUser, error)
 	Update(ctx context.Context, orgUser *domain.OrganizationUser) error
@@ -226,17 +221,31 @@ type CollectionTeamRepository interface {
 
 // OrganizationItemFilter represents filter options for organization items
 type OrganizationItemFilter struct {
-	OrganizationID uint
-	CollectionID   *uint
-	ItemType       *domain.ItemType
-	IsFavorite     *bool
-	FolderID       *uint
-	AutoFill       *bool
-	AutoLogin      *bool
-	Search         string
-	Tags           []string
-	Page           int
-	PerPage        int
+	OrganizationID        uint
+	CollectionID          *uint
+	ItemType              *domain.ItemType
+	IsFavorite            *bool
+	FolderID              *uint
+	AutoFill              *bool
+	AutoLogin             *bool
+	Search                string
+	Tags                  []string
+	Page                  int
+	PerPage               int
+	RestrictToCollections bool
+	AllowedCollectionIDs  []uint
+	AllowOrgWide          bool
+}
+
+type OrganizationItemV2Filter struct {
+	OrganizationID        uint
+	AfterRevision         int64
+	AfterID               uint
+	SinceRevision         int64
+	UpToRevision          int64
+	Limit                 int
+	RestrictToCollections bool
+	AllowedCollectionIDs  []uint
 }
 
 // OrganizationItemRepository defines organization item data access methods
@@ -246,6 +255,7 @@ type OrganizationItemRepository interface {
 	GetByUUID(ctx context.Context, uuid string) (*domain.OrganizationItem, error)
 	GetBySupportID(ctx context.Context, supportID int64) (*domain.OrganizationItem, error)
 	ListByOrganization(ctx context.Context, filter OrganizationItemFilter) ([]*domain.OrganizationItem, int64, error)
+	ListV2(ctx context.Context, filter OrganizationItemV2Filter) ([]*domain.OrganizationItem, int64, error)
 	ListByCollection(ctx context.Context, collectionID uint) ([]*domain.OrganizationItem, error)
 	MoveItemsToCollection(ctx context.Context, fromCollectionID uint, toCollectionID uint) error
 	CountByOrganizationID(ctx context.Context, orgID uint) (int, error)
@@ -253,6 +263,7 @@ type OrganizationItemRepository interface {
 	Delete(ctx context.Context, id uint) error
 	SoftDelete(ctx context.Context, id uint) error
 	HardDelete(ctx context.Context, id uint) error
+	ClearCreatorByUserID(ctx context.Context, userID uint) error
 }
 
 // SSOConnectionRepository defines SSO connection data access methods

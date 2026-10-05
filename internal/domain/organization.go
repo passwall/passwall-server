@@ -62,6 +62,7 @@ type Organization struct {
 	PublicID  string    `gorm:"type:varchar(12)" json:"public_id"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+	Revision  int64     `json:"revision" gorm:"not null;default:0"`
 
 	// Organization info
 	Name         string `json:"name" gorm:"type:varchar(255);not null"`

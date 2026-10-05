@@ -19,13 +19,13 @@ func NewExcludedDomainRepository(db *gorm.DB) repository.ExcludedDomainRepositor
 }
 
 func (r *excludedDomainRepository) Create(ctx context.Context, excludedDomain *domain.ExcludedDomain) error {
-	return r.db.WithContext(ctx).Create(excludedDomain).Error
+	return dbFromContext(ctx, r.db).Create(excludedDomain).Error
 }
 
 func (r *excludedDomainRepository) GetByUserID(ctx context.Context, userID uint) ([]*domain.ExcludedDomain, error) {
 	var domains []*domain.ExcludedDomain
 
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Where("user_id = ?", userID).
 		Order("domain ASC").
 		Find(&domains).Error
@@ -40,7 +40,7 @@ func (r *excludedDomainRepository) GetByUserID(ctx context.Context, userID uint)
 func (r *excludedDomainRepository) GetByUserIDAndDomain(ctx context.Context, userID uint, domainStr string) (*domain.ExcludedDomain, error) {
 	var ed domain.ExcludedDomain
 
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Where("user_id = ? AND domain = ?", userID, domainStr).
 		First(&ed).Error
 
@@ -55,7 +55,7 @@ func (r *excludedDomainRepository) GetByUserIDAndDomain(ctx context.Context, use
 }
 
 func (r *excludedDomainRepository) Delete(ctx context.Context, id uint, userID uint) error {
-	result := r.db.WithContext(ctx).
+	result := dbFromContext(ctx, r.db).
 		Where("id = ? AND user_id = ?", id, userID).
 		Delete(&domain.ExcludedDomain{})
 
@@ -71,7 +71,7 @@ func (r *excludedDomainRepository) Delete(ctx context.Context, id uint, userID u
 }
 
 func (r *excludedDomainRepository) DeleteByDomain(ctx context.Context, userID uint, domainStr string) error {
-	result := r.db.WithContext(ctx).
+	result := dbFromContext(ctx, r.db).
 		Where("user_id = ? AND domain = ?", userID, domainStr).
 		Delete(&domain.ExcludedDomain{})
 

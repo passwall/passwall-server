@@ -17,7 +17,7 @@ type PaymentHandler struct {
 	subscriptionService service.SubscriptionService
 	orgRepo             repository.OrganizationRepository
 	orgUserRepo         interface {
-		GetByOrgAndUser(ctx context.Context, orgID, userID uint) (*domain.OrganizationUser, error)
+		GetActiveByOrgAndUser(ctx context.Context, orgID, userID uint) (*domain.OrganizationUser, error)
 	}
 }
 
@@ -26,7 +26,7 @@ func NewPaymentHandler(
 	subscriptionService service.SubscriptionService,
 	orgRepo repository.OrganizationRepository,
 	orgUserRepo interface {
-		GetByOrgAndUser(ctx context.Context, orgID, userID uint) (*domain.OrganizationUser, error)
+		GetActiveByOrgAndUser(ctx context.Context, orgID, userID uint) (*domain.OrganizationUser, error)
 	},
 ) *PaymentHandler {
 	return &PaymentHandler{
@@ -512,7 +512,7 @@ func (h *PaymentHandler) requireBillingViewer(c *gin.Context, ctx context.Contex
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return 0, false
 	}
-	orgUser, err := h.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	orgUser, err := h.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil || orgUser == nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 		return 0, false
@@ -530,7 +530,7 @@ func (h *PaymentHandler) requireBillingManager(c *gin.Context, ctx context.Conte
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return 0, false
 	}
-	orgUser, err := h.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	orgUser, err := h.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil || orgUser == nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 		return 0, false

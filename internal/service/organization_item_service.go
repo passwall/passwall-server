@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -17,6 +19,7 @@ type organizationItemService struct {
 	collectionTeamRepo repository.CollectionTeamRepository
 	teamUserRepo       repository.TeamUserRepository
 	orgUserRepo        repository.OrganizationUserRepository
+	featureService     FeatureService
 	logger             Logger
 }
 
@@ -28,6 +31,7 @@ func NewOrganizationItemService(
 	collectionTeamRepo repository.CollectionTeamRepository,
 	teamUserRepo repository.TeamUserRepository,
 	orgUserRepo repository.OrganizationUserRepository,
+	featureService FeatureService,
 	logger Logger,
 ) OrganizationItemService {
 	return &organizationItemService{
@@ -37,6 +41,7 @@ func NewOrganizationItemService(
 		collectionTeamRepo: collectionTeamRepo,
 		teamUserRepo:       teamUserRepo,
 		orgUserRepo:        orgUserRepo,
+		featureService:     featureService,
 		logger:             logger,
 	}
 }
@@ -66,10 +71,36 @@ type UpdateOrgItemRequest struct {
 	AutoLogin    *bool                `json:"auto_login,omitempty"`
 }
 
+type OrganizationItemsV2Request struct {
+	Cursor        string
+	Limit         int
+	SinceRevision int64
+}
+
+type OrganizationItemsV2Response struct {
+	Items      []*domain.OrganizationItemSyncDTO `json:"items"`
+	NextCursor *string                           `json:"next_cursor"`
+	Revision   int64                             `json:"revision"`
+}
+
+type organizationItemsCursor struct {
+	SinceRevision int64 `json:"since_revision"`
+	HeadRevision  int64 `json:"head_revision"`
+	LastRevision  int64 `json:"last_revision"`
+	LastID        uint  `json:"last_id"`
+}
+
 func (s *organizationItemService) Create(ctx context.Context, orgID, userID uint, req *CreateOrgItemRequest) (*domain.OrganizationItem, error) {
 	// Check if user is member of organization
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
+		return nil, repository.ErrForbidden
+	}
+	allowed, err := s.featureService.CanCreateItem(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify item entitlement: %w", err)
+	}
+	if !allowed {
 		return nil, repository.ErrForbidden
 	}
 
@@ -78,18 +109,7 @@ func (s *organizationItemService) Create(ctx context.Context, orgID, userID uint
 	if req.CollectionID == nil {
 		def, err := s.collectionRepo.GetDefaultByOrganization(ctx, orgID)
 		if err != nil {
-			// Default collection is expected to exist (migration + org creation),
-			// but we keep this defensive for older orgs.
-			def = &domain.Collection{
-				OrganizationID: orgID,
-				Name:           "General",
-				Description:    "System default collection",
-				IsPrivate:      false,
-				IsDefault:      true,
-			}
-			if createErr := s.collectionRepo.Create(ctx, def); createErr != nil {
-				return nil, fmt.Errorf("failed to ensure default collection: %w", createErr)
-			}
+			return nil, fmt.Errorf("default collection unavailable: %w", err)
 		}
 		req.CollectionID = &def.ID
 	}
@@ -165,7 +185,7 @@ func (s *organizationItemService) GetByID(ctx context.Context, id, userID uint) 
 	}
 
 	// Check if user has access to organization
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, item.OrganizationID, userID)
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, item.OrganizationID, userID)
 	if err != nil {
 		return nil, repository.ErrForbidden
 	}
@@ -202,7 +222,7 @@ func (s *organizationItemService) GetByID(ctx context.Context, id, userID uint) 
 
 func (s *organizationItemService) ListByOrganization(ctx context.Context, orgID, userID uint, filter repository.OrganizationItemFilter) ([]*domain.OrganizationItem, int64, error) {
 	// Check if user is member of organization
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
 		return nil, 0, repository.ErrForbidden
 	}
@@ -236,6 +256,13 @@ func (s *organizationItemService) ListByOrganization(ctx context.Context, orgID,
 	}
 
 	filter.OrganizationID = orgID
+	if restrictByCollections {
+		filter.RestrictToCollections = true
+		filter.AllowedCollectionIDs = make([]uint, 0, len(allowedCollectionIDs))
+		for collectionID := range allowedCollectionIDs {
+			filter.AllowedCollectionIDs = append(filter.AllowedCollectionIDs, collectionID)
+		}
+	}
 	if filter.PerPage == 0 {
 		filter.PerPage = 1000
 	}
@@ -249,21 +276,108 @@ func (s *organizationItemService) ListByOrganization(ctx context.Context, orgID,
 		return nil, 0, fmt.Errorf("failed to list items: %w", err)
 	}
 
-	if restrictByCollections && filter.CollectionID == nil {
-		filtered := make([]*domain.OrganizationItem, 0, len(items))
-		for _, item := range items {
-			if item.CollectionID == nil {
-				continue
-			}
-			if _, ok := allowedCollectionIDs[*item.CollectionID]; ok {
-				filtered = append(filtered, item)
-			}
-		}
-		items = filtered
-		total = int64(len(filtered))
+	return items, total, nil
+}
+
+func (s *organizationItemService) ListV2(ctx context.Context, orgID, userID uint, req OrganizationItemsV2Request) (*OrganizationItemsV2Response, error) {
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
+	if err != nil {
+		return nil, repository.ErrForbidden
+	}
+	if req.SinceRevision < 0 {
+		return nil, repository.ErrInvalidInput
+	}
+	if req.Limit <= 0 {
+		req.Limit = 100
+	}
+	if req.Limit > 500 {
+		req.Limit = 500
 	}
 
-	return items, total, nil
+	cursor := organizationItemsCursor{SinceRevision: req.SinceRevision}
+	if req.Cursor != "" {
+		decoded, err := base64.RawURLEncoding.DecodeString(req.Cursor)
+		if err != nil || json.Unmarshal(decoded, &cursor) != nil {
+			return nil, repository.ErrInvalidInput
+		}
+		if req.SinceRevision != 0 && req.SinceRevision != cursor.SinceRevision {
+			return nil, repository.ErrInvalidInput
+		}
+	}
+
+	filter := repository.OrganizationItemV2Filter{
+		OrganizationID: orgID,
+		AfterRevision:  cursor.LastRevision,
+		AfterID:        cursor.LastID,
+		SinceRevision:  cursor.SinceRevision,
+		UpToRevision:   cursor.HeadRevision,
+		Limit:          req.Limit,
+	}
+	if !orgUser.IsAdmin() && !orgUser.AccessAll {
+		collections, err := s.collectionRepo.ListForUser(ctx, orgID, userID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get allowed collections: %w", err)
+		}
+		filter.RestrictToCollections = true
+		filter.AllowedCollectionIDs = make([]uint, 0, len(collections))
+		for _, collection := range collections {
+			filter.AllowedCollectionIDs = append(filter.AllowedCollectionIDs, collection.ID)
+		}
+	}
+
+	items, headRevision, err := s.itemRepo.ListV2(ctx, filter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list item changes: %w", err)
+	}
+	hasMore := len(items) > req.Limit
+	if hasMore {
+		items = items[:req.Limit]
+	}
+
+	dtos := make([]*domain.OrganizationItemSyncDTO, 0, len(items))
+	accessCache := make(map[uint]*authz.CollectionAccess)
+	for _, item := range items {
+		dto := domain.ToOrganizationItemSyncDTO(item)
+		if !dto.Deleted && item.CollectionID != nil {
+			collectionID := *item.CollectionID
+			access, ok := accessCache[collectionID]
+			if !ok {
+				access, err = s.GetCollectionAccess(ctx, orgID, userID, collectionID)
+				if err != nil {
+					return nil, repository.ErrForbidden
+				}
+				accessCache[collectionID] = access
+			}
+			if access.HidePasswords {
+				dto.HidePasswords = true
+				dto.Data = ""
+			}
+		}
+		dtos = append(dtos, dto)
+	}
+
+	var nextCursor *string
+	if hasMore && len(items) > 0 {
+		last := items[len(items)-1]
+		next := organizationItemsCursor{
+			SinceRevision: cursor.SinceRevision,
+			HeadRevision:  headRevision,
+			LastRevision:  last.Revision,
+			LastID:        last.ID,
+		}
+		encoded, err := json.Marshal(next)
+		if err != nil {
+			return nil, err
+		}
+		value := base64.RawURLEncoding.EncodeToString(encoded)
+		nextCursor = &value
+	}
+
+	return &OrganizationItemsV2Response{
+		Items:      dtos,
+		NextCursor: nextCursor,
+		Revision:   headRevision,
+	}, nil
 }
 
 func (s *organizationItemService) ListByCollection(ctx context.Context, collectionID, userID uint) ([]*domain.OrganizationItem, error) {
@@ -274,7 +388,7 @@ func (s *organizationItemService) ListByCollection(ctx context.Context, collecti
 	}
 
 	// Check if user has access to organization
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, collection.OrganizationID, userID)
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, collection.OrganizationID, userID)
 	if err != nil {
 		return nil, repository.ErrForbidden
 	}
@@ -314,8 +428,15 @@ func (s *organizationItemService) Update(ctx context.Context, id, userID uint, r
 	}
 
 	// Check access
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, item.OrganizationID, userID)
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, item.OrganizationID, userID)
 	if err != nil {
+		return nil, repository.ErrForbidden
+	}
+	allowed, err := s.featureService.CanWriteVault(ctx, item.OrganizationID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify write entitlement: %w", err)
+	}
+	if !allowed {
 		return nil, repository.ErrForbidden
 	}
 
@@ -414,8 +535,15 @@ func (s *organizationItemService) Delete(ctx context.Context, id, userID uint) (
 	}
 
 	// Check access
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, item.OrganizationID, userID)
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, item.OrganizationID, userID)
 	if err != nil {
+		return nil, repository.ErrForbidden
+	}
+	allowed, err := s.featureService.CanWriteVault(ctx, item.OrganizationID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify write entitlement: %w", err)
+	}
+	if !allowed {
 		return nil, repository.ErrForbidden
 	}
 
@@ -454,7 +582,7 @@ func (s *organizationItemService) Delete(ctx context.Context, id, userID uint) (
 }
 
 func (s *organizationItemService) GetCollectionAccess(ctx context.Context, orgID, userID, collectionID uint) (*authz.CollectionAccess, error) {
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
 		return nil, repository.ErrForbidden
 	}
@@ -477,7 +605,7 @@ func (s *organizationItemService) GetAutofillSecret(ctx context.Context, itemID,
 		return nil, fmt.Errorf("item not found: %w", err)
 	}
 
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, item.OrganizationID, userID)
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, item.OrganizationID, userID)
 	if err != nil {
 		return nil, repository.ErrForbidden
 	}

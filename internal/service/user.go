@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
@@ -18,13 +17,15 @@ type userService struct {
 	tokenRepo          repository.TokenRepository
 	orgRepo            repository.OrganizationRepository
 	orgUserRepo        repository.OrganizationUserRepository
-	orgFolderRepo      repository.OrganizationFolderRepository
+	orgItemRepo        repository.OrganizationItemRepository
 	teamUserRepo       repository.TeamUserRepository
 	collectionUserRepo repository.CollectionUserRepository
 	itemShareRepo      repository.ItemShareRepository
 	invitationRepo     repository.InvitationRepository
 	userActivityRepo   repository.UserActivityRepository
 	logger             Logger
+	txManager          repository.TxManager
+	vaultProvisioner   PersonalVaultProvisioner
 }
 
 // NewUserService creates a new user service
@@ -33,26 +34,30 @@ func NewUserService(
 	tokenRepo repository.TokenRepository,
 	orgRepo repository.OrganizationRepository,
 	orgUserRepo repository.OrganizationUserRepository,
-	orgFolderRepo repository.OrganizationFolderRepository,
+	orgItemRepo repository.OrganizationItemRepository,
 	teamUserRepo repository.TeamUserRepository,
 	collectionUserRepo repository.CollectionUserRepository,
 	itemShareRepo repository.ItemShareRepository,
 	invitationRepo repository.InvitationRepository,
 	userActivityRepo repository.UserActivityRepository,
 	logger Logger,
+	txManager repository.TxManager,
+	vaultProvisioner PersonalVaultProvisioner,
 ) UserService {
 	return &userService{
 		repo:               repo,
 		tokenRepo:          tokenRepo,
 		orgRepo:            orgRepo,
 		orgUserRepo:        orgUserRepo,
-		orgFolderRepo:      orgFolderRepo,
+		orgItemRepo:        orgItemRepo,
 		teamUserRepo:       teamUserRepo,
 		collectionUserRepo: collectionUserRepo,
 		itemShareRepo:      itemShareRepo,
 		invitationRepo:     invitationRepo,
 		userActivityRepo:   userActivityRepo,
 		logger:             logger,
+		txManager:          txManager,
+		vaultProvisioner:   vaultProvisioner,
 	}
 }
 
@@ -75,19 +80,6 @@ func (s *userService) List(ctx context.Context) ([]*domain.User, error) {
 	if err != nil {
 		s.logger.Error("failed to list users", "error", err)
 		return nil, err
-	}
-
-	for _, user := range users {
-		if user == nil || user.Schema == "" {
-			continue
-		}
-
-		count, err := s.repo.GetItemCount(ctx, user.Schema)
-		if err != nil {
-			s.logger.Debug("failed to get user item count", "user_id", user.ID, "error", err)
-			continue
-		}
-		user.ItemCount = &count
 	}
 
 	s.logger.Debug("users listed", "count", len(users))
@@ -123,25 +115,6 @@ func (s *userService) CreateByAdmin(ctx context.Context, req *domain.CreateUserB
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// Create Personal Vault organization first so we can satisfy NOT NULL org pointers on user.
-	creatorEmail := req.Email
-	creatorName := req.Name
-	org := &domain.Organization{
-		Name:               "Personal Vault",
-		BillingEmail:       req.Email,
-		EncryptedOrgKey:    req.EncryptedOrgKey,
-		IsActive:           true,
-		IsDefault:          false, // legacy; do not use
-		IsPersonal:         true,
-		CreatedByUserEmail: &creatorEmail,
-		CreatedByUserName:  &creatorName,
-	}
-	if err := s.orgRepo.Create(ctx, org); err != nil {
-		return nil, fmt.Errorf("failed to create personal organization: %w", err)
-	}
-
-	schema := generateSchemaFromEmail(req.Email)
-
 	// Set role
 	roleID := constants.RoleIDMember
 	if req.RoleID != nil {
@@ -150,81 +123,23 @@ func (s *userService) CreateByAdmin(ctx context.Context, req *domain.CreateUserB
 
 	// Create user with zero-knowledge fields from admin
 	user := &domain.User{
-		UUID:                   uuid.New(),
-		Name:                   req.Name,
-		Email:                  req.Email,
-		MasterPasswordHash:     string(hashedPassword),
-		ProtectedUserKey:       req.ProtectedUserKey, // EncString from admin
-		Schema:                 schema,
-		PersonalOrganizationID: org.ID,
-		DefaultOrganizationID:  org.ID,
-		KdfType:                req.KdfConfig.Type,
-		KdfIterations:          req.KdfConfig.Iterations,
-		KdfMemory:              req.KdfConfig.Memory,
-		KdfParallelism:         req.KdfConfig.Parallelism,
-		KdfSalt:                req.KdfSalt, // Random salt from admin
-		RoleID:                 roleID,
-		IsVerified:             true, // Admin-created users are auto-verified
+		UUID:               uuid.New(),
+		Name:               req.Name,
+		Email:              req.Email,
+		MasterPasswordHash: string(hashedPassword),
+		ProtectedUserKey:   req.ProtectedUserKey, // EncString from admin
+		KdfType:            req.KdfConfig.Type,
+		KdfIterations:      req.KdfConfig.Iterations,
+		KdfMemory:          req.KdfConfig.Memory,
+		KdfParallelism:     req.KdfConfig.Parallelism,
+		KdfSalt:            req.KdfSalt, // Random salt from admin
+		RoleID:             roleID,
+		IsVerified:         true, // Admin-created users are auto-verified
 	}
 
-	// Create schema
-	if err := s.repo.CreateSchema(schema); err != nil {
-		s.logger.Error("failed to create schema", "schema", schema, "error", err)
-		now := time.Now()
-		org.IsActive = false
-		org.Status = domain.OrgStatusDeleted
-		org.DeletedAt = &now
-		_ = s.orgRepo.Update(ctx, org)
-		return nil, fmt.Errorf("failed to create schema: %w", err)
-	}
-
-	// Migrate all tables in user schema
-	if err := s.repo.MigrateUserSchema(schema); err != nil {
-		s.logger.Error("failed to migrate user schema tables", "schema", schema, "error", err)
-		now := time.Now()
-		org.IsActive = false
-		org.Status = domain.OrgStatusDeleted
-		org.DeletedAt = &now
-		_ = s.orgRepo.Update(ctx, org)
-		return nil, fmt.Errorf("failed to migrate user schema: %w", err)
-	}
-
-	// Save user
-	if err := s.repo.Create(ctx, user); err != nil {
-		s.logger.Error("failed to create user", "email", req.Email, "error", err)
-		now := time.Now()
-		org.IsActive = false
-		org.Status = domain.OrgStatusDeleted
-		org.DeletedAt = &now
-		_ = s.orgRepo.Update(ctx, org)
-		return nil, fmt.Errorf("failed to create user: %w", err)
-	}
-
-	// Attach user to org + finalize ownership metadata
-	now := time.Now()
-	orgUser := &domain.OrganizationUser{
-		OrganizationID:  org.ID,
-		UserID:          user.ID,
-		Role:            domain.OrgRoleOwner,
-		EncryptedOrgKey: req.EncryptedOrgKey,
-		AccessAll:       true,
-		Status:          domain.OrgUserStatusConfirmed,
-		InvitedAt:       &now,
-		AcceptedAt:      &now,
-	}
-	if err := s.orgUserRepo.Create(ctx, orgUser); err != nil {
-		return nil, fmt.Errorf("failed to add user to personal organization: %w", err)
-	}
-
-	creatorID := user.ID
-	org.CreatedByUserID = &creatorID
-	org.PersonalOwnerUserID = &creatorID
-	org.IsPersonal = true
-	if err := s.orgRepo.Update(ctx, org); err != nil {
-		return nil, fmt.Errorf("failed to finalize personal organization: %w", err)
-	}
-	if err := s.createDefaultPersonalVaultFolders(ctx, org.ID, user.ID); err != nil {
-		s.logger.Error("failed to create default personal vault folders", "user_id", user.ID, "org_id", org.ID, "error", err)
+	if err := s.vaultProvisioner.Provision(ctx, user, req.EncryptedOrgKey); err != nil {
+		s.logger.Error("failed to provision admin-created account", "email", req.Email, "error", err)
+		return nil, fmt.Errorf("failed to provision account: %w", err)
 	}
 
 	s.logger.Info("user created by admin (zero-knowledge)",
@@ -236,33 +151,6 @@ func (s *userService) CreateByAdmin(ctx context.Context, req *domain.CreateUserB
 		"is_verified", true)
 
 	return user, nil
-}
-
-func generateSchemaFromEmail(email string) string {
-	return "user_" + uuid.NewSHA1(uuid.NameSpaceURL, []byte(email)).String()[:8]
-}
-
-func (s *userService) createDefaultPersonalVaultFolders(ctx context.Context, orgID, userID uint) error {
-	for _, folderName := range constants.DefaultPersonalVaultFolders {
-		existing, err := s.orgFolderRepo.GetByOrganizationAndName(ctx, orgID, folderName)
-		if err != nil && err != repository.ErrNotFound {
-			return err
-		}
-		if existing != nil {
-			continue
-		}
-
-		folder := &domain.OrganizationFolder{
-			UUID:            uuid.New(),
-			OrganizationID:  orgID,
-			CreatedByUserID: userID,
-			Name:            folderName,
-		}
-		if err := s.orgFolderRepo.Create(ctx, folder); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (s *userService) Update(ctx context.Context, id uint, user *domain.User) error {
@@ -277,7 +165,13 @@ func (s *userService) Update(ctx context.Context, id uint, user *domain.User) er
 	return nil
 }
 
-func (s *userService) Delete(ctx context.Context, id uint, schema string) error {
+func (s *userService) Delete(ctx context.Context, id uint) error {
+	return s.txManager.WithinTx(ctx, func(txCtx context.Context) error {
+		return s.deleteAccount(txCtx, id)
+	})
+}
+
+func (s *userService) deleteAccount(ctx context.Context, id uint) error {
 	// Check if user exists
 	user, err := s.repo.GetByID(ctx, id)
 	if err != nil {
@@ -348,28 +242,6 @@ func (s *userService) Delete(ctx context.Context, id uint, schema string) error 
 		}
 	}
 
-	// Retire personal vault organization so it doesn't remain active after user deletion.
-	// Keep the row for audit continuity, but detach ownership pointers from deleted user.
-	if user.PersonalOrganizationID != 0 {
-		personalOrg, err := s.orgRepo.GetByID(ctx, user.PersonalOrganizationID)
-		if err != nil && err != repository.ErrNotFound {
-			s.logger.Error("failed to load personal organization while deleting user", "id", id, "org_id", user.PersonalOrganizationID, "error", err)
-			return err
-		}
-		if err == nil && personalOrg != nil && personalOrg.IsPersonal {
-			now := time.Now()
-			personalOrg.IsActive = false
-			personalOrg.Status = domain.OrgStatusDeleted
-			personalOrg.DeletedAt = &now
-			personalOrg.PersonalOwnerUserID = nil
-			personalOrg.CreatedByUserID = nil
-			if err := s.orgRepo.Update(ctx, personalOrg); err != nil {
-				s.logger.Error("failed to retire personal organization while deleting user", "id", id, "org_id", personalOrg.ID, "error", err)
-				return err
-			}
-		}
-	}
-
 	if err := s.userActivityRepo.DeleteByUserID(ctx, id); err != nil {
 		s.logger.Error("failed to delete user activities while deleting user", "id", id, "error", err)
 		return err
@@ -386,20 +258,34 @@ func (s *userService) Delete(ctx context.Context, id uint, schema string) error 
 		return err
 	}
 
-	if err := s.repo.Delete(ctx, id, schema); err != nil {
-		s.logger.Error("failed to delete user", "id", id, "schema", schema, "error", err)
+	if err := s.orgItemRepo.ClearCreatorByUserID(ctx, id); err != nil {
+		s.logger.Error("failed to clear organization item creator references", "id", id, "error", err)
 		return err
 	}
 
-	s.logger.Info("user deleted", "id", id, "schema", schema)
+	if err := s.repo.Delete(ctx, id); err != nil {
+		s.logger.Error("failed to delete user", "id", id, "error", err)
+		return err
+	}
+	if user.PersonalOrganizationID != 0 {
+		if err := s.orgRepo.PurgePersonal(ctx, user.PersonalOrganizationID); err != nil && !errors.Is(err, repository.ErrNotFound) {
+			s.logger.Error("failed to purge personal organization", "id", id, "org_id", user.PersonalOrganizationID, "error", err)
+			return err
+		}
+	}
+
+	s.logger.Info("user deleted", "id", id)
 	return nil
 }
 
-// DeleteForRecovery deletes user and enforces recovery-delete policy:
-// - organizations owned by the user are deleted first (except personal vault),
-// - then user is removed from remaining memberships,
-// - then user row and schema are hard deleted.
-func (s *userService) DeleteForRecovery(ctx context.Context, userID uint, schema string) error {
+// DeleteForRecovery deletes user and enforces recovery-delete policy.
+func (s *userService) DeleteForRecovery(ctx context.Context, userID uint) error {
+	return s.txManager.WithinTx(ctx, func(txCtx context.Context) error {
+		return s.deleteForRecovery(txCtx, userID)
+	})
+}
+
+func (s *userService) deleteForRecovery(ctx context.Context, userID uint) error {
 	user, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
 		return err
@@ -438,7 +324,7 @@ func (s *userService) DeleteForRecovery(ctx context.Context, userID uint, schema
 		}
 	}
 
-	return s.Delete(ctx, userID, schema)
+	return s.deleteAccount(ctx, userID)
 }
 
 func (s *userService) ChangeMasterPassword(ctx context.Context, req *domain.ChangeMasterPasswordRequest) error {
@@ -555,7 +441,13 @@ func (s *userService) TransferOwnership(ctx context.Context, req *domain.Transfe
 }
 
 // DeleteWithOrganizations deletes user along with specified organizations
-func (s *userService) DeleteWithOrganizations(ctx context.Context, userID uint, organizationIDs []uint, schema string) error {
+func (s *userService) DeleteWithOrganizations(ctx context.Context, userID uint, organizationIDs []uint) error {
+	return s.txManager.WithinTx(ctx, func(txCtx context.Context) error {
+		return s.deleteWithOrganizations(txCtx, userID, organizationIDs)
+	})
+}
+
+func (s *userService) deleteWithOrganizations(ctx context.Context, userID uint, organizationIDs []uint) error {
 	s.logger.Debug("deleting user with organizations", "user_id", userID, "org_ids", organizationIDs)
 
 	// Verify user is sole owner of all specified organizations
@@ -588,7 +480,7 @@ func (s *userService) DeleteWithOrganizations(ctx context.Context, userID uint, 
 	}
 
 	// Now delete the user (organization_users records will be cascade deleted)
-	if err := s.Delete(ctx, userID, schema); err != nil {
+	if err := s.deleteAccount(ctx, userID); err != nil {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
 

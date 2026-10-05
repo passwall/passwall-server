@@ -287,7 +287,7 @@ func (s *organizationPolicyService) GetActivePolicySummary(ctx context.Context, 
 // --- Helpers ---
 
 func (s *organizationPolicyService) requireOrgAdmin(ctx context.Context, orgID, userID uint) error {
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return repository.ErrForbidden
@@ -301,7 +301,7 @@ func (s *organizationPolicyService) requireOrgAdmin(ctx context.Context, orgID, 
 }
 
 func (s *organizationPolicyService) requireOrgMember(ctx context.Context, orgID, userID uint) error {
-	_, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	_, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return repository.ErrForbidden

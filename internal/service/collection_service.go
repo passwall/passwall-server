@@ -55,7 +55,7 @@ func NewCollectionService(
 
 func (s *collectionService) Create(ctx context.Context, orgID uint, userID uint, req *domain.CreateCollectionRequest) (*domain.Collection, error) {
 	// Check if user can manage collections
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
 		return nil, repository.ErrForbidden
 	}
@@ -138,7 +138,7 @@ func (s *collectionService) GetByID(ctx context.Context, id uint, userID uint) (
 
 func (s *collectionService) ListByOrganization(ctx context.Context, orgID uint, userID uint) ([]*domain.Collection, error) {
 	// Check if user is org admin (can see all collections)
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
 		return nil, repository.ErrForbidden
 	}
@@ -159,7 +159,7 @@ func (s *collectionService) ListByOrganization(ctx context.Context, orgID uint, 
 
 func (s *collectionService) ListForUser(ctx context.Context, orgID uint, userID uint) ([]*domain.Collection, error) {
 	// Check if user is member of organization
-	_, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	_, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
 		return nil, repository.ErrForbidden
 	}
@@ -225,7 +225,7 @@ func (s *collectionService) Delete(ctx context.Context, id uint, userID uint) er
 	}
 
 	// Only org admins can delete collections
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, collection.OrganizationID, userID)
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, collection.OrganizationID, userID)
 	if err != nil {
 		return repository.ErrForbidden
 	}
@@ -483,7 +483,7 @@ func (s *collectionService) GetTeamAccess(ctx context.Context, collectionID uint
 // Helper methods for permission checking
 
 func (s *collectionService) checkCollectionAccess(ctx context.Context, orgID, collectionID, userID uint) (bool, error) {
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
 		return false, repository.ErrForbidden
 	}
@@ -502,7 +502,7 @@ func (s *collectionService) checkCollectionAccess(ctx context.Context, orgID, co
 }
 
 func (s *collectionService) checkCollectionManagePermission(ctx context.Context, orgID, collectionID, userID uint) (bool, error) {
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
 		return false, repository.ErrForbidden
 	}

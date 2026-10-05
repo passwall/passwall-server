@@ -26,13 +26,13 @@ func (r *verificationRepository) Create(ctx context.Context, code *domain.Verifi
 		logger.Errorf("verification Create: delete existing codes for %q failed: %v", code.Email, err)
 	}
 
-	return r.db.WithContext(ctx).Create(code).Error
+	return dbFromContext(ctx, r.db).Create(code).Error
 }
 
 // GetByEmailAndCode gets a verification code by email and code
 func (r *verificationRepository) GetByEmailAndCode(ctx context.Context, email, code string) (*domain.VerificationCode, error) {
 	var verificationCode domain.VerificationCode
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Where("email = ? AND code = ?", email, code).
 		First(&verificationCode).Error
 
@@ -45,14 +45,14 @@ func (r *verificationRepository) GetByEmailAndCode(ctx context.Context, email, c
 
 // DeleteByEmail deletes all verification codes for an email
 func (r *verificationRepository) DeleteByEmail(ctx context.Context, email string) error {
-	return r.db.WithContext(ctx).
+	return dbFromContext(ctx, r.db).
 		Where("email = ?", email).
 		Delete(&domain.VerificationCode{}).Error
 }
 
 // DeleteExpired deletes expired verification codes
 func (r *verificationRepository) DeleteExpired(ctx context.Context) (int64, error) {
-	result := r.db.WithContext(ctx).
+	result := dbFromContext(ctx, r.db).
 		Where("expires_at < ?", time.Now()).
 		Delete(&domain.VerificationCode{})
 

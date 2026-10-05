@@ -20,7 +20,7 @@ func NewTelemetryAIVerdictRepository(db *gorm.DB) repository.TelemetryAIVerdictR
 }
 
 func (r *telemetryAIVerdictRepository) Upsert(ctx context.Context, verdict *domain.TelemetryAIVerdict) error {
-	return r.db.WithContext(ctx).
+	return dbFromContext(ctx, r.db).
 		Clauses(clause.OnConflict{
 			Columns: []clause.Column{
 				{Name: "domain_etld1"},
@@ -43,7 +43,7 @@ func (r *telemetryAIVerdictRepository) UpsertBatch(ctx context.Context, verdicts
 	if len(verdicts) == 0 {
 		return nil
 	}
-	return r.db.WithContext(ctx).
+	return dbFromContext(ctx, r.db).
 		Clauses(clause.OnConflict{
 			Columns: []clause.Column{
 				{Name: "domain_etld1"},
@@ -64,7 +64,7 @@ func (r *telemetryAIVerdictRepository) UpsertBatch(ctx context.Context, verdicts
 
 func (r *telemetryAIVerdictRepository) ListAll(ctx context.Context, limit int) ([]*domain.TelemetryAIVerdict, error) {
 	var verdicts []*domain.TelemetryAIVerdict
-	q := r.db.WithContext(ctx).Order("updated_at DESC")
+	q := dbFromContext(ctx, r.db).Order("updated_at DESC")
 	if limit > 0 {
 		q = q.Limit(limit)
 	}
@@ -82,7 +82,7 @@ func (r *telemetryAIVerdictRepository) FindByKeys(
 
 	// Build WHERE (domain_etld1, page_path, event_name, error_code, flow_type, surface, succeeded) IN (...)
 	// GORM doesn't natively support tuple-IN, so we use OR conditions.
-	q := r.db.WithContext(ctx).Model(&domain.TelemetryAIVerdict{})
+	q := dbFromContext(ctx, r.db).Model(&domain.TelemetryAIVerdict{})
 
 	// For performance, limit to first 500 keys
 	searchKeys := keys
@@ -90,7 +90,7 @@ func (r *telemetryAIVerdictRepository) FindByKeys(
 		searchKeys = searchKeys[:500]
 	}
 
-	orQuery := r.db.WithContext(ctx)
+	orQuery := dbFromContext(ctx, r.db)
 	for i, k := range searchKeys {
 		cond := r.db.Where(
 			"domain_etld1 = ? AND page_path = ? AND event_name = ? AND error_code = ? AND flow_type = ? AND surface = ? AND succeeded = ?",
@@ -112,6 +112,6 @@ func (r *telemetryAIVerdictRepository) FindByKeys(
 }
 
 func (r *telemetryAIVerdictRepository) DeleteAll(ctx context.Context) (int64, error) {
-	result := r.db.WithContext(ctx).Where("1 = 1").Delete(&domain.TelemetryAIVerdict{})
+	result := dbFromContext(ctx, r.db).Where("1 = 1").Delete(&domain.TelemetryAIVerdict{})
 	return result.RowsAffected, result.Error
 }

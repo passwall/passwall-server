@@ -17,12 +17,17 @@ import (
 	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/internal/service"
 	"github.com/passwall/passwall-server/pkg/constants"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type stubOrganizationItemService struct {
 	createCalled bool
 	createErr    error
 	createItem   *domain.OrganizationItem
+	v2Request    service.OrganizationItemsV2Request
+	v2Response   *service.OrganizationItemsV2Response
+	v2Err        error
 }
 
 func (s *stubOrganizationItemService) Create(ctx context.Context, orgID, userID uint, req *service.CreateOrgItemRequest) (*domain.OrganizationItem, error) {
@@ -39,6 +44,17 @@ func (s *stubOrganizationItemService) GetByID(ctx context.Context, id, userID ui
 
 func (s *stubOrganizationItemService) ListByOrganization(ctx context.Context, orgID, userID uint, filter repository.OrganizationItemFilter) ([]*domain.OrganizationItem, int64, error) {
 	return nil, 0, nil
+}
+
+func (s *stubOrganizationItemService) ListV2(ctx context.Context, orgID, userID uint, req service.OrganizationItemsV2Request) (*service.OrganizationItemsV2Response, error) {
+	s.v2Request = req
+	if s.v2Err != nil {
+		return nil, s.v2Err
+	}
+	if s.v2Response != nil {
+		return s.v2Response, nil
+	}
+	return &service.OrganizationItemsV2Response{Items: []*domain.OrganizationItemSyncDTO{}}, nil
 }
 
 func (s *stubOrganizationItemService) ListByCollection(ctx context.Context, collectionID, userID uint) ([]*domain.OrganizationItem, error) {
@@ -105,6 +121,39 @@ func (s *stubPolicyEnforcementService) CheckPersonalVaultAllowed(ctx context.Con
 
 func (s *stubPolicyEnforcementService) GetPasswordExpirationPolicy(ctx context.Context, orgID uint) (*service.PasswordExpirationPolicy, error) {
 	return nil, nil
+}
+
+func TestOrganizationItemHandler_ListV2(t *testing.T) {
+	t.Parallel()
+	itemSvc := &stubOrganizationItemService{
+		v2Response: &service.OrganizationItemsV2Response{
+			Items: []*domain.OrganizationItemSyncDTO{
+				{ID: 1, UUID: uuid.New(), OrganizationID: 99, Revision: 12, Deleted: true},
+			},
+			Revision: 12,
+		},
+	}
+	handler := &OrganizationItemHandler{service: itemSvc}
+	router := gin.New()
+	router.GET("/api/v2/organizations/:id/items", func(c *gin.Context) {
+		c.Set(constants.ContextKeyUserID, uint(42))
+		c.Set(constants.ContextKeyOrgID, uint(99))
+		handler.ListV2(c)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v2/organizations/abc/items?limit=25&since_revision=8", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, 25, itemSvc.v2Request.Limit)
+	assert.EqualValues(t, 8, itemSvc.v2Request.SinceRevision)
+	assert.Contains(t, rec.Body.String(), `"deleted":true`)
+	assert.NotContains(t, rec.Body.String(), `"data"`)
+
+	invalid := httptest.NewRequest(http.MethodGet, "/api/v2/organizations/abc/items?limit=501", nil)
+	invalidRec := httptest.NewRecorder()
+	router.ServeHTTP(invalidRec, invalid)
+	assert.Equal(t, http.StatusBadRequest, invalidRec.Code)
 }
 
 func TestOrganizationItemHandler_Create(t *testing.T) {

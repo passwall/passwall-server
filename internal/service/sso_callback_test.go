@@ -171,22 +171,16 @@ func (f *fakeUserRepo) GetByEmail(_ context.Context, email string) (*domain.User
 	}
 	return u, nil
 }
-func (f *fakeUserRepo) GetBySchema(_ context.Context, _ string) (*domain.User, error) {
-	return nil, repository.ErrNotFound
-}
 func (f *fakeUserRepo) List(_ context.Context, _ repository.ListFilter) ([]*domain.User, *repository.ListResult, error) {
 	return nil, nil, nil
 }
-func (f *fakeUserRepo) GetItemCount(_ context.Context, _ string) (int, error) { return 0, nil }
 func (f *fakeUserRepo) Create(_ context.Context, u *domain.User) error {
 	f.users[u.Email] = u
 	return nil
 }
-func (f *fakeUserRepo) Update(_ context.Context, _ *domain.User) error   { return nil }
-func (f *fakeUserRepo) Delete(_ context.Context, _ uint, _ string) error { return nil }
-func (f *fakeUserRepo) Migrate() error                                   { return nil }
-func (f *fakeUserRepo) CreateSchema(_ string) error                      { return nil }
-func (f *fakeUserRepo) MigrateUserSchema(_ string) error                 { return nil }
+func (f *fakeUserRepo) Update(_ context.Context, _ *domain.User) error { return nil }
+func (f *fakeUserRepo) Delete(_ context.Context, _ uint) error         { return nil }
+func (f *fakeUserRepo) Migrate() error                                 { return nil }
 
 // fakeOrgUserRepo implements repository.OrganizationUserRepository (minimal)
 type fakeOrgUserRepo struct {
@@ -214,6 +208,16 @@ func (f *fakeOrgUserRepo) GetByUUID(_ context.Context, _ string) (*domain.Organi
 func (f *fakeOrgUserRepo) GetByOrgAndUser(_ context.Context, orgID, userID uint) (*domain.OrganizationUser, error) {
 	ou, ok := f.members[fmt.Sprintf("%d:%d", orgID, userID)]
 	if !ok {
+		return nil, repository.ErrNotFound
+	}
+	return ou, nil
+}
+func (f *fakeOrgUserRepo) GetActiveByOrgAndUser(ctx context.Context, orgID, userID uint) (*domain.OrganizationUser, error) {
+	ou, err := f.GetByOrgAndUser(ctx, orgID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if ou.Status != domain.OrgUserStatusAccepted && ou.Status != domain.OrgUserStatusConfirmed {
 		return nil, repository.ErrNotFound
 	}
 	return ou, nil
@@ -272,6 +276,7 @@ func (f *fakeOrgRepo) ListForUser(_ context.Context, _ uint) ([]*domain.Organiza
 }
 func (f *fakeOrgRepo) Update(_ context.Context, _ *domain.Organization) error    { return nil }
 func (f *fakeOrgRepo) Delete(_ context.Context, _ uint) error                    { return nil }
+func (f *fakeOrgRepo) PurgePersonal(_ context.Context, _ uint) error             { return nil }
 func (f *fakeOrgRepo) GetMemberCount(_ context.Context, _ uint) (int, error)     { return 0, nil }
 func (f *fakeOrgRepo) GetTeamCount(_ context.Context, _ uint) (int, error)       { return 0, nil }
 func (f *fakeOrgRepo) GetCollectionCount(_ context.Context, _ uint) (int, error) { return 0, nil }

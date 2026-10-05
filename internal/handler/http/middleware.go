@@ -8,7 +8,6 @@ import (
 	"github.com/passwall/passwall-server/internal/config"
 	"github.com/passwall/passwall-server/internal/service"
 	"github.com/passwall/passwall-server/pkg/constants"
-	"github.com/passwall/passwall-server/pkg/database"
 )
 
 // AuthMiddleware validates JWT tokens and extracts user information
@@ -42,30 +41,8 @@ func AuthMiddleware(authService service.AuthService) gin.HandlerFunc {
 		// Set user information in context (using constants for keys)
 		c.Set(constants.ContextKeyUserID, claims.UserID)
 		c.Set(constants.ContextKeyEmail, claims.Email)
-		c.Set(constants.ContextKeySchema, claims.Schema)
 		c.Set(constants.ContextKeyUserRole, claims.Role)
 		c.Set(constants.ContextKeyTokenUUID, claims.UUID.String())
-
-		// Determine which schema to use
-		schemaToUse := claims.Schema
-
-		// Admin users can override schema using X-User-Schema header
-		if constants.IsAdmin(claims.Role) {
-			customSchema := c.GetHeader("X-User-Schema")
-			if customSchema != "" {
-				// Validate that the custom schema exists
-				if err := authService.ValidateSchema(c.Request.Context(), customSchema); err != nil {
-					c.JSON(http.StatusBadRequest, gin.H{"error": "invalid schema"})
-					c.Abort()
-					return
-				}
-				schemaToUse = customSchema
-			}
-		}
-
-		// Set schema in request context for repository/service access
-		ctx := database.WithSchema(c.Request.Context(), schemaToUse)
-		c.Request = c.Request.WithContext(ctx)
 
 		// Enforce mandatory org-level 2FA setup for authenticated APIs.
 		// Allow only setup/status/disable endpoints and signout until setup is complete.
@@ -115,12 +92,8 @@ func OptionalAuthMiddleware(authService service.AuthService) gin.HandlerFunc {
 
 		c.Set(constants.ContextKeyUserID, claims.UserID)
 		c.Set(constants.ContextKeyEmail, claims.Email)
-		c.Set(constants.ContextKeySchema, claims.Schema)
 		c.Set(constants.ContextKeyUserRole, claims.Role)
 		c.Set(constants.ContextKeyTokenUUID, claims.UUID.String())
-
-		ctx := database.WithSchema(c.Request.Context(), claims.Schema)
-		c.Request = c.Request.WithContext(ctx)
 
 		c.Next()
 	}
@@ -169,7 +142,7 @@ func CORSMiddleware(cfg *config.ServerConfig) gin.HandlerFunc {
 		// When no Origin header is present (server-to-server, mobile apps,
 		// curl, etc.) no CORS headers are needed.
 
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, X-User-Schema, X-Recaptcha-Token")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, X-Recaptcha-Token")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
 
 		if c.Request.Method == "OPTIONS" {

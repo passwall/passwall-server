@@ -26,12 +26,12 @@ func (r *itemShareRepository) Create(ctx context.Context, share *domain.ItemShar
 		share.UUID = uuid.New()
 	}
 
-	return r.db.WithContext(ctx).Create(share).Error
+	return dbFromContext(ctx, r.db).Create(share).Error
 }
 
 func (r *itemShareRepository) GetByID(ctx context.Context, id uint) (*domain.ItemShare, error) {
 	var share domain.ItemShare
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Owner").
 		Preload("SharedWithUser").
 		Preload("SharedWithTeam").
@@ -49,7 +49,7 @@ func (r *itemShareRepository) GetByID(ctx context.Context, id uint) (*domain.Ite
 
 func (r *itemShareRepository) GetByUUID(ctx context.Context, uuidStr string) (*domain.ItemShare, error) {
 	var share domain.ItemShare
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Owner").
 		Preload("SharedWithUser").
 		Preload("SharedWithTeam").
@@ -67,7 +67,7 @@ func (r *itemShareRepository) GetByUUID(ctx context.Context, uuidStr string) (*d
 
 func (r *itemShareRepository) ListByItemUUID(ctx context.Context, itemUUID uuid.UUID) ([]*domain.ItemShare, error) {
 	var shares []*domain.ItemShare
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("SharedWithUser").
 		Preload("SharedWithTeam").
 		Where("item_uuid = ?", itemUUID).
@@ -82,7 +82,7 @@ func (r *itemShareRepository) ListByItemUUID(ctx context.Context, itemUUID uuid.
 
 func (r *itemShareRepository) ListByOwner(ctx context.Context, ownerID uint) ([]*domain.ItemShare, error) {
 	var shares []*domain.ItemShare
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("SharedWithUser").
 		Preload("SharedWithTeam").
 		Where("owner_id = ?", ownerID).
@@ -97,7 +97,7 @@ func (r *itemShareRepository) ListByOwner(ctx context.Context, ownerID uint) ([]
 
 func (r *itemShareRepository) ListSharedWithUser(ctx context.Context, userID uint) ([]*domain.ItemShare, error) {
 	var shares []*domain.ItemShare
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Owner").
 		Where("shared_with_user_id = ?", userID).
 		Where("expires_at IS NULL OR expires_at > ?", time.Now()).
@@ -112,7 +112,7 @@ func (r *itemShareRepository) ListSharedWithUser(ctx context.Context, userID uin
 
 func (r *itemShareRepository) ListSharedWithTeam(ctx context.Context, teamID uint) ([]*domain.ItemShare, error) {
 	var shares []*domain.ItemShare
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Owner").
 		Preload("SharedWithTeam").
 		Where("shared_with_team_id = ?", teamID).
@@ -132,21 +132,21 @@ func (r *itemShareRepository) Update(ctx context.Context, share *domain.ItemShar
 	share.SharedWithUser = nil
 	share.SharedWithTeam = nil
 
-	return r.db.WithContext(ctx).Save(share).Error
+	return dbFromContext(ctx, r.db).Save(share).Error
 }
 
 func (r *itemShareRepository) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&domain.ItemShare{}, id).Error
+	return dbFromContext(ctx, r.db).Delete(&domain.ItemShare{}, id).Error
 }
 
 func (r *itemShareRepository) DeleteBySharedWithUser(ctx context.Context, userID uint) error {
-	return r.db.WithContext(ctx).
+	return dbFromContext(ctx, r.db).
 		Where("shared_with_user_id = ?", userID).
 		Delete(&domain.ItemShare{}).Error
 }
 
 func (r *itemShareRepository) DeleteExpired(ctx context.Context) (int64, error) {
-	result := r.db.WithContext(ctx).
+	result := dbFromContext(ctx, r.db).
 		Where("expires_at IS NOT NULL AND expires_at <= ?", time.Now()).
 		Delete(&domain.ItemShare{})
 

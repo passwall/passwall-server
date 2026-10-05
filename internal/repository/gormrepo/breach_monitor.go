@@ -20,12 +20,12 @@ func NewBreachMonitorRepository(db *gorm.DB) repository.BreachMonitorRepository 
 // ── MonitoredEmail ──────────────────────────────────────────
 
 func (r *breachMonitorRepository) CreateEmail(ctx context.Context, email *domain.MonitoredEmail) error {
-	return r.db.WithContext(ctx).Create(email).Error
+	return dbFromContext(ctx, r.db).Create(email).Error
 }
 
 func (r *breachMonitorRepository) GetEmailByID(ctx context.Context, id uint) (*domain.MonitoredEmail, error) {
 	var email domain.MonitoredEmail
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("BreachRecords").
 		First(&email, id).Error
 	if err != nil {
@@ -39,7 +39,7 @@ func (r *breachMonitorRepository) GetEmailByID(ctx context.Context, id uint) (*d
 
 func (r *breachMonitorRepository) GetEmailByOrgAndAddress(ctx context.Context, orgID uint, addr string) (*domain.MonitoredEmail, error) {
 	var email domain.MonitoredEmail
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Where("organization_id = ? AND email = ?", orgID, addr).
 		First(&email).Error
 	if err != nil {
@@ -53,7 +53,7 @@ func (r *breachMonitorRepository) GetEmailByOrgAndAddress(ctx context.Context, o
 
 func (r *breachMonitorRepository) ListEmailsByOrganization(ctx context.Context, orgID uint) ([]*domain.MonitoredEmail, error) {
 	var emails []*domain.MonitoredEmail
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Where("organization_id = ?", orgID).
 		Preload("BreachRecords").
 		Order("created_at DESC").
@@ -62,22 +62,22 @@ func (r *breachMonitorRepository) ListEmailsByOrganization(ctx context.Context, 
 }
 
 func (r *breachMonitorRepository) UpdateEmail(ctx context.Context, email *domain.MonitoredEmail) error {
-	return r.db.WithContext(ctx).Save(email).Error
+	return dbFromContext(ctx, r.db).Save(email).Error
 }
 
 func (r *breachMonitorRepository) DeleteEmail(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&domain.MonitoredEmail{}, id).Error
+	return dbFromContext(ctx, r.db).Delete(&domain.MonitoredEmail{}, id).Error
 }
 
 // ── BreachRecord ────────────────────────────────────────────
 
 func (r *breachMonitorRepository) CreateBreachRecord(ctx context.Context, record *domain.BreachRecord) error {
-	return r.db.WithContext(ctx).Create(record).Error
+	return dbFromContext(ctx, r.db).Create(record).Error
 }
 
 func (r *breachMonitorRepository) GetBreachRecordByID(ctx context.Context, id uint) (*domain.BreachRecord, error) {
 	var record domain.BreachRecord
-	err := r.db.WithContext(ctx).First(&record, id).Error
+	err := dbFromContext(ctx, r.db).First(&record, id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, repository.ErrNotFound
@@ -89,7 +89,7 @@ func (r *breachMonitorRepository) GetBreachRecordByID(ctx context.Context, id ui
 
 func (r *breachMonitorRepository) ListBreachesByEmailID(ctx context.Context, emailID uint) ([]*domain.BreachRecord, error) {
 	var records []*domain.BreachRecord
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Where("monitored_email_id = ?", emailID).
 		Order("breach_date DESC").
 		Find(&records).Error
@@ -98,7 +98,7 @@ func (r *breachMonitorRepository) ListBreachesByEmailID(ctx context.Context, ema
 
 func (r *breachMonitorRepository) ListBreachesByOrganization(ctx context.Context, orgID uint) ([]*domain.BreachRecord, error) {
 	var records []*domain.BreachRecord
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Joins("JOIN monitored_emails ON monitored_emails.id = breach_records.monitored_email_id").
 		Where("monitored_emails.organization_id = ?", orgID).
 		Order("breach_records.breach_date DESC").
@@ -108,7 +108,7 @@ func (r *breachMonitorRepository) ListBreachesByOrganization(ctx context.Context
 
 func (r *breachMonitorRepository) BreachExistsForEmail(ctx context.Context, emailID uint, breachName string) (bool, error) {
 	var count int64
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Model(&domain.BreachRecord{}).
 		Where("monitored_email_id = ? AND breach_name = ?", emailID, breachName).
 		Count(&count).Error
@@ -116,7 +116,7 @@ func (r *breachMonitorRepository) BreachExistsForEmail(ctx context.Context, emai
 }
 
 func (r *breachMonitorRepository) UpdateBreachRecord(ctx context.Context, record *domain.BreachRecord) error {
-	return r.db.WithContext(ctx).Save(record).Error
+	return dbFromContext(ctx, r.db).Save(record).Error
 }
 
 // ── Summary ─────────────────────────────────────────────────
@@ -126,7 +126,7 @@ func (r *breachMonitorRepository) GetSummary(ctx context.Context, orgID uint) (*
 
 	// Total monitored emails
 	var emailCount int64
-	if err := r.db.WithContext(ctx).
+	if err := dbFromContext(ctx, r.db).
 		Model(&domain.MonitoredEmail{}).
 		Where("organization_id = ?", orgID).
 		Count(&emailCount).Error; err != nil {
@@ -140,7 +140,7 @@ func (r *breachMonitorRepository) GetSummary(ctx context.Context, orgID uint) (*
 		Active int
 	}
 	var stats breachStats
-	r.db.WithContext(ctx).
+	dbFromContext(ctx, r.db).
 		Model(&domain.BreachRecord{}).
 		Joins("JOIN monitored_emails ON monitored_emails.id = breach_records.monitored_email_id").
 		Where("monitored_emails.organization_id = ?", orgID).
@@ -151,7 +151,7 @@ func (r *breachMonitorRepository) GetSummary(ctx context.Context, orgID uint) (*
 
 	// Last checked time (most recent across all emails)
 	var lastChecked domain.MonitoredEmail
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Where("organization_id = ? AND last_checked_at IS NOT NULL", orgID).
 		Order("last_checked_at DESC").
 		First(&lastChecked).Error
@@ -168,7 +168,7 @@ func (r *breachMonitorRepository) GetSummary(ctx context.Context, orgID uint) (*
 
 func (r *breachMonitorRepository) ListAllMonitoredEmails(ctx context.Context) ([]*domain.MonitoredEmail, error) {
 	var emails []*domain.MonitoredEmail
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Order("organization_id, id").
 		Find(&emails).Error
 	return emails, err

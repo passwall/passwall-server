@@ -23,12 +23,12 @@ func (r *sendRepository) Create(ctx context.Context, send *domain.Send) error {
 	if send.UUID == uuid.Nil {
 		send.UUID = uuid.New()
 	}
-	return r.db.WithContext(ctx).Create(send).Error
+	return dbFromContext(ctx, r.db).Create(send).Error
 }
 
 func (r *sendRepository) GetByUUID(ctx context.Context, uuidStr string) (*domain.Send, error) {
 	var send domain.Send
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Creator").
 		Where("uuid = ? AND deleted_at IS NULL", uuidStr).
 		First(&send).Error
@@ -44,7 +44,7 @@ func (r *sendRepository) GetByUUID(ctx context.Context, uuidStr string) (*domain
 
 func (r *sendRepository) GetByAccessID(ctx context.Context, accessID string) (*domain.Send, error) {
 	var send domain.Send
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Creator").
 		Where("access_id = ? AND deleted_at IS NULL", accessID).
 		First(&send).Error
@@ -60,7 +60,7 @@ func (r *sendRepository) GetByAccessID(ctx context.Context, accessID string) (*d
 
 func (r *sendRepository) ListByCreator(ctx context.Context, creatorID uint) ([]*domain.Send, error) {
 	var sends []*domain.Send
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Where("creator_id = ? AND deleted_at IS NULL", creatorID).
 		Order("created_at DESC").
 		Find(&sends).Error
@@ -72,23 +72,23 @@ func (r *sendRepository) ListByCreator(ctx context.Context, creatorID uint) ([]*
 
 func (r *sendRepository) Update(ctx context.Context, send *domain.Send) error {
 	send.Creator = nil
-	return r.db.WithContext(ctx).Save(send).Error
+	return dbFromContext(ctx, r.db).Save(send).Error
 }
 
 func (r *sendRepository) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&domain.Send{}, id).Error
+	return dbFromContext(ctx, r.db).Delete(&domain.Send{}, id).Error
 }
 
 func (r *sendRepository) SoftDelete(ctx context.Context, id uint) error {
 	now := time.Now()
-	return r.db.WithContext(ctx).
+	return dbFromContext(ctx, r.db).
 		Model(&domain.Send{}).
 		Where("id = ?", id).
 		Update("deleted_at", now).Error
 }
 
 func (r *sendRepository) IncrementAccessCount(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).
+	return dbFromContext(ctx, r.db).
 		Model(&domain.Send{}).
 		Where("id = ?", id).
 		UpdateColumn("access_count", gorm.Expr("access_count + 1")).Error
@@ -96,7 +96,7 @@ func (r *sendRepository) IncrementAccessCount(ctx context.Context, id uint) erro
 
 func (r *sendRepository) DeleteExpired(ctx context.Context) (int64, error) {
 	now := time.Now()
-	result := r.db.WithContext(ctx).
+	result := dbFromContext(ctx, r.db).
 		Where("deletion_date <= ? AND deleted_at IS NULL", now).
 		Delete(&domain.Send{})
 	return result.RowsAffected, result.Error

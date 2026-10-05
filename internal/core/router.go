@@ -21,7 +21,6 @@ func SetupRouter(
 	twoFactorHandler *httpHandler.TwoFactorHandler,
 	activityHandler *httpHandler.ActivityHandler,
 	organizationActivityHandler *httpHandler.OrganizationActivityHandler,
-	itemHandler *httpHandler.ItemHandler,
 	itemShareHandler *httpHandler.ItemShareHandler,
 	excludedDomainHandler *httpHandler.ExcludedDomainHandler,
 	userHandler *httpHandler.UserHandler,
@@ -242,13 +241,6 @@ func SetupRouter(
 
 		// NOTE: telemetry ingest moved above apiGroup (optional auth).
 
-		// Modern Items API (unified endpoint for all types)
-		apiGroup.POST("/items", itemHandler.Create)
-		apiGroup.GET("/items", itemHandler.List)
-		apiGroup.GET("/items/:id", itemHandler.GetByID)
-		apiGroup.PUT("/items/:id", itemHandler.Update)
-		apiGroup.DELETE("/items/:id", itemHandler.Delete)
-
 		// Personal item sharing (zero-knowledge)
 		apiGroup.POST("/item-shares", itemShareHandler.Create)
 		apiGroup.GET("/item-shares", itemShareHandler.ListOwned)
@@ -291,10 +283,6 @@ func SetupRouter(
 		apiGroup.DELETE("/excluded-domains/:id", excludedDomainHandler.Delete)
 		apiGroup.DELETE("/excluded-domains/by-domain/:domain", excludedDomainHandler.DeleteByDomain)
 		apiGroup.GET("/excluded-domains/check/:domain", excludedDomainHandler.Check)
-
-		// NOTE: All legacy endpoints (logins, credit-cards, bank-accounts, notes, emails, servers)
-		// have been migrated to the modern /api/items endpoint.
-		// Use /api/items with type parameter: ?type=1 (password), ?type=2 (note), ?type=3 (card), etc.
 
 		// User profile routes - any authenticated user
 		apiGroup.PUT("/users/me", userHandler.UpdateProfile)
@@ -544,6 +532,11 @@ func SetupRouter(
 
 		// Create organization item (under organization)
 		orgsGroup.POST("/:id/items", organizationItemHandler.Create)
+
+		v2Organizations := apiGroup.Group("/v2/organizations")
+		v2Organizations.Use(httpHandler.OrgPublicIDResolverMiddleware(orgRepo))
+		v2Organizations.Use(httpHandler.FirewallMiddleware(firewallService))
+		v2Organizations.GET("/:id/items", organizationItemHandler.ListV2)
 	}
 
 	return router

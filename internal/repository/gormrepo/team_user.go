@@ -19,12 +19,12 @@ func NewTeamUserRepository(db *gorm.DB) repository.TeamUserRepository {
 }
 
 func (r *teamUserRepository) Create(ctx context.Context, teamUser *domain.TeamUser) error {
-	return r.db.WithContext(ctx).Create(teamUser).Error
+	return dbFromContext(ctx, r.db).Create(teamUser).Error
 }
 
 func (r *teamUserRepository) GetByID(ctx context.Context, id uint) (*domain.TeamUser, error) {
 	var teamUser domain.TeamUser
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Team").
 		Preload("OrganizationUser").
 		Preload("OrganizationUser.User").
@@ -42,7 +42,7 @@ func (r *teamUserRepository) GetByID(ctx context.Context, id uint) (*domain.Team
 
 func (r *teamUserRepository) GetByTeamAndOrgUser(ctx context.Context, teamID, orgUserID uint) (*domain.TeamUser, error) {
 	var teamUser domain.TeamUser
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Team").
 		Preload("OrganizationUser").
 		Preload("OrganizationUser.User").
@@ -60,7 +60,7 @@ func (r *teamUserRepository) GetByTeamAndOrgUser(ctx context.Context, teamID, or
 
 func (r *teamUserRepository) ListByTeam(ctx context.Context, teamID uint) ([]*domain.TeamUser, error) {
 	var teamUsers []*domain.TeamUser
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("OrganizationUser").
 		Preload("OrganizationUser.User").
 		Where("team_id = ?", teamID).
@@ -75,7 +75,7 @@ func (r *teamUserRepository) ListByTeam(ctx context.Context, teamID uint) ([]*do
 
 func (r *teamUserRepository) ListByOrgUser(ctx context.Context, orgUserID uint) ([]*domain.TeamUser, error) {
 	var teamUsers []*domain.TeamUser
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Team").
 		Where("organization_user_id = ?", orgUserID).
 		Order("created_at ASC").
@@ -92,15 +92,15 @@ func (r *teamUserRepository) Update(ctx context.Context, teamUser *domain.TeamUs
 	teamUser.Team = nil
 	teamUser.OrganizationUser = nil
 
-	return r.db.WithContext(ctx).Save(teamUser).Error
+	return dbFromContext(ctx, r.db).Save(teamUser).Error
 }
 
 func (r *teamUserRepository) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&domain.TeamUser{}, id).Error
+	return dbFromContext(ctx, r.db).Delete(&domain.TeamUser{}, id).Error
 }
 
 func (r *teamUserRepository) DeleteByTeamAndOrgUser(ctx context.Context, teamID, orgUserID uint) error {
-	return r.db.WithContext(ctx).
+	return dbFromContext(ctx, r.db).
 		Where("team_id = ? AND organization_user_id = ?", teamID, orgUserID).
 		Delete(&domain.TeamUser{}).Error
 }

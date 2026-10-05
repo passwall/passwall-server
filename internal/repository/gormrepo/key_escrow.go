@@ -20,12 +20,12 @@ func NewKeyEscrowRepository(db *gorm.DB) repository.KeyEscrowRepository {
 }
 
 func (r *keyEscrowRepository) Create(ctx context.Context, escrow *domain.KeyEscrow) error {
-	return r.db.WithContext(ctx).Create(escrow).Error
+	return dbFromContext(ctx, r.db).Create(escrow).Error
 }
 
 func (r *keyEscrowRepository) GetByUserAndOrg(ctx context.Context, userID, orgID uint) (*domain.KeyEscrow, error) {
 	var escrow domain.KeyEscrow
-	if err := r.db.WithContext(ctx).
+	if err := dbFromContext(ctx, r.db).
 		Where("user_id = ? AND organization_id = ? AND status = ?", userID, orgID, domain.KeyEscrowStatusActive).
 		First(&escrow).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -38,7 +38,7 @@ func (r *keyEscrowRepository) GetByUserAndOrg(ctx context.Context, userID, orgID
 
 func (r *keyEscrowRepository) ListByOrganization(ctx context.Context, orgID uint) ([]*domain.KeyEscrow, error) {
 	var escrows []*domain.KeyEscrow
-	if err := r.db.WithContext(ctx).
+	if err := dbFromContext(ctx, r.db).
 		Where("organization_id = ?", orgID).
 		Preload("User").
 		Order("created_at DESC").
@@ -49,15 +49,15 @@ func (r *keyEscrowRepository) ListByOrganization(ctx context.Context, orgID uint
 }
 
 func (r *keyEscrowRepository) Update(ctx context.Context, escrow *domain.KeyEscrow) error {
-	return r.db.WithContext(ctx).Save(escrow).Error
+	return dbFromContext(ctx, r.db).Save(escrow).Error
 }
 
 func (r *keyEscrowRepository) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&domain.KeyEscrow{}, id).Error
+	return dbFromContext(ctx, r.db).Delete(&domain.KeyEscrow{}, id).Error
 }
 
 func (r *keyEscrowRepository) DeleteByUserAndOrg(ctx context.Context, userID, orgID uint) error {
-	return r.db.WithContext(ctx).
+	return dbFromContext(ctx, r.db).
 		Where("user_id = ? AND organization_id = ?", userID, orgID).
 		Delete(&domain.KeyEscrow{}).Error
 }
@@ -73,12 +73,12 @@ func NewOrgEscrowKeyRepository(db *gorm.DB) repository.OrgEscrowKeyRepository {
 }
 
 func (r *orgEscrowKeyRepository) Create(ctx context.Context, key *domain.OrgEscrowKey) error {
-	return r.db.WithContext(ctx).Create(key).Error
+	return dbFromContext(ctx, r.db).Create(key).Error
 }
 
 func (r *orgEscrowKeyRepository) GetByOrganizationID(ctx context.Context, orgID uint) (*domain.OrgEscrowKey, error) {
 	var key domain.OrgEscrowKey
-	if err := r.db.WithContext(ctx).
+	if err := dbFromContext(ctx, r.db).
 		Where("organization_id = ? AND status = ?", orgID, domain.KeyEscrowStatusActive).
 		First(&key).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -90,9 +90,9 @@ func (r *orgEscrowKeyRepository) GetByOrganizationID(ctx context.Context, orgID 
 }
 
 func (r *orgEscrowKeyRepository) Update(ctx context.Context, key *domain.OrgEscrowKey) error {
-	return r.db.WithContext(ctx).Save(key).Error
+	return dbFromContext(ctx, r.db).Save(key).Error
 }
 
 func (r *orgEscrowKeyRepository) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&domain.OrgEscrowKey{}, id).Error
+	return dbFromContext(ctx, r.db).Delete(&domain.OrgEscrowKey{}, id).Error
 }

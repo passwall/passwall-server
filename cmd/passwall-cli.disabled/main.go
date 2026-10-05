@@ -120,7 +120,6 @@ func main() {
 	color.Green("User created successfully!")
 	fmt.Printf("User ID: %d\n", user.ID)
 	fmt.Printf("Email: %s\n", user.Email)
-	fmt.Printf("Schema: %s\n", user.Schema)
 }
 
 func clearInput(input string) string {

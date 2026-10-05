@@ -19,12 +19,12 @@ func NewSSOConnectionRepository(db *gorm.DB) repository.SSOConnectionRepository 
 }
 
 func (r *ssoConnectionRepository) Create(ctx context.Context, conn *domain.SSOConnection) error {
-	return r.db.WithContext(ctx).Create(conn).Error
+	return dbFromContext(ctx, r.db).Create(conn).Error
 }
 
 func (r *ssoConnectionRepository) GetByID(ctx context.Context, id uint) (*domain.SSOConnection, error) {
 	var conn domain.SSOConnection
-	if err := r.db.WithContext(ctx).First(&conn, id).Error; err != nil {
+	if err := dbFromContext(ctx, r.db).First(&conn, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, repository.ErrNotFound
 		}
@@ -35,7 +35,7 @@ func (r *ssoConnectionRepository) GetByID(ctx context.Context, id uint) (*domain
 
 func (r *ssoConnectionRepository) GetByUUID(ctx context.Context, uuid string) (*domain.SSOConnection, error) {
 	var conn domain.SSOConnection
-	if err := r.db.WithContext(ctx).Where("uuid = ?", uuid).First(&conn).Error; err != nil {
+	if err := dbFromContext(ctx, r.db).Where("uuid = ?", uuid).First(&conn).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, repository.ErrNotFound
 		}
@@ -46,7 +46,7 @@ func (r *ssoConnectionRepository) GetByUUID(ctx context.Context, uuid string) (*
 
 func (r *ssoConnectionRepository) GetAnyByDomain(ctx context.Context, domainName string) (*domain.SSOConnection, error) {
 	var conn domain.SSOConnection
-	if err := r.db.WithContext(ctx).
+	if err := dbFromContext(ctx, r.db).
 		Where("domain = ?", domainName).
 		First(&conn).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -59,7 +59,7 @@ func (r *ssoConnectionRepository) GetAnyByDomain(ctx context.Context, domainName
 
 func (r *ssoConnectionRepository) GetByDomain(ctx context.Context, domainName string) (*domain.SSOConnection, error) {
 	var conn domain.SSOConnection
-	if err := r.db.WithContext(ctx).
+	if err := dbFromContext(ctx, r.db).
 		Where("domain = ? AND status = ?", domainName, domain.SSOStatusActive).
 		First(&conn).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -72,7 +72,7 @@ func (r *ssoConnectionRepository) GetByDomain(ctx context.Context, domainName st
 
 func (r *ssoConnectionRepository) GetByOrganizationID(ctx context.Context, orgID uint) (*domain.SSOConnection, error) {
 	var conn domain.SSOConnection
-	if err := r.db.WithContext(ctx).
+	if err := dbFromContext(ctx, r.db).
 		Where("organization_id = ? AND status = ?", orgID, domain.SSOStatusActive).
 		First(&conn).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -85,7 +85,7 @@ func (r *ssoConnectionRepository) GetByOrganizationID(ctx context.Context, orgID
 
 func (r *ssoConnectionRepository) ListByOrganization(ctx context.Context, orgID uint) ([]*domain.SSOConnection, error) {
 	var conns []*domain.SSOConnection
-	if err := r.db.WithContext(ctx).
+	if err := dbFromContext(ctx, r.db).
 		Where("organization_id = ?", orgID).
 		Order("created_at DESC").
 		Find(&conns).Error; err != nil {
@@ -95,11 +95,11 @@ func (r *ssoConnectionRepository) ListByOrganization(ctx context.Context, orgID 
 }
 
 func (r *ssoConnectionRepository) Update(ctx context.Context, conn *domain.SSOConnection) error {
-	return r.db.WithContext(ctx).Save(conn).Error
+	return dbFromContext(ctx, r.db).Save(conn).Error
 }
 
 func (r *ssoConnectionRepository) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&domain.SSOConnection{}, id).Error
+	return dbFromContext(ctx, r.db).Delete(&domain.SSOConnection{}, id).Error
 }
 
 // --- SSO State ---
@@ -114,12 +114,12 @@ func NewSSOStateRepository(db *gorm.DB) repository.SSOStateRepository {
 }
 
 func (r *ssoStateRepository) Create(ctx context.Context, state *domain.SSOState) error {
-	return r.db.WithContext(ctx).Create(state).Error
+	return dbFromContext(ctx, r.db).Create(state).Error
 }
 
 func (r *ssoStateRepository) GetByState(ctx context.Context, stateVal string) (*domain.SSOState, error) {
 	var state domain.SSOState
-	if err := r.db.WithContext(ctx).Where("state = ?", stateVal).First(&state).Error; err != nil {
+	if err := dbFromContext(ctx, r.db).Where("state = ?", stateVal).First(&state).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, repository.ErrNotFound
 		}
@@ -129,10 +129,10 @@ func (r *ssoStateRepository) GetByState(ctx context.Context, stateVal string) (*
 }
 
 func (r *ssoStateRepository) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&domain.SSOState{}, id).Error
+	return dbFromContext(ctx, r.db).Delete(&domain.SSOState{}, id).Error
 }
 
 func (r *ssoStateRepository) DeleteExpired(ctx context.Context) (int64, error) {
-	result := r.db.WithContext(ctx).Where("expires_at < NOW()").Delete(&domain.SSOState{})
+	result := dbFromContext(ctx, r.db).Where("expires_at < NOW()").Delete(&domain.SSOState{})
 	return result.RowsAffected, result.Error
 }

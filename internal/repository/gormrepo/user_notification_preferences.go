@@ -21,7 +21,7 @@ func NewUserNotificationPreferencesRepository(db *gorm.DB) repository.UserNotifi
 
 func (r *userNotificationPreferencesRepository) GetByUserID(ctx context.Context, userID uint) (*domain.UserNotificationPreferences, error) {
 	var prefs domain.UserNotificationPreferences
-	err := r.db.WithContext(ctx).Where("user_id = ?", userID).First(&prefs).Error
+	err := dbFromContext(ctx, r.db).Where("user_id = ?", userID).First(&prefs).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, repository.ErrNotFound
@@ -39,7 +39,7 @@ func (r *userNotificationPreferencesRepository) Upsert(ctx context.Context, pref
 	// Ensure UpdatedAt changes on updates.
 	prefs.UpdatedAt = time.Now()
 
-	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
+	return dbFromContext(ctx, r.db).Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "user_id"}},
 		DoUpdates: clause.AssignmentColumns([]string{
 			"communication_emails",

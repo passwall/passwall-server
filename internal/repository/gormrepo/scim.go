@@ -19,12 +19,12 @@ func NewSCIMTokenRepository(db *gorm.DB) repository.SCIMTokenRepository {
 }
 
 func (r *scimTokenRepository) Create(ctx context.Context, token *domain.SCIMToken) error {
-	return r.db.WithContext(ctx).Create(token).Error
+	return dbFromContext(ctx, r.db).Create(token).Error
 }
 
 func (r *scimTokenRepository) GetByID(ctx context.Context, id uint) (*domain.SCIMToken, error) {
 	var token domain.SCIMToken
-	if err := r.db.WithContext(ctx).First(&token, id).Error; err != nil {
+	if err := dbFromContext(ctx, r.db).First(&token, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, repository.ErrNotFound
 		}
@@ -35,7 +35,7 @@ func (r *scimTokenRepository) GetByID(ctx context.Context, id uint) (*domain.SCI
 
 func (r *scimTokenRepository) GetByTokenHash(ctx context.Context, tokenHash string) (*domain.SCIMToken, error) {
 	var token domain.SCIMToken
-	if err := r.db.WithContext(ctx).
+	if err := dbFromContext(ctx, r.db).
 		Where("token_hash = ? AND is_active = ?", tokenHash, true).
 		First(&token).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -48,7 +48,7 @@ func (r *scimTokenRepository) GetByTokenHash(ctx context.Context, tokenHash stri
 
 func (r *scimTokenRepository) ListByOrganization(ctx context.Context, orgID uint) ([]*domain.SCIMToken, error) {
 	var tokens []*domain.SCIMToken
-	if err := r.db.WithContext(ctx).
+	if err := dbFromContext(ctx, r.db).
 		Where("organization_id = ?", orgID).
 		Order("created_at DESC").
 		Find(&tokens).Error; err != nil {
@@ -58,9 +58,9 @@ func (r *scimTokenRepository) ListByOrganization(ctx context.Context, orgID uint
 }
 
 func (r *scimTokenRepository) Update(ctx context.Context, token *domain.SCIMToken) error {
-	return r.db.WithContext(ctx).Save(token).Error
+	return dbFromContext(ctx, r.db).Save(token).Error
 }
 
 func (r *scimTokenRepository) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&domain.SCIMToken{}, id).Error
+	return dbFromContext(ctx, r.db).Delete(&domain.SCIMToken{}, id).Error
 }

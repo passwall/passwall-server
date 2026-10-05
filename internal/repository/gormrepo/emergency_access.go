@@ -22,12 +22,12 @@ func (r *emergencyAccessRepository) Create(ctx context.Context, ea *domain.Emerg
 	if ea.UUID == uuid.Nil {
 		ea.UUID = uuid.New()
 	}
-	return r.db.WithContext(ctx).Create(ea).Error
+	return dbFromContext(ctx, r.db).Create(ea).Error
 }
 
 func (r *emergencyAccessRepository) GetByUUID(ctx context.Context, uuidStr string) (*domain.EmergencyAccess, error) {
 	var ea domain.EmergencyAccess
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Grantor").
 		Preload("Grantee").
 		Where("uuid = ?", uuidStr).
@@ -44,7 +44,7 @@ func (r *emergencyAccessRepository) GetByUUID(ctx context.Context, uuidStr strin
 
 func (r *emergencyAccessRepository) ListByGrantor(ctx context.Context, grantorID uint) ([]*domain.EmergencyAccess, error) {
 	var list []*domain.EmergencyAccess
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Grantee").
 		Where("grantor_id = ? AND status != ?", grantorID, domain.EAStatusRevoked).
 		Order("created_at DESC").
@@ -57,7 +57,7 @@ func (r *emergencyAccessRepository) ListByGrantor(ctx context.Context, grantorID
 
 func (r *emergencyAccessRepository) ListByGrantee(ctx context.Context, granteeID uint) ([]*domain.EmergencyAccess, error) {
 	var list []*domain.EmergencyAccess
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Grantor").
 		Where("grantee_id = ? AND status != ?", granteeID, domain.EAStatusRevoked).
 		Order("created_at DESC").
@@ -70,7 +70,7 @@ func (r *emergencyAccessRepository) ListByGrantee(ctx context.Context, granteeID
 
 func (r *emergencyAccessRepository) ListByGranteeEmail(ctx context.Context, email string) ([]*domain.EmergencyAccess, error) {
 	var list []*domain.EmergencyAccess
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Grantor").
 		Where("grantee_email = ? AND status = ?", email, domain.EAStatusInvited).
 		Order("created_at DESC").
@@ -83,7 +83,7 @@ func (r *emergencyAccessRepository) ListByGranteeEmail(ctx context.Context, emai
 
 func (r *emergencyAccessRepository) ListConfirmedByGrantor(ctx context.Context, grantorID uint) ([]*domain.EmergencyAccess, error) {
 	var list []*domain.EmergencyAccess
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Where("grantor_id = ? AND status IN ?", grantorID, []domain.EmergencyAccessStatus{
 			domain.EAStatusConfirmed,
 			domain.EAStatusRecoveryApproved,
@@ -98,9 +98,9 @@ func (r *emergencyAccessRepository) ListConfirmedByGrantor(ctx context.Context, 
 func (r *emergencyAccessRepository) Update(ctx context.Context, ea *domain.EmergencyAccess) error {
 	ea.Grantor = nil
 	ea.Grantee = nil
-	return r.db.WithContext(ctx).Save(ea).Error
+	return dbFromContext(ctx, r.db).Save(ea).Error
 }
 
 func (r *emergencyAccessRepository) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&domain.EmergencyAccess{}, id).Error
+	return dbFromContext(ctx, r.db).Delete(&domain.EmergencyAccess{}, id).Error
 }

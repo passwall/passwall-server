@@ -31,7 +31,7 @@ type breachMonitorService struct {
 	hibpClient  *hibp.Client
 	featureSvc  FeatureService
 	orgUserRepo interface {
-		GetByOrgAndUser(ctx context.Context, orgID, userID uint) (*domain.OrganizationUser, error)
+		GetActiveByOrgAndUser(ctx context.Context, orgID, userID uint) (*domain.OrganizationUser, error)
 	}
 }
 
@@ -41,7 +41,7 @@ func NewBreachMonitorService(
 	hibpClient *hibp.Client,
 	featureSvc FeatureService,
 	orgUserRepo interface {
-		GetByOrgAndUser(ctx context.Context, orgID, userID uint) (*domain.OrganizationUser, error)
+		GetActiveByOrgAndUser(ctx context.Context, orgID, userID uint) (*domain.OrganizationUser, error)
 	},
 ) BreachMonitorService {
 	return &breachMonitorService{
@@ -256,7 +256,7 @@ func (s *breachMonitorService) checkFeatureAccess(ctx context.Context, orgID uin
 }
 
 func (s *breachMonitorService) checkAccess(ctx context.Context, orgID uint, userID uint) error {
-	if _, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID); err != nil {
+	if _, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID); err != nil {
 		return repository.ErrForbidden
 	}
 	return s.checkFeatureAccess(ctx, orgID)

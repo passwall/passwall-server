@@ -4,7 +4,6 @@ package constants
 const (
 	ContextKeyUserID    = "user_id"
 	ContextKeyEmail     = "email"
-	ContextKeySchema    = "schema"
 	ContextKeyUserRole  = "user_role"
 	ContextKeyTokenUUID = "token_uuid"
 	ContextKeyOrgID     = "resolved_org_id"

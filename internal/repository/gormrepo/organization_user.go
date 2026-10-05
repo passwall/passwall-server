@@ -25,12 +25,12 @@ func (r *organizationUserRepository) Create(ctx context.Context, orgUser *domain
 		orgUser.UUID = uuid.New()
 	}
 
-	return r.db.WithContext(ctx).Create(orgUser).Error
+	return dbFromContext(ctx, r.db).Create(orgUser).Error
 }
 
 func (r *organizationUserRepository) GetByID(ctx context.Context, id uint) (*domain.OrganizationUser, error) {
 	var orgUser domain.OrganizationUser
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Organization").
 		Preload("User").
 		Where("id = ?", id).
@@ -47,7 +47,7 @@ func (r *organizationUserRepository) GetByID(ctx context.Context, id uint) (*dom
 
 func (r *organizationUserRepository) GetByUUID(ctx context.Context, uuidStr string) (*domain.OrganizationUser, error) {
 	var orgUser domain.OrganizationUser
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Organization").
 		Preload("User").
 		Where("uuid = ?", uuidStr).
@@ -64,7 +64,7 @@ func (r *organizationUserRepository) GetByUUID(ctx context.Context, uuidStr stri
 
 func (r *organizationUserRepository) GetByOrgAndUser(ctx context.Context, orgID, userID uint) (*domain.OrganizationUser, error) {
 	var orgUser domain.OrganizationUser
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Organization").
 		Preload("User").
 		Where("organization_id = ? AND user_id = ?", orgID, userID).
@@ -79,9 +79,31 @@ func (r *organizationUserRepository) GetByOrgAndUser(ctx context.Context, orgID,
 	return &orgUser, nil
 }
 
+func (r *organizationUserRepository) GetActiveByOrgAndUser(ctx context.Context, orgID, userID uint) (*domain.OrganizationUser, error) {
+	var orgUser domain.OrganizationUser
+	err := dbFromContext(ctx, r.db).
+		Joins("JOIN organizations ON organizations.id = organization_users.organization_id").
+		Preload("Organization").
+		Preload("User").
+		Where(
+			"organization_users.organization_id = ? AND organization_users.user_id = ? AND organization_users.status IN ? AND organizations.is_active = true AND organizations.deleted_at IS NULL",
+			orgID,
+			userID,
+			[]domain.OrganizationUserStatus{domain.OrgUserStatusAccepted, domain.OrgUserStatusConfirmed},
+		).
+		First(&orgUser).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, repository.ErrNotFound
+		}
+		return nil, err
+	}
+	return &orgUser, nil
+}
+
 func (r *organizationUserRepository) ListByOrganization(ctx context.Context, orgID uint) ([]*domain.OrganizationUser, error) {
 	var orgUsers []*domain.OrganizationUser
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("User").
 		Where("organization_id = ?", orgID).
 		Order("created_at ASC").
@@ -95,7 +117,7 @@ func (r *organizationUserRepository) ListByOrganization(ctx context.Context, org
 
 func (r *organizationUserRepository) ListByUser(ctx context.Context, userID uint) ([]*domain.OrganizationUser, error) {
 	var orgUsers []*domain.OrganizationUser
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Organization").
 		Where("user_id = ?", userID).
 		Order("created_at ASC").
@@ -112,17 +134,17 @@ func (r *organizationUserRepository) Update(ctx context.Context, orgUser *domain
 	orgUser.Organization = nil
 	orgUser.User = nil
 
-	return r.db.WithContext(ctx).Save(orgUser).Error
+	return dbFromContext(ctx, r.db).Save(orgUser).Error
 }
 
 func (r *organizationUserRepository) Delete(ctx context.Context, id uint) error {
 	// Hard delete - will cascade delete team memberships
-	return r.db.WithContext(ctx).Unscoped().Delete(&domain.OrganizationUser{}, id).Error
+	return dbFromContext(ctx, r.db).Unscoped().Delete(&domain.OrganizationUser{}, id).Error
 }
 
 func (r *organizationUserRepository) CountInvited(ctx context.Context, orgID uint) (int, error) {
 	var count int64
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Model(&domain.OrganizationUser{}).
 		Where("organization_id = ? AND status = ?", orgID, domain.OrgUserStatusInvited).
 		Count(&count).Error
@@ -136,7 +158,7 @@ func (r *organizationUserRepository) ListPendingInvitations(ctx context.Context,
 	// Subquery to get user ID by email
 	subQuery := r.db.Model(&domain.User{}).Select("id").Where("email = ?", userEmail)
 
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Organization").
 		Where("user_id IN (?) AND status = ?", subQuery, domain.OrgUserStatusInvited).
 		Order("invited_at DESC").

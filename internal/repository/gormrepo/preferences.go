@@ -22,7 +22,7 @@ func NewPreferencesRepository(db *gorm.DB) repository.PreferencesRepository {
 func (r *preferencesRepository) ListByOwner(ctx context.Context, ownerType string, ownerID uint, section string) ([]*domain.Preference, error) {
 	var prefs []*domain.Preference
 
-	q := r.db.WithContext(ctx).Where("owner_type = ? AND owner_id = ?", strings.ToLower(ownerType), ownerID)
+	q := dbFromContext(ctx, r.db).Where("owner_type = ? AND owner_id = ?", strings.ToLower(ownerType), ownerID)
 	if section != "" {
 		q = q.Where("section = ?", strings.ToLower(section))
 	}
@@ -47,7 +47,7 @@ func (r *preferencesRepository) UpsertMany(ctx context.Context, prefs []*domain.
 		p.UpdatedAt = now
 	}
 
-	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
+	return dbFromContext(ctx, r.db).Clauses(clause.OnConflict{
 		Columns: []clause.Column{
 			{Name: "owner_type"},
 			{Name: "owner_id"},

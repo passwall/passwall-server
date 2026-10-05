@@ -24,7 +24,7 @@ func NewTokenRepository(db *gorm.DB) repository.TokenRepository {
 func (r *tokenRepository) GetByUUID(ctx context.Context, uuid string) (*domain.Token, error) {
 	var token domain.Token
 
-	err := r.db.WithContext(ctx).Where("uuid = ?", uuid).First(&token).Error
+	err := dbFromContext(ctx, r.db).Where("uuid = ?", uuid).First(&token).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, repository.ErrNotFound
@@ -49,12 +49,12 @@ func (r *tokenRepository) Create(ctx context.Context, userID int, sessionUUID uu
 		Token:       hashedToken,
 		ExpiryTime:  expiryTime,
 	}
-	return r.db.WithContext(ctx).Create(t).Error
+	return dbFromContext(ctx, r.db).Create(t).Error
 }
 
 func (r *tokenRepository) CountActiveSessionsByUserID(ctx context.Context, userID int) (int, error) {
 	var count int64
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Model(&domain.Token{}).
 		Where("user_id = ? AND expiry_time > ? AND kind IN ?", userID, time.Now(), []string{"access", ""}).
 		Distinct("session_uuid").
@@ -66,19 +66,19 @@ func (r *tokenRepository) CountActiveSessionsByUserID(ctx context.Context, userI
 }
 
 func (r *tokenRepository) Delete(ctx context.Context, userID int) error {
-	return r.db.WithContext(ctx).Where("user_id = ?", userID).Delete(&domain.Token{}).Error
+	return dbFromContext(ctx, r.db).Where("user_id = ?", userID).Delete(&domain.Token{}).Error
 }
 
 func (r *tokenRepository) DeleteByUUID(ctx context.Context, uuid string) error {
-	return r.db.WithContext(ctx).Where("uuid = ?", uuid).Delete(&domain.Token{}).Error
+	return dbFromContext(ctx, r.db).Where("uuid = ?", uuid).Delete(&domain.Token{}).Error
 }
 
 func (r *tokenRepository) DeleteBySessionUUID(ctx context.Context, sessionUUID string) error {
-	return r.db.WithContext(ctx).Where("session_uuid = ?", sessionUUID).Delete(&domain.Token{}).Error
+	return dbFromContext(ctx, r.db).Where("session_uuid = ?", sessionUUID).Delete(&domain.Token{}).Error
 }
 
 func (r *tokenRepository) DeleteExpired(ctx context.Context) (int64, error) {
-	result := r.db.WithContext(ctx).Where("expiry_time < ?", time.Now()).Delete(&domain.Token{})
+	result := dbFromContext(ctx, r.db).Where("expiry_time < ?", time.Now()).Delete(&domain.Token{})
 	return result.RowsAffected, result.Error
 }
 

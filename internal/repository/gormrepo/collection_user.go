@@ -19,12 +19,12 @@ func NewCollectionUserRepository(db *gorm.DB) repository.CollectionUserRepositor
 }
 
 func (r *collectionUserRepository) Create(ctx context.Context, cu *domain.CollectionUser) error {
-	return r.db.WithContext(ctx).Create(cu).Error
+	return dbFromContext(ctx, r.db).Create(cu).Error
 }
 
 func (r *collectionUserRepository) GetByID(ctx context.Context, id uint) (*domain.CollectionUser, error) {
 	var cu domain.CollectionUser
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Collection").
 		Preload("OrganizationUser").
 		Preload("OrganizationUser.User").
@@ -42,7 +42,7 @@ func (r *collectionUserRepository) GetByID(ctx context.Context, id uint) (*domai
 
 func (r *collectionUserRepository) GetByCollectionAndOrgUser(ctx context.Context, collectionID, orgUserID uint) (*domain.CollectionUser, error) {
 	var cu domain.CollectionUser
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Collection").
 		Preload("OrganizationUser").
 		Preload("OrganizationUser.User").
@@ -60,7 +60,7 @@ func (r *collectionUserRepository) GetByCollectionAndOrgUser(ctx context.Context
 
 func (r *collectionUserRepository) ListByCollection(ctx context.Context, collectionID uint) ([]*domain.CollectionUser, error) {
 	var cus []*domain.CollectionUser
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("OrganizationUser").
 		Preload("OrganizationUser.User").
 		Where("collection_id = ?", collectionID).
@@ -75,7 +75,7 @@ func (r *collectionUserRepository) ListByCollection(ctx context.Context, collect
 
 func (r *collectionUserRepository) ListByOrgUser(ctx context.Context, orgUserID uint) ([]*domain.CollectionUser, error) {
 	var cus []*domain.CollectionUser
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Collection").
 		Where("organization_user_id = ?", orgUserID).
 		Order("created_at ASC").
@@ -92,15 +92,15 @@ func (r *collectionUserRepository) Update(ctx context.Context, cu *domain.Collec
 	cu.Collection = nil
 	cu.OrganizationUser = nil
 
-	return r.db.WithContext(ctx).Save(cu).Error
+	return dbFromContext(ctx, r.db).Save(cu).Error
 }
 
 func (r *collectionUserRepository) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&domain.CollectionUser{}, id).Error
+	return dbFromContext(ctx, r.db).Delete(&domain.CollectionUser{}, id).Error
 }
 
 func (r *collectionUserRepository) DeleteByCollectionAndOrgUser(ctx context.Context, collectionID, orgUserID uint) error {
-	return r.db.WithContext(ctx).
+	return dbFromContext(ctx, r.db).
 		Where("collection_id = ? AND organization_user_id = ?", collectionID, orgUserID).
 		Delete(&domain.CollectionUser{}).Error
 }

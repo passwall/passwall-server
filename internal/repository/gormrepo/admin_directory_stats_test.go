@@ -38,40 +38,6 @@ func openStatsDB(t *testing.T) *gorm.DB {
 	return db
 }
 
-func TestPersonalVaultCountQuery(t *testing.T) {
-	t.Parallel()
-
-	query, err := personalVaultCountQuery(map[uint]string{
-		8: "user_bbbbbbbb",
-		7: "user_aaaaaaaa",
-	})
-	require.NoError(t, err)
-	assert.Equal(t,
-		`SELECT 7 AS user_id, item_type, COUNT(*) AS item_count FROM "user_aaaaaaaa"."items" WHERE deleted_at IS NULL GROUP BY item_type UNION ALL SELECT 8 AS user_id, item_type, COUNT(*) AS item_count FROM "user_bbbbbbbb"."items" WHERE deleted_at IS NULL GROUP BY item_type`,
-		query,
-	)
-	assert.NotContains(t, query, "metadata")
-	assert.NotContains(t, query, "data")
-	assert.NotRegexp(t, `(?i)\btoken\b`, query)
-
-	empty, err := personalVaultCountQuery(nil)
-	require.NoError(t, err)
-	assert.Empty(t, empty)
-
-	_, err = personalVaultCountQuery(map[uint]string{1: `user_a"; DROP TABLE users; --`})
-	require.Error(t, err)
-}
-
-func TestPersonalSchemaCountable(t *testing.T) {
-	t.Parallel()
-
-	assert.False(t, personalSchemaCountable(""))
-	assert.False(t, personalSchemaCountable("public"))
-	assert.False(t, personalSchemaCountable("User_ABC"))
-	assert.False(t, personalSchemaCountable("bad schema"))
-	assert.True(t, personalSchemaCountable("user_abc12345"))
-}
-
 func TestAdminDirectoryStats_LoadAccountSignals(t *testing.T) {
 	t.Parallel()
 
@@ -127,23 +93,15 @@ func TestAdminDirectoryStats_LoadAccountSignals(t *testing.T) {
 	insertOrgItem(t, db, 7, domain.ItemTypePassword, &deletedAt, "deleted-ciphertext", "deleted title")
 	insertOrgItem(t, db, 8, domain.ItemTypeSecureNote, nil, "other-ciphertext", "other title")
 
-	var probed []string
-	repo.probe = func(_ context.Context, schemas []string) (map[string]struct{}, error) {
-		probed = append(probed, schemas...)
-		return map[string]struct{}{}, nil
-	}
-
 	signals, err := repo.LoadAccountSignals(context.Background(), []*domain.User{
-		{ID: 7, Schema: "user_abc12345"},
-		{ID: 8, Schema: "public"},
-		{ID: 9, Schema: "bad schema"},
+		{ID: 7},
+		{ID: 8},
+		{ID: 9},
 		nil,
 	}, now)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{"user_abc12345"}, probed)
 
 	user7 := signals[7]
-	assert.False(t, user7.VaultKnown)
 	require.NotNil(t, user7.LastActivityAt)
 	assert.True(t, user7.LastActivityAt.Equal(newest))
 	assert.Equal(t, 1, user7.SignInCount)
@@ -155,7 +113,6 @@ func TestAdminDirectoryStats_LoadAccountSignals(t *testing.T) {
 	assert.Equal(t, 3, user7.ClientCount)
 
 	user8 := signals[8]
-	assert.False(t, user8.VaultKnown)
 	assert.Nil(t, user8.LastActivityAt)
 	assert.Equal(t, 1, user8.SignInCount)
 	assert.Equal(t, 1, user8.ActivityCount)
@@ -166,7 +123,6 @@ func TestAdminDirectoryStats_LoadAccountSignals(t *testing.T) {
 	assert.Equal(t, 1, user8.ClientCount)
 
 	user9 := signals[9]
-	assert.False(t, user9.VaultKnown)
 	assert.Equal(t, 0, user9.ActivityCount)
 	assert.Equal(t, 0, user9.OrganizationCount)
 
@@ -191,22 +147,6 @@ func TestAdminDirectoryStats_LoadAccountSignals(t *testing.T) {
 	} {
 		assert.NotContains(t, body, secret)
 	}
-}
-
-func TestAdminDirectoryStats_PersonalVaultQueryError(t *testing.T) {
-	t.Parallel()
-
-	db := openStatsDB(t)
-	repo := NewAdminDirectoryStatsRepository(db)
-	repo.probe = func(context.Context, []string) (map[string]struct{}, error) {
-		return map[string]struct{}{"user_abc12345": {}}, nil
-	}
-
-	_, err := repo.LoadAccountSignals(context.Background(), []*domain.User{
-		{ID: 7, Schema: "user_abc12345"},
-	}, time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "count personal vault items")
 }
 
 func TestAdminDirectoryStats_EmptyInput(t *testing.T) {

@@ -16,12 +16,10 @@ type UserDTO struct {
 	UpdatedAt     time.Time  `json:"updated_at"`
 	Name          string     `json:"name"`
 	Email         string     `json:"email"`
-	Schema        string     `json:"schema"`
 	Role          string     `json:"role"`
 	IsVerified    bool       `json:"is_verified"`
 	IsSystemUser  bool       `json:"is_system_user"` // System users cannot be deleted
 	Language      string     `json:"language"`
-	ItemCount     *int       `json:"item_count,omitempty"`
 	KdfType       KdfType    `json:"kdf_type"`
 	KdfIterations int        `json:"kdf_iterations"`
 	LastSignInAt  *time.Time `json:"last_sign_in,omitempty"`
@@ -40,12 +38,10 @@ func ToUserDTO(user *User) *UserDTO {
 		UpdatedAt:     user.UpdatedAt,
 		Name:          user.Name,
 		Email:         user.Email,
-		Schema:        user.Schema,
 		Role:          user.GetRoleName(),
 		IsVerified:    user.IsVerified,
 		IsSystemUser:  user.IsSystemUser,
 		Language:      user.Language,
-		ItemCount:     user.ItemCount,
 		KdfType:       user.KdfType,
 		KdfIterations: user.KdfIterations,
 	}

@@ -31,7 +31,7 @@ func NewOrganizationFolderService(
 }
 
 func (s *organizationFolderService) ListByOrganization(ctx context.Context, orgID, userID uint) ([]*domain.OrganizationFolder, error) {
-	_, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	_, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
 		return nil, repository.ErrForbidden
 	}
@@ -40,7 +40,7 @@ func (s *organizationFolderService) ListByOrganization(ctx context.Context, orgI
 }
 
 func (s *organizationFolderService) Create(ctx context.Context, orgID, userID uint, req *domain.CreateOrganizationFolderRequest) (*domain.OrganizationFolder, error) {
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
 		return nil, repository.ErrForbidden
 	}
@@ -69,7 +69,7 @@ func (s *organizationFolderService) Create(ctx context.Context, orgID, userID ui
 }
 
 func (s *organizationFolderService) Update(ctx context.Context, orgID, userID, id uint, req *domain.UpdateOrganizationFolderRequest) (*domain.OrganizationFolder, error) {
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
 		return nil, repository.ErrForbidden
 	}
@@ -96,7 +96,7 @@ func (s *organizationFolderService) Update(ctx context.Context, orgID, userID, i
 }
 
 func (s *organizationFolderService) Delete(ctx context.Context, orgID, userID, id uint) error {
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
 		return repository.ErrForbidden
 	}

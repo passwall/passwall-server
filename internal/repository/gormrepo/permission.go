@@ -20,7 +20,7 @@ func NewPermissionRepository(db *gorm.DB) repository.PermissionRepository {
 
 func (r *permissionRepository) GetByID(ctx context.Context, id uint) (*domain.Permission, error) {
 	var permission domain.Permission
-	err := r.db.WithContext(ctx).Where("id = ?", id).First(&permission).Error
+	err := dbFromContext(ctx, r.db).Where("id = ?", id).First(&permission).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, repository.ErrNotFound
@@ -32,7 +32,7 @@ func (r *permissionRepository) GetByID(ctx context.Context, id uint) (*domain.Pe
 
 func (r *permissionRepository) GetByName(ctx context.Context, name string) (*domain.Permission, error) {
 	var permission domain.Permission
-	err := r.db.WithContext(ctx).Where("name = ?", name).First(&permission).Error
+	err := dbFromContext(ctx, r.db).Where("name = ?", name).First(&permission).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, repository.ErrNotFound
@@ -44,7 +44,7 @@ func (r *permissionRepository) GetByName(ctx context.Context, name string) (*dom
 
 func (r *permissionRepository) List(ctx context.Context) ([]*domain.Permission, error) {
 	var permissions []*domain.Permission
-	err := r.db.WithContext(ctx).Find(&permissions).Error
+	err := dbFromContext(ctx, r.db).Find(&permissions).Error
 	if err != nil {
 		return nil, err
 	}

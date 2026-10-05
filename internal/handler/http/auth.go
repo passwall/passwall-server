@@ -301,7 +301,6 @@ func (h *AuthHandler) CheckToken(c *gin.Context) {
 		"valid":   true,
 		"user_id": claims.UserID,
 		"email":   claims.Email,
-		"schema":  claims.Schema,
 	})
 }
 
