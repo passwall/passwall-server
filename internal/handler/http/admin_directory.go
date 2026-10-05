@@ -39,12 +39,18 @@ type adminDirectorySubscriptions interface {
 	GetEffectiveByOrganizationIDs(ctx context.Context, orgIDs []uint) (map[uint]*domain.Subscription, error)
 }
 
+// adminDirectoryStats loads count-only usage signals. Implementations must not read item payloads.
+type adminDirectoryStats interface {
+	LoadAccountSignals(ctx context.Context, users []*domain.User, now time.Time) (map[uint]domain.AdminDirectorySignals, error)
+}
+
 // AdminDirectoryHandler serves the read-only account directory used by external bots.
-// Responses contain account metadata only. Vault items, secrets, tokens, and keys are never loaded.
+// Responses contain account metadata and stored counts only. Vault items, secrets, tokens, and keys are never loaded.
 type AdminDirectoryHandler struct {
 	users         adminDirectoryUsers
 	activities    adminDirectoryActivities
 	subscriptions adminDirectorySubscriptions
+	stats         adminDirectoryStats
 	logger        service.Logger
 }
 
@@ -53,12 +59,14 @@ func NewAdminDirectoryHandler(
 	users adminDirectoryUsers,
 	activities adminDirectoryActivities,
 	subscriptions adminDirectorySubscriptions,
+	stats adminDirectoryStats,
 	logger service.Logger,
 ) *AdminDirectoryHandler {
 	return &AdminDirectoryHandler{
 		users:         users,
 		activities:    activities,
 		subscriptions: subscriptions,
+		stats:         stats,
 		logger:        logger,
 	}
 }
@@ -102,7 +110,7 @@ func (h *AdminDirectoryHandler) ListUsers(c *gin.Context) {
 
 	items, err := h.directoryUsers(ctx, users)
 	if err != nil {
-		h.logError("admin directory: failed to load account activity", err)
+		h.logError("admin directory: failed to load account usage", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list users"})
 		return
 	}
@@ -141,7 +149,7 @@ func (h *AdminDirectoryHandler) GetUser(c *gin.Context) {
 
 	items, err := h.directoryUsers(ctx, []*domain.User{user})
 	if err != nil {
-		h.logError("admin directory: failed to load account activity", err)
+		h.logError("admin directory: failed to load account usage", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch user"})
 		return
 	}
@@ -217,6 +225,13 @@ func (h *AdminDirectoryHandler) directoryUsers(ctx context.Context, users []*dom
 	if err != nil {
 		return nil, err
 	}
+	if h.stats == nil {
+		return nil, errors.New("admin directory stats are not configured")
+	}
+	signals, err := h.stats.LoadAccountSignals(ctx, users, time.Now().UTC())
+	if err != nil {
+		return nil, err
+	}
 
 	for _, user := range users {
 		if user == nil {
@@ -230,7 +245,7 @@ func (h *AdminDirectoryHandler) directoryUsers(ctx context.Context, users []*dom
 		if user.PersonalOrganizationID != 0 {
 			sub = subs[user.PersonalOrganizationID]
 		}
-		out = append(out, domain.NewAdminDirectoryUser(user, last, sub))
+		out = append(out, domain.NewAdminDirectoryUser(user, last, sub, signals[user.ID]))
 	}
 	return out, nil
 }

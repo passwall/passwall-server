@@ -240,9 +240,9 @@ API documentation is available at [Postman Public Directory](https://documenter.
 
 ### Admin directory (read-only)
 
-`GET /api/admin/directory/users` and `GET /api/admin/directory/users/:id` return account metadata for an external bot: id, uuid, email, registration time, last stored sign-in, personal-organization plan, and subscription status. They do not return vault contents or secrets.
+`GET /api/admin/directory/users` and `GET /api/admin/directory/users/:id` return account metadata for an external bot: id, uuid, email, email verification, registration time, last stored sign-in, last non-signin activity, personal-organization plan, subscription status, and usage counts. Counts cover the personal vault and organization items this account created (by type), organization and collection membership, activity inside the 90-day retention window, and current devices and clients derived from stored tokens. They do not return vault contents, titles, usernames, URLs, device ids, client names, or secrets.
 
-Send `Authorization: Bearer <PW_SERVER_ADMIN_API_KEY>`. This is a server credential, not an end-user JWT. The API responds with `503` until the key is set. The list accepts `limit` (default 50, max 100), `offset` (default 0), and an optional exact `email`. Unknown plan, subscription, or last login is returned as `null` or `"unknown"` rather than a placeholder value.
+Send `Authorization: Bearer <PW_SERVER_ADMIN_API_KEY>`. This is a server credential, not an end-user JWT. The API responds with `503` until the key is set. The list accepts `limit` (default 50, max 100), `offset` (default 0), and an optional exact `email`. Unknown plan, subscription, last login, last activity, or personal-vault count is returned as `null` or `"unknown"` rather than a placeholder value. A personal vault that exists and is empty is `0`, not `null`.
 
 The response contract, field sources, and examples are in `PROJECT_CONTEXT.md` under **Admin directory (read-only)**. Add later fields on `schema_version` 1 and have clients ignore unknown JSON keys.
 
