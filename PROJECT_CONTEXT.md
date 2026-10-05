@@ -668,16 +668,34 @@ Each account object contains only:
 | `id` | `users.id` | Always present. |
 | `uuid` | `users.uuid` | Always present. This is the stable public identifier. |
 | `email` | `users.email` | Always present. This is the current account email. |
+| `email_verified` | `users.is_verified` | Always present. This is the stored boolean, not the `email_verified` activity row. `false` means the flag is false. |
 | `registered_at` | `users.created_at` | Always present. UTC RFC3339. |
 | `last_login_at` | Newest `user_activities.created_at` where `activity_type` is `signin` | JSON `null`. Activity rows older than 90 days are deleted. Password sign-in writes this row. The current two-factor completion path and SSO sign-in do not, so `null` means "no stored sign-in", not "never used". Vault unlocks are not used as a substitute. |
+| `last_activity_at` | Newest `user_activities.created_at` in the 90-day window whose `activity_type` is not `signin` | JSON `null` when no such row is stored. `failed_signin`, vault unlock, item changes, and other stored types qualify. Sign-in stays on `last_login_at`. |
 | `plan` | Plan on the effective subscription of `users.personal_organization_id` | JSON `null` when that organization, subscription, or plan row is missing. `code` and `name` are the stored plan fields. |
 | `subscription.status` | `subscriptions.state` for that same subscription | `"unknown"` when no subscription row exists. Otherwise the stored state: `draft`, `trialing`, `active`, `past_due`, `canceled`, `expired`. |
+| `vault.item_count` | Rows in that account's `{users.schema}.items` with `deleted_at` null | JSON `null` when `users.schema` is empty, `public`, not a valid schema name, or has no `items` table. `0` when the table exists and has no live rows. Archived rows are included. |
+| `vault.by_type` | Those same rows grouped by `item_type` | JSON `null` when `item_count` is null. `{}` when `item_count` is `0`. |
+| `organization_items.item_count` | `organization_items` rows with `created_by_user_id` of this account and `deleted_at` null | Always a number. `0` when this account created none. Items created by other members are not included. |
+| `organization_items.by_type` | Those same rows grouped by `item_type` | Always an object. `{}` when the count is `0`. |
+| `organization_count` | `organization_users` rows for this user with status `accepted`, `confirmed`, or `suspended`, whose organization has `deleted_at` null | Always a number. `0` when no such membership exists. The personal organization is included (signup writes `confirmed`). `invited` and `provisioned` rows are not counted. |
+| `collection_count` | Distinct `collections` with `deleted_at` null in those same organizations | Always a number. `0` when none are stored. Collections have no creator column, so this is not "collections this account created". |
+| `signin_count` | `user_activities` rows with `activity_type` `signin` and `created_at` inside the 90-day window | Always a number. `0` when none are stored. This is not a lifetime total. |
+| `activity_count` | All `user_activities` rows for the user inside that same window, including sign-in | Always a number. `0` when none are stored. `activity_count` is greater than or equal to `signin_count`. |
+| `device_count` | Distinct `tokens.device_id` on rows with `expiry_time` in the future, excluding null and the all-zero UUID | Always a number. `0` when no such token is stored. Device ids and names are not returned. Expired tokens are omitted, so this is current sessions rather than historical devices. |
+| `client_count` | Distinct non-empty `tokens.app` on those same unexpired rows | Always a number. `0` when none are stored. Client names are not returned. |
+
+`by_type` keys are `password`, `secure_note`, `card`, `bank_account`, `email`, `server`, `identity`, `ssh_key`, `address`, `passkey`, and `custom`. Only keys with a positive count are present. An unrecognized stored `item_type` number is summed under `unknown`. The values sum to `item_count`.
+
+The 90-day window is `domain.UserActivityRetention`, the same duration the activity cleanup job uses when it deletes old `user_activities` rows. Counts apply that window in the query, so a row older than 90 days is excluded even if cleanup has not deleted it yet.
+
+These fields are counts and timestamps only. Responses do not include item contents, titles, usernames, URLs, metadata, device ids, client names, token values, IP addresses, or user agents.
 
 Plan and subscription describe the personal organization only. Membership in another organization's plan is not included.
 
 The effective subscription is chosen with the same rule as billing: an `active`, `trialing`, or `past_due` row, otherwise a `canceled` row whose `renew_at` is still in the future, otherwise the newest row.
 
-Responses use `schema_version` `1`. Clients must ignore unknown JSON fields. Add fields by extending `AdminDirectoryUser` (or a nested object) and populating them from stored data. Use JSON `null` or `"unknown"` when the source does not exist. Do not invent plan names, statuses, or login times. Keep `schema_version` at `1` for additive fields. Increment it only when a key is removed or renamed. Never add vault items, passwords, notes, cards, bank accounts, secrets, tokens, or encryption keys.
+Responses use `schema_version` `1`. Clients must ignore unknown JSON fields. Add fields by extending `AdminDirectoryUser` (or a nested object) and populating them from stored data. Use JSON `null` or `"unknown"` when the source does not exist. Do not invent plan names, statuses, or login times. Keep `schema_version` at `1` for additive fields, including the usage counts above. Increment it only when a key is removed or renamed. Never add vault items, passwords, notes, cards, bank accounts, secrets, tokens, or encryption keys.
 
 Successful responses send `Cache-Control: no-store`.
 
@@ -691,19 +709,45 @@ List example:
       "id": 7,
       "uuid": "6f1c4c3e-1b2a-4d5e-8f70-112233445566",
       "email": "ada@example.com",
+      "email_verified": true,
       "registered_at": "2024-03-02T12:04:05Z",
       "last_login_at": "2026-01-09T08:00:00Z",
+      "last_activity_at": "2026-01-08T18:11:00Z",
       "plan": { "code": "pro-monthly", "name": "Pro" },
-      "subscription": { "status": "active" }
+      "subscription": { "status": "active" },
+      "vault": {
+        "item_count": 12,
+        "by_type": { "password": 8, "secure_note": 3, "card": 1 }
+      },
+      "organization_items": {
+        "item_count": 4,
+        "by_type": { "password": 4 }
+      },
+      "organization_count": 2,
+      "collection_count": 3,
+      "signin_count": 5,
+      "activity_count": 11,
+      "device_count": 2,
+      "client_count": 2
     },
     {
       "id": 8,
       "uuid": "8a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809",
       "email": "no-plan@example.com",
+      "email_verified": false,
       "registered_at": "2025-11-01T00:00:00Z",
       "last_login_at": null,
+      "last_activity_at": null,
       "plan": null,
-      "subscription": { "status": "unknown" }
+      "subscription": { "status": "unknown" },
+      "vault": { "item_count": null, "by_type": null },
+      "organization_items": { "item_count": 0, "by_type": {} },
+      "organization_count": 0,
+      "collection_count": 0,
+      "signin_count": 0,
+      "activity_count": 0,
+      "device_count": 0,
+      "client_count": 0
     }
   ],
   "pagination": { "limit": 50, "offset": 0, "total": 2 }
@@ -719,10 +763,20 @@ Single-account example (`GET /api/admin/directory/users/7`):
     "id": 7,
     "uuid": "6f1c4c3e-1b2a-4d5e-8f70-112233445566",
     "email": "ada@example.com",
+    "email_verified": false,
     "registered_at": "2024-03-02T12:04:05Z",
     "last_login_at": null,
+    "last_activity_at": null,
     "plan": null,
-    "subscription": { "status": "unknown" }
+    "subscription": { "status": "unknown" },
+    "vault": { "item_count": null, "by_type": null },
+    "organization_items": { "item_count": 0, "by_type": {} },
+    "organization_count": 1,
+    "collection_count": 0,
+    "signin_count": 0,
+    "activity_count": 0,
+    "device_count": 0,
+    "client_count": 0
   }
 }
 ```
@@ -736,7 +790,7 @@ Errors use the existing `{"error":"..."}` shape:
 | `404` | Account id was not found |
 | `429` | Rate limit exceeded |
 | `503` | `server.admin_api_key` is empty |
-| `500` | Account, activity, or subscription query failed |
+| `500` | Account, activity, subscription, or usage-count query failed |
 
 ```bash
 curl -sS -H "Authorization: Bearer ${PW_SERVER_ADMIN_API_KEY}" \

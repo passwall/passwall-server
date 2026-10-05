@@ -62,6 +62,11 @@ const (
 	ActivityTypeSendAccessed ActivityType = "send_accessed"
 )
 
+// UserActivityRetention is how long user_activities rows are kept.
+// Activity cleanup deletes older rows, and the admin directory counts
+// sign-ins and other activity inside this same window.
+const UserActivityRetention = 90 * 24 * time.Hour
+
 // UserActivity represents user activity log for audit trail
 type UserActivity struct {
 	ID           uint         `gorm:"primary_key" json:"id"`

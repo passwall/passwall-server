@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/passwall/passwall-server/internal/cleanup"
 	"github.com/passwall/passwall-server/internal/config"
+	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/email"
 	httpHandler "github.com/passwall/passwall-server/internal/handler/http"
 	"github.com/passwall/passwall-server/internal/repository/gormrepo"
@@ -367,7 +368,8 @@ func (a *App) Run(ctx context.Context) error {
 	)
 	adminMailHandler := httpHandler.NewAdminMailHandler(emailSender, userRepo, serviceLogger)
 	adminLogsHandler := httpHandler.NewAdminLogsHandler()
-	adminDirectoryHandler := httpHandler.NewAdminDirectoryHandler(userRepo, userActivityRepo, subscriptionRepo, serviceLogger)
+	adminDirectoryStats := gormrepo.NewAdminDirectoryStatsRepository(a.db.DB())
+	adminDirectoryHandler := httpHandler.NewAdminDirectoryHandler(userRepo, userActivityRepo, subscriptionRepo, adminDirectoryStats, serviceLogger)
 
 	// Emergency access handler
 	emergencyAccessHandler := httpHandler.NewEmergencyAccessHandler(emergencyAccessService, userRepo)
@@ -458,8 +460,8 @@ func (a *App) Run(ctx context.Context) error {
 	// Initialize token cleanup service (runs every hour)
 	a.tokenCleanup = cleanup.NewTokenCleanup(tokenRepo, 1*time.Hour)
 
-	// Initialize activity cleanup service (runs every 24 hours, keeps 90 days)
-	a.activityCleanup = cleanup.NewActivityCleanup(userActivityService, 24*time.Hour, 90*24*time.Hour)
+	// Initialize activity cleanup service (runs every 24 hours, keeps UserActivityRetention).
+	a.activityCleanup = cleanup.NewActivityCleanup(userActivityService, 24*time.Hour, domain.UserActivityRetention)
 
 	// Initialize log cleanup service (runs every 15 days, truncates log files in place)
 	a.logCleanup = cleanup.NewLogCleanup(adminLogsHandler.LogPaths(), 15*24*time.Hour)
