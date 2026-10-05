@@ -95,28 +95,28 @@ func (c *Client) CheckBreachedAccount(email string) ([]Breach, error) {
 		case http.StatusOK:
 			var breaches []Breach
 			decodeErr := json.NewDecoder(resp.Body).Decode(&breaches)
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			if decodeErr != nil {
 				return nil, fmt.Errorf("hibp: failed to decode response: %w", decodeErr)
 			}
 			return breaches, nil
 		case http.StatusNotFound:
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			return []Breach{}, nil
 		case http.StatusTooManyRequests:
 			waitFor := parseRetryAfter(resp.Header.Get("Retry-After"), backoffDelay(attempt))
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			if attempt == c.maxRetries {
 				return nil, fmt.Errorf("hibp: rate limited after retries (retry-after: %s)", waitFor.String())
 			}
 			time.Sleep(waitFor)
 			continue
 		case http.StatusUnauthorized:
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			return nil, fmt.Errorf("hibp: unauthorized — check API key")
 		default:
 			body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			if isRetryableStatus(resp.StatusCode) && attempt < c.maxRetries {
 				time.Sleep(backoffDelay(attempt))
 				continue

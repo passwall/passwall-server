@@ -40,7 +40,7 @@ func ExtractRefreshToken(r *http.Request) string {
 		logger.Errorf("Error while extracting refresh token from body: %v", err)
 		return ""
 	}
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 
 	return mapToken["refresh_token"]
 }

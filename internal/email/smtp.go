@@ -166,7 +166,7 @@ func (s *smtpSender) sendWithTLS(addr string, auth smtp.Auth, from string, recip
 		if err != nil {
 			return fmt.Errorf("TLS dial failed: %w", err)
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
 		return s.sendViaClient(conn, auth, from, recipients, msg)
 	}

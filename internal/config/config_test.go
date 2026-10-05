@@ -34,13 +34,18 @@ func TestLoad_DefaultConfig(t *testing.T) {
 	assert.Equal(t, "postgres", cfg.Database.Username)
 	assert.Equal(t, "localhost", cfg.Database.Host)
 	assert.Equal(t, "5432", cfg.Database.Port)
+	assert.False(t, cfg.Database.AutoMigrate)
+	assert.False(t, cfg.Database.AutoSeed)
 }
 
 func TestLoad_WithEnvironmentVariables(t *testing.T) {
 	// Set environment variables using t.Setenv (automatic cleanup)
 	t.Setenv("PW_SERVER_PORT", "8080")
+	t.Setenv("PW_SERVER_ESCROW_MASTER_KEY", "escrow-key")
 	t.Setenv("PW_DB_NAME", "test_db")
 	t.Setenv("PW_DB_HOST", "testhost")
+	t.Setenv("PW_DB_MAX_OPEN_CONNS", "25")
+	t.Setenv("PW_STRIPE_SECRET_KEY", "stripe-secret")
 
 	tempDir := t.TempDir()
 	configFile := filepath.Join(tempDir, "config.yml")
@@ -52,8 +57,11 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "8080", cfg.Server.Port)
+	assert.Equal(t, "escrow-key", cfg.Server.EscrowMasterKey)
 	assert.Equal(t, "test_db", cfg.Database.Name)
 	assert.Equal(t, "testhost", cfg.Database.Host)
+	assert.Equal(t, 25, cfg.Database.MaxOpenConns)
+	assert.Equal(t, "stripe-secret", cfg.Stripe.SecretKey)
 }
 
 func TestConfig_Validate(t *testing.T) {
@@ -67,15 +75,23 @@ func TestConfig_Validate(t *testing.T) {
 			name: "valid config",
 			config: &Config{
 				Server: ServerConfig{
-					Port:        "3625",
-					Passphrase:  "valid-passphrase",
-					Secret:      "valid-secret",
-					FrontendURL: "http://localhost:5173",
+					Port:              "3625",
+					Passphrase:        "valid-passphrase",
+					Secret:            "valid-secret",
+					FrontendURL:       "http://localhost:5173",
+					Timeout:           24,
+					ReadHeaderTimeout: 10,
+					IdleTimeout:       60,
+					ShutdownTimeout:   30,
 				},
 				Database: DatabaseConfig{
-					Host:     "localhost",
-					Name:     "passwall",
-					Username: "user",
+					Host:                   "localhost",
+					Name:                   "passwall",
+					Username:               "user",
+					MaxIdleConns:           10,
+					MaxOpenConns:           100,
+					ConnMaxLifetimeSeconds: 3600,
+					ConnMaxIdleTimeSeconds: 300,
 				},
 			},
 			wantErr: false,
@@ -86,6 +102,7 @@ func TestConfig_Validate(t *testing.T) {
 				Server: ServerConfig{
 					Passphrase: "valid-passphrase",
 					Secret:     "valid-secret",
+					Timeout:    24,
 				},
 				Database: DatabaseConfig{
 					Host:     "localhost",
@@ -100,10 +117,14 @@ func TestConfig_Validate(t *testing.T) {
 			name: "invalid passphrase",
 			config: &Config{
 				Server: ServerConfig{
-					Port:        "3625",
-					Passphrase:  "add-your-key-to-here",
-					Secret:      "valid-secret",
-					FrontendURL: "http://localhost:5173",
+					Port:              "3625",
+					Passphrase:        "add-your-key-to-here",
+					Secret:            "valid-secret",
+					FrontendURL:       "http://localhost:5173",
+					Timeout:           24,
+					ReadHeaderTimeout: 10,
+					IdleTimeout:       60,
+					ShutdownTimeout:   30,
 				},
 				Database: DatabaseConfig{
 					Host:     "localhost",
@@ -118,14 +139,22 @@ func TestConfig_Validate(t *testing.T) {
 			name: "missing database host",
 			config: &Config{
 				Server: ServerConfig{
-					Port:        "3625",
-					Passphrase:  "valid-passphrase",
-					Secret:      "valid-secret",
-					FrontendURL: "http://localhost:5173",
+					Port:              "3625",
+					Passphrase:        "valid-passphrase",
+					Secret:            "valid-secret",
+					FrontendURL:       "http://localhost:5173",
+					Timeout:           24,
+					ReadHeaderTimeout: 10,
+					IdleTimeout:       60,
+					ShutdownTimeout:   30,
 				},
 				Database: DatabaseConfig{
-					Name:     "passwall",
-					Username: "user",
+					Name:                   "passwall",
+					Username:               "user",
+					MaxIdleConns:           10,
+					MaxOpenConns:           100,
+					ConnMaxLifetimeSeconds: 3600,
+					ConnMaxIdleTimeSeconds: 300,
 				},
 			},
 			wantErr: true,
@@ -178,6 +207,30 @@ func TestLoad_BackwardsCompatibility(t *testing.T) {
 	assert.Equal(t, "prod", cfg.Server.Env)
 }
 
+func TestConfig_AdminAPIKey(t *testing.T) {
+	t.Setenv("PW_SERVER_ADMIN_API_KEY", "  directory-service-key  ")
+
+	tempDir := t.TempDir()
+	configFile := filepath.Join(tempDir, "config.yml")
+	cfg, err := Load(LoaderOptions{
+		ConfigFile: configFile,
+		EnvPrefix:  "PW",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "directory-service-key", cfg.Server.AdminAPIKey)
+
+	short := *cfg
+	short.Server.AdminAPIKey = "too-short"
+	err = short.Validate()
+	assert.ErrorContains(t, err, "server.admin_api_key must be at least 16 characters")
+
+	disabled := *cfg
+	disabled.Server.AdminAPIKey = "   "
+	err = disabled.Validate()
+	assert.NoError(t, err)
+	assert.Empty(t, disabled.Server.AdminAPIKey)
+}
+
 func TestLoad_NonExistentConfigFile(t *testing.T) {
 	tempDir := t.TempDir()
 	configFile := filepath.Join(tempDir, "config.yml")
@@ -192,6 +245,7 @@ func TestLoad_NonExistentConfigFile(t *testing.T) {
 	assert.NotNil(t, cfg)
 
 	// Verify file was created
-	_, err = os.Stat(configFile)
+	info, err := os.Stat(configFile)
 	assert.NoError(t, err, "config file should have been created")
+	assert.Equal(t, os.FileMode(0600), info.Mode().Perm())
 }

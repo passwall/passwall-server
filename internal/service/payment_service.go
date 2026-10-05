@@ -71,7 +71,7 @@ func (s *paymentService) CreateCheckoutSession(ctx context.Context, orgID, userI
 		return "", fmt.Errorf("personal vaults can only be upgraded to Pro; create a separate organization for Family, Team, or Business plans")
 	}
 	if !org.IsPersonal && domain.IsPersonalVaultPlan(plan) && plan != string(domain.PlanFree) {
-		return "", fmt.Errorf("Pro plan is only available for personal vaults")
+		return "", fmt.Errorf("pro plan is only available for personal vaults")
 	}
 
 	// Enforce minimum seats: cannot buy fewer seats than current members.
@@ -319,7 +319,7 @@ func (s *paymentService) PreviewPlanChange(ctx context.Context, orgID, userID ui
 		return nil, fmt.Errorf("personal vaults can only be upgraded to Pro; create a separate organization for Family, Team, or Business plans")
 	}
 	if !org.IsPersonal && domain.IsPersonalVaultPlan(plan) && plan != string(domain.PlanFree) {
-		return nil, fmt.Errorf("Pro plan is only available for personal vaults")
+		return nil, fmt.Errorf("pro plan is only available for personal vaults")
 	}
 
 	sub, err := s.subscriptionService.GetByOrganizationID(ctx, orgID)
@@ -386,7 +386,7 @@ func (s *paymentService) ChangePlan(ctx context.Context, orgID, userID uint, pla
 		return nil, fmt.Errorf("personal vaults can only be upgraded to Pro; create a separate organization for Family, Team, or Business plans")
 	}
 	if !org.IsPersonal && domain.IsPersonalVaultPlan(plan) && plan != string(domain.PlanFree) {
-		return nil, fmt.Errorf("Pro plan is only available for personal vaults")
+		return nil, fmt.Errorf("pro plan is only available for personal vaults")
 	}
 
 	sub, err := s.subscriptionService.GetByOrganizationID(ctx, orgID)
@@ -658,11 +658,12 @@ func (s *paymentService) handleOrgSubscriptionUpdate(ctx context.Context, sub st
 	}
 
 	// Handle payment success/failure through SubscriptionService
-	if sub.Status == stripe.SubscriptionStatusActive || sub.Status == stripe.SubscriptionStatusTrialing {
+	switch sub.Status {
+	case stripe.SubscriptionStatusActive, stripe.SubscriptionStatusTrialing:
 		return s.subscriptionService.HandlePaymentSuccess(ctx, sub.ID)
-	} else if sub.Status == stripe.SubscriptionStatusPastDue {
+	case stripe.SubscriptionStatusPastDue:
 		return s.subscriptionService.HandlePaymentFailed(ctx, sub.ID)
-	} else if sub.Status == stripe.SubscriptionStatusCanceled {
+	case stripe.SubscriptionStatusCanceled:
 		dbSub, err := s.subscriptionService.GetByStripeSubscriptionID(ctx, sub.ID)
 		if err != nil {
 			s.logger.Warn("Subscription not found for canceled update", "stripe_subscription_id", sub.ID)

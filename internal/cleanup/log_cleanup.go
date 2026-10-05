@@ -83,7 +83,7 @@ func (lc *LogCleanup) cleanup() {
 }
 
 func truncateInPlace(path string) error {
-	f, err := os.OpenFile(path, os.O_TRUNC|os.O_WRONLY|os.O_CREATE, 0666)
+	f, err := os.OpenFile(path, os.O_TRUNC|os.O_WRONLY|os.O_CREATE, 0640)
 	if err != nil {
 		return err
 	}

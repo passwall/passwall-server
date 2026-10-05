@@ -387,7 +387,7 @@ func (h *IconsHandler) saveToDisk(domain string, data []byte, contentType string
 	metadata := fmt.Sprintf("%s\n%d\n%s", contentType, time.Now().Unix(), domain)
 	if err := os.WriteFile(metaPath, []byte(metadata), 0644); err != nil {
 		// Clean up icon file if metadata write fails
-		os.Remove(iconPath)
+		_ = os.Remove(iconPath)
 		return fmt.Errorf("failed to write metadata file: %w", err)
 	}
 
@@ -409,8 +409,8 @@ func (h *IconsHandler) loadFromDisk(domain string) ([]byte, string, bool) {
 	// Check if icon is too old (older than cache duration)
 	if time.Since(iconInfo.ModTime()) > iconCacheDuration {
 		// Icon expired, remove it
-		os.Remove(iconPath)
-		os.Remove(metaPath)
+		_ = os.Remove(iconPath)
+		_ = os.Remove(metaPath)
 		return nil, "", false
 	}
 
@@ -484,7 +484,7 @@ func (h *IconsHandler) fetchFromURL(url string) ([]byte, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, "", fmt.Errorf("upstream returned %d", resp.StatusCode)
@@ -588,7 +588,7 @@ func (h *IconsHandler) UploadCustomIcon(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "icon file is required"})
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Check file size
 	if header.Size > iconMaxSize {

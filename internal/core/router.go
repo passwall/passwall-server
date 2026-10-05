@@ -1,7 +1,6 @@
 package core
 
 import (
-	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -46,6 +45,7 @@ func SetupRouter(
 	adminSubscriptionsHandler *httpHandler.AdminSubscriptionsHandler,
 	adminMailHandler *httpHandler.AdminMailHandler,
 	adminLogsHandler *httpHandler.AdminLogsHandler,
+	adminDirectoryHandler *httpHandler.AdminDirectoryHandler,
 	iconsHandler *httpHandler.IconsHandler,
 	ssoHandler *httpHandler.SSOHandler,
 	scimHandler *httpHandler.SCIMHandler,
@@ -55,6 +55,8 @@ func SetupRouter(
 	compromisedCheckHandler *httpHandler.CompromisedCheckHandler,
 	compatTelemetryHandler *httpHandler.CompatTelemetryHandler,
 	aiTelemetryHandler *httpHandler.AITelemetryHandler,
+	db databasePinger,
+	isReady func() bool,
 ) *gin.Engine {
 	// Create router without default middleware
 	router := gin.New()
@@ -67,10 +69,8 @@ func SetupRouter(
 	router.Use(httpHandler.CORSMiddleware(serverConfig))
 	router.Use(httpHandler.SecurityMiddleware())
 
-	// Health check endpoint (no auth required)
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
-	})
+	// Liveness and readiness endpoints (no auth required).
+	registerHealthRoutes(router, db, isReady)
 
 	// Icons endpoint (protected - only Passwall clients allowed)
 	// Rate limited: 60 requests per minute per IP (1 request per second, burst of 60)
@@ -198,6 +198,17 @@ func SetupRouter(
 	{
 		publicSendsGroup.GET("/:access_id", sendHandler.Access)
 		publicSendsGroup.POST("/:access_id/password", sendHandler.VerifyPassword)
+	}
+
+	// Read-only admin directory. Authenticated with the configured service
+	// credential, not an end-user session. See PROJECT_CONTEXT.md.
+	adminDirectoryLimiter := httpHandler.NewRateLimiter(500*time.Millisecond, 120)
+	adminDirectory := router.Group("/api/admin/directory")
+	adminDirectory.Use(httpHandler.RateLimitMiddleware(adminDirectoryLimiter))
+	adminDirectory.Use(httpHandler.AdminServiceAuthMiddleware(serverConfig.AdminAPIKey))
+	{
+		adminDirectory.GET("/users", adminDirectoryHandler.ListUsers)
+		adminDirectory.GET("/users/:id", adminDirectoryHandler.GetUser)
 	}
 
 	// Compatibility telemetry ingest — requires authentication so only

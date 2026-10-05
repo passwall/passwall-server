@@ -255,7 +255,7 @@ func (h *AdminLogsHandler) Download(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to open log file"})
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	st, _ := f.Stat()
 
@@ -288,10 +288,10 @@ func (h *AdminLogsHandler) DownloadBundle(c *gin.Context) {
 		f, err := os.Open(path)
 		if err != nil {
 			// Include a readable placeholder so the bundle is still useful.
-			_, _ = w.Write([]byte(fmt.Sprintf("log file not found: %s\n", path)))
+			_, _ = fmt.Fprintf(w, "log file not found: %s\n", path)
 			return
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		_, _ = io.Copy(w, f)
 	}
 
@@ -386,7 +386,7 @@ func readAndParseLog(path string, maxBytes int64) ([]AdminLogEntryDTO, bool, err
 	if err != nil {
 		return nil, false, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var truncated bool
 	if st, err := f.Stat(); err == nil {
@@ -523,7 +523,7 @@ func parseGroup(lines []string) AdminLogEntryDTO {
 func truncateLogFile(path string) error {
 	// Truncate in place so running logger file descriptors keep writing
 	// to the same files without requiring rotation or process restart.
-	f, err := os.OpenFile(path, os.O_TRUNC|os.O_WRONLY|os.O_CREATE, 0666)
+	f, err := os.OpenFile(path, os.O_TRUNC|os.O_WRONLY|os.O_CREATE, 0640)
 	if err != nil {
 		return err
 	}

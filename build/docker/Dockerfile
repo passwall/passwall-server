@@ -1,4 +1,4 @@
-FROM golang:1.25-alpine AS builder
+FROM golang:1.25-alpine@sha256:1ae0735f00daffa3aaf1363a5184c0d2dc55c78e3db4ec70241cdac97bf84b59 AS builder
 
 WORKDIR /app
 RUN apk add gcc g++ ca-certificates --no-cache
@@ -27,17 +27,22 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -a \
     -X github.com/passwall/passwall-server/pkg/buildvars.BuildID=${BUILD_ID}" \
     ./cmd/passwall-server
 
-FROM alpine:latest
+FROM alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8
 
-WORKDIR /app
-
-# Create placeholder files BEFORE volume mounts
-# This prevents Docker from creating them as directories
-RUN touch /app/config.yml && \
-    touch /app/passwall-server.log
-
-ENTRYPOINT ["/app/passwall-server"]
+WORKDIR /var/lib/passwall
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=builder /app/passwall-server /usr/local/bin/passwall-server
 
-COPY --from=builder /app/passwall-server /app/passwall-server
+RUN addgroup -S -g 10001 passwall && \
+    adduser -S -D -H -G passwall -u 10001 passwall && \
+    mkdir -p /var/lib/passwall /var/log/passwall && \
+    chown passwall:passwall /var/lib/passwall /var/log/passwall && \
+    chmod 0755 /usr/local/bin/passwall-server
+
+ENV PW_LOG_PATH=/var/log/passwall/passwall-server.log \
+    PW_HTTP_LOG_PATH=/var/log/passwall/passwall-http.log
+
+USER passwall:passwall
+
+ENTRYPOINT ["/usr/local/bin/passwall-server"]

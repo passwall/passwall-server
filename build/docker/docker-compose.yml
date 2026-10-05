@@ -19,7 +19,7 @@ services:
 
   passwall-server:
     container_name: passwall-server
-    image: passwall/passwall-server:latest
+    image: passwall/passwall-server:dev
     restart: always
     environment:
       - PW_DB_NAME=passwall
@@ -29,6 +29,8 @@ services:
       - PW_DB_PORT=5432
       - PW_DB_LOG_MODE=false
       - PW_DB_SSL_MODE=disable
+      - PW_DB_AUTO_MIGRATE=true
+      - PW_DB_AUTO_SEED=true
     build:
       context: ../..
       dockerfile: build/docker/Dockerfile

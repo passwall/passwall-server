@@ -187,7 +187,7 @@ func getAppWriter() io.Writer {
 		}
 	}
 
-	file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0640)
 	if err != nil {
 		logger.Errorf("Failed to open log file: %v", err)
 		return os.Stdout
@@ -217,7 +217,7 @@ func getHTTPWriter() io.Writer {
 		}
 	}
 
-	file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0640)
 	if err != nil {
 		logger.Errorf("Failed to open http log file: %v", err)
 		return os.Stdout

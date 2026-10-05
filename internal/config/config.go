@@ -40,6 +40,9 @@ type ServerConfig struct {
 	Passphrase                 string   `mapstructure:"passphrase"`
 	Secret                     string   `mapstructure:"secret"`
 	Timeout                    int      `mapstructure:"timeout"`
+	ReadHeaderTimeout          int      `mapstructure:"read_header_timeout"`
+	IdleTimeout                int      `mapstructure:"idle_timeout"`
+	ShutdownTimeout            int      `mapstructure:"shutdown_timeout"`
 	GeneratedPasswordLength    int      `mapstructure:"generated_password_length"`
 	AccessTokenExpireDuration  string   `mapstructure:"access_token_expire_duration"`
 	RefreshTokenExpireDuration string   `mapstructure:"refresh_token_expire_duration"`
@@ -48,17 +51,26 @@ type ServerConfig struct {
 	RecaptchaSecretKey         string   `mapstructure:"recaptcha_secret_key"`
 	RecaptchaThreshold         float64  `mapstructure:"recaptcha_threshold"`
 	EscrowMasterKey            string   `mapstructure:"escrow_master_key"` // hex-encoded 256-bit key for SSO key escrow
+	// AdminAPIKey is the bearer credential for the read-only admin directory API.
+	// It is not a user session token. Empty disables that API.
+	AdminAPIKey string `mapstructure:"admin_api_key"`
 }
 
 // DatabaseConfig contains database-related configuration
 type DatabaseConfig struct {
-	Name     string `mapstructure:"name"`
-	Username string `mapstructure:"username"`
-	Password string `mapstructure:"password"`
-	Host     string `mapstructure:"host"`
-	Port     string `mapstructure:"port"`
-	LogMode  bool   `mapstructure:"log_mode"`
-	SSLMode  string `mapstructure:"ssl_mode"`
+	Name                   string `mapstructure:"name"`
+	Username               string `mapstructure:"username"`
+	Password               string `mapstructure:"password"`
+	Host                   string `mapstructure:"host"`
+	Port                   string `mapstructure:"port"`
+	LogMode                bool   `mapstructure:"log_mode"`
+	SSLMode                string `mapstructure:"ssl_mode"`
+	MaxIdleConns           int    `mapstructure:"max_idle_conns"`
+	MaxOpenConns           int    `mapstructure:"max_open_conns"`
+	ConnMaxLifetimeSeconds int    `mapstructure:"conn_max_lifetime_seconds"`
+	ConnMaxIdleTimeSeconds int    `mapstructure:"conn_max_idle_time_seconds"`
+	AutoMigrate            bool   `mapstructure:"auto_migrate"`
+	AutoSeed               bool   `mapstructure:"auto_seed"`
 }
 
 // EmailConfig contains email-related configuration
@@ -215,9 +227,23 @@ func Load(opts ...LoaderOptions) (*Config, error) {
 
 // Validate validates the configuration
 func (c *Config) Validate() error {
+	c.Server.Env = strings.ToLower(strings.TrimSpace(c.Server.Env))
+
 	// Server validation
 	if c.Server.Port == "" {
 		return fmt.Errorf("server.port is required")
+	}
+	if c.Server.Timeout <= 0 {
+		return fmt.Errorf("server.timeout must be greater than zero")
+	}
+	if c.Server.ReadHeaderTimeout <= 0 {
+		return fmt.Errorf("server.read_header_timeout must be greater than zero")
+	}
+	if c.Server.IdleTimeout <= 0 {
+		return fmt.Errorf("server.idle_timeout must be greater than zero")
+	}
+	if c.Server.ShutdownTimeout <= 0 {
+		return fmt.Errorf("server.shutdown_timeout must be greater than zero")
 	}
 	if c.Server.Passphrase == "" || c.Server.Passphrase == "add-your-key-to-here" {
 		return fmt.Errorf("server.passphrase must be set to a secure value")
@@ -227,7 +253,7 @@ func (c *Config) Validate() error {
 	}
 
 	// In production, reject well-known weak secrets that may remain from dev setups
-	if c.Server.Env == "prod" || c.Server.Env == "production" {
+	if IsProduction(c.Server.Env) {
 		weakValues := []string{
 			"devsecret", "devpassphrase", "password", "secret",
 			"changeme", "test", "12345678", "passphrase",
@@ -249,6 +275,10 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	if err := normalizeAdminAPIKey(c.Server.Env, &c.Server.AdminAPIKey); err != nil {
+		return err
+	}
+
 	if c.Server.FrontendURL == "" {
 		return fmt.Errorf("server.frontend_url is required for email links, CORS, and OAuth redirects")
 	}
@@ -262,6 +292,24 @@ func (c *Config) Validate() error {
 	}
 	if c.Database.Username == "" {
 		return fmt.Errorf("database.username is required")
+	}
+	if IsProduction(c.Server.Env) && c.Database.Password == "" {
+		return fmt.Errorf("database.password is required in production")
+	}
+	if c.Database.MaxIdleConns < 0 {
+		return fmt.Errorf("database.max_idle_conns cannot be negative")
+	}
+	if c.Database.MaxOpenConns <= 0 {
+		return fmt.Errorf("database.max_open_conns must be greater than zero")
+	}
+	if c.Database.MaxIdleConns > c.Database.MaxOpenConns {
+		return fmt.Errorf("database.max_idle_conns cannot exceed database.max_open_conns")
+	}
+	if c.Database.ConnMaxLifetimeSeconds <= 0 {
+		return fmt.Errorf("database.conn_max_lifetime_seconds must be greater than zero")
+	}
+	if c.Database.ConnMaxIdleTimeSeconds <= 0 {
+		return fmt.Errorf("database.conn_max_idle_time_seconds must be greater than zero")
 	}
 
 	// Normalize common legacy/boolean SSL mode values to PostgreSQL-compatible ones.
@@ -290,6 +338,9 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("server.passphrase", generateSecureKey())
 	v.SetDefault("server.secret", generateSecureKey())
 	v.SetDefault("server.timeout", 24)
+	v.SetDefault("server.read_header_timeout", 10)
+	v.SetDefault("server.idle_timeout", 60)
+	v.SetDefault("server.shutdown_timeout", 30)
 	v.SetDefault("server.generated_password_length", 16)
 	v.SetDefault("server.access_token_expire_duration", "30m")
 	v.SetDefault("server.refresh_token_expire_duration", "15d")
@@ -297,6 +348,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("server.allowed_origins", []string{})
 	v.SetDefault("server.recaptcha_secret_key", "")
 	v.SetDefault("server.recaptcha_threshold", 0.5)
+	v.SetDefault("server.admin_api_key", "")
 
 	// Database defaults
 	v.SetDefault("database.name", "passwall")
@@ -306,6 +358,12 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("database.port", "5432")
 	v.SetDefault("database.log_mode", false)
 	v.SetDefault("database.ssl_mode", "disable")
+	v.SetDefault("database.max_idle_conns", 10)
+	v.SetDefault("database.max_open_conns", 100)
+	v.SetDefault("database.conn_max_lifetime_seconds", 3600)
+	v.SetDefault("database.conn_max_idle_time_seconds", 300)
+	v.SetDefault("database.auto_migrate", false)
+	v.SetDefault("database.auto_seed", false)
 
 	// Email defaults
 	v.SetDefault("email.host", "smtp.passwall.io")
@@ -353,6 +411,9 @@ func bindEnvVariables(v *viper.Viper) {
 	bind("server.passphrase", "PW_SERVER_PASSPHRASE")
 	bind("server.secret", "PW_SERVER_SECRET")
 	bind("server.timeout", "PW_SERVER_TIMEOUT")
+	bind("server.read_header_timeout", "PW_SERVER_READ_HEADER_TIMEOUT")
+	bind("server.idle_timeout", "PW_SERVER_IDLE_TIMEOUT")
+	bind("server.shutdown_timeout", "PW_SERVER_SHUTDOWN_TIMEOUT")
 	bind("server.generated_password_length", "PW_SERVER_GENERATED_PASSWORD_LENGTH")
 	bind("server.access_token_expire_duration", "PW_SERVER_ACCESS_TOKEN_EXPIRE_DURATION")
 	bind("server.refresh_token_expire_duration", "PW_SERVER_REFRESH_TOKEN_EXPIRE_DURATION")
@@ -360,6 +421,8 @@ func bindEnvVariables(v *viper.Viper) {
 	bind("server.allowed_origins", "PW_SERVER_ALLOWED_ORIGINS", "ALLOWED_ORIGINS")
 	bind("server.recaptcha_secret_key", "PW_RECAPTCHA_SECRET_KEY", "RECAPTCHA_SECRET_KEY")
 	bind("server.recaptcha_threshold", "PW_RECAPTCHA_THRESHOLD", "RECAPTCHA_THRESHOLD")
+	bind("server.escrow_master_key", "PW_SERVER_ESCROW_MASTER_KEY")
+	bind("server.admin_api_key", "PW_SERVER_ADMIN_API_KEY")
 
 	// Database bindings
 	bind("database.name", "PW_DB_NAME", "POSTGRES_DB")
@@ -369,6 +432,12 @@ func bindEnvVariables(v *viper.Viper) {
 	bind("database.port", "PW_DB_PORT", "POSTGRES_PORT")
 	bind("database.log_mode", "PW_DB_LOG_MODE")
 	bind("database.ssl_mode", "PW_DB_SSL_MODE")
+	bind("database.max_idle_conns", "PW_DB_MAX_IDLE_CONNS")
+	bind("database.max_open_conns", "PW_DB_MAX_OPEN_CONNS")
+	bind("database.conn_max_lifetime_seconds", "PW_DB_CONN_MAX_LIFETIME_SECONDS")
+	bind("database.conn_max_idle_time_seconds", "PW_DB_CONN_MAX_IDLE_TIME_SECONDS")
+	bind("database.auto_migrate", "PW_DB_AUTO_MIGRATE")
+	bind("database.auto_seed", "PW_DB_AUTO_SEED")
 
 	// Email bindings
 	bind("email.host", "PW_EMAIL_HOST")
@@ -385,6 +454,11 @@ func bindEnvVariables(v *viper.Viper) {
 	bind("email.gmail_client_id", "PW_EMAIL_GMAIL_CLIENT_ID", "GMAIL_CLIENT_ID")
 	bind("email.gmail_client_secret", "PW_EMAIL_GMAIL_CLIENT_SECRET", "GMAIL_CLIENT_SECRET")
 	bind("email.gmail_refresh_token", "PW_EMAIL_GMAIL_REFRESH_TOKEN", "GMAIL_REFRESH_TOKEN")
+
+	// Stripe bindings
+	bind("stripe.secret_key", "PW_STRIPE_SECRET_KEY", "STRIPE_SECRET_KEY")
+	bind("stripe.webhook_secret", "PW_STRIPE_WEBHOOK_SECRET", "STRIPE_WEBHOOK_SECRET")
+	bind("stripe.publishable_key", "PW_STRIPE_PUBLISHABLE_KEY", "STRIPE_PUBLISHABLE_KEY")
 
 	// RevenueCat bindings (for mobile in-app purchases)
 	bind("revenuecat.webhook_secret", "PW_REVENUECAT_WEBHOOK_SECRET", "REVENUECAT_WEBHOOK_SECRET")
@@ -421,8 +495,46 @@ func createDefaultConfigFile(v *viper.Viper, configFile string) error {
 		}
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
+	if err := os.Chmod(configFile, 0600); err != nil {
+		return fmt.Errorf("failed to secure config file permissions: %w", err)
+	}
 
 	return nil
+}
+
+// normalizeAdminAPIKey trims the directory credential and rejects weak values when one is set.
+// An empty key disables the admin directory API; it is not generated automatically.
+func normalizeAdminAPIKey(env string, key *string) error {
+	trimmed := strings.TrimSpace(*key)
+	*key = trimmed
+	if trimmed == "" {
+		return nil
+	}
+	if len(trimmed) < 16 {
+		return fmt.Errorf("server.admin_api_key must be at least 16 characters when set")
+	}
+	if IsProduction(env) {
+		weakValues := []string{
+			"password", "secret", "changeme", "admin", "test",
+			"12345678", "add-your-key-to-here",
+		}
+		for _, weak := range weakValues {
+			if strings.EqualFold(trimmed, weak) {
+				return fmt.Errorf("server.admin_api_key is a known weak value — set a long random secret or leave it empty to disable the admin directory API")
+			}
+		}
+	}
+	return nil
+}
+
+// IsProduction reports whether env selects production behavior.
+func IsProduction(env string) bool {
+	switch strings.ToLower(strings.TrimSpace(env)) {
+	case "prod", "production":
+		return true
+	default:
+		return false
+	}
 }
 
 // generateSecureKey generates a cryptographically secure random key

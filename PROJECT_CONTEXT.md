@@ -607,11 +607,13 @@ http://localhost:3625/api
 
 ### Authentication
 
-**JWT Bearer Token** in Authorization header:
+**JWT Bearer Token** in Authorization header for end-user and admin-session routes:
 
 ```
 Authorization: Bearer <access_token>
 ```
+
+The read-only admin directory uses a separate service credential. An end-user access token is not accepted there. See [Admin directory](#admin-directory-read-only).
 
 ### Key Endpoint Groups
 
@@ -628,10 +630,117 @@ GET    /auth/check           # Verify token
 #### Users
 
 ```
-GET    /users                # List users (admin)
+GET    /users                # List users (admin session)
 GET    /users/:id            # Get user
 PUT    /users/:id            # Update user
 DELETE /users/:id            # Delete user (soft)
+```
+
+`/api/users` is the admin-session user API. It is not the bot directory. Use the admin directory below for service-to-service account tracking.
+
+#### Admin directory (read-only)
+
+Service credential for an external bot. These routes are not mounted on the end-user vault API and do not accept a user JWT, including a JWT for a user with the admin role.
+
+Authentication matches the existing bearer-secret check used by the RevenueCat webhook: `Authorization: Bearer <server.admin_api_key>`. Set `PW_SERVER_ADMIN_API_KEY` (or `server.admin_api_key`). Leave it empty to disable the API (`503`). The value is a long random secret, at least 16 characters. Do not commit it. Comparison is constant-time. The credential is not a user session and cannot unlock a vault.
+
+Rate limit: 120 requests per minute per client IP (`429`).
+
+```
+GET    /api/admin/directory/users        # Page of accounts
+GET    /api/admin/directory/users/:id    # One account by numeric id or UUID
+```
+
+Query parameters for the list:
+
+| Param | Default | Notes |
+|---|---|---|
+| `limit` | `50` | Page size. Values above `100` are clamped. Non-positive values use the default. |
+| `offset` | `0` | Number of accounts to skip. Negative values are treated as `0`. |
+| `email` |  | Optional exact email match (case-insensitive). Returns at most one account. `offset > 0` yields an empty page with `total` `1` when the email exists. The value is part of the request URL and is included in the server access log. |
+
+The list is ordered by numeric `id` ascending so pages stay stable.
+
+Each account object contains only:
+
+| Field | Source | When it is not known |
+|---|---|---|
+| `id` | `users.id` | Always present. |
+| `uuid` | `users.uuid` | Always present. This is the stable public identifier. |
+| `email` | `users.email` | Always present. This is the current account email. |
+| `registered_at` | `users.created_at` | Always present. UTC RFC3339. |
+| `last_login_at` | Newest `user_activities.created_at` where `activity_type` is `signin` | JSON `null`. Activity rows older than 90 days are deleted. Password sign-in writes this row. The current two-factor completion path and SSO sign-in do not, so `null` means "no stored sign-in", not "never used". Vault unlocks are not used as a substitute. |
+| `plan` | Plan on the effective subscription of `users.personal_organization_id` | JSON `null` when that organization, subscription, or plan row is missing. `code` and `name` are the stored plan fields. |
+| `subscription.status` | `subscriptions.state` for that same subscription | `"unknown"` when no subscription row exists. Otherwise the stored state: `draft`, `trialing`, `active`, `past_due`, `canceled`, `expired`. |
+
+Plan and subscription describe the personal organization only. Membership in another organization's plan is not included.
+
+The effective subscription is chosen with the same rule as billing: an `active`, `trialing`, or `past_due` row, otherwise a `canceled` row whose `renew_at` is still in the future, otherwise the newest row.
+
+Responses use `schema_version` `1`. Clients must ignore unknown JSON fields. Add fields by extending `AdminDirectoryUser` (or a nested object) and populating them from stored data. Use JSON `null` or `"unknown"` when the source does not exist. Do not invent plan names, statuses, or login times. Keep `schema_version` at `1` for additive fields. Increment it only when a key is removed or renamed. Never add vault items, passwords, notes, cards, bank accounts, secrets, tokens, or encryption keys.
+
+Successful responses send `Cache-Control: no-store`.
+
+List example:
+
+```json
+{
+  "schema_version": 1,
+  "data": [
+    {
+      "id": 7,
+      "uuid": "6f1c4c3e-1b2a-4d5e-8f70-112233445566",
+      "email": "ada@example.com",
+      "registered_at": "2024-03-02T12:04:05Z",
+      "last_login_at": "2026-01-09T08:00:00Z",
+      "plan": { "code": "pro-monthly", "name": "Pro" },
+      "subscription": { "status": "active" }
+    },
+    {
+      "id": 8,
+      "uuid": "8a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809",
+      "email": "no-plan@example.com",
+      "registered_at": "2025-11-01T00:00:00Z",
+      "last_login_at": null,
+      "plan": null,
+      "subscription": { "status": "unknown" }
+    }
+  ],
+  "pagination": { "limit": 50, "offset": 0, "total": 2 }
+}
+```
+
+Single-account example (`GET /api/admin/directory/users/7`):
+
+```json
+{
+  "schema_version": 1,
+  "data": {
+    "id": 7,
+    "uuid": "6f1c4c3e-1b2a-4d5e-8f70-112233445566",
+    "email": "ada@example.com",
+    "registered_at": "2024-03-02T12:04:05Z",
+    "last_login_at": null,
+    "plan": null,
+    "subscription": { "status": "unknown" }
+  }
+}
+```
+
+Errors use the existing `{"error":"..."}` shape:
+
+| Status | When |
+|---|---|
+| `401` | Missing or wrong bearer credential |
+| `400` | `id` is not a numeric id or UUID, or `email` is malformed |
+| `404` | Account id was not found |
+| `429` | Rate limit exceeded |
+| `503` | `server.admin_api_key` is empty |
+| `500` | Account, activity, or subscription query failed |
+
+```bash
+curl -sS -H "Authorization: Bearer ${PW_SERVER_ADMIN_API_KEY}" \
+  "http://localhost:3625/api/admin/directory/users?limit=50&offset=0"
 ```
 
 #### Organizations

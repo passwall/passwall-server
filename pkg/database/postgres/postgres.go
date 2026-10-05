@@ -69,6 +69,7 @@ func New(cfg *database.Config) (database.Database, error) {
 	sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
 	sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
 	sqlDB.SetConnMaxLifetime(time.Duration(cfg.ConnMaxLifetime) * time.Second)
+	sqlDB.SetConnMaxIdleTime(time.Duration(cfg.ConnMaxIdleTime) * time.Second)
 
 	// Verify connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

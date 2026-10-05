@@ -36,6 +36,7 @@ type Config struct {
 	MaxIdleConns    int
 	MaxOpenConns    int
 	ConnMaxLifetime int // in seconds
+	ConnMaxIdleTime int // in seconds
 	LogMode         bool
 }
 
@@ -51,6 +52,7 @@ func DefaultConfig() *Config {
 		MaxIdleConns:    10,
 		MaxOpenConns:    100,
 		ConnMaxLifetime: 3600, // 1 hour
+		ConnMaxIdleTime: 300,  // 5 minutes
 		LogMode:         false,
 	}
 }

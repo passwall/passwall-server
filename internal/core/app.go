@@ -3,7 +3,10 @@ package core
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -32,6 +35,8 @@ type App struct {
 	breachMonitorWorker *cleanup.BreachMonitorWorker
 	subscriptionWorker  *cleanup.SubscriptionWorker
 	emailSender         email.Sender
+	readiness           atomic.Bool
+	workerWG            sync.WaitGroup
 }
 
 // New creates a new application instance with the given context
@@ -51,14 +56,18 @@ func New(ctx context.Context) (*App, error) {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
-	// Auto migrate - creates all tables with their final structure
-	if err := AutoMigrate(db); err != nil {
-		return nil, fmt.Errorf("failed to migrate database: %w", err)
+	if cfg.Database.AutoMigrate {
+		if err := AutoMigrate(db); err != nil {
+			_ = db.Close()
+			return nil, fmt.Errorf("failed to migrate database: %w", err)
+		}
 	}
 
-	// Seed database - idempotent, safe to run multiple times
-	if err := SeedDatabase(ctx, db, cfg); err != nil {
-		return nil, fmt.Errorf("failed to seed database: %w", err)
+	if cfg.Database.AutoSeed {
+		if err := SeedDatabase(ctx, db, cfg); err != nil {
+			_ = db.Close()
+			return nil, fmt.Errorf("failed to seed database: %w", err)
+		}
 	}
 
 	return &App{
@@ -74,7 +83,7 @@ func (a *App) Run(ctx context.Context) error {
 	gin.DefaultErrorWriter = logger.GetWriter()
 
 	// Set Gin mode
-	if a.config.Server.Env == "production" {
+	if config.IsProduction(a.config.Server.Env) {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
@@ -358,6 +367,7 @@ func (a *App) Run(ctx context.Context) error {
 	)
 	adminMailHandler := httpHandler.NewAdminMailHandler(emailSender, userRepo, serviceLogger)
 	adminLogsHandler := httpHandler.NewAdminLogsHandler()
+	adminDirectoryHandler := httpHandler.NewAdminDirectoryHandler(userRepo, userActivityRepo, subscriptionRepo, serviceLogger)
 
 	// Emergency access handler
 	emergencyAccessHandler := httpHandler.NewEmergencyAccessHandler(emergencyAccessService, userRepo)
@@ -420,6 +430,7 @@ func (a *App) Run(ctx context.Context) error {
 		adminSubscriptionsHandler,
 		adminMailHandler,
 		adminLogsHandler,
+		adminDirectoryHandler,
 		iconsHandler,
 		ssoHandler,
 		scimHandler,
@@ -429,16 +440,19 @@ func (a *App) Run(ctx context.Context) error {
 		compromisedCheckHandler,
 		compatTelemetryHandler,
 		aiTelemetryHandler,
+		a.db,
+		a.readiness.Load,
 	)
 
 	// Create server
 	addr := fmt.Sprintf("%s:%s", a.config.Server.Host, a.config.Server.Port)
 	a.server = &http.Server{
-		Addr:         addr,
-		Handler:      router,
-		ReadTimeout:  time.Second * time.Duration(a.config.Server.Timeout),
-		WriteTimeout: time.Second * time.Duration(a.config.Server.Timeout),
-		IdleTimeout:  60 * time.Second,
+		Addr:              addr,
+		Handler:           router,
+		ReadTimeout:       time.Second * time.Duration(a.config.Server.Timeout),
+		ReadHeaderTimeout: time.Second * time.Duration(a.config.Server.ReadHeaderTimeout),
+		WriteTimeout:      time.Second * time.Duration(a.config.Server.Timeout),
+		IdleTimeout:       time.Second * time.Duration(a.config.Server.IdleTimeout),
 	}
 
 	// Initialize token cleanup service (runs every hour)
@@ -468,20 +482,29 @@ func (a *App) Run(ctx context.Context) error {
 	// Initialize subscription expiry worker (runs every 6 hours)
 	a.subscriptionWorker = cleanup.NewSubscriptionWorker(subscriptionService, serviceLogger, 6*time.Hour)
 
-	// Start cleanup services in background (using application context)
-	go a.tokenCleanup.Start(ctx)
-	go a.activityCleanup.Start(ctx)
-	go a.logCleanup.Start(ctx)
-	go a.sendCleanup.Start(ctx)
-	go a.breachMonitorWorker.Start(ctx)
-	go a.subscriptionWorker.Run(ctx)
+	runCtx, cancelWorkers := context.WithCancel(ctx)
+	defer cancelWorkers()
 
-	// Start server in a goroutine
+	a.startWorker(func() { a.tokenCleanup.Start(runCtx) })
+	a.startWorker(func() { a.activityCleanup.Start(runCtx) })
+	a.startWorker(func() { a.logCleanup.Start(runCtx) })
+	a.startWorker(func() { a.sendCleanup.Start(runCtx) })
+	a.startWorker(func() { a.breachMonitorWorker.Start(runCtx) })
+	a.startWorker(func() { a.subscriptionWorker.Run(runCtx) })
+
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		cancelWorkers()
+		_ = a.gracefulShutdown()
+		return fmt.Errorf("failed to listen on %s: %w", addr, err)
+	}
+
 	serverErrChan := make(chan error, 1)
+	a.readiness.Store(true)
 	go func() {
 		logger.Infof("🚀 Passwall Server is starting at %s in '%s' mode", addr, a.config.Server.Env)
 
-		if err := a.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := a.server.Serve(listener); err != nil && err != http.ErrServerClosed {
 			logger.Errorf("Server failed: %v", err)
 			serverErrChan <- err
 		}
@@ -490,34 +513,63 @@ func (a *App) Run(ctx context.Context) error {
 	// Wait for context cancellation or server error
 	select {
 	case <-ctx.Done():
-		// Context canceled (signal received)
+		cancelWorkers()
 		return a.gracefulShutdown()
 	case err := <-serverErrChan:
-		// Server failed to start
+		cancelWorkers()
+		if shutdownErr := a.gracefulShutdown(); shutdownErr != nil {
+			logger.Errorf("Shutdown after server failure also failed: %v", shutdownErr)
+		}
 		return fmt.Errorf("server error: %w", err)
 	}
+}
+
+func (a *App) startWorker(worker func()) {
+	a.workerWG.Add(1)
+	go func() {
+		defer a.workerWG.Done()
+		worker()
+	}()
 }
 
 // gracefulShutdown performs graceful shutdown of all app components
 func (a *App) gracefulShutdown() error {
 	logger.Infof("Initiating graceful shutdown...")
+	a.readiness.Store(false)
+	var shutdownErr error
 
-	// Create shutdown context with timeout
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer shutdownCancel()
+	httpShutdownCtx, cancelHTTPShutdown := context.WithTimeout(
+		context.Background(),
+		time.Duration(a.config.Server.ShutdownTimeout)*time.Second,
+	)
 
 	// Shutdown HTTP server (stops accepting new connections, waits for existing)
 	logger.Infof("Shutting down HTTP server...")
-	if err := a.server.Shutdown(shutdownCtx); err != nil {
+	if err := a.server.Shutdown(httpShutdownCtx); err != nil {
 		logger.Errorf("HTTP server forced to shutdown: %v", err)
-		return fmt.Errorf("server forced to shutdown: %w", err)
+		_ = a.server.Close()
+		shutdownErr = fmt.Errorf("HTTP server shutdown: %w", err)
 	}
+	cancelHTTPShutdown()
 	logger.Infof("HTTP server stopped gracefully")
 
-	// Cleanup services already stopped via context cancellation
-	logger.Infof("Token cleanup stopped")
-	logger.Infof("Activity cleanup stopped")
-	logger.Infof("Log cleanup stopped")
+	workersDone := make(chan struct{})
+	go func() {
+		a.workerWG.Wait()
+		close(workersDone)
+	}()
+	workerTimer := time.NewTimer(time.Duration(a.config.Server.ShutdownTimeout) * time.Second)
+	defer workerTimer.Stop()
+	select {
+	case <-workersDone:
+		logger.Infof("Background workers stopped")
+	case <-workerTimer.C:
+		logger.Warnf("Timed out waiting for background workers to stop")
+		if shutdownErr == nil {
+			shutdownErr = fmt.Errorf("background worker shutdown timed out")
+		}
+		return shutdownErr
+	}
 
 	// Close email sender
 	logger.Infof("Closing email sender...")
@@ -538,5 +590,5 @@ func (a *App) gracefulShutdown() error {
 	}
 
 	logger.Infof("Graceful shutdown completed")
-	return nil
+	return shutdownErr
 }

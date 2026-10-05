@@ -112,6 +112,42 @@ func (r *subscriptionRepository) GetByOrganizationID(ctx context.Context, orgID 
 	return effective, nil
 }
 
+// GetEffectiveByOrganizationIDs returns the effective subscription for each organization
+// that has at least one row. Organizations with no subscription are omitted.
+// Selection uses the same priority as GetByOrganizationID.
+func (r *subscriptionRepository) GetEffectiveByOrganizationIDs(ctx context.Context, orgIDs []uint) (map[uint]*domain.Subscription, error) {
+	out := make(map[uint]*domain.Subscription)
+	if len(orgIDs) == 0 {
+		return out, nil
+	}
+
+	var subs []*domain.Subscription
+	err := r.db.WithContext(ctx).
+		Preload("Plan").
+		Where("organization_id IN ?", orgIDs).
+		Order("created_at DESC").
+		Find(&subs).Error
+	if err != nil {
+		return nil, err
+	}
+
+	grouped := make(map[uint][]*domain.Subscription, len(orgIDs))
+	for _, sub := range subs {
+		if sub == nil {
+			continue
+		}
+		grouped[sub.OrganizationID] = append(grouped[sub.OrganizationID], sub)
+	}
+
+	now := time.Now()
+	for orgID, list := range grouped {
+		if effective := selectEffectiveSubscription(list, now); effective != nil {
+			out[orgID] = effective
+		}
+	}
+	return out, nil
+}
+
 // GetByStripeSubscriptionID retrieves a subscription by Stripe subscription ID
 func (r *subscriptionRepository) GetByStripeSubscriptionID(ctx context.Context, stripeSubID string) (*domain.Subscription, error) {
 	var sub domain.Subscription

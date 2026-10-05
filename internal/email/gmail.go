@@ -147,7 +147,7 @@ func (s *gmailSender) Send(ctx context.Context, message *EmailMessage) error {
 			"to", message.To,
 			"subject", message.Subject,
 			"error", err)
-		return fmt.Errorf("Gmail API SendEmail failed: %w", err)
+		return fmt.Errorf("gmail API SendEmail failed: %w", err)
 	}
 
 	s.logger.Info("email sent successfully via Gmail API",

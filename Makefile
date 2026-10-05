@@ -46,7 +46,7 @@ generate: ## Run go generate
 install-tools: ## Install development tools (golangci-lint, gocov)
 	@echo "$(BLUE)Installing development tools...$(NC)"
 	@echo "Ensuring golangci-lint (built with current Go)..."; \
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.4.0
 	@command -v gocov >/dev/null 2>&1 || { \
 		echo "Installing gocov (optional)..."; \
 		go install github.com/axw/gocov/gocov@latest || echo "$(YELLOW)⚠ gocov install skipped (optional, needed only for test-coverage)$(NC)"; \
@@ -121,7 +121,8 @@ image-build: ## Build Docker image
 	@docker build -f $(DOCKER_DIR)/Dockerfile -t $(DOCKER_IMAGE):$(DOCKER_TAG) \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg BUILD_TIME=$(BUILD_TIME) \
-		--build-arg COMMIT_ID=$(COMMIT_ID) .
+		--build-arg COMMIT_ID=$(COMMIT_ID) \
+		--build-arg BUILD_ID=$(BUILD_ID) .
 	@echo "$(GREEN)✓ Docker image built: $(DOCKER_IMAGE):$(DOCKER_TAG)$(NC)"
 
 image-publish: image-build ## Build and publish Docker image to Docker Hub (requires git tag)
@@ -129,12 +130,9 @@ image-publish: image-build ## Build and publish Docker image to Docker Hub (requ
 	@if echo "$(VERSION)" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+'; then \
 		echo "$(GREEN)✓ Valid version tag detected: $(VERSION)$(NC)"; \
 		docker tag $(DOCKER_IMAGE):$(DOCKER_TAG) $(DOCKER_IMAGE):$(VERSION); \
-		docker tag $(DOCKER_IMAGE):$(DOCKER_TAG) $(DOCKER_IMAGE):latest; \
 		docker push $(DOCKER_IMAGE):$(VERSION); \
-		docker push $(DOCKER_IMAGE):latest; \
 		echo "$(GREEN)✓ Docker image published:$(NC)"; \
 		echo "  - $(YELLOW)$(DOCKER_IMAGE):$(VERSION)$(NC)"; \
-		echo "  - $(YELLOW)$(DOCKER_IMAGE):latest$(NC)"; \
 	else \
 		echo "$(RED)✗ Cannot publish without a valid version tag$(NC)"; \
 		echo "$(YELLOW)Current version: $(VERSION)$(NC)"; \
@@ -187,6 +185,8 @@ run: ## Run server locally from debug folder (without Docker)
 	@cd $(WORK_DIR) && \
 		PW_LOG_PATH="." \
 		PW_HTTP_LOG_PATH="." \
+		PW_DB_AUTO_MIGRATE="true" \
+		PW_DB_AUTO_SEED="true" \
 		PW_STRIPE_SECRET_KEY="$(PW_STRIPE_SECRET_KEY)" \
 		PW_STRIPE_PUBLISHABLE_KEY="$(PW_STRIPE_PUBLISHABLE_KEY)" \
 		PW_STRIPE_WEBHOOK_SECRET="$(PW_STRIPE_WEBHOOK_SECRET)" \
@@ -199,7 +199,7 @@ dev: ## Run server in development mode with auto-reload (requires air)
 		echo "$(YELLOW)Installing air for hot reload...$(NC)"; \
 		go install github.com/air-verse/air@latest; \
 	}
-	@air
+	@PW_DB_AUTO_MIGRATE="true" PW_DB_AUTO_SEED="true" air
 
 
 ##@ Database

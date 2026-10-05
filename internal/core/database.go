@@ -1,28 +1,66 @@
 package core
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/passwall/passwall-server/internal/config"
 	"github.com/passwall/passwall-server/internal/domain"
+	"github.com/passwall/passwall-server/pkg/constants"
 	"github.com/passwall/passwall-server/pkg/database"
 	"github.com/passwall/passwall-server/pkg/database/postgres"
 	"github.com/passwall/passwall-server/pkg/logger"
+	"gorm.io/gorm"
 )
+
+// RunMigrations applies the current schema and optionally idempotent seed data,
+// then exits. Production deployments should run this as a one-shot step before
+// starting the app.
+func RunMigrations(ctx context.Context, runSeed bool) error {
+	cfg, err := config.Load(config.LoaderOptions{
+		ConfigFile: constants.ConfigFilePath,
+		EnvPrefix:  constants.EnvPrefix,
+	})
+	if err != nil {
+		return fmt.Errorf("load migration config: %w", err)
+	}
+
+	db, err := InitDatabase(cfg)
+	if err != nil {
+		return err
+	}
+
+	if err := AutoMigrate(db); err != nil {
+		_ = db.Close()
+		return err
+	}
+	if runSeed {
+		if err := SeedDatabase(ctx, db, cfg); err != nil {
+			_ = db.Close()
+			return err
+		}
+	}
+	if err := db.Close(); err != nil {
+		return fmt.Errorf("close database after migration: %w", err)
+	}
+	return nil
+}
 
 // InitDatabase initializes database connection using the database package
 func InitDatabase(cfg *config.Config) (database.Database, error) {
 	// Convert config to database.Config
 	dbCfg := &database.Config{
-		Host:         cfg.Database.Host,
-		Port:         cfg.Database.Port,
-		Username:     cfg.Database.Username,
-		Password:     cfg.Database.Password,
-		Database:     cfg.Database.Name,
-		SSLMode:      cfg.Database.SSLMode,
-		MaxIdleConns: 10,
-		MaxOpenConns: 100,
-		LogMode:      cfg.Database.LogMode,
+		Host:            cfg.Database.Host,
+		Port:            cfg.Database.Port,
+		Username:        cfg.Database.Username,
+		Password:        cfg.Database.Password,
+		Database:        cfg.Database.Name,
+		SSLMode:         cfg.Database.SSLMode,
+		MaxIdleConns:    cfg.Database.MaxIdleConns,
+		MaxOpenConns:    cfg.Database.MaxOpenConns,
+		ConnMaxLifetime: cfg.Database.ConnMaxLifetimeSeconds,
+		ConnMaxIdleTime: cfg.Database.ConnMaxIdleTimeSeconds,
+		LogMode:         cfg.Database.LogMode,
 	}
 
 	// Create database connection
@@ -38,13 +76,30 @@ func InitDatabase(cfg *config.Config) (database.Database, error) {
 // This creates all tables from scratch with their FINAL structure
 // For production updates of existing databases, use SQL migration files in /migrations/
 func AutoMigrate(db database.Database) error {
+	err := db.Transaction(context.Background(), func(gormDB *gorm.DB) error {
+		// Serialize schema changes across replicas or concurrent deploy jobs.
+		if err := gormDB.Exec("SELECT pg_advisory_xact_lock(hashtext(?))", "passwall_schema_migration").Error; err != nil {
+			return fmt.Errorf("acquire migration lock: %w", err)
+		}
+
+		return autoMigrateSchema(gormDB)
+	})
+	if err != nil {
+		return err
+	}
+
+	logger.Infof("✓ Database schema migrated successfully")
+	return nil
+}
+
+func autoMigrateSchema(gormDB *gorm.DB) error {
 	// Create Item table first (used by personal vault)
-	if err := db.AutoMigrate(&domain.Item{}); err != nil {
+	if err := gormDB.AutoMigrate(&domain.Item{}); err != nil {
 		return fmt.Errorf("failed to migrate Item: %w", err)
 	}
 
 	// Core auth & user tables
-	if err := db.AutoMigrate(
+	if err := gormDB.AutoMigrate(
 		&domain.Role{},
 		&domain.Permission{},
 		&domain.User{},
@@ -57,7 +112,7 @@ func AutoMigrate(db database.Database) error {
 	}
 
 	// User-related tables
-	if err := db.AutoMigrate(
+	if err := gormDB.AutoMigrate(
 		&domain.ExcludedDomain{},
 		&domain.Preference{},
 		&domain.Invitation{},
@@ -68,7 +123,7 @@ func AutoMigrate(db database.Database) error {
 	}
 
 	// SaaS subscription tables (NEW - Phase 1)
-	if err := db.AutoMigrate(
+	if err := gormDB.AutoMigrate(
 		&domain.Plan{},
 		&domain.Subscription{},
 		&domain.WebhookEvent{},
@@ -78,7 +133,7 @@ func AutoMigrate(db database.Database) error {
 	}
 
 	// Organization tables
-	if err := db.AutoMigrate(
+	if err := gormDB.AutoMigrate(
 		&domain.Organization{},
 		&domain.OrganizationUser{},
 		&domain.Team{},
@@ -94,14 +149,14 @@ func AutoMigrate(db database.Database) error {
 	}
 
 	// Organization policies
-	if err := db.AutoMigrate(
+	if err := gormDB.AutoMigrate(
 		&domain.OrganizationPolicy{},
 	); err != nil {
 		return fmt.Errorf("failed to migrate organization policy tables: %w", err)
 	}
 
 	// Emergency Access & Sends
-	if err := db.AutoMigrate(
+	if err := gormDB.AutoMigrate(
 		&domain.EmergencyAccess{},
 		&domain.Send{},
 	); err != nil {
@@ -109,7 +164,7 @@ func AutoMigrate(db database.Database) error {
 	}
 
 	// Breach Monitoring tables
-	if err := db.AutoMigrate(
+	if err := gormDB.AutoMigrate(
 		&domain.MonitoredEmail{},
 		&domain.BreachRecord{},
 	); err != nil {
@@ -117,7 +172,7 @@ func AutoMigrate(db database.Database) error {
 	}
 
 	// SSO & SCIM tables (Enterprise features)
-	if err := db.AutoMigrate(
+	if err := gormDB.AutoMigrate(
 		&domain.SSOConnection{},
 		&domain.SSOState{},
 		&domain.SCIMToken{},
@@ -129,17 +184,14 @@ func AutoMigrate(db database.Database) error {
 
 	// Backfill public_id for any organizations that don't have one yet,
 	// then create a unique index. This is idempotent.
-	if err := backfillOrgPublicIDs(db); err != nil {
+	if err := backfillOrgPublicIDs(gormDB); err != nil {
 		return fmt.Errorf("failed to backfill organization public_ids: %w", err)
 	}
 
-	logger.Infof("✓ Database schema migrated successfully")
 	return nil
 }
 
-func backfillOrgPublicIDs(db database.Database) error {
-	gormDB := db.DB()
-
+func backfillOrgPublicIDs(gormDB *gorm.DB) error {
 	var orgs []domain.Organization
 	if err := gormDB.Where("public_id IS NULL OR public_id = ''").Find(&orgs).Error; err != nil {
 		return err

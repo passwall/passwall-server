@@ -27,16 +27,27 @@ func main() {
 	defer cancel()
 
 	// Setup signal handling for graceful shutdown
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+	sigChan := make(chan os.Signal, 2)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigChan)
 
 	// Handle signals in a goroutine
 	go func() {
 		sig := <-sigChan
 		logger.Infof("Received signal: %v", sig)
 		fmt.Printf("\n⏳ Shutting down gracefully (signal: %v)...\n", sig)
-		cancel() // Cancel the application context
+		cancel()
+		signal.Stop(sigChan)
 	}()
+
+	if isMigration, runSeed := migrationCommand(); isMigration {
+		if err := core.RunMigrations(ctx, runSeed); err != nil {
+			log.Fatalf("Migration failed: %v", err)
+		}
+		logger.Infof("Database migration completed successfully")
+		fmt.Println("Database migration completed successfully")
+		return
+	}
 
 	// Create and run application with context
 	app, err := core.New(ctx)
@@ -50,6 +61,20 @@ func main() {
 
 	logger.Infof("Application exited successfully")
 	fmt.Println("✅ Server stopped")
+}
+
+func migrationCommand() (isMigration, runSeed bool) {
+	if len(os.Args) != 2 {
+		return false, false
+	}
+	switch os.Args[1] {
+	case "migrate":
+		return true, false
+	case "migrate-and-seed":
+		return true, true
+	default:
+		return false, false
+	}
 }
 
 func applyWorkDir() {

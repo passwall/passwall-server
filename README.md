@@ -216,6 +216,7 @@ DOCKER_TAG=v2.0.0 make image-publish
 | `PW_SERVER_PASSWORD` | Admin password | - |
 | `PW_SERVER_PASSPHRASE` | Encryption passphrase | - |
 | `PW_SERVER_SECRET` | JWT secret | - |
+| `PW_SERVER_ADMIN_API_KEY` | Bearer credential for the read-only admin directory API. Leave unset to disable it. Not a user session token. | empty |
 | `PW_SERVER_TIMEOUT` | Server timeout | `2` |
 | `PW_SERVER_GENERATED_PASSWORD_LENGTH` | Generated password length | `16` |
 | `PW_SERVER_ACCESS_TOKEN_EXPIRE_DURATION` | Access token expire duration | `30m` |
@@ -236,6 +237,14 @@ DOCKER_TAG=v2.0.0 make image-publish
 ## 📚 API Documentation
 
 API documentation is available at [Postman Public Directory](https://documenter.getpostman.com/view/3658426/SzYbyHXj)
+
+### Admin directory (read-only)
+
+`GET /api/admin/directory/users` and `GET /api/admin/directory/users/:id` return account metadata for an external bot: id, uuid, email, registration time, last stored sign-in, personal-organization plan, and subscription status. They do not return vault contents or secrets.
+
+Send `Authorization: Bearer <PW_SERVER_ADMIN_API_KEY>`. This is a server credential, not an end-user JWT. The API responds with `503` until the key is set. The list accepts `limit` (default 50, max 100), `offset` (default 0), and an optional exact `email`. Unknown plan, subscription, or last login is returned as `null` or `"unknown"` rather than a placeholder value.
+
+The response contract, field sources, and examples are in `PROJECT_CONTEXT.md` under **Admin directory (read-only)**. Add later fields on `schema_version` 1 and have clients ignore unknown JSON keys.
 
 ## 🛡️ Security
 
