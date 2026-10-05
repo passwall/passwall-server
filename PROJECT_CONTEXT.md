@@ -668,8 +668,20 @@ Each account object contains only:
 | `id` | `users.id` | Always present. |
 | `uuid` | `users.uuid` | Always present. This is the stable public identifier. |
 | `email` | `users.email` | Always present. This is the current account email. |
+| `email_verified` | `users.is_verified` | Always present. Boolean stored on the account. |
 | `registered_at` | `users.created_at` | Always present. UTC RFC3339. |
 | `last_login_at` | Newest `user_activities.created_at` where `activity_type` is `signin` | JSON `null`. Activity rows older than 90 days are deleted. Password sign-in writes this row. The current two-factor completion path and SSO sign-in do not, so `null` means "no stored sign-in", not "never used". Vault unlocks are not used as a substitute. |
+| `last_activity_at` | Newest `user_activities.created_at` whose `activity_type` is not `signin` | JSON `null` when no non-signin row is stored. This is not a lifetime timestamp. |
+| `signin_count` | Count of stored `user_activities` rows with `activity_type` `signin` | Always a number. `0` means no sign-in row is still stored. Rows older than 90 days are deleted, so this is not a lifetime count. |
+| `activity_count` | Count of stored `user_activities` rows of every type, including `signin` | Always a number. Same 90-day retention as `signin_count`. `activity_count == signin_count` means the only stored rows are sign-ins. |
+| `device_count` | Distinct non-zero `tokens.device_id` for the account | Always a number. `0` means no stored token row has a device id. Includes expired rows that have not been purged. This is not a lifetime device history, and device ids are not returned. |
+| `client_count` | Distinct non-empty `tokens.app` values (`vault`, `extension`, `mobile`, `desktop` when the client sent one) | Always a number. `0` means no stored token row has an app name. App names themselves are not returned. |
+| `organization_count` | Count of `organization_users` rows for the account | Always a number. Every membership status is included (`invited`, `accepted`, `confirmed`, `suspended`, `provisioned`). `0` means no membership row. |
+| `collection_count` | Distinct non-deleted `collections` in organizations where the account has a membership | Always a number. Collections have no creator column, so this is membership scope, not "collections this person created". A member of a large organization can have a high count without personal use. `0` means none. Collection names are not returned. |
+| `vault` | Non-deleted rows in the account's private schema `items` table, grouped by stored `item_type` | JSON `null` when `users.schema` is blank, `public`, invalid, or the schema or `items` table is not in the database. `null` means the personal vault could not be counted, not that it is empty. Archived rows are included. Deleted rows (`deleted_at` set) are not. |
+| `vault.item_count` | Sum of `vault.by_type` | Present only when `vault` is an object. |
+| `vault.by_type` | Counts for the stored item types | Keys: `password`, `secure_note`, `card`, `bank_account`, `email`, `server`, `identity`, `ssh_key`, `address`, `passkey`, `custom`, and `other` for any other stored type value. Each value is a count. Titles, usernames, URLs, metadata, and ciphertext are not read. |
+| `organization_items` | Non-deleted `organization_items` whose `created_by_user_id` is this account, grouped by `item_type` | Always an object. `item_count` `0` and zeroed `by_type` mean this account has created no stored organization items. Items created by someone else are not included. Same type keys as `vault.by_type`. Contents are not read. |
 | `plan` | Plan on the effective subscription of `users.personal_organization_id` | JSON `null` when that organization, subscription, or plan row is missing. `code` and `name` are the stored plan fields. |
 | `subscription.status` | `subscriptions.state` for that same subscription | `"unknown"` when no subscription row exists. Otherwise the stored state: `draft`, `trialing`, `active`, `past_due`, `canceled`, `expired`. |
 
@@ -691,8 +703,50 @@ List example:
       "id": 7,
       "uuid": "6f1c4c3e-1b2a-4d5e-8f70-112233445566",
       "email": "ada@example.com",
+      "email_verified": true,
       "registered_at": "2024-03-02T12:04:05Z",
       "last_login_at": "2026-01-09T08:00:00Z",
+      "last_activity_at": "2026-01-10T09:30:00Z",
+      "signin_count": 4,
+      "activity_count": 6,
+      "device_count": 2,
+      "client_count": 2,
+      "organization_count": 2,
+      "collection_count": 1,
+      "vault": {
+        "item_count": 3,
+        "by_type": {
+          "password": 2,
+          "secure_note": 0,
+          "card": 1,
+          "bank_account": 0,
+          "email": 0,
+          "server": 0,
+          "identity": 0,
+          "ssh_key": 0,
+          "address": 0,
+          "passkey": 0,
+          "custom": 0,
+          "other": 0
+        }
+      },
+      "organization_items": {
+        "item_count": 1,
+        "by_type": {
+          "password": 0,
+          "secure_note": 1,
+          "card": 0,
+          "bank_account": 0,
+          "email": 0,
+          "server": 0,
+          "identity": 0,
+          "ssh_key": 0,
+          "address": 0,
+          "passkey": 0,
+          "custom": 0,
+          "other": 0
+        }
+      },
       "plan": { "code": "pro-monthly", "name": "Pro" },
       "subscription": { "status": "active" }
     },
@@ -700,8 +754,34 @@ List example:
       "id": 8,
       "uuid": "8a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809",
       "email": "no-plan@example.com",
+      "email_verified": false,
       "registered_at": "2025-11-01T00:00:00Z",
       "last_login_at": null,
+      "last_activity_at": null,
+      "signin_count": 0,
+      "activity_count": 0,
+      "device_count": 0,
+      "client_count": 0,
+      "organization_count": 0,
+      "collection_count": 0,
+      "vault": null,
+      "organization_items": {
+        "item_count": 0,
+        "by_type": {
+          "password": 0,
+          "secure_note": 0,
+          "card": 0,
+          "bank_account": 0,
+          "email": 0,
+          "server": 0,
+          "identity": 0,
+          "ssh_key": 0,
+          "address": 0,
+          "passkey": 0,
+          "custom": 0,
+          "other": 0
+        }
+      },
       "plan": null,
       "subscription": { "status": "unknown" }
     }
@@ -719,8 +799,34 @@ Single-account example (`GET /api/admin/directory/users/7`):
     "id": 7,
     "uuid": "6f1c4c3e-1b2a-4d5e-8f70-112233445566",
     "email": "ada@example.com",
+    "email_verified": false,
     "registered_at": "2024-03-02T12:04:05Z",
     "last_login_at": null,
+    "last_activity_at": null,
+    "signin_count": 0,
+    "activity_count": 0,
+    "device_count": 0,
+    "client_count": 0,
+    "organization_count": 0,
+    "collection_count": 0,
+    "vault": null,
+    "organization_items": {
+      "item_count": 0,
+      "by_type": {
+        "password": 0,
+        "secure_note": 0,
+        "card": 0,
+        "bank_account": 0,
+        "email": 0,
+        "server": 0,
+        "identity": 0,
+        "ssh_key": 0,
+        "address": 0,
+        "passkey": 0,
+        "custom": 0,
+        "other": 0
+      }
+    },
     "plan": null,
     "subscription": { "status": "unknown" }
   }
@@ -736,7 +842,7 @@ Errors use the existing `{"error":"..."}` shape:
 | `404` | Account id was not found |
 | `429` | Rate limit exceeded |
 | `503` | `server.admin_api_key` is empty |
-| `500` | Account, activity, or subscription query failed |
+| `500` | Account, activity, subscription, or usage query failed |
 
 ```bash
 curl -sS -H "Authorization: Bearer ${PW_SERVER_ADMIN_API_KEY}" \

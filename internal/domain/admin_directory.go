@@ -18,14 +18,104 @@ const AdminDirectorySubscriptionUnknown = "unknown"
 //
 // New fields may be added. Clients must ignore unknown keys. This struct must never
 // grow vault payloads, passwords, notes, cards, bank accounts, secrets, tokens, or keys.
+// Item fields are counts only.
 type AdminDirectoryUser struct {
-	ID           uint                       `json:"id"`
-	UUID         string                     `json:"uuid"`
-	Email        string                     `json:"email"`
-	RegisteredAt time.Time                  `json:"registered_at"`
-	LastLoginAt  *time.Time                 `json:"last_login_at"`
-	Plan         *AdminDirectoryPlan        `json:"plan"`
-	Subscription AdminDirectorySubscription `json:"subscription"`
+	ID            uint                       `json:"id"`
+	UUID          string                     `json:"uuid"`
+	Email         string                     `json:"email"`
+	EmailVerified bool                       `json:"email_verified"`
+	RegisteredAt  time.Time                  `json:"registered_at"`
+	LastLoginAt   *time.Time                 `json:"last_login_at"`
+	Plan          *AdminDirectoryPlan        `json:"plan"`
+	Subscription  AdminDirectorySubscription `json:"subscription"`
+
+	// Vault is the personal schema item counts. Nil when that schema cannot be counted.
+	Vault *AdminDirectoryItemCounts `json:"vault"`
+	// OrganizationItems counts organization_items created by this account.
+	OrganizationItems AdminDirectoryItemCounts `json:"organization_items"`
+	OrganizationCount int                      `json:"organization_count"`
+	CollectionCount   int                      `json:"collection_count"`
+
+	// LastActivityAt is the newest stored activity that is not a sign-in.
+	LastActivityAt *time.Time `json:"last_activity_at"`
+	// SignInCount and ActivityCount are rows still stored in user_activities,
+	// not lifetime totals. Activity cleanup deletes rows older than 90 days.
+	SignInCount   int `json:"signin_count"`
+	ActivityCount int `json:"activity_count"`
+	// DeviceCount and ClientCount are distinct device_id and app values on stored token rows.
+	DeviceCount int `json:"device_count"`
+	ClientCount int `json:"client_count"`
+}
+
+// AdminDirectoryItemCounts is a count of stored vault rows. It never includes item contents.
+type AdminDirectoryItemCounts struct {
+	ItemCount int                       `json:"item_count"`
+	ByType    AdminDirectoryItemsByType `json:"by_type"`
+}
+
+// AdminDirectoryItemsByType breaks a count down by the stored item_type enum.
+// Other is any item_type value that is not one of the known constants.
+type AdminDirectoryItemsByType struct {
+	Password    int `json:"password"`
+	SecureNote  int `json:"secure_note"`
+	Card        int `json:"card"`
+	BankAccount int `json:"bank_account"`
+	Email       int `json:"email"`
+	Server      int `json:"server"`
+	Identity    int `json:"identity"`
+	SSHKey      int `json:"ssh_key"`
+	Address     int `json:"address"`
+	Passkey     int `json:"passkey"`
+	Custom      int `json:"custom"`
+	Other       int `json:"other"`
+}
+
+// Add records n rows of itemType and keeps ItemCount equal to the sum of ByType.
+func (c *AdminDirectoryItemCounts) Add(itemType ItemType, n int) {
+	if c == nil || n <= 0 {
+		return
+	}
+	switch itemType {
+	case ItemTypePassword:
+		c.ByType.Password += n
+	case ItemTypeSecureNote:
+		c.ByType.SecureNote += n
+	case ItemTypeCard:
+		c.ByType.Card += n
+	case ItemTypeBankAccount:
+		c.ByType.BankAccount += n
+	case ItemTypeEmail:
+		c.ByType.Email += n
+	case ItemTypeServer:
+		c.ByType.Server += n
+	case ItemTypeIdentity:
+		c.ByType.Identity += n
+	case ItemTypeSSHKey:
+		c.ByType.SSHKey += n
+	case ItemTypeAddress:
+		c.ByType.Address += n
+	case ItemTypePasskey:
+		c.ByType.Passkey += n
+	case ItemTypeCustom:
+		c.ByType.Custom += n
+	default:
+		c.ByType.Other += n
+	}
+	c.ItemCount += n
+}
+
+// AdminDirectoryUsage is stored usage for one account. Vault is nil when the
+// personal schema cannot be counted. Other counts are zero when no rows exist.
+type AdminDirectoryUsage struct {
+	Vault             *AdminDirectoryItemCounts
+	OrganizationItems AdminDirectoryItemCounts
+	OrganizationCount int
+	CollectionCount   int
+	LastActivityAt    *time.Time
+	SignInCount       int
+	ActivityCount     int
+	DeviceCount       int
+	ClientCount       int
 }
 
 // AdminDirectoryPlan is the stored plan attached to the user's personal-organization subscription.
@@ -66,9 +156,22 @@ type AdminDirectoryUserResponse struct {
 // sub is the effective subscription of the user's personal organization. A nil subscription,
 // or a subscription whose plan row is missing, leaves plan null and status "unknown"
 // (status is the stored state when the subscription row exists).
-func NewAdminDirectoryUser(user *User, lastLogin *time.Time, sub *Subscription) AdminDirectoryUser {
+// usage carries counts that already exist. A nil Vault stays JSON null.
+func NewAdminDirectoryUser(user *User, lastLogin *time.Time, sub *Subscription, usage AdminDirectoryUsage) AdminDirectoryUser {
 	dto := AdminDirectoryUser{
-		Subscription: AdminDirectorySubscription{Status: AdminDirectorySubscriptionUnknown},
+		Subscription:      AdminDirectorySubscription{Status: AdminDirectorySubscriptionUnknown},
+		Vault:             usage.Vault,
+		OrganizationItems: usage.OrganizationItems,
+		OrganizationCount: usage.OrganizationCount,
+		CollectionCount:   usage.CollectionCount,
+		SignInCount:       usage.SignInCount,
+		ActivityCount:     usage.ActivityCount,
+		DeviceCount:       usage.DeviceCount,
+		ClientCount:       usage.ClientCount,
+	}
+	if usage.LastActivityAt != nil && !usage.LastActivityAt.IsZero() {
+		activityAt := usage.LastActivityAt.UTC()
+		dto.LastActivityAt = &activityAt
 	}
 	if user == nil {
 		return dto
@@ -81,6 +184,7 @@ func NewAdminDirectoryUser(user *User, lastLogin *time.Time, sub *Subscription) 
 		dto.UUID = uuid.Nil.String()
 	}
 	dto.Email = user.Email
+	dto.EmailVerified = user.IsVerified
 	if !user.CreatedAt.IsZero() {
 		dto.RegisteredAt = user.CreatedAt.UTC()
 	}

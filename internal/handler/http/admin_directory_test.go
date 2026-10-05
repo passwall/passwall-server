@@ -108,8 +108,35 @@ func (s *stubDirectorySubs) GetEffectiveByOrganizationIDs(_ context.Context, org
 	return s.byOrg, nil
 }
 
-func newDirectoryTestRouter(users *stubDirectoryUsers, activities *stubDirectoryActivities, subs *stubDirectorySubs, key string) *gin.Engine {
-	handler := NewAdminDirectoryHandler(users, activities, subs, nil)
+type stubDirectoryUsage struct {
+	byUser map[uint]domain.AdminDirectoryUsage
+	err    error
+}
+
+func (s *stubDirectoryUsage) ForUsers(_ context.Context, users []*domain.User) (map[uint]domain.AdminDirectoryUsage, error) {
+	if s != nil && s.err != nil {
+		return nil, s.err
+	}
+	out := map[uint]domain.AdminDirectoryUsage{}
+	if s == nil || s.byUser == nil {
+		return out, nil
+	}
+	for _, user := range users {
+		if user == nil {
+			continue
+		}
+		if usage, ok := s.byUser[user.ID]; ok {
+			out[user.ID] = usage
+		}
+	}
+	return out, nil
+}
+
+func newDirectoryTestRouter(users *stubDirectoryUsers, activities *stubDirectoryActivities, subs *stubDirectorySubs, usage *stubDirectoryUsage, key string) *gin.Engine {
+	if usage == nil {
+		usage = &stubDirectoryUsage{}
+	}
+	handler := NewAdminDirectoryHandler(users, activities, subs, usage, nil)
 	router := gin.New()
 	group := router.Group("/api/admin/directory")
 	group.Use(AdminServiceAuthMiddleware(key))
@@ -158,7 +185,6 @@ func assertNoVaultFields(t *testing.T, payload map[string]any, secretMarkers ...
 		"master_password_hash": {},
 		"protected_user_key":   {},
 		"kdf_salt":             {},
-		"password":             {},
 		"secret":               {},
 		"token":                {},
 		"private_key":          {},
@@ -166,13 +192,19 @@ func assertNoVaultFields(t *testing.T, payload map[string]any, secretMarkers ...
 		"two_factor_secret":    {},
 		"recovery_codes":       {},
 		"schema":               {},
-		"item_count":           {},
-		"items":                {},
 		"notes":                {},
 		"card_number":          {},
 		"account_number":       {},
 		"ciphertext":           {},
 		"stripe_customer_id":   {},
+		"metadata":             {},
+		"uri_hint":             {},
+		"username":             {},
+		"url":                  {},
+		"title":                {},
+		"device_id":            {},
+		"ip_address":           {},
+		"user_agent":           {},
 	}
 	walkJSONKeys(payload, func(key string) {
 		_, blocked := forbidden[strings.ToLower(key)]
@@ -216,7 +248,7 @@ func TestAdminDirectory_Auth(t *testing.T) {
 
 	t.Run("disabled when credential is unset", func(t *testing.T) {
 		t.Parallel()
-		router := newDirectoryTestRouter(users, activities, subs, "  ")
+		router := newDirectoryTestRouter(users, activities, subs, nil, "  ")
 		rec := directoryRequest(t, router, http.MethodGet, "/api/admin/directory/users", "anything")
 		assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
 		assert.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
@@ -226,7 +258,7 @@ func TestAdminDirectory_Auth(t *testing.T) {
 
 	t.Run("rejects missing and wrong credentials", func(t *testing.T) {
 		t.Parallel()
-		router := newDirectoryTestRouter(users, activities, subs, testAdminDirectoryKey)
+		router := newDirectoryTestRouter(users, activities, subs, nil, testAdminDirectoryKey)
 
 		missing := directoryRequest(t, router, http.MethodGet, "/api/admin/directory/users", "")
 		assert.Equal(t, http.StatusUnauthorized, missing.Code)
@@ -241,7 +273,7 @@ func TestAdminDirectory_Auth(t *testing.T) {
 
 	t.Run("rejects non-bearer authorization", func(t *testing.T) {
 		t.Parallel()
-		router := newDirectoryTestRouter(users, activities, subs, testAdminDirectoryKey)
+		router := newDirectoryTestRouter(users, activities, subs, nil, testAdminDirectoryKey)
 		req := httptest.NewRequest(http.MethodGet, "/api/admin/directory/users", nil)
 		req.Header.Set("Authorization", "Basic "+testAdminDirectoryKey)
 		rec := httptest.NewRecorder()
@@ -257,11 +289,31 @@ func TestAdminDirectory_ListUsers(t *testing.T) {
 	lastLogin := time.Date(2026, 1, 9, 8, 0, 0, 0, time.UTC)
 	user := sampleDirectoryUser()
 	user.CreatedAt = registered
+	user.IsVerified = true
+	vault := domain.AdminDirectoryItemCounts{}
+	vault.Add(domain.ItemTypePassword, 2)
+	vault.Add(domain.ItemTypeCard, 1)
+	orgItems := domain.AdminDirectoryItemCounts{}
+	orgItems.Add(domain.ItemTypeSecureNote, 1)
+	lastActivity := time.Date(2026, 1, 10, 9, 30, 0, 0, time.UTC)
 
 	users := &stubDirectoryUsers{
 		listUsers: []*domain.User{user},
 		listTotal: 12,
 	}
+	usage := &stubDirectoryUsage{byUser: map[uint]domain.AdminDirectoryUsage{
+		user.ID: {
+			Vault:             &vault,
+			OrganizationItems: orgItems,
+			OrganizationCount: 2,
+			CollectionCount:   1,
+			LastActivityAt:    &lastActivity,
+			SignInCount:       4,
+			ActivityCount:     6,
+			DeviceCount:       2,
+			ClientCount:       2,
+		},
+	}}
 	activities := &stubDirectoryActivities{times: map[uint]time.Time{user.ID: lastLogin}}
 	subs := &stubDirectorySubs{byOrg: map[uint]*domain.Subscription{
 		42: {
@@ -270,7 +322,7 @@ func TestAdminDirectory_ListUsers(t *testing.T) {
 		},
 	}}
 
-	router := newDirectoryTestRouter(users, activities, subs, testAdminDirectoryKey)
+	router := newDirectoryTestRouter(users, activities, subs, usage, testAdminDirectoryKey)
 	rec := directoryRequest(t, router, http.MethodGet, "/api/admin/directory/users?limit=500&offset=-4", testAdminDirectoryKey)
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
@@ -292,8 +344,30 @@ func TestAdminDirectory_ListUsers(t *testing.T) {
 	assert.EqualValues(t, 7, record["id"])
 	assert.Equal(t, user.UUID.String(), record["uuid"])
 	assert.Equal(t, "ada@example.com", record["email"])
+	assert.Equal(t, true, record["email_verified"])
 	assert.Equal(t, registered.Format(time.RFC3339Nano), record["registered_at"])
 	assert.Equal(t, lastLogin.Format(time.RFC3339Nano), record["last_login_at"])
+	assert.Equal(t, lastActivity.Format(time.RFC3339Nano), record["last_activity_at"])
+	assert.EqualValues(t, 4, record["signin_count"])
+	assert.EqualValues(t, 6, record["activity_count"])
+	assert.EqualValues(t, 2, record["device_count"])
+	assert.EqualValues(t, 2, record["client_count"])
+	assert.EqualValues(t, 2, record["organization_count"])
+	assert.EqualValues(t, 1, record["collection_count"])
+
+	vaultJSON := record["vault"].(map[string]any)
+	assert.EqualValues(t, 3, vaultJSON["item_count"])
+	byType := vaultJSON["by_type"].(map[string]any)
+	assert.EqualValues(t, 2, byType["password"])
+	assert.EqualValues(t, 1, byType["card"])
+	assert.EqualValues(t, 0, byType["secure_note"])
+	for _, value := range byType {
+		_, isNumber := value.(float64)
+		assert.True(t, isNumber)
+	}
+	orgJSON := record["organization_items"].(map[string]any)
+	assert.EqualValues(t, 1, orgJSON["item_count"])
+	assert.EqualValues(t, 1, orgJSON["by_type"].(map[string]any)["secure_note"])
 
 	plan := record["plan"].(map[string]any)
 	assert.Equal(t, "pro-monthly", plan["code"])
@@ -318,13 +392,24 @@ func TestAdminDirectory_UnknownActivityAndPlan(t *testing.T) {
 	user := sampleDirectoryUser()
 	user.PersonalOrganizationID = 0
 	users := &stubDirectoryUsers{listUsers: []*domain.User{user}, listTotal: 1}
-	router := newDirectoryTestRouter(users, &stubDirectoryActivities{}, &stubDirectorySubs{}, testAdminDirectoryKey)
+	router := newDirectoryTestRouter(users, &stubDirectoryActivities{}, &stubDirectorySubs{}, nil, testAdminDirectoryKey)
 
 	rec := directoryRequest(t, router, http.MethodGet, "/api/admin/directory/users", testAdminDirectoryKey)
 	require.Equal(t, http.StatusOK, rec.Code)
 	payload := decodeJSON(t, rec)
 	record := payload["data"].([]any)[0].(map[string]any)
 	assert.Nil(t, record["last_login_at"])
+	assert.Nil(t, record["last_activity_at"])
+	assert.Nil(t, record["vault"])
+	assert.Equal(t, false, record["email_verified"])
+	assert.EqualValues(t, 0, record["signin_count"])
+	assert.EqualValues(t, 0, record["activity_count"])
+	assert.EqualValues(t, 0, record["organization_count"])
+	assert.EqualValues(t, 0, record["collection_count"])
+	assert.EqualValues(t, 0, record["device_count"])
+	assert.EqualValues(t, 0, record["client_count"])
+	orgItems := record["organization_items"].(map[string]any)
+	assert.EqualValues(t, 0, orgItems["item_count"])
 	assert.Nil(t, record["plan"])
 	subscription := record["subscription"].(map[string]any)
 	assert.Equal(t, domain.AdminDirectorySubscriptionUnknown, subscription["status"])
@@ -338,7 +423,7 @@ func TestAdminDirectory_SubscriptionWithoutPlan(t *testing.T) {
 	subs := &stubDirectorySubs{byOrg: map[uint]*domain.Subscription{
 		user.PersonalOrganizationID: {State: domain.SubStatePastDue},
 	}}
-	router := newDirectoryTestRouter(users, &stubDirectoryActivities{}, subs, testAdminDirectoryKey)
+	router := newDirectoryTestRouter(users, &stubDirectoryActivities{}, subs, nil, testAdminDirectoryKey)
 
 	rec := directoryRequest(t, router, http.MethodGet, "/api/admin/directory/users", testAdminDirectoryKey)
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -352,7 +437,7 @@ func TestAdminDirectory_EmailFilter(t *testing.T) {
 
 	user := sampleDirectoryUser()
 	users := &stubDirectoryUsers{byEmail: map[string]*domain.User{"ada@example.com": user}}
-	router := newDirectoryTestRouter(users, &stubDirectoryActivities{}, &stubDirectorySubs{}, testAdminDirectoryKey)
+	router := newDirectoryTestRouter(users, &stubDirectoryActivities{}, &stubDirectorySubs{}, nil, testAdminDirectoryKey)
 
 	rec := directoryRequest(t, router, http.MethodGet, "/api/admin/directory/users?email=Ada@Example.com", testAdminDirectoryKey)
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -380,7 +465,7 @@ func TestAdminDirectory_GetUser(t *testing.T) {
 		byUUID: map[string]*domain.User{user.UUID.String(): user},
 	}
 	activities := &stubDirectoryActivities{times: map[uint]time.Time{user.ID: time.Date(2025, 5, 1, 0, 0, 0, 0, time.UTC)}}
-	router := newDirectoryTestRouter(users, activities, &stubDirectorySubs{}, testAdminDirectoryKey)
+	router := newDirectoryTestRouter(users, activities, &stubDirectorySubs{}, nil, testAdminDirectoryKey)
 
 	byID := directoryRequest(t, router, http.MethodGet, "/api/admin/directory/users/7", testAdminDirectoryKey)
 	require.Equal(t, http.StatusOK, byID.Code)
@@ -405,7 +490,7 @@ func TestAdminDirectory_StoreErrors(t *testing.T) {
 	t.Parallel()
 
 	users := &stubDirectoryUsers{listErr: errors.New("db down")}
-	router := newDirectoryTestRouter(users, &stubDirectoryActivities{}, &stubDirectorySubs{}, testAdminDirectoryKey)
+	router := newDirectoryTestRouter(users, &stubDirectoryActivities{}, &stubDirectorySubs{}, nil, testAdminDirectoryKey)
 	rec := directoryRequest(t, router, http.MethodGet, "/api/admin/directory/users", testAdminDirectoryKey)
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	assert.NotContains(t, rec.Body.String(), "db down")
@@ -413,11 +498,18 @@ func TestAdminDirectory_StoreErrors(t *testing.T) {
 	user := sampleDirectoryUser()
 	users = &stubDirectoryUsers{listUsers: []*domain.User{user}, listTotal: 1}
 	activities := &stubDirectoryActivities{err: errors.New("activity store unavailable")}
-	router = newDirectoryTestRouter(users, activities, &stubDirectorySubs{}, testAdminDirectoryKey)
+	router = newDirectoryTestRouter(users, activities, &stubDirectorySubs{}, nil, testAdminDirectoryKey)
 	rec = directoryRequest(t, router, http.MethodGet, "/api/admin/directory/users", testAdminDirectoryKey)
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	assert.NotContains(t, rec.Body.String(), "bcrypt-hash-do-not-leak")
 	assert.NotContains(t, rec.Body.String(), user.Email)
+
+	usage := &stubDirectoryUsage{err: errors.New("usage store unavailable")}
+	router = newDirectoryTestRouter(users, &stubDirectoryActivities{}, &stubDirectorySubs{}, usage, testAdminDirectoryKey)
+	rec = directoryRequest(t, router, http.MethodGet, "/api/admin/directory/users", testAdminDirectoryKey)
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.NotContains(t, rec.Body.String(), "usage store unavailable")
+	assert.NotContains(t, rec.Body.String(), "bcrypt-hash-do-not-leak")
 }
 
 func TestNewAdminDirectoryUser_DoesNotCopySecrets(t *testing.T) {
@@ -425,10 +517,13 @@ func TestNewAdminDirectoryUser_DoesNotCopySecrets(t *testing.T) {
 
 	user := sampleDirectoryUser()
 	login := time.Date(2026, 2, 2, 3, 4, 5, 0, time.UTC)
+	user.IsVerified = true
+	vault := domain.AdminDirectoryItemCounts{}
+	vault.Add(domain.ItemTypePassword, 1)
 	dto := domain.NewAdminDirectoryUser(user, &login, &domain.Subscription{
 		State: domain.SubStateTrialing,
 		Plan:  &domain.Plan{Code: "family-yearly", Name: "Family"},
-	})
+	}, domain.AdminDirectoryUsage{Vault: &vault, SignInCount: 2})
 
 	encoded, err := json.Marshal(dto)
 	require.NoError(t, err)
@@ -440,4 +535,23 @@ func TestNewAdminDirectoryUser_DoesNotCopySecrets(t *testing.T) {
 	assert.NotContains(t, body, user.Schema)
 	assert.Contains(t, body, `"status":"trialing"`)
 	assert.Contains(t, body, `"code":"family-yearly"`)
+	assert.Contains(t, body, `"email_verified":true`)
+	assert.Contains(t, body, `"signin_count":2`)
+	assert.NotContains(t, body, user.Name)
+}
+
+func TestAdminDirectoryItemCounts_Add(t *testing.T) {
+	t.Parallel()
+
+	var counts domain.AdminDirectoryItemCounts
+	counts.Add(domain.ItemTypePassword, 2)
+	counts.Add(domain.ItemTypeSecureNote, 1)
+	counts.Add(domain.ItemType(50), 4)
+	counts.Add(domain.ItemTypeCard, 0)
+
+	assert.Equal(t, 2, counts.ByType.Password)
+	assert.Equal(t, 1, counts.ByType.SecureNote)
+	assert.Equal(t, 4, counts.ByType.Other)
+	assert.Equal(t, 0, counts.ByType.Card)
+	assert.Equal(t, 7, counts.ItemCount)
 }

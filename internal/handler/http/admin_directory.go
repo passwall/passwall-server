@@ -39,12 +39,18 @@ type adminDirectorySubscriptions interface {
 	GetEffectiveByOrganizationIDs(ctx context.Context, orgIDs []uint) (map[uint]*domain.Subscription, error)
 }
 
+// adminDirectoryUsage reads stored counts and activity timestamps. It must not load vault contents.
+type adminDirectoryUsage interface {
+	ForUsers(ctx context.Context, users []*domain.User) (map[uint]domain.AdminDirectoryUsage, error)
+}
+
 // AdminDirectoryHandler serves the read-only account directory used by external bots.
-// Responses contain account metadata only. Vault items, secrets, tokens, and keys are never loaded.
+// Responses contain account metadata and counts only. Vault contents, secrets, tokens, and keys are never loaded.
 type AdminDirectoryHandler struct {
 	users         adminDirectoryUsers
 	activities    adminDirectoryActivities
 	subscriptions adminDirectorySubscriptions
+	usage         adminDirectoryUsage
 	logger        service.Logger
 }
 
@@ -53,12 +59,14 @@ func NewAdminDirectoryHandler(
 	users adminDirectoryUsers,
 	activities adminDirectoryActivities,
 	subscriptions adminDirectorySubscriptions,
+	usage adminDirectoryUsage,
 	logger service.Logger,
 ) *AdminDirectoryHandler {
 	return &AdminDirectoryHandler{
 		users:         users,
 		activities:    activities,
 		subscriptions: subscriptions,
+		usage:         usage,
 		logger:        logger,
 	}
 }
@@ -217,6 +225,13 @@ func (h *AdminDirectoryHandler) directoryUsers(ctx context.Context, users []*dom
 	if err != nil {
 		return nil, err
 	}
+	if h.usage == nil {
+		return nil, errors.New("admin directory usage reader is not configured")
+	}
+	usageByUser, err := h.usage.ForUsers(ctx, users)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, user := range users {
 		if user == nil {
@@ -230,7 +245,7 @@ func (h *AdminDirectoryHandler) directoryUsers(ctx context.Context, users []*dom
 		if user.PersonalOrganizationID != 0 {
 			sub = subs[user.PersonalOrganizationID]
 		}
-		out = append(out, domain.NewAdminDirectoryUser(user, last, sub))
+		out = append(out, domain.NewAdminDirectoryUser(user, last, sub, usageByUser[user.ID]))
 	}
 	return out, nil
 }

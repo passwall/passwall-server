@@ -358,7 +358,13 @@ func (a *App) Run(ctx context.Context) error {
 	)
 	adminMailHandler := httpHandler.NewAdminMailHandler(emailSender, userRepo, serviceLogger)
 	adminLogsHandler := httpHandler.NewAdminLogsHandler()
-	adminDirectoryHandler := httpHandler.NewAdminDirectoryHandler(userRepo, userActivityRepo, subscriptionRepo, serviceLogger)
+	adminDirectoryHandler := httpHandler.NewAdminDirectoryHandler(
+		userRepo,
+		userActivityRepo,
+		subscriptionRepo,
+		gormrepo.NewAdminDirectoryStatsRepository(a.db.DB()),
+		serviceLogger,
+	)
 
 	// Emergency access handler
 	emergencyAccessHandler := httpHandler.NewEmergencyAccessHandler(emergencyAccessService, userRepo)
