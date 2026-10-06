@@ -66,6 +66,9 @@ func (h *CollectionHandler) Create(c *gin.Context) {
 
 	collection, err := h.service.Create(ctx, orgID, userID, &req)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -184,6 +187,9 @@ func (h *CollectionHandler) Update(c *gin.Context) {
 
 	collection, err := h.service.Update(ctx, id, userID, &req)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -220,6 +226,9 @@ func (h *CollectionHandler) Delete(c *gin.Context) {
 	collection, _ := h.service.GetByID(ctx, id, userID)
 	err := h.service.Delete(ctx, id, userID)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -269,6 +278,9 @@ func (h *CollectionHandler) GrantUserAccess(c *gin.Context) {
 
 	err := h.service.GrantUserAccess(ctx, collectionID, orgUserID, userID, &req)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -315,6 +327,9 @@ func (h *CollectionHandler) GrantTeamAccess(c *gin.Context) {
 
 	err := h.service.GrantTeamAccess(ctx, collectionID, teamID, userID, &req)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -352,6 +367,9 @@ func (h *CollectionHandler) RevokeUserAccess(c *gin.Context) {
 
 	err := h.service.RevokeUserAccess(ctx, collectionID, orgUserID, userID)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -389,6 +407,9 @@ func (h *CollectionHandler) RevokeTeamAccess(c *gin.Context) {
 
 	err := h.service.RevokeTeamAccess(ctx, collectionID, teamID, userID)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return

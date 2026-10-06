@@ -39,6 +39,7 @@ type emergencyAccessService struct {
 	emailSender  email.Sender
 	emailBuilder *email.EmailBuilder
 	logger       Logger
+	entitlements OrganizationEntitlementService
 }
 
 func NewEmergencyAccessService(
@@ -48,8 +49,9 @@ func NewEmergencyAccessService(
 	emailSender email.Sender,
 	emailBuilder *email.EmailBuilder,
 	logger Logger,
+	entitlements ...OrganizationEntitlementService,
 ) EmergencyAccessService {
-	return &emergencyAccessService{
+	service := &emergencyAccessService{
 		eaRepo:       eaRepo,
 		userRepo:     userRepo,
 		orgItemRepo:  orgItemRepo,
@@ -57,6 +59,10 @@ func NewEmergencyAccessService(
 		emailBuilder: emailBuilder,
 		logger:       logger,
 	}
+	if len(entitlements) > 0 {
+		service.entitlements = entitlements[0]
+	}
+	return service
 }
 
 func (s *emergencyAccessService) Invite(ctx context.Context, grantorID uint, granteeEmail string) (*domain.EmergencyAccess, error) {
@@ -68,6 +74,11 @@ func (s *emergencyAccessService) Invite(ctx context.Context, grantorID uint, gra
 	grantor, err := s.userRepo.GetByID(ctx, grantorID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get grantor: %w", err)
+	}
+	if s.entitlements != nil {
+		if err := s.entitlements.Authorize(ctx, grantor.PersonalOrganizationID, domain.CapabilityEmergencyAccessCreate); err != nil {
+			return nil, err
+		}
 	}
 
 	if strings.EqualFold(grantor.Email, granteeEmail) {
@@ -114,7 +125,6 @@ func (s *emergencyAccessService) Accept(ctx context.Context, granteeID uint, eaU
 	if err != nil {
 		return nil, err
 	}
-
 	if ea.Status != domain.EAStatusInvited {
 		return nil, repository.ErrInvalidInput
 	}
@@ -126,6 +136,9 @@ func (s *emergencyAccessService) Accept(ctx context.Context, granteeID uint, eaU
 
 	if !strings.EqualFold(grantee.Email, ea.GranteeEmail) {
 		return nil, repository.ErrForbidden
+	}
+	if err := s.authorizeEmergencyMutation(ctx, ea.GrantorID, domain.CapabilityItemUpdate); err != nil {
+		return nil, err
 	}
 
 	ea.GranteeID = &granteeID
@@ -153,6 +166,9 @@ func (s *emergencyAccessService) Confirm(ctx context.Context, grantorID uint, ea
 	if ea.GrantorID != grantorID {
 		return nil, repository.ErrForbidden
 	}
+	if err := s.authorizeEmergencyMutation(ctx, ea.GrantorID, domain.CapabilityItemUpdate); err != nil {
+		return nil, err
+	}
 
 	if ea.Status != domain.EAStatusAccepted {
 		return nil, repository.ErrInvalidInput
@@ -176,6 +192,9 @@ func (s *emergencyAccessService) RequestRecovery(ctx context.Context, granteeID 
 
 	if ea.GranteeID == nil || *ea.GranteeID != granteeID {
 		return nil, repository.ErrForbidden
+	}
+	if err := s.authorizeEmergencyMutation(ctx, ea.GrantorID, domain.CapabilityItemUpdate); err != nil {
+		return nil, err
 	}
 
 	if ea.Status != domain.EAStatusConfirmed {
@@ -204,6 +223,9 @@ func (s *emergencyAccessService) ApproveRecovery(ctx context.Context, grantorID 
 
 	if ea.GrantorID != grantorID {
 		return nil, repository.ErrForbidden
+	}
+	if err := s.authorizeEmergencyMutation(ctx, ea.GrantorID, domain.CapabilityItemUpdate); err != nil {
+		return nil, err
 	}
 
 	if ea.Status != domain.EAStatusRecoveryRequested {
@@ -234,6 +256,9 @@ func (s *emergencyAccessService) RejectRecovery(ctx context.Context, grantorID u
 	if ea.GrantorID != grantorID {
 		return nil, repository.ErrForbidden
 	}
+	if err := s.authorizeEmergencyMutation(ctx, ea.GrantorID, domain.CapabilityAccessRevoke); err != nil {
+		return nil, err
+	}
 
 	if ea.Status != domain.EAStatusRecoveryRequested {
 		return nil, repository.ErrInvalidInput
@@ -257,8 +282,26 @@ func (s *emergencyAccessService) Revoke(ctx context.Context, grantorID uint, eaU
 	if ea.GrantorID != grantorID {
 		return repository.ErrForbidden
 	}
+	if err := s.authorizeEmergencyMutation(ctx, ea.GrantorID, domain.CapabilityAccessRevoke); err != nil {
+		return err
+	}
 
 	return s.eaRepo.Delete(ctx, ea.ID)
+}
+
+func (s *emergencyAccessService) authorizeEmergencyMutation(
+	ctx context.Context,
+	grantorID uint,
+	capability domain.Capability,
+) error {
+	if s.entitlements == nil {
+		return nil
+	}
+	grantor, err := s.userRepo.GetByID(ctx, grantorID)
+	if err != nil {
+		return fmt.Errorf("failed to resolve emergency access organization: %w", err)
+	}
+	return s.entitlements.Authorize(ctx, grantor.PersonalOrganizationID, capability)
 }
 
 func (s *emergencyAccessService) GetVaultForRecovery(ctx context.Context, granteeID uint, eaUUID string) (*EmergencyVaultResponse, error) {

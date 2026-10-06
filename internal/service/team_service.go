@@ -14,6 +14,7 @@ type teamService struct {
 	orgUserRepo  repository.OrganizationUserRepository
 	orgRepo      repository.OrganizationRepository
 	logger       Logger
+	entitlements OrganizationEntitlementService
 }
 
 // NewTeamService creates a new team service
@@ -23,14 +24,19 @@ func NewTeamService(
 	orgUserRepo repository.OrganizationUserRepository,
 	orgRepo repository.OrganizationRepository,
 	logger Logger,
+	entitlements ...OrganizationEntitlementService,
 ) TeamService {
-	return &teamService{
+	service := &teamService{
 		teamRepo:     teamRepo,
 		teamUserRepo: teamUserRepo,
 		orgUserRepo:  orgUserRepo,
 		orgRepo:      orgRepo,
 		logger:       logger,
 	}
+	if len(entitlements) > 0 {
+		service.entitlements = entitlements[0]
+	}
+	return service
 }
 
 func (s *teamService) Create(ctx context.Context, orgID uint, userID uint, req *domain.CreateTeamRequest) (*domain.Team, error) {
@@ -42,6 +48,9 @@ func (s *teamService) Create(ctx context.Context, orgID uint, userID uint, req *
 
 	if !orgUser.CanManageCollections() {
 		return nil, repository.ErrForbidden
+	}
+	if err := s.authorizeTeamManagement(ctx, orgID); err != nil {
+		return nil, err
 	}
 
 	// Check if team name already exists in organization
@@ -307,7 +316,7 @@ func (s *teamService) checkTeamManagePermission(ctx context.Context, orgID, user
 		return repository.ErrForbidden
 	}
 
-	return nil
+	return s.authorizeTeamManagement(ctx, orgID)
 }
 
 func (s *teamService) checkTeamMemberManagePermission(ctx context.Context, orgID, teamID, userID uint) error {
@@ -318,7 +327,7 @@ func (s *teamService) checkTeamMemberManagePermission(ctx context.Context, orgID
 	}
 
 	if orgUser.IsAdmin() {
-		return nil
+		return s.authorizeTeamManagement(ctx, orgID)
 	}
 
 	// Check if user is a team manager
@@ -329,9 +338,16 @@ func (s *teamService) checkTeamMemberManagePermission(ctx context.Context, orgID
 
 	for _, tm := range teamMembers {
 		if tm.OrganizationUserID == orgUser.ID && tm.IsManager {
-			return nil
+			return s.authorizeTeamManagement(ctx, orgID)
 		}
 	}
 
 	return repository.ErrForbidden
+}
+
+func (s *teamService) authorizeTeamManagement(ctx context.Context, orgID uint) error {
+	if s.entitlements == nil {
+		return nil
+	}
+	return s.entitlements.Authorize(ctx, orgID, domain.CapabilityTeamsManage)
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/passwall/passwall-server/internal/repository"
 	stripeClient "github.com/passwall/passwall-server/pkg/stripe"
 	"github.com/stripe/stripe-go/v81"
+	"gorm.io/gorm"
 )
 
 var ErrInvalidStripeWebhookSignature = errors.New("invalid_stripe_webhook_signature")
@@ -24,6 +25,7 @@ type paymentService struct {
 	orgUserRepo         repository.OrganizationUserRepository
 	userRepo            repository.UserRepository
 	subscriptionService SubscriptionService
+	webhookEventRepo    repository.WebhookEventRepository
 	planRepo            interface {
 		GetByCode(ctx context.Context, code string) (*domain.Plan, error)
 	}
@@ -39,6 +41,7 @@ func NewPaymentService(
 	orgUserRepo repository.OrganizationUserRepository,
 	userRepo repository.UserRepository,
 	subscriptionService SubscriptionService,
+	webhookEventRepo repository.WebhookEventRepository,
 	planRepo interface {
 		GetByCode(ctx context.Context, code string) (*domain.Plan, error)
 	},
@@ -52,6 +55,7 @@ func NewPaymentService(
 		orgUserRepo:         orgUserRepo,
 		userRepo:            userRepo,
 		subscriptionService: subscriptionService,
+		webhookEventRepo:    webhookEventRepo,
 		planRepo:            planRepo,
 		activityLogger:      NewActivityLogger(activityService),
 		config:              config,
@@ -472,7 +476,6 @@ func (s *paymentService) authorizeOwnerOrAdmin(ctx context.Context, orgID, userI
 func (s *paymentService) HandleWebhook(ctx context.Context, payload []byte, signature string) error {
 	s.logger.Info("Stripe webhook received", "payload_size", len(payload))
 
-	// Verify webhook signature
 	event, err := s.stripe.ConstructWebhookEvent(payload, signature)
 	if err != nil {
 		s.logger.Error("Webhook signature verification failed", "error", err)
@@ -480,8 +483,15 @@ func (s *paymentService) HandleWebhook(ctx context.Context, payload []byte, sign
 	}
 
 	s.logger.Info("Webhook signature verified", "event_type", event.Type, "event_id", event.ID)
+	skip, err := reserveWebhookEvent(ctx, s.webhookEventRepo, event.ID, string(event.Type))
+	if err != nil {
+		return err
+	}
+	if skip {
+		s.logger.Info("Skipping already processed Stripe webhook", "event_type", event.Type, "event_id", event.ID)
+		return nil
+	}
 
-	// Handle different event types
 	var handlerErr error
 	switch event.Type {
 	case "checkout.session.completed":
@@ -504,14 +514,23 @@ func (s *paymentService) HandleWebhook(ctx context.Context, payload []byte, sign
 		handlerErr = s.handlePaymentFailed(ctx, event)
 	default:
 		s.logger.Info("ℹ️  Unhandled webhook event type (ignored)", "event_type", event.Type, "event_id", event.ID)
-		return nil // Ignore unhandled events
 	}
 
 	if handlerErr != nil {
+		if s.webhookEventRepo != nil {
+			if markErr := s.webhookEventRepo.MarkFailed(ctx, event.ID, handlerErr.Error()); markErr != nil {
+				s.logger.Error("Failed to record Stripe webhook failure", "event_id", event.ID, "error", markErr)
+			}
+		}
 		s.logger.Error("❌ Webhook handler failed", "event_type", event.Type, "event_id", event.ID, "error", handlerErr)
 		return handlerErr
 	}
 
+	if s.webhookEventRepo != nil {
+		if err := s.webhookEventRepo.MarkProcessed(ctx, event.ID); err != nil {
+			return fmt.Errorf("failed to mark Stripe webhook processed: %w", err)
+		}
+	}
 	s.logger.Info("✅ Webhook processed successfully", "event_type", event.Type, "event_id", event.ID)
 	return nil
 }
@@ -609,6 +628,9 @@ func (s *paymentService) handleSubscriptionCreated(ctx context.Context, event st
 		s.logger.Error("Failed to create subscription in database", "org_id", orgID, "subscription_id", sub.ID, "error", err)
 		return fmt.Errorf("failed to create subscription: %w", err)
 	}
+	if err := s.syncProviderPeriod(ctx, &sub); err != nil {
+		return err
+	}
 
 	s.logger.Info("✅ Subscription created successfully", "org_id", orgID, "subscription_id", subscription.ID, "status", sub.Status)
 	return nil
@@ -626,7 +648,7 @@ func (s *paymentService) handleSubscriptionUpdated(ctx context.Context, event st
 
 	// Handle organization subscription update
 	if err := s.handleOrgSubscriptionUpdate(ctx, sub); err != nil {
-		if strings.Contains(err.Error(), "record not found") {
+		if isRecordNotFound(err) {
 			s.logger.Warn("Subscription not found for update",
 				"subscription_id", sub.ID, "status", sub.Status)
 			return nil
@@ -641,6 +663,13 @@ func (s *paymentService) handleSubscriptionUpdated(ctx context.Context, event st
 
 // handleOrgSubscriptionUpdate handles subscription update for organization subscriptions
 func (s *paymentService) handleOrgSubscriptionUpdate(ctx context.Context, sub stripe.Subscription) error {
+	if err := s.syncProviderPeriod(ctx, &sub); err != nil {
+		if isRecordNotFound(err) {
+			return err
+		}
+		s.logger.Warn("failed to sync subscription period", "subscription_id", sub.ID, "error", err)
+	}
+
 	// Sync seats (quantity) on every subscription update
 	var seatsPurchased *int
 	if len(sub.Items.Data) > 0 {
@@ -651,7 +680,7 @@ func (s *paymentService) handleOrgSubscriptionUpdate(ctx context.Context, sub st
 	}
 	if err := s.subscriptionService.UpdateSeatsPurchasedByStripeSubscriptionID(ctx, sub.ID, seatsPurchased); err != nil {
 		// If subscription not found, return the error to try user subscription
-		if strings.Contains(err.Error(), "record not found") {
+		if isRecordNotFound(err) {
 			return err
 		}
 		s.logger.Warn("failed to sync seats purchased for org subscription", "subscription_id", sub.ID, "error", err)
@@ -670,11 +699,40 @@ func (s *paymentService) handleOrgSubscriptionUpdate(ctx context.Context, sub st
 			return nil
 		}
 		if dbSub.State != domain.SubStateExpired {
-			return s.subscriptionService.ExpireSubscription(ctx, dbSub.ID)
+			return s.subscriptionService.HandleProviderCanceled(ctx, dbSub.ID, stripeEndedAt(&sub))
 		}
 	}
 
 	return nil
+}
+
+func (s *paymentService) syncProviderPeriod(ctx context.Context, sub *stripe.Subscription) error {
+	var periodEnd time.Time
+	if sub.CurrentPeriodEnd > 0 {
+		periodEnd = time.Unix(sub.CurrentPeriodEnd, 0)
+	}
+	var trialEnd *time.Time
+	if sub.TrialEnd > 0 {
+		value := time.Unix(sub.TrialEnd, 0)
+		trialEnd = &value
+	}
+	return s.subscriptionService.SyncProviderPeriod(ctx, sub.ID, periodEnd, trialEnd)
+}
+
+func isRecordNotFound(err error) bool {
+	return errors.Is(err, repository.ErrNotFound) ||
+		errors.Is(err, gorm.ErrRecordNotFound) ||
+		strings.Contains(err.Error(), "record not found")
+}
+
+// stripeEndedAt returns when Stripe terminated the subscription. A deleted or
+// canceled Stripe subscription without ended_at is treated as ended now.
+func stripeEndedAt(sub *stripe.Subscription) *time.Time {
+	endedAt := time.Now()
+	if sub.EndedAt > 0 {
+		endedAt = time.Unix(sub.EndedAt, 0)
+	}
+	return &endedAt
 }
 
 // handleSubscriptionDeleted handles customer.subscription.deleted event
@@ -697,7 +755,7 @@ func (s *paymentService) handleSubscriptionDeleted(ctx context.Context, event st
 		return nil
 	}
 
-	if err := s.subscriptionService.ExpireSubscription(ctx, dbSub.ID); err != nil {
+	if err := s.subscriptionService.HandleProviderCanceled(ctx, dbSub.ID, stripeEndedAt(&sub)); err != nil {
 		s.logger.Error("Failed to expire subscription on Stripe deletion", "subscription_id", dbSub.ID, "error", err)
 		return fmt.Errorf("failed to expire subscription: %w", err)
 	}
@@ -879,12 +937,17 @@ func (s *paymentService) GetBillingInfo(ctx context.Context, orgID uint) (*domai
 	// Count current members
 	members, err := s.orgUserRepo.ListByOrganization(ctx, orgID)
 	if err != nil {
-		s.logger.Error("failed to count members", "error", err)
-		// Don't fail - return 0
+		return nil, fmt.Errorf("failed to count members: %w", err)
 	}
 
-	// Collection count would require collection repository
-	currentCollections := 0
+	currentCollections, err := s.orgRepo.GetCollectionCount(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count collections: %w", err)
+	}
+	currentItems, err := s.orgRepo.GetItemCount(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count items: %w", err)
+	}
 
 	// Convert org to DTO (plan/limits derived from subscription when available)
 	orgDTO := domain.ToOrganizationDTO(org)
@@ -893,7 +956,7 @@ func (s *paymentService) GetBillingInfo(ctx context.Context, orgID uint) (*domai
 		Organization:       orgDTO,
 		CurrentUsers:       len(members),
 		CurrentCollections: currentCollections,
-		CurrentItems:       0,
+		CurrentItems:       currentItems,
 	}
 
 	// Get subscription from database (with Plan preloaded)

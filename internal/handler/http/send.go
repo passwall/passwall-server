@@ -68,6 +68,9 @@ func (h *SendHandler) Create(c *gin.Context) {
 		HideEmail:      req.HideEmail,
 	})
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrInvalidInput) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid send data"})
 			return
@@ -159,6 +162,9 @@ func (h *SendHandler) Update(c *gin.Context) {
 		HideEmail:      req.HideEmail,
 	})
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -186,6 +192,9 @@ func (h *SendHandler) Delete(c *gin.Context) {
 	}
 
 	if err := h.service.Delete(ctx, userID, sendUUID); err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -280,6 +289,9 @@ func (h *SendHandler) Notify(c *gin.Context) {
 	}
 
 	if err := h.service.NotifyRecipient(ctx, userID, sendUUID, req.Email, req.URL); err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return

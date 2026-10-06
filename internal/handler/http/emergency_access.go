@@ -34,6 +34,9 @@ func (h *EmergencyAccessHandler) Invite(c *gin.Context) {
 
 	ea, err := h.service.Invite(ctx, userID, req.Email)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrInvalidInput) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: cannot add yourself as emergency contact"})
 			return
@@ -102,6 +105,9 @@ func (h *EmergencyAccessHandler) Accept(c *gin.Context) {
 
 	ea, err := h.service.Accept(ctx, userID, eaUUID)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "this invitation is not for your email address"})
 			return
@@ -142,6 +148,9 @@ func (h *EmergencyAccessHandler) Confirm(c *gin.Context) {
 
 	ea, err := h.service.Confirm(ctx, userID, eaUUID, req.KeyEncrypted)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -174,6 +183,9 @@ func (h *EmergencyAccessHandler) RequestRecovery(c *gin.Context) {
 
 	ea, err := h.service.RequestRecovery(ctx, userID, eaUUID)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -206,6 +218,9 @@ func (h *EmergencyAccessHandler) ApproveRecovery(c *gin.Context) {
 
 	ea, err := h.service.ApproveRecovery(ctx, userID, eaUUID)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -238,6 +253,9 @@ func (h *EmergencyAccessHandler) RejectRecovery(c *gin.Context) {
 
 	ea, err := h.service.RejectRecovery(ctx, userID, eaUUID)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -269,6 +287,9 @@ func (h *EmergencyAccessHandler) RevokeAccess(c *gin.Context) {
 	}
 
 	if err := h.service.Revoke(ctx, userID, eaUUID); err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return

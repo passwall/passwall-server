@@ -14,16 +14,22 @@ import (
 type OrganizationActivityHandler struct {
 	activityService service.UserActivityService
 	orgUserRepo     repository.OrganizationUserRepository
+	entitlements    service.OrganizationEntitlementService
 }
 
 func NewOrganizationActivityHandler(
 	activityService service.UserActivityService,
 	orgUserRepo repository.OrganizationUserRepository,
+	entitlements ...service.OrganizationEntitlementService,
 ) *OrganizationActivityHandler {
-	return &OrganizationActivityHandler{
+	handler := &OrganizationActivityHandler{
 		activityService: activityService,
 		orgUserRepo:     orgUserRepo,
 	}
+	if len(entitlements) > 0 {
+		handler.entitlements = entitlements[0]
+	}
+	return handler
 }
 
 func parseOrgIDFromDetails(details string) (uint, bool) {
@@ -76,6 +82,15 @@ func (h *OrganizationActivityHandler) ListOrganizationActivities(c *gin.Context)
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check membership"})
 		return
+	}
+	if h.entitlements != nil {
+		if err := h.entitlements.Authorize(ctx, orgID, domain.CapabilityAuditRead); err != nil {
+			if respondEntitlementError(c, err) {
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check audit entitlement"})
+			return
+		}
 	}
 
 	limit := 10

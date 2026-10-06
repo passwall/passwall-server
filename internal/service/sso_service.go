@@ -63,6 +63,7 @@ type ssoService struct {
 	escrowService KeyEscrowService
 	logger        Logger
 	baseURL       string
+	entitlements  OrganizationEntitlementService
 }
 
 // NewSSOService creates a new SSO service
@@ -76,8 +77,9 @@ func NewSSOService(
 	escrowService KeyEscrowService,
 	logger Logger,
 	baseURL string,
+	entitlements ...OrganizationEntitlementService,
 ) SSOService {
-	return &ssoService{
+	service := &ssoService{
 		connRepo:      connRepo,
 		stateRepo:     stateRepo,
 		userRepo:      userRepo,
@@ -88,9 +90,16 @@ func NewSSOService(
 		logger:        logger,
 		baseURL:       baseURL,
 	}
+	if len(entitlements) > 0 {
+		service.entitlements = entitlements[0]
+	}
+	return service
 }
 
 func (s *ssoService) CreateConnection(ctx context.Context, orgID, userID uint, req *domain.CreateSSOConnectionRequest) (*domain.SSOConnection, error) {
+	if err := s.authorizeSSOManagement(ctx, orgID); err != nil {
+		return nil, err
+	}
 	normalizedDomain := strings.ToLower(strings.TrimSpace(req.Domain))
 	if normalizedDomain == "" {
 		s.logger.Error("SSO create connection rejected: empty domain", "org_id", orgID, "user_id", userID)
@@ -188,6 +197,9 @@ func (s *ssoService) UpdateConnection(ctx context.Context, id, userID uint, req 
 		s.logger.Error("SSO update connection fetch failed", "conn_id", id, "user_id", userID, "err", err)
 		return nil, err
 	}
+	if err := s.authorizeSSOManagement(ctx, conn.OrganizationID); err != nil {
+		return nil, err
+	}
 
 	if req.Name != nil {
 		conn.Name = *req.Name
@@ -246,12 +258,16 @@ func (s *ssoService) UpdateConnection(ctx context.Context, id, userID uint, req 
 }
 
 func (s *ssoService) DeleteConnection(ctx context.Context, id, userID uint) error {
-	if _, err := s.connRepo.GetByID(ctx, id); err != nil {
+	conn, err := s.connRepo.GetByID(ctx, id)
+	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			s.logger.Warn("SSO delete connection not found", "conn_id", id, "user_id", userID)
 			return ErrSSOConnectionNotFound
 		}
 		s.logger.Error("SSO delete connection fetch failed", "conn_id", id, "user_id", userID, "err", err)
+		return err
+	}
+	if err := s.authorizeSSOManagement(ctx, conn.OrganizationID); err != nil {
 		return err
 	}
 	s.logger.Info("SSO connection delete requested", "conn_id", id, "user_id", userID)
@@ -266,6 +282,9 @@ func (s *ssoService) ActivateConnection(ctx context.Context, id, userID uint) (*
 			return nil, ErrSSOConnectionNotFound
 		}
 		s.logger.Error("SSO activate connection fetch failed", "conn_id", id, "user_id", userID, "err", err)
+		return nil, err
+	}
+	if err := s.authorizeSSOManagement(ctx, conn.OrganizationID); err != nil {
 		return nil, err
 	}
 
@@ -291,6 +310,13 @@ func (s *ssoService) ActivateConnection(ctx context.Context, id, userID uint) (*
 
 	s.logger.Info("SSO connection activated", "conn_id", id)
 	return conn, nil
+}
+
+func (s *ssoService) authorizeSSOManagement(ctx context.Context, orgID uint) error {
+	if s.entitlements == nil {
+		return nil
+	}
+	return s.entitlements.Authorize(ctx, orgID, domain.CapabilitySSOManage)
 }
 
 // InitiateLogin starts the SSO authentication flow by generating the IdP redirect URL

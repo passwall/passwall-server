@@ -56,6 +56,9 @@ func (s *breachMonitorService) AddEmail(ctx context.Context, orgID uint, userID 
 	if err := s.checkAccess(ctx, orgID, userID); err != nil {
 		return nil, err
 	}
+	if err := s.checkMutationAccess(ctx, orgID); err != nil {
+		return nil, err
+	}
 
 	// Check for duplicate
 	existing, err := s.repo.GetEmailByOrgAndAddress(ctx, orgID, emailAddr)
@@ -96,6 +99,9 @@ func (s *breachMonitorService) RemoveEmail(ctx context.Context, orgID uint, user
 	if err := s.checkAccess(ctx, orgID, userID); err != nil {
 		return err
 	}
+	if err := s.checkMutationAccess(ctx, orgID); err != nil {
+		return err
+	}
 
 	email, err := s.repo.GetEmailByID(ctx, emailID)
 	if err != nil {
@@ -126,6 +132,9 @@ func (s *breachMonitorService) ListEmails(ctx context.Context, orgID uint, userI
 
 func (s *breachMonitorService) CheckEmails(ctx context.Context, orgID uint, userID uint) error {
 	if err := s.checkAccess(ctx, orgID, userID); err != nil {
+		return err
+	}
+	if err := s.checkMutationAccess(ctx, orgID); err != nil {
 		return err
 	}
 
@@ -165,6 +174,9 @@ func (s *breachMonitorService) ListBreaches(ctx context.Context, orgID uint, use
 
 func (s *breachMonitorService) DismissBreach(ctx context.Context, orgID uint, userID uint, breachID uint) error {
 	if err := s.checkAccess(ctx, orgID, userID); err != nil {
+		return err
+	}
+	if err := s.checkMutationAccess(ctx, orgID); err != nil {
 		return err
 	}
 
@@ -246,6 +258,17 @@ func (s *breachMonitorService) CheckSingleEmail(ctx context.Context, email *doma
 
 func (s *breachMonitorService) checkFeatureAccess(ctx context.Context, orgID uint) error {
 	ok, err := s.featureSvc.CanUseBreachMonitoring(ctx, orgID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrFeatureNotAvailable
+	}
+	return nil
+}
+
+func (s *breachMonitorService) checkMutationAccess(ctx context.Context, orgID uint) error {
+	ok, err := s.featureSvc.CanWriteVault(ctx, orgID)
 	if err != nil {
 		return err
 	}

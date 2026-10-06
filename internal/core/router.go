@@ -29,6 +29,7 @@ func SetupRouter(
 	userPreferencesHandler *httpHandler.UserPreferencesHandler,
 	invitationHandler *httpHandler.InvitationHandler,
 	organizationHandler *httpHandler.OrganizationHandler,
+	entitlementHandler *httpHandler.EntitlementHandler,
 	organizationPolicyHandler *httpHandler.OrganizationPolicyHandler,
 	organizationSettingsHandler *httpHandler.OrganizationSettingsHandler,
 	teamHandler *httpHandler.TeamHandler,
@@ -398,6 +399,7 @@ func SetupRouter(
 			orgsGroup.POST("", organizationHandler.Create)
 			orgsGroup.GET("", organizationHandler.List)
 			orgsGroup.GET("/:id", organizationHandler.GetByID)
+			orgsGroup.GET("/:id/entitlements", entitlementHandler.Get)
 			orgsGroup.PUT("/:id", organizationHandler.Update)
 			orgsGroup.DELETE("/:id", organizationHandler.Delete)
 

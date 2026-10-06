@@ -103,6 +103,15 @@ func (s *organizationItemService) Create(ctx context.Context, orgID, userID uint
 	if !allowed {
 		return nil, repository.ErrForbidden
 	}
+	if req.ItemType == domain.ItemTypePasskey {
+		allowed, err = s.featureService.CanUsePasskeys(ctx, orgID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to verify passkey entitlement: %w", err)
+		}
+		if !allowed {
+			return nil, repository.ErrForbidden
+		}
+	}
 
 	// Enforce "no orphan items": always place items in a collection.
 	// If client doesn't specify a collection, we use the org's default collection.
@@ -187,6 +196,13 @@ func (s *organizationItemService) GetByID(ctx context.Context, id, userID uint) 
 	// Check if user has access to organization
 	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, item.OrganizationID, userID)
 	if err != nil {
+		return nil, repository.ErrForbidden
+	}
+	allowed, err := s.featureService.CanReadVault(ctx, item.OrganizationID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify vault read entitlement: %w", err)
+	}
+	if !allowed {
 		return nil, repository.ErrForbidden
 	}
 
@@ -539,9 +555,9 @@ func (s *organizationItemService) Delete(ctx context.Context, id, userID uint) (
 	if err != nil {
 		return nil, repository.ErrForbidden
 	}
-	allowed, err := s.featureService.CanWriteVault(ctx, item.OrganizationID)
+	allowed, err := s.featureService.CanDeleteVault(ctx, item.OrganizationID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to verify write entitlement: %w", err)
+		return nil, fmt.Errorf("failed to verify delete entitlement: %w", err)
 	}
 	if !allowed {
 		return nil, repository.ErrForbidden
@@ -607,6 +623,13 @@ func (s *organizationItemService) GetAutofillSecret(ctx context.Context, itemID,
 
 	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, item.OrganizationID, userID)
 	if err != nil {
+		return nil, repository.ErrForbidden
+	}
+	allowed, err := s.featureService.CanAutofill(ctx, item.OrganizationID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify autofill entitlement: %w", err)
+	}
+	if !allowed {
 		return nil, repository.ErrForbidden
 	}
 

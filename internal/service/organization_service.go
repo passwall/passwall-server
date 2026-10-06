@@ -31,7 +31,8 @@ type organizationService struct {
 	planRepo interface {
 		GetByCode(ctx context.Context, code string) (*domain.Plan, error)
 	}
-	logger Logger
+	logger       Logger
+	entitlements OrganizationEntitlementService
 }
 
 // NewOrganizationService creates a new organization service
@@ -55,8 +56,9 @@ func NewOrganizationService(
 		GetByCode(ctx context.Context, code string) (*domain.Plan, error)
 	},
 	logger Logger,
+	entitlements ...OrganizationEntitlementService,
 ) OrganizationService {
-	return &organizationService{
+	service := &organizationService{
 		orgRepo:            orgRepo,
 		orgUserRepo:        orgUserRepo,
 		userRepo:           userRepo,
@@ -72,6 +74,10 @@ func NewOrganizationService(
 		planRepo:           planRepo,
 		logger:             logger,
 	}
+	if len(entitlements) > 0 {
+		service.entitlements = entitlements[0]
+	}
+	return service
 }
 
 const (
@@ -336,6 +342,11 @@ func (s *organizationService) Update(ctx context.Context, id uint, userID uint, 
 	if err := s.checkPermission(ctx, id, userID, true); err != nil {
 		return nil, err
 	}
+	if s.entitlements != nil {
+		if err := s.entitlements.Authorize(ctx, id, domain.CapabilityOrganizationUpdate); err != nil {
+			return nil, err
+		}
+	}
 
 	org, err := s.orgRepo.GetByID(ctx, id)
 	if err != nil {
@@ -371,6 +382,11 @@ func (s *organizationService) Delete(ctx context.Context, id uint, userID uint) 
 
 	if !orgUser.IsOwner() {
 		return repository.ErrForbidden
+	}
+	if s.entitlements != nil {
+		if err := s.entitlements.Authorize(ctx, id, domain.CapabilityOrganizationDelete); err != nil {
+			return err
+		}
 	}
 
 	// Personal Vault organizations are never deletable.
@@ -425,20 +441,10 @@ func (s *organizationService) InviteUser(ctx context.Context, orgID uint, invite
 		return nil, repository.ErrForbidden
 	}
 
-	// Check organization limits
-	memberCount, err := s.orgRepo.GetMemberCount(ctx, orgID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get member count: %w", err)
-	}
-
-	// Get plan limits from subscription
-	maxUsers, err := s.getMaxUsers(ctx, orgID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get plan limits: %w", err)
-	}
-
-	if memberCount >= maxUsers {
-		return nil, fmt.Errorf("organization has reached max users limit (%d)", maxUsers)
+	if s.entitlements != nil {
+		if err := s.entitlements.Authorize(ctx, orgID, domain.CapabilityMemberInvite); err != nil {
+			return nil, err
+		}
 	}
 
 	// Get invitee user by email (must be already registered)
@@ -542,6 +548,11 @@ func (s *organizationService) UpdateMemberRole(ctx context.Context, orgID, orgUs
 	if err := s.checkPermission(ctx, orgID, requestingUserID, true); err != nil {
 		return err
 	}
+	if s.entitlements != nil {
+		if err := s.entitlements.Authorize(ctx, orgID, domain.CapabilityMemberUpdate); err != nil {
+			return err
+		}
+	}
 
 	// Only current owner can assign owner role.
 	requesterMembership, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, requestingUserID)
@@ -581,6 +592,11 @@ func (s *organizationService) RemoveMember(ctx context.Context, orgID, orgUserID
 	// Check if requesting user can manage users
 	if err := s.checkPermission(ctx, orgID, requestingUserID, true); err != nil {
 		return err
+	}
+	if s.entitlements != nil {
+		if err := s.entitlements.Authorize(ctx, orgID, domain.CapabilityMemberRemove); err != nil {
+			return err
+		}
 	}
 
 	orgUser, err := s.orgUserRepo.GetByID(ctx, orgUserID)
@@ -658,6 +674,11 @@ func (s *organizationService) AcceptInvitation(ctx context.Context, orgUserID ui
 	if err := s.checkSingleOrganizationPolicy(ctx, orgUser.OrganizationID, userID); err != nil {
 		return err
 	}
+	if s.entitlements != nil {
+		if err := s.entitlements.Authorize(ctx, orgUser.OrganizationID, domain.CapabilityMemberInvite); err != nil {
+			return err
+		}
+	}
 
 	// Persist invitee-specific wrapped org key on acceptance.
 	orgUser.EncryptedOrgKey = encryptedOrgKey
@@ -726,6 +747,11 @@ func (s *organizationService) ConfirmProvisionedMember(ctx context.Context, orgI
 	if orgUser.Status != domain.OrgUserStatusProvisioned {
 		return fmt.Errorf("member is not in provisioned status (current: %s)", orgUser.Status)
 	}
+	if s.entitlements != nil {
+		if err := s.entitlements.Authorize(ctx, orgID, domain.CapabilityMemberInvite); err != nil {
+			return err
+		}
+	}
 
 	// Set the encrypted org key and update status to confirmed
 	orgUser.EncryptedOrgKey = encryptedOrgKey
@@ -758,12 +784,16 @@ func (s *organizationService) AddExistingMember(ctx context.Context, orgUser *do
 	if org.IsPersonal {
 		return fmt.Errorf("cannot add members to a personal vault")
 	}
-
 	// Check if user is already a member
 	existing, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgUser.OrganizationID, orgUser.UserID)
 	if err == nil && existing != nil {
 		// If there's a pending org membership invitation, accept it instead of failing.
 		if existing.Status == domain.OrgUserStatusInvited {
+			if s.entitlements != nil {
+				if err := s.entitlements.Authorize(ctx, orgUser.OrganizationID, domain.CapabilityMemberInvite); err != nil {
+					return err
+				}
+			}
 			now := time.Now()
 			existing.EncryptedOrgKey = orgUser.EncryptedOrgKey
 			existing.Status = domain.OrgUserStatusAccepted
@@ -782,6 +812,11 @@ func (s *organizationService) AddExistingMember(ctx context.Context, orgUser *do
 		}
 
 		return fmt.Errorf("user is already a member of this organization")
+	}
+	if s.entitlements != nil {
+		if err := s.entitlements.Authorize(ctx, orgUser.OrganizationID, domain.CapabilityMemberInvite); err != nil {
+			return err
+		}
 	}
 
 	// Set timestamps
@@ -890,31 +925,6 @@ func (s *organizationService) checkPermission(ctx context.Context, orgID, userID
 	}
 
 	return nil
-}
-
-// getMaxUsers returns max users limit from subscription plan
-func (s *organizationService) getMaxUsers(ctx context.Context, orgID uint) (int, error) {
-	sub, err := s.subRepo.GetByOrganizationID(ctx, orgID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get subscription for org %d: %w", orgID, err)
-	}
-	if sub.Plan == nil {
-		return 0, fmt.Errorf("subscription plan not loaded for org %d", orgID)
-	}
-
-	// Seat-based plans: when seats_purchased is set, it becomes the effective user limit.
-	// This enables per-seat billing where Stripe quantity controls seats.
-	if sub.SeatsPurchased != nil && *sub.SeatsPurchased > 0 {
-		return *sub.SeatsPurchased, nil
-	}
-
-	// Check if plan has max users limit
-	if sub.Plan.MaxUsers != nil {
-		return *sub.Plan.MaxUsers, nil
-	}
-
-	// Unlimited users (business/enterprise)
-	return 999999, nil
 }
 
 func isSupportedOrgRole(role domain.OrganizationRole) bool {

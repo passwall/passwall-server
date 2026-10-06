@@ -37,6 +37,7 @@ type sendService struct {
 	emailSender  email.Sender
 	emailBuilder *email.EmailBuilder
 	logger       Logger
+	entitlements OrganizationEntitlementService
 }
 
 func NewSendService(
@@ -47,8 +48,9 @@ func NewSendService(
 	emailSender email.Sender,
 	emailBuilder *email.EmailBuilder,
 	logger Logger,
+	entitlements ...OrganizationEntitlementService,
 ) SendService {
-	return &sendService{
+	service := &sendService{
 		sendRepo:     sendRepo,
 		userRepo:     userRepo,
 		orgUserRepo:  orgUserRepo,
@@ -57,6 +59,10 @@ func NewSendService(
 		emailBuilder: emailBuilder,
 		logger:       logger,
 	}
+	if len(entitlements) > 0 {
+		service.entitlements = entitlements[0]
+	}
+	return service
 }
 
 func generateAccessID() (string, error) {
@@ -73,6 +79,15 @@ func (s *sendService) Create(ctx context.Context, creatorID uint, req *domain.Cr
 	}
 	if strings.TrimSpace(req.Data) == "" {
 		return nil, repository.ErrInvalidInput
+	}
+	if s.entitlements != nil {
+		orgID, err := s.resolveSendOrganizationID(ctx, creatorID, req.OrganizationID)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.entitlements.Authorize(ctx, orgID, domain.CapabilitySecureSendCreate); err != nil {
+			return nil, err
+		}
 	}
 
 	// Check RemoveSend policy: if enabled, non-admin members cannot create sends
@@ -231,6 +246,9 @@ func (s *sendService) Update(ctx context.Context, creatorID uint, sendUUID strin
 	if send.CreatorID != creatorID {
 		return nil, repository.ErrForbidden
 	}
+	if err := s.authorizeSendMutation(ctx, creatorID, send, domain.CapabilityItemUpdate); err != nil {
+		return nil, err
+	}
 
 	if req.Name != nil {
 		send.Name = *req.Name
@@ -285,8 +303,45 @@ func (s *sendService) Delete(ctx context.Context, creatorID uint, sendUUID strin
 	if send.CreatorID != creatorID {
 		return repository.ErrForbidden
 	}
+	if err := s.authorizeSendMutation(ctx, creatorID, send, domain.CapabilityAccessRevoke); err != nil {
+		return err
+	}
 
 	return s.sendRepo.SoftDelete(ctx, send.ID)
+}
+
+func (s *sendService) authorizeSendMutation(
+	ctx context.Context,
+	creatorID uint,
+	send *domain.Send,
+	capability domain.Capability,
+) error {
+	if s.entitlements == nil {
+		return nil
+	}
+	orgID, err := s.resolveSendOrganizationID(ctx, creatorID, send.OrganizationID)
+	if err != nil {
+		return err
+	}
+	return s.entitlements.Authorize(ctx, orgID, capability)
+}
+
+func (s *sendService) resolveSendOrganizationID(
+	ctx context.Context,
+	creatorID uint,
+	organizationID uint,
+) (uint, error) {
+	if organizationID > 0 {
+		if _, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, organizationID, creatorID); err != nil {
+			return 0, repository.ErrForbidden
+		}
+		return organizationID, nil
+	}
+	user, err := s.userRepo.GetByID(ctx, creatorID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to resolve personal organization: %w", err)
+	}
+	return user.PersonalOrganizationID, nil
 }
 
 func (s *sendService) CleanupExpired(ctx context.Context) (int64, error) {
@@ -301,6 +356,9 @@ func (s *sendService) NotifyRecipient(ctx context.Context, creatorID uint, sendU
 
 	if send.CreatorID != creatorID {
 		return repository.ErrForbidden
+	}
+	if err := s.authorizeSendMutation(ctx, creatorID, send, domain.CapabilityItemUpdate); err != nil {
+		return err
 	}
 
 	// Get creator info for the email

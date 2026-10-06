@@ -58,6 +58,10 @@ func (h *WebhookHandler) HandleStripeWebhook(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid Stripe signature", "received": false})
 			return
 		}
+		if errors.Is(err, service.ErrWebhookInProgress) {
+			c.JSON(http.StatusConflict, gin.H{"error": "event is being processed", "received": false})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "received": false})
 		return
 	}
@@ -103,6 +107,10 @@ func (h *WebhookHandler) HandleRevenueCatWebhook(c *gin.Context) {
 		// Check for signature verification failure
 		if errors.Is(err, service.ErrInvalidRevenueCatSignature) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid RevenueCat signature", "received": false})
+			return
+		}
+		if errors.Is(err, service.ErrWebhookInProgress) {
+			c.JSON(http.StatusConflict, gin.H{"error": "event is being processed", "received": false})
 			return
 		}
 		// Return 500 for transient errors so RevenueCat will retry

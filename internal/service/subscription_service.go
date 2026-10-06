@@ -17,6 +17,7 @@ type SubscriptionService interface {
 	GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
 	Update(ctx context.Context, sub *domain.Subscription) error
 	UpdateSeatsPurchasedByStripeSubscriptionID(ctx context.Context, stripeSubID string, seatsPurchased *int) error
+	SyncProviderPeriod(ctx context.Context, stripeSubID string, periodEnd time.Time, trialEnd *time.Time) error
 	Upgrade(ctx context.Context, orgID uint, planCode string) error
 	Downgrade(ctx context.Context, orgID uint, planCode string) error
 	Cancel(ctx context.Context, orgID uint) error
@@ -24,6 +25,7 @@ type SubscriptionService interface {
 	Renew(ctx context.Context, subID uint) error
 	HandlePaymentSuccess(ctx context.Context, stripeSubID string) error
 	HandlePaymentFailed(ctx context.Context, stripeSubID string) error
+	HandleProviderCanceled(ctx context.Context, subID uint, endedAt *time.Time) error
 	GetByStripeSubscriptionID(ctx context.Context, stripeSubID string) (*domain.Subscription, error)
 	ExpireSubscription(ctx context.Context, subID uint) error
 	CheckExpiredSubscriptions(ctx context.Context) error
@@ -39,6 +41,7 @@ type subscriptionService struct {
 		Update(ctx context.Context, sub *domain.Subscription) error
 		ListPastDueExpired(ctx context.Context) ([]*domain.Subscription, error)
 		ListCanceledExpired(ctx context.Context) ([]*domain.Subscription, error)
+		ListTrialEnding(ctx context.Context, before time.Time) ([]*domain.Subscription, error)
 		ListManualExpired(ctx context.Context) ([]*domain.Subscription, error)
 	}
 	planRepo interface {
@@ -57,7 +60,10 @@ type subscriptionService struct {
 	// stripe client for cancel/reactivate operations
 	stripe any
 	// logger for structured logging
-	logger Logger
+	logger    Logger
+	txManager interface {
+		WithinTx(ctx context.Context, fn func(context.Context) error) error
+	}
 }
 
 // NewSubscriptionService creates a new subscription service
@@ -71,6 +77,7 @@ func NewSubscriptionService(
 		Update(ctx context.Context, sub *domain.Subscription) error
 		ListPastDueExpired(ctx context.Context) ([]*domain.Subscription, error)
 		ListCanceledExpired(ctx context.Context) ([]*domain.Subscription, error)
+		ListTrialEnding(ctx context.Context, before time.Time) ([]*domain.Subscription, error)
 		ListManualExpired(ctx context.Context) ([]*domain.Subscription, error)
 	},
 	planRepo interface {
@@ -87,6 +94,9 @@ func NewSubscriptionService(
 	},
 	stripe any,
 	logger Logger,
+	txManager interface {
+		WithinTx(ctx context.Context, fn func(context.Context) error) error
+	},
 ) SubscriptionService {
 	return &subscriptionService{
 		subRepo:      subRepo,
@@ -96,6 +106,7 @@ func NewSubscriptionService(
 		emailService: emailService,
 		stripe:       stripe,
 		logger:       logger,
+		txManager:    txManager,
 	}
 }
 
@@ -148,15 +159,6 @@ func (s *subscriptionService) Create(ctx context.Context, orgID uint, planCode s
 
 	now := time.Now()
 
-	// Hard invariant: prevent multiple active-like subscriptions per organization.
-	// We expire any existing active/trialing/past_due rows before creating the new one.
-	// (Old Stripe subscription should transition to canceled via webhook; this keeps DB consistent even if
-	// events arrive out-of-order.)
-	if err := s.subRepo.ExpireActiveByOrganizationID(ctx, orgID, now); err != nil {
-		s.logger.Error("subscription.create failed to expire existing", "org_id", orgID, "error", err)
-		return nil, fmt.Errorf("failed to expire existing active subscriptions: %w", err)
-	}
-
 	sub := &domain.Subscription{
 		UUID:                 uuid.New(),
 		OrganizationID:       orgID,
@@ -184,7 +186,17 @@ func (s *subscriptionService) Create(ctx context.Context, orgID uint, planCode s
 		sub.RenewAt = &renewAt
 	}
 
-	if err := s.subRepo.Create(ctx, sub); err != nil {
+	if err := s.withinTx(ctx, func(txCtx context.Context) error {
+		// Keep the effective-subscription invariant atomic: a failed insert
+		// must not leave the organization without its previous entitlement.
+		if err := s.subRepo.ExpireActiveByOrganizationID(txCtx, orgID, now); err != nil {
+			return fmt.Errorf("expire existing active subscriptions: %w", err)
+		}
+		if err := s.subRepo.Create(txCtx, sub); err != nil {
+			return fmt.Errorf("create subscription: %w", err)
+		}
+		return nil
+	}); err != nil {
 		s.logger.Error("subscription.create failed to persist", "org_id", orgID, "error", err)
 		return nil, fmt.Errorf("failed to create subscription: %w", err)
 	}
@@ -216,6 +228,25 @@ func (s *subscriptionService) UpdateSeatsPurchasedByStripeSubscriptionID(ctx con
 		return fmt.Errorf("failed to update subscription seats: %w", err)
 	}
 	return nil
+}
+
+func (s *subscriptionService) SyncProviderPeriod(
+	ctx context.Context,
+	stripeSubID string,
+	periodEnd time.Time,
+	trialEnd *time.Time,
+) error {
+	sub, err := s.subRepo.GetByStripeSubscriptionID(ctx, stripeSubID)
+	if err != nil {
+		return fmt.Errorf("failed to get subscription: %w", err)
+	}
+	if !periodEnd.IsZero() {
+		sub.RenewAt = &periodEnd
+	}
+	if trialEnd != nil {
+		sub.TrialEndsAt = trialEnd
+	}
+	return s.subRepo.Update(ctx, sub)
 }
 
 // GetByID retrieves a subscription by ID
@@ -517,9 +548,13 @@ func (s *subscriptionService) HandlePaymentSuccess(ctx context.Context, stripeSu
 		sub.EndedAt = nil
 	}
 
-	// Update renewal date
-	nextRenew := s.calculateNextRenewal(sub)
-	sub.RenewAt = &nextRenew
+	// Preserve the provider-synchronized paid-through date when it is still
+	// valid. Invoice-only success events may not carry a period end, so fall
+	// back to the catalog billing cycle only when no future date is known.
+	if sub.RenewAt == nil || !sub.RenewAt.After(now) {
+		nextRenew := s.calculateNextRenewal(sub)
+		sub.RenewAt = &nextRenew
+	}
 
 	return s.subRepo.Update(ctx, sub)
 }
@@ -533,7 +568,11 @@ func (s *subscriptionService) HandlePaymentFailed(ctx context.Context, stripeSub
 
 	// Move to past_due state with grace period
 	sub.State = domain.SubStatePastDue
-	gracePeriod := time.Now().AddDate(0, 0, 14) // 14 days grace period
+	graceDays := 14
+	if sub.Plan != nil {
+		graceDays = sub.Plan.GraceDays
+	}
+	gracePeriod := time.Now().AddDate(0, 0, graceDays)
 	sub.GracePeriodEndsAt = &gracePeriod
 
 	// Send notification email
@@ -552,60 +591,132 @@ func (s *subscriptionService) ExpireSubscription(ctx context.Context, subID uint
 	if err != nil {
 		return fmt.Errorf("failed to get subscription: %w", err)
 	}
+	if sub.State == domain.SubStateExpired {
+		return nil
+	}
+	if sub.Plan == nil {
+		sub.Plan, err = s.planRepo.GetByID(ctx, sub.PlanID)
+		if err != nil {
+			return fmt.Errorf("failed to get subscription plan: %w", err)
+		}
+	}
 
 	now := time.Now()
-	sub.State = domain.SubStateExpired
-	sub.EndedAt = &now
+	if err := s.withinTx(ctx, func(txCtx context.Context) error {
+		sub.State = domain.SubStateExpired
+		sub.EndedAt = &now
+		if err := s.subRepo.Update(txCtx, sub); err != nil {
+			return fmt.Errorf("expire paid subscription: %w", err)
+		}
 
-	// Send notification email
+		if sub.Plan.ExpiryBehavior != domain.ExpiryBehaviorDowngradeToFree || sub.Plan.IsFree() {
+			return nil
+		}
+		freePlan, err := s.planRepo.GetByCode(txCtx, "free-monthly")
+		if err != nil {
+			return fmt.Errorf("load free downgrade plan: %w", err)
+		}
+		freeSubscription := &domain.Subscription{
+			UUID:           uuid.New(),
+			OrganizationID: sub.OrganizationID,
+			PlanID:         freePlan.ID,
+			State:          domain.SubStateActive,
+			StartedAt:      &now,
+		}
+		if err := s.subRepo.Create(txCtx, freeSubscription); err != nil {
+			return fmt.Errorf("create free downgrade subscription: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
 	if s.emailService != nil {
 		go func() {
 			_ = s.emailService.SendSubscriptionExpiredEmail(context.Background(), sub)
 		}()
 	}
+	return nil
+}
 
-	return s.subRepo.Update(ctx, sub)
+// HandleProviderCanceled applies a provider cancellation. endedAt is the
+// provider's termination time; when it has passed (immediate cancel, refund,
+// dispute) access ends now. Without it, access runs until the paid-through date.
+func (s *subscriptionService) HandleProviderCanceled(ctx context.Context, subID uint, endedAt *time.Time) error {
+	sub, err := s.subRepo.GetByID(ctx, subID)
+	if err != nil {
+		return fmt.Errorf("failed to get subscription: %w", err)
+	}
+	now := time.Now()
+	if endedAt != nil && !endedAt.After(now) {
+		return s.ExpireSubscription(ctx, subID)
+	}
+	accessUntil := sub.RenewAt
+	if endedAt != nil {
+		accessUntil = endedAt
+	}
+	if accessUntil != nil && accessUntil.After(now) {
+		until := *accessUntil
+		sub.State = domain.SubStateCanceled
+		sub.RenewAt = &until
+		sub.CancelAt = &until
+		return s.subRepo.Update(ctx, sub)
+	}
+	return s.ExpireSubscription(ctx, subID)
+}
+
+func (s *subscriptionService) withinTx(
+	ctx context.Context,
+	fn func(context.Context) error,
+) error {
+	if s.txManager == nil {
+		return fn(ctx)
+	}
+	return s.txManager.WithinTx(ctx, fn)
 }
 
 // CheckExpiredSubscriptions checks and expires subscriptions that should be expired
 func (s *subscriptionService) CheckExpiredSubscriptions(ctx context.Context) error {
-	// Find past_due subscriptions with expired grace periods
-	pastDueSubs, err := s.subRepo.ListPastDueExpired(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to list past due subscriptions: %w", err)
+	now := time.Now()
+	batches := []struct {
+		name string
+		list func(context.Context) ([]*domain.Subscription, error)
+	}{
+		// past_due subscriptions whose grace period ended
+		{"past_due", s.subRepo.ListPastDueExpired},
+		// canceled subscriptions whose paid-through date passed
+		{"canceled", s.subRepo.ListCanceledExpired},
+		// trials follow the plan expiry behavior (Personal → Free, shared → Frozen)
+		{"trial", func(ctx context.Context) ([]*domain.Subscription, error) {
+			return s.subRepo.ListTrialEnding(ctx, now)
+		}},
+		// manual grants whose end date passed
+		{"manual", s.subRepo.ListManualExpired},
 	}
 
-	for _, sub := range pastDueSubs {
-		if err := s.ExpireSubscription(ctx, sub.ID); err != nil {
-			// Log error but continue processing others
-			continue
+	var failed int
+	for _, batch := range batches {
+		subs, err := batch.list(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to list %s subscriptions to expire: %w", batch.name, err)
+		}
+		for _, sub := range subs {
+			if err := s.ExpireSubscription(ctx, sub.ID); err != nil {
+				failed++
+				if s.logger != nil {
+					s.logger.Error("failed to expire subscription",
+						"batch", batch.name,
+						"subscription_id", sub.ID,
+						"organization_id", sub.OrganizationID,
+						"error", err,
+					)
+				}
+			}
 		}
 	}
-
-	// Find canceled subscriptions with expired periods
-	canceledSubs, err := s.subRepo.ListCanceledExpired(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to list canceled subscriptions: %w", err)
+	if failed > 0 {
+		return fmt.Errorf("failed to expire %d subscription(s)", failed)
 	}
-
-	for _, sub := range canceledSubs {
-		if err := s.ExpireSubscription(ctx, sub.ID); err != nil {
-			// Log error but continue processing others
-			continue
-		}
-	}
-
-	// Find manual active/trialing subscriptions where end date passed
-	manualSubs, err := s.subRepo.ListManualExpired(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to list manual expired subscriptions: %w", err)
-	}
-	for _, sub := range manualSubs {
-		if err := s.ExpireSubscription(ctx, sub.ID); err != nil {
-			continue
-		}
-	}
-
 	return nil
 }
 

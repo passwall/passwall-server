@@ -308,6 +308,17 @@ type OrganizationPolicyRepository interface {
 	Delete(ctx context.Context, id uint) error
 }
 
+type OrganizationEntitlementOverrideRepository interface {
+	ListActiveByOrganization(ctx context.Context, orgID uint, now time.Time) ([]*domain.OrganizationEntitlementOverride, error)
+}
+
+type WebhookEventRepository interface {
+	Create(ctx context.Context, event *domain.WebhookEvent) error
+	GetByStripeEventID(ctx context.Context, stripeEventID string) (*domain.WebhookEvent, error)
+	MarkProcessed(ctx context.Context, stripeEventID string) error
+	MarkFailed(ctx context.Context, stripeEventID string, errMsg string) error
+}
+
 // EmergencyAccessRepository defines emergency access data access methods
 type EmergencyAccessRepository interface {
 	Create(ctx context.Context, ea *domain.EmergencyAccess) error

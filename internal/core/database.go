@@ -102,6 +102,7 @@ func autoMigrateSchema(gormDB *gorm.DB) error {
 		&domain.Plan{},
 		&domain.Subscription{},
 		&domain.WebhookEvent{},
+		&domain.OrganizationEntitlementOverride{},
 		// Note: Invoices are fetched directly from Stripe (no DB table needed)
 	); err != nil {
 		return fmt.Errorf("failed to migrate subscription tables: %w", err)

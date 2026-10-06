@@ -118,6 +118,9 @@ func (h *OrganizationPolicyHandler) UpdatePolicy(c *gin.Context) {
 
 	policy, err := h.service.UpdatePolicy(ctx, orgID, userID, policyType, &req)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return

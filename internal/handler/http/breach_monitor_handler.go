@@ -154,6 +154,9 @@ func (h *BreachMonitorHandler) GetSummary(c *gin.Context) {
 }
 
 func (h *BreachMonitorHandler) handleError(c *gin.Context, err error) {
+	if respondEntitlementError(c, err) {
+		return
+	}
 	switch {
 	case errors.Is(err, repository.ErrNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})

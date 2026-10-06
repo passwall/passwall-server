@@ -83,6 +83,9 @@ func (h *OrganizationSettingsHandler) UpsertSettings(c *gin.Context) {
 
 	settings, err := h.service.UpsertForOrganization(ctx, orgID, userID, &req)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return

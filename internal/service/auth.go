@@ -67,6 +67,7 @@ type authService struct {
 	config             *AuthConfig
 	logger             Logger
 	vaultProvisioner   PersonalVaultProvisioner
+	entitlements       OrganizationEntitlementService
 }
 
 // NewAuthService creates a new authentication service
@@ -90,8 +91,9 @@ func NewAuthService(
 	config *AuthConfig,
 	logger Logger,
 	vaultProvisioner PersonalVaultProvisioner,
+	entitlements ...OrganizationEntitlementService,
 ) AuthService {
-	return &authService{
+	service := &authService{
 		userRepo:                 userRepo,
 		tokenRepo:                tokenRepo,
 		verificationRepo:         verificationRepo,
@@ -110,6 +112,10 @@ func NewAuthService(
 		logger:                   logger,
 		vaultProvisioner:         vaultProvisioner,
 	}
+	if len(entitlements) > 0 {
+		service.entitlements = entitlements[0]
+	}
+	return service
 }
 
 const recoveryDeleteTokenTTL = 20 * time.Minute
@@ -447,19 +453,28 @@ func (s *authService) IssueTokenForUser(ctx context.Context, userID uint, app st
 }
 
 func (s *authService) enforceDeviceLimit(ctx context.Context, user *domain.User) error {
-	sub, err := s.subRepo.GetByOrganizationID(ctx, user.PersonalOrganizationID)
-	if err != nil {
-		return fmt.Errorf("failed to load personal subscription: %w", err)
+	var maxDevices *int
+	if s.entitlements != nil {
+		snapshot, err := s.entitlements.Resolve(ctx, user.PersonalOrganizationID)
+		if err != nil {
+			return fmt.Errorf("failed to resolve personal entitlements: %w", err)
+		}
+		maxDevices = snapshot.Limits.MaxDevices
+	} else {
+		sub, err := s.subRepo.GetByOrganizationID(ctx, user.PersonalOrganizationID)
+		if err != nil {
+			return fmt.Errorf("failed to load personal subscription: %w", err)
+		}
+		if sub == nil || sub.Plan == nil {
+			return errors.New("personal subscription or plan unavailable")
+		}
+		maxDevices = sub.Plan.MaxDevices
 	}
-	if sub == nil || sub.Plan == nil {
-		return errors.New("personal subscription or plan unavailable")
-	}
-	if !sub.Plan.IsFree() {
+	if maxDevices == nil {
 		return nil
 	}
 
-	// If the user has access to any active paid organization, do not enforce
-	// personal free-plan device cap at login.
+	// Paid organization access can raise an otherwise finite personal device cap.
 	paidAccess, err := s.hasActivePaidOrganizationAccess(ctx, user.ID)
 	if err != nil {
 		return fmt.Errorf("failed to check paid organization access: %w", err)
@@ -473,7 +488,7 @@ func (s *authService) enforceDeviceLimit(ctx context.Context, user *domain.User)
 		return fmt.Errorf("failed to check active sessions: %w", err)
 	}
 
-	if activeSessions >= 1 {
+	if activeSessions >= *maxDevices {
 		return ErrDeviceLimit
 	}
 
@@ -494,16 +509,25 @@ func (s *authService) hasActivePaidOrganizationAccess(ctx context.Context, userI
 			continue
 		}
 
-		sub, err := s.subRepo.GetByOrganizationID(ctx, membership.OrganizationID)
-		if err != nil {
-			return false, err
-		}
-		if sub == nil || sub.Plan == nil {
-			return false, errors.New("organization subscription or plan unavailable")
-		}
-
-		if sub.IsActive() && !sub.Plan.IsFree() {
-			return true, nil
+		if s.entitlements != nil {
+			snapshot, err := s.entitlements.Resolve(ctx, membership.OrganizationID)
+			if err != nil {
+				return false, err
+			}
+			if snapshot.AccessState == domain.AccessStatePaid {
+				return true, nil
+			}
+		} else {
+			sub, err := s.subRepo.GetByOrganizationID(ctx, membership.OrganizationID)
+			if err != nil {
+				return false, err
+			}
+			if sub == nil || sub.Plan == nil {
+				return false, errors.New("organization subscription or plan unavailable")
+			}
+			if sub.IsActive() && !sub.Plan.IsFree() {
+				return true, nil
+			}
 		}
 	}
 

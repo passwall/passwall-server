@@ -53,6 +53,9 @@ func (h *SCIMHandler) CreateToken(c *gin.Context) {
 
 	result, err := h.scimService.CreateToken(ctx, orgID, &req)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create SCIM token"})
 		return
 	}
@@ -101,6 +104,9 @@ func (h *SCIMHandler) RevokeToken(c *gin.Context) {
 	}
 
 	if err := h.scimService.RevokeToken(ctx, orgID, tokenID); err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to revoke SCIM token"})
 		return
 	}
@@ -129,6 +135,10 @@ func SCIMAuthMiddleware(scimService service.SCIMService) gin.HandlerFunc {
 
 		orgID, err := scimService.ValidateToken(c.Request.Context(), parts[1])
 		if err != nil {
+			if respondSCIMEntitlementError(c, err) {
+				c.Abort()
+				return
+			}
 			scimError(c, http.StatusUnauthorized, "invalid or expired SCIM token")
 			c.Abort()
 			return
@@ -269,6 +279,9 @@ func (h *SCIMHandler) CreateUser(c *gin.Context) {
 
 	user, err := h.scimService.CreateUser(ctx, orgID, &scimUser)
 	if err != nil {
+		if respondSCIMEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, service.ErrSCIMUserExists) {
 			scimError(c, http.StatusConflict, "User already exists in organization")
 			return
@@ -298,6 +311,9 @@ func (h *SCIMHandler) UpdateUser(c *gin.Context) {
 
 	user, err := h.scimService.UpdateUser(ctx, orgID, userID, &scimUser)
 	if err != nil {
+		if respondSCIMEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, service.ErrSCIMUserNotFound) {
 			scimError(c, http.StatusNotFound, "User not found")
 			return
@@ -323,6 +339,9 @@ func (h *SCIMHandler) PatchUser(c *gin.Context) {
 
 	user, err := h.scimService.PatchUser(ctx, orgID, userID, &patch)
 	if err != nil {
+		if respondSCIMEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, service.ErrSCIMUserNotFound) {
 			scimError(c, http.StatusNotFound, "User not found")
 			return
@@ -341,6 +360,9 @@ func (h *SCIMHandler) DeleteUser(c *gin.Context) {
 	userID := c.Param("id")
 
 	if err := h.scimService.DeleteUser(ctx, orgID, userID); err != nil {
+		if respondSCIMEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, service.ErrSCIMUserNotFound) {
 			scimError(c, http.StatusNotFound, "User not found")
 			return
@@ -404,6 +426,9 @@ func (h *SCIMHandler) CreateGroup(c *gin.Context) {
 
 	group, err := h.scimService.CreateGroup(ctx, orgID, &scimGroup)
 	if err != nil {
+		if respondSCIMEntitlementError(c, err) {
+			return
+		}
 		scimError(c, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -425,6 +450,9 @@ func (h *SCIMHandler) UpdateGroup(c *gin.Context) {
 
 	group, err := h.scimService.UpdateGroup(ctx, orgID, groupID, &scimGroup)
 	if err != nil {
+		if respondSCIMEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, service.ErrSCIMGroupNotFound) {
 			scimError(c, http.StatusNotFound, "Group not found")
 			return
@@ -450,6 +478,9 @@ func (h *SCIMHandler) PatchGroup(c *gin.Context) {
 
 	group, err := h.scimService.PatchGroup(ctx, orgID, groupID, &patch)
 	if err != nil {
+		if respondSCIMEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, service.ErrSCIMGroupNotFound) {
 			scimError(c, http.StatusNotFound, "Group not found")
 			return
@@ -468,6 +499,9 @@ func (h *SCIMHandler) DeleteGroup(c *gin.Context) {
 	groupID := c.Param("id")
 
 	if err := h.scimService.DeleteGroup(ctx, orgID, groupID); err != nil {
+		if respondSCIMEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, service.ErrSCIMGroupNotFound) {
 			scimError(c, http.StatusNotFound, "Group not found")
 			return
@@ -486,6 +520,26 @@ func scimError(c *gin.Context, status int, detail string) {
 		Detail:  detail,
 		Status:  strconv.Itoa(status),
 	})
+}
+
+func respondSCIMEntitlementError(c *gin.Context, err error) bool {
+	var denied *service.EntitlementDeniedError
+	if !errors.As(err, &denied) &&
+		!errors.Is(err, service.ErrAccountFrozen) &&
+		!errors.Is(err, service.ErrSubscriptionExpired) &&
+		!errors.Is(err, service.ErrPlanLimitReached) &&
+		!errors.Is(err, service.ErrFeatureNotAvailable) {
+		return false
+	}
+
+	detail := "Operation is not available for the current subscription"
+	if errors.Is(err, service.ErrAccountFrozen) {
+		detail = "Organization account is frozen"
+	} else if errors.Is(err, service.ErrPlanLimitReached) {
+		detail = "Organization plan limit reached"
+	}
+	scimError(c, http.StatusForbidden, detail)
+	return true
 }
 
 func (h *SCIMHandler) ensureOrgAdmin(c *gin.Context, ctx context.Context, userID, orgID uint) bool {

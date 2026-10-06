@@ -57,6 +57,7 @@ type scimService struct {
 	teamUserRepo repository.TeamUserRepository
 	logger       Logger
 	baseURL      string
+	entitlements OrganizationEntitlementService
 }
 
 // NewSCIMService creates a new SCIM service
@@ -68,8 +69,9 @@ func NewSCIMService(
 	teamUserRepo repository.TeamUserRepository,
 	logger Logger,
 	baseURL string,
+	entitlements ...OrganizationEntitlementService,
 ) SCIMService {
-	return &scimService{
+	service := &scimService{
 		tokenRepo:    tokenRepo,
 		userRepo:     userRepo,
 		orgUserRepo:  orgUserRepo,
@@ -78,11 +80,18 @@ func NewSCIMService(
 		logger:       logger,
 		baseURL:      baseURL,
 	}
+	if len(entitlements) > 0 {
+		service.entitlements = entitlements[0]
+	}
+	return service
 }
 
 // --- Token Management ---
 
 func (s *scimService) CreateToken(ctx context.Context, orgID uint, req *domain.CreateSCIMTokenRequest) (*domain.SCIMTokenCreatedDTO, error) {
+	if err := s.authorizeSCIMMutation(ctx, orgID); err != nil {
+		return nil, err
+	}
 	plainToken, err := domain.GenerateSCIMToken()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate SCIM token: %w", err)
@@ -123,6 +132,9 @@ func (s *scimService) ListTokens(ctx context.Context, orgID uint) ([]*domain.SCI
 }
 
 func (s *scimService) RevokeToken(ctx context.Context, orgID, tokenID uint) error {
+	if err := s.authorizeSCIM(ctx, orgID, domain.CapabilityAccessRevoke); err != nil {
+		return err
+	}
 	token, err := s.tokenRepo.GetByID(ctx, tokenID)
 	if err != nil {
 		return err
@@ -132,6 +144,24 @@ func (s *scimService) RevokeToken(ctx context.Context, orgID, tokenID uint) erro
 	}
 	token.IsActive = false
 	return s.tokenRepo.Update(ctx, token)
+}
+
+func (s *scimService) authorizeSCIMMutation(ctx context.Context, orgID uint) error {
+	return s.authorizeSCIM(ctx, orgID, domain.CapabilitySCIMManage)
+}
+
+// authorizeSCIM checks every capability in order. Deprovisioning paths use
+// scim.deprovision so an IdP can always remove access, even while frozen.
+func (s *scimService) authorizeSCIM(ctx context.Context, orgID uint, capabilities ...domain.Capability) error {
+	if s.entitlements == nil {
+		return nil
+	}
+	for _, capability := range capabilities {
+		if err := s.entitlements.Authorize(ctx, orgID, capability); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *scimService) ValidateToken(ctx context.Context, bearerToken string) (uint, error) {
@@ -145,6 +175,9 @@ func (s *scimService) ValidateToken(ctx context.Context, bearerToken string) (ui
 	}
 	if !token.IsValid() {
 		return 0, ErrSCIMTokenInvalid
+	}
+	if err := s.authorizeSCIM(ctx, token.OrganizationID, domain.CapabilitySCIMDeprovision); err != nil {
+		return 0, err
 	}
 
 	// Update last_used_at
@@ -224,6 +257,9 @@ func (s *scimService) GetUser(ctx context.Context, orgID uint, userID string) (*
 }
 
 func (s *scimService) CreateUser(ctx context.Context, orgID uint, scimUser *domain.SCIMUser) (*domain.SCIMUser, error) {
+	if err := s.authorizeSCIMMutation(ctx, orgID); err != nil {
+		return nil, err
+	}
 	email := extractPrimaryEmail(scimUser)
 	if email == "" {
 		return nil, fmt.Errorf("SCIM user must have a primary email")
@@ -255,6 +291,11 @@ func (s *scimService) CreateUser(ctx context.Context, orgID uint, scimUser *doma
 		orgUser.ExternalID = ptrString(scimUser.ExternalID)
 	}
 
+	if s.entitlements != nil {
+		if err := s.entitlements.Authorize(ctx, orgID, domain.CapabilityMemberInvite); err != nil {
+			return nil, err
+		}
+	}
 	if err := s.orgUserRepo.Create(ctx, orgUser); err != nil {
 		return nil, fmt.Errorf("failed to provision SCIM user: %w", err)
 	}
@@ -283,9 +324,17 @@ func (s *scimService) UpdateUser(ctx context.Context, orgID uint, userID string,
 
 	// Handle active/inactive (suspend/reactivate)
 	if !scimUser.Active && orgUser.Status != domain.OrgUserStatusSuspended {
+		if err := s.authorizeSCIM(ctx, orgID, domain.CapabilitySCIMDeprovision); err != nil {
+			return nil, err
+		}
 		orgUser.Status = domain.OrgUserStatusSuspended
 	} else if scimUser.Active && orgUser.Status == domain.OrgUserStatusSuspended {
+		if err := s.authorizeSCIM(ctx, orgID, domain.CapabilitySCIMManage, domain.CapabilityMemberInvite); err != nil {
+			return nil, err
+		}
 		orgUser.Status = domain.OrgUserStatusConfirmed
+	} else if err := s.authorizeSCIMMutation(ctx, orgID); err != nil {
+		return nil, err
 	}
 
 	if err := s.orgUserRepo.Update(ctx, orgUser); err != nil {
@@ -305,6 +354,8 @@ func (s *scimService) PatchUser(ctx context.Context, orgID uint, userID string, 
 	if err != nil {
 		return nil, ErrSCIMUserNotFound
 	}
+	wasActive := orgUser.Status == domain.OrgUserStatusAccepted ||
+		orgUser.Status == domain.OrgUserStatusConfirmed
 
 	for _, op := range patch.Operations {
 		switch strings.ToLower(op.Op) {
@@ -324,6 +375,22 @@ func (s *scimService) PatchUser(ctx context.Context, orgID uint, userID string, 
 			}
 		}
 	}
+	isActive := orgUser.Status == domain.OrgUserStatusAccepted ||
+		orgUser.Status == domain.OrgUserStatusConfirmed
+	switch {
+	case !wasActive && isActive:
+		if err := s.authorizeSCIM(ctx, orgID, domain.CapabilitySCIMManage, domain.CapabilityMemberInvite); err != nil {
+			return nil, err
+		}
+	case orgUser.Status == domain.OrgUserStatusSuspended:
+		if err := s.authorizeSCIM(ctx, orgID, domain.CapabilitySCIMDeprovision); err != nil {
+			return nil, err
+		}
+	default:
+		if err := s.authorizeSCIMMutation(ctx, orgID); err != nil {
+			return nil, err
+		}
+	}
 
 	if err := s.orgUserRepo.Update(ctx, orgUser); err != nil {
 		return nil, fmt.Errorf("failed to patch SCIM user: %w", err)
@@ -333,6 +400,9 @@ func (s *scimService) PatchUser(ctx context.Context, orgID uint, userID string, 
 }
 
 func (s *scimService) DeleteUser(ctx context.Context, orgID uint, userID string) error {
+	if err := s.authorizeSCIM(ctx, orgID, domain.CapabilitySCIMDeprovision, domain.CapabilityMemberRemove); err != nil {
+		return err
+	}
 	id, err := strconv.ParseUint(userID, 10, 64)
 	if err != nil {
 		return ErrSCIMUserNotFound
@@ -401,6 +471,9 @@ func (s *scimService) GetGroup(ctx context.Context, orgID uint, groupID string) 
 }
 
 func (s *scimService) CreateGroup(ctx context.Context, orgID uint, scimGroup *domain.SCIMGroup) (*domain.SCIMGroup, error) {
+	if err := s.authorizeSCIMGroupMutation(ctx, orgID); err != nil {
+		return nil, err
+	}
 	team := &domain.Team{
 		UUID:           uuid.New(),
 		OrganizationID: orgID,
@@ -419,6 +492,9 @@ func (s *scimService) CreateGroup(ctx context.Context, orgID uint, scimGroup *do
 }
 
 func (s *scimService) UpdateGroup(ctx context.Context, orgID uint, groupID string, scimGroup *domain.SCIMGroup) (*domain.SCIMGroup, error) {
+	if err := s.authorizeSCIMGroupMutation(ctx, orgID); err != nil {
+		return nil, err
+	}
 	id, err := strconv.ParseUint(groupID, 10, 64)
 	if err != nil {
 		return nil, ErrSCIMGroupNotFound
@@ -447,6 +523,9 @@ func (s *scimService) UpdateGroup(ctx context.Context, orgID uint, groupID strin
 }
 
 func (s *scimService) PatchGroup(ctx context.Context, orgID uint, groupID string, patch *domain.SCIMPatchOp) (*domain.SCIMGroup, error) {
+	if err := s.authorizeSCIMGroupMutation(ctx, orgID); err != nil {
+		return nil, err
+	}
 	id, err := strconv.ParseUint(groupID, 10, 64)
 	if err != nil {
 		return nil, ErrSCIMGroupNotFound
@@ -484,6 +563,9 @@ func (s *scimService) PatchGroup(ctx context.Context, orgID uint, groupID string
 }
 
 func (s *scimService) DeleteGroup(ctx context.Context, orgID uint, groupID string) error {
+	if err := s.authorizeSCIM(ctx, orgID, domain.CapabilitySCIMDeprovision, domain.CapabilityAccessRevoke); err != nil {
+		return err
+	}
 	id, err := strconv.ParseUint(groupID, 10, 64)
 	if err != nil {
 		return ErrSCIMGroupNotFound
@@ -496,6 +578,10 @@ func (s *scimService) DeleteGroup(ctx context.Context, orgID uint, groupID strin
 
 	s.logger.Info("SCIM group deleted", "team_id", team.ID, "org_id", orgID)
 	return s.teamRepo.Delete(ctx, team.ID)
+}
+
+func (s *scimService) authorizeSCIMGroupMutation(ctx context.Context, orgID uint) error {
+	return s.authorizeSCIM(ctx, orgID, domain.CapabilitySCIMManage, domain.CapabilityTeamsManage)
 }
 
 // --- Helpers ---

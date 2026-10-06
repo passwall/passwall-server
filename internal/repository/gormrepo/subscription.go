@@ -242,7 +242,11 @@ func (r *subscriptionRepository) ListTrialEnding(ctx context.Context, before tim
 	err := dbFromContext(ctx, r.db).
 		Preload("Plan").
 		Preload("Organization").
-		Where("state = ? AND trial_ends_at IS NOT NULL AND trial_ends_at < ?", domain.SubStateTrialing, before).
+		Where(
+			"state = ? AND stripe_subscription_id IS NULL AND trial_ends_at IS NOT NULL AND trial_ends_at < ?",
+			domain.SubStateTrialing,
+			before,
+		).
 		Find(&subs).Error
 	return subs, err
 }

@@ -3,6 +3,7 @@ package gormrepo
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/config"
@@ -46,37 +47,10 @@ func SeedPlans(ctx context.Context, db *gorm.DB, planConfigs []config.PlanConfig
 			}
 
 			if existing, ok := existingByCode[pc.Code]; ok && existing != nil {
-				// Update existing plan in place
-				existing.Name = pc.Name
-				existing.BillingCycle = domain.BillingCycle(pc.BillingCycle)
-				existing.PriceCents = pc.PriceCents
-				existing.Currency = pc.Currency
-				existing.TrialDays = pc.TrialDays
-				existing.MaxUsers = pc.MaxUsers
-				existing.MaxCollections = pc.MaxCollections
-				existing.MaxItems = pc.MaxItems
-				existing.Features = domain.PlanFeatures{
-					Items:            pc.MaxItems, // Same as MaxItems for backward compatibility
-					Sharing:          pc.Features.Sharing,
-					SharedItems:      pc.Features.SharedItems,
-					SecureSend:       pc.Features.SecureSend,
-					Passkeys:         pc.Features.Passkeys,
-					EmergencyAccess:  pc.Features.EmergencyAccess,
-					Teams:            pc.Features.Teams,
-					Audit:            pc.Features.Audit,
-					SSO:              pc.Features.SSO,
-					APIAccess:        pc.Features.APIAccess,
-					PrioritySupport:  pc.Features.PrioritySupport,
-					Policies:         pc.Features.Policies,
-					SecurityInsights: pc.Features.SecurityInsights,
-					BreachMonitoring: pc.Features.BreachMonitoring,
-				}
-				existing.IsActive = true
-
+				// Versioned migrations own the commercial contract. Runtime
+				// configuration may only attach deployment-specific Stripe IDs.
 				if pc.StripePriceID != "" {
 					existing.StripePriceID = &pc.StripePriceID
-				} else {
-					existing.StripePriceID = nil
 				}
 
 				if err := tx.WithContext(ctx).Save(existing).Error; err != nil {
@@ -98,6 +72,8 @@ func SeedPlans(ctx context.Context, db *gorm.DB, planConfigs []config.PlanConfig
 				MaxUsers:       pc.MaxUsers,
 				MaxCollections: pc.MaxCollections,
 				MaxItems:       pc.MaxItems,
+				ExpiryBehavior: defaultExpiryBehavior(pc.Code),
+				GraceDays:      defaultGraceDays(pc.Code),
 				Features: domain.PlanFeatures{
 					Items:            pc.MaxItems, // Same as MaxItems for backward compatibility
 					Sharing:          pc.Features.Sharing,
@@ -119,6 +95,7 @@ func SeedPlans(ctx context.Context, db *gorm.DB, planConfigs []config.PlanConfig
 			if pc.StripePriceID != "" {
 				plan.StripePriceID = &pc.StripePriceID
 			}
+			applyCanonicalPlanContract(&plan)
 
 			if err := tx.WithContext(ctx).Create(&plan).Error; err != nil {
 				return fmt.Errorf("failed to create plan %s: %w", plan.Code, err)
@@ -146,6 +123,102 @@ func SeedPlans(ctx context.Context, db *gorm.DB, planConfigs []config.PlanConfig
 		logger.Infof("✓ Seeded subscription plans (upsert=%d, created=%d, deactivated=%d)", upserted, created, deactivated)
 		return nil
 	})
+}
+
+func applyCanonicalPlanContract(plan *domain.Plan) {
+	baseCode := strings.Split(plan.Code, "-")[0]
+	unlimitedFeatures := domain.PlanFeatures{
+		Sharing:          true,
+		SharedItems:      true,
+		SecureSend:       true,
+		Passkeys:         true,
+		EmergencyAccess:  true,
+		SecurityInsights: true,
+		BreachMonitoring: true,
+	}
+	switch baseCode {
+	case "free":
+		plan.MaxUsers = intValue(1)
+		plan.MaxCollections = intValue(10)
+		plan.MaxItems = intValue(100)
+		plan.MaxDevices = nil
+		plan.ExpiryBehavior = domain.ExpiryBehaviorDowngradeToFree
+		plan.GraceDays = 0
+		plan.Features = domain.PlanFeatures{Items: intValue(100)}
+	case "pro":
+		plan.MaxUsers = intValue(1)
+		plan.MaxCollections = nil
+		plan.MaxItems = nil
+		plan.MaxDevices = nil
+		plan.ExpiryBehavior = domain.ExpiryBehaviorDowngradeToFree
+		plan.GraceDays = 14
+		plan.Features = unlimitedFeatures
+	case "family":
+		plan.MaxUsers = intValue(6)
+		plan.MaxCollections = nil
+		plan.MaxItems = nil
+		plan.MaxDevices = nil
+		plan.ExpiryBehavior = domain.ExpiryBehaviorFreeze
+		plan.GraceDays = 14
+		plan.Features = unlimitedFeatures
+	case "team":
+		plan.MaxUsers = intValue(10)
+		plan.MaxCollections = nil
+		plan.MaxItems = nil
+		plan.MaxDevices = nil
+		plan.ExpiryBehavior = domain.ExpiryBehaviorFreeze
+		plan.GraceDays = 14
+		plan.Features = unlimitedFeatures
+		plan.Features.Teams = true
+		plan.Features.Policies = true
+	case "business":
+		plan.MaxUsers = nil
+		plan.MaxCollections = nil
+		plan.MaxItems = nil
+		plan.MaxDevices = nil
+		plan.ExpiryBehavior = domain.ExpiryBehaviorFreeze
+		plan.GraceDays = 14
+		plan.Features = unlimitedFeatures
+		plan.Features.Teams = true
+		plan.Features.Audit = true
+		plan.Features.SSO = true
+		plan.Features.Policies = true
+		plan.Features.BusinessPolicies = true
+	case "enterprise":
+		plan.MaxUsers = nil
+		plan.MaxCollections = nil
+		plan.MaxItems = nil
+		plan.MaxDevices = nil
+		plan.ExpiryBehavior = domain.ExpiryBehaviorFreeze
+		plan.GraceDays = 14
+		plan.Features = unlimitedFeatures
+		plan.Features.Teams = true
+		plan.Features.Audit = true
+		plan.Features.SSO = true
+		plan.Features.Policies = true
+		plan.Features.BusinessPolicies = true
+		plan.Features.EnterprisePolicies = true
+	}
+	plan.Features.APIAccess = false
+	plan.Features.PrioritySupport = false
+}
+
+func intValue(value int) *int {
+	return &value
+}
+
+func defaultExpiryBehavior(code string) domain.ExpiryBehavior {
+	if code == "free-monthly" || strings.HasPrefix(code, "pro-") {
+		return domain.ExpiryBehaviorDowngradeToFree
+	}
+	return domain.ExpiryBehaviorFreeze
+}
+
+func defaultGraceDays(code string) int {
+	if code == "free-monthly" {
+		return 0
+	}
+	return 14
 }
 
 // SeedDefaultSubscriptions creates free subscriptions for existing organizations

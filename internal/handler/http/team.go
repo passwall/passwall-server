@@ -66,6 +66,9 @@ func (h *TeamHandler) Create(c *gin.Context) {
 
 	team, err := h.service.Create(ctx, orgID, userID, &req)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -184,6 +187,9 @@ func (h *TeamHandler) Update(c *gin.Context) {
 
 	team, err := h.service.Update(ctx, id, userID, &req)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -220,6 +226,9 @@ func (h *TeamHandler) Delete(c *gin.Context) {
 	team, _ := h.service.GetByID(ctx, id, userID)
 	err := h.service.Delete(ctx, id, userID)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -263,6 +272,9 @@ func (h *TeamHandler) AddMember(c *gin.Context) {
 
 	err := h.service.AddMember(ctx, teamID, userID, &req)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -346,6 +358,9 @@ func (h *TeamHandler) UpdateMember(c *gin.Context) {
 
 	err := h.service.UpdateMember(ctx, teamID, memberID, userID, &req)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -383,6 +398,9 @@ func (h *TeamHandler) RemoveMember(c *gin.Context) {
 
 	err := h.service.RemoveMember(ctx, teamID, memberID, userID)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return

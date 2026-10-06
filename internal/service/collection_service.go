@@ -21,7 +21,8 @@ type collectionService struct {
 	subRepo            interface {
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
 	}
-	logger Logger
+	logger       Logger
+	entitlements OrganizationEntitlementService
 }
 
 // NewCollectionService creates a new collection service
@@ -38,8 +39,9 @@ func NewCollectionService(
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
 	},
 	logger Logger,
+	entitlements ...OrganizationEntitlementService,
 ) CollectionService {
-	return &collectionService{
+	service := &collectionService{
 		collectionRepo:     collectionRepo,
 		collectionUserRepo: collectionUserRepo,
 		collectionTeamRepo: collectionTeamRepo,
@@ -51,6 +53,10 @@ func NewCollectionService(
 		subRepo:            subRepo,
 		logger:             logger,
 	}
+	if len(entitlements) > 0 {
+		service.entitlements = entitlements[0]
+	}
+	return service
 }
 
 func (s *collectionService) Create(ctx context.Context, orgID uint, userID uint, req *domain.CreateCollectionRequest) (*domain.Collection, error) {
@@ -64,20 +70,10 @@ func (s *collectionService) Create(ctx context.Context, orgID uint, userID uint,
 		return nil, repository.ErrForbidden
 	}
 
-	// Check organization collection limit
-	collectionCount, err := s.orgRepo.GetCollectionCount(ctx, orgID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get collection count: %w", err)
-	}
-
-	// Get plan limits from subscription
-	maxCollections, err := s.getMaxCollections(ctx, orgID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get plan limits: %w", err)
-	}
-
-	if collectionCount >= maxCollections {
-		return nil, fmt.Errorf("organization has reached max collections limit (%d)", maxCollections)
+	if s.entitlements != nil {
+		if err := s.entitlements.Authorize(ctx, orgID, domain.CapabilityCollectionCreate); err != nil {
+			return nil, err
+		}
 	}
 
 	// Check if collection name already exists
@@ -188,6 +184,9 @@ func (s *collectionService) Update(ctx context.Context, id uint, userID uint, re
 	if !canManage {
 		return nil, repository.ErrForbidden
 	}
+	if err := s.authorizeCollectionMutation(ctx, collection.OrganizationID, domain.CapabilityCollectionUpdate); err != nil {
+		return nil, err
+	}
 
 	// Update fields
 	if req.Name != nil {
@@ -233,6 +232,9 @@ func (s *collectionService) Delete(ctx context.Context, id uint, userID uint) er
 	if !orgUser.IsAdmin() {
 		return repository.ErrForbidden
 	}
+	if err := s.authorizeCollectionMutation(ctx, collection.OrganizationID, domain.CapabilityCollectionDelete); err != nil {
+		return err
+	}
 
 	// Enforce "no orphan items": move items to default collection first.
 	def, err := s.collectionRepo.GetDefaultByOrganization(ctx, collection.OrganizationID)
@@ -268,6 +270,9 @@ func (s *collectionService) GrantUserAccess(ctx context.Context, collectionID ui
 
 	if !canManage {
 		return repository.ErrForbidden
+	}
+	if err := s.authorizeCollectionMutation(ctx, collection.OrganizationID, domain.CapabilitySharingCreate); err != nil {
+		return err
 	}
 
 	// Verify target user is in the organization
@@ -332,6 +337,9 @@ func (s *collectionService) GrantTeamAccess(ctx context.Context, collectionID ui
 	if !canManage {
 		return repository.ErrForbidden
 	}
+	if err := s.authorizeCollectionMutation(ctx, collection.OrganizationID, domain.CapabilityTeamsManage); err != nil {
+		return err
+	}
 
 	// Verify team is in the same organization
 	team, err := s.teamRepo.GetByID(ctx, teamID)
@@ -395,6 +403,9 @@ func (s *collectionService) RevokeUserAccess(ctx context.Context, collectionID u
 	if !canManage {
 		return repository.ErrForbidden
 	}
+	if err := s.authorizeCollectionMutation(ctx, collection.OrganizationID, domain.CapabilityItemUpdate); err != nil {
+		return err
+	}
 
 	if err := s.collectionUserRepo.DeleteByCollectionAndOrgUser(ctx, collectionID, orgUserID); err != nil {
 		s.logger.Error("failed to revoke collection user access", "collection_id", collectionID, "org_user_id", orgUserID, "error", err)
@@ -419,6 +430,9 @@ func (s *collectionService) RevokeTeamAccess(ctx context.Context, collectionID u
 
 	if !canManage {
 		return repository.ErrForbidden
+	}
+	if err := s.authorizeCollectionMutation(ctx, collection.OrganizationID, domain.CapabilityItemUpdate); err != nil {
+		return err
 	}
 
 	if err := s.collectionTeamRepo.DeleteByCollectionAndTeam(ctx, collectionID, teamID); err != nil {
@@ -520,21 +534,13 @@ func (s *collectionService) checkCollectionManagePermission(ctx context.Context,
 	return access.CanAdmin, nil
 }
 
-// getMaxCollections returns max collections limit from subscription plan
-func (s *collectionService) getMaxCollections(ctx context.Context, orgID uint) (int, error) {
-	sub, err := s.subRepo.GetByOrganizationID(ctx, orgID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get subscription for org %d: %w", orgID, err)
+func (s *collectionService) authorizeCollectionMutation(
+	ctx context.Context,
+	orgID uint,
+	capability domain.Capability,
+) error {
+	if s.entitlements == nil {
+		return nil
 	}
-	if sub.Plan == nil {
-		return 0, fmt.Errorf("subscription plan not loaded for org %d", orgID)
-	}
-
-	// Check if plan has max collections limit
-	if sub.Plan.MaxCollections != nil {
-		return *sub.Plan.MaxCollections, nil
-	}
-
-	// Unlimited collections (business/enterprise)
-	return 999999, nil
+	return s.entitlements.Authorize(ctx, orgID, capability)
 }

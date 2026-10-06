@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/passwall/passwall-server/internal/domain"
@@ -12,7 +13,10 @@ type FeatureService interface {
 	CanCreateCollection(ctx context.Context, orgID uint) (bool, error)
 	CanInviteUser(ctx context.Context, orgID uint) (bool, error)
 	CanCreateItem(ctx context.Context, orgID uint) (bool, error)
+	CanReadVault(ctx context.Context, orgID uint) (bool, error)
 	CanWriteVault(ctx context.Context, orgID uint) (bool, error)
+	CanDeleteVault(ctx context.Context, orgID uint) (bool, error)
+	CanAutofill(ctx context.Context, orgID uint) (bool, error)
 	CanUseTeams(ctx context.Context, orgID uint) (bool, error)
 	CanAccessAudit(ctx context.Context, orgID uint) (bool, error)
 	CanUseSSO(ctx context.Context, orgID uint) (bool, error)
@@ -25,233 +29,108 @@ type FeatureService interface {
 }
 
 type featureService struct {
-	orgService interface {
-		GetByID(ctx context.Context, id uint, userID uint) (*domain.Organization, error)
-		GetMemberCount(ctx context.Context, orgID uint) (int, error)
-		GetCollectionCount(ctx context.Context, orgID uint) (int, error)
-	}
-	subRepo interface {
-		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
-	}
-	itemRepo interface {
-		CountByOrganizationID(ctx context.Context, orgID uint) (int, error)
-	}
+	entitlements OrganizationEntitlementService
 }
 
 // NewFeatureService creates a new feature service
-func NewFeatureService(
-	orgService interface {
-		GetByID(ctx context.Context, id uint, userID uint) (*domain.Organization, error)
-		GetMemberCount(ctx context.Context, orgID uint) (int, error)
-		GetCollectionCount(ctx context.Context, orgID uint) (int, error)
-	},
-	subRepo interface {
-		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
-	},
-	itemRepo interface {
-		CountByOrganizationID(ctx context.Context, orgID uint) (int, error)
-	},
-) FeatureService {
-	return &featureService{
-		orgService: orgService,
-		subRepo:    subRepo,
-		itemRepo:   itemRepo,
-	}
+func NewFeatureService(entitlements OrganizationEntitlementService) FeatureService {
+	return &featureService{entitlements: entitlements}
 }
 
 var (
-	ErrSubscriptionExpired = fmt.Errorf("subscription has expired")
-	ErrPlanLimitReached    = fmt.Errorf("plan limit reached")
-	ErrFeatureNotAvailable = fmt.Errorf("feature not available in current plan")
+	ErrSubscriptionExpired = errors.New("subscription has expired")
+	ErrPlanLimitReached    = errors.New("plan limit reached")
+	ErrFeatureNotAvailable = errors.New("feature not available in current plan")
 )
 
-// getSubscriptionWithPlan retrieves subscription with plan for an organization
-func (s *featureService) getSubscriptionWithPlan(ctx context.Context, orgID uint) (*domain.Subscription, error) {
-	sub, err := s.subRepo.GetByOrganizationID(ctx, orgID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get subscription: %w", err)
-	}
-	if sub == nil || sub.Plan == nil {
-		return nil, fmt.Errorf("subscription or plan unavailable")
-	}
-
-	// Check if subscription allows write operations
-	if !sub.CanWrite() {
-		return nil, ErrSubscriptionExpired
-	}
-
-	return sub, nil
-}
-
-func (s *featureService) CanWriteVault(ctx context.Context, orgID uint) (bool, error) {
-	_, err := s.getSubscriptionWithPlan(ctx, orgID)
-	if err != nil {
+func (s *featureService) authorize(
+	ctx context.Context,
+	orgID uint,
+	capability domain.Capability,
+) (bool, error) {
+	if err := s.entitlements.Authorize(ctx, orgID, capability); err != nil {
 		return false, err
 	}
 	return true, nil
+}
+
+func (s *featureService) CanWriteVault(ctx context.Context, orgID uint) (bool, error) {
+	return s.authorize(ctx, orgID, domain.CapabilityItemUpdate)
+}
+
+func (s *featureService) CanDeleteVault(ctx context.Context, orgID uint) (bool, error) {
+	return s.authorize(ctx, orgID, domain.CapabilityItemDelete)
+}
+
+func (s *featureService) CanReadVault(ctx context.Context, orgID uint) (bool, error) {
+	return s.authorize(ctx, orgID, domain.CapabilityVaultRead)
+}
+
+func (s *featureService) CanAutofill(ctx context.Context, orgID uint) (bool, error) {
+	return s.authorize(ctx, orgID, domain.CapabilityVaultAutofill)
 }
 
 // CanInviteUser checks if organization can invite new users
 func (s *featureService) CanInviteUser(ctx context.Context, orgID uint) (bool, error) {
-	sub, err := s.getSubscriptionWithPlan(ctx, orgID)
-	if err != nil {
-		return false, err
-	}
-
-	// Seat-based plans: if seats are set, enforce by seats.
-	if sub.SeatsPurchased != nil && *sub.SeatsPurchased > 0 {
-		currentUsers, err := s.orgService.GetMemberCount(ctx, orgID)
-		if err != nil {
-			return false, fmt.Errorf("failed to get member count: %w", err)
-		}
-		if currentUsers >= *sub.SeatsPurchased {
-			return false, ErrPlanLimitReached
-		}
-		return true, nil
-	}
-
-	// Non-seat-based plans: fall back to max_users limit if set
-	if sub.Plan.MaxUsers != nil {
-		currentUsers, err := s.orgService.GetMemberCount(ctx, orgID)
-		if err != nil {
-			return false, fmt.Errorf("failed to get member count: %w", err)
-		}
-
-		if currentUsers >= *sub.Plan.MaxUsers {
-			return false, ErrPlanLimitReached
-		}
-	}
-
-	return true, nil
+	return s.authorize(ctx, orgID, domain.CapabilityMemberInvite)
 }
 
 // CanCreateCollection checks if organization can create new collections
 func (s *featureService) CanCreateCollection(ctx context.Context, orgID uint) (bool, error) {
-	sub, err := s.getSubscriptionWithPlan(ctx, orgID)
-	if err != nil {
-		return false, err
-	}
-
-	// Check max collections limit
-	if sub.Plan.MaxCollections != nil {
-		currentCollections, err := s.orgService.GetCollectionCount(ctx, orgID)
-		if err != nil {
-			return false, fmt.Errorf("failed to get collection count: %w", err)
-		}
-
-		if currentCollections >= *sub.Plan.MaxCollections {
-			return false, ErrPlanLimitReached
-		}
-	}
-
-	return true, nil
+	return s.authorize(ctx, orgID, domain.CapabilityCollectionCreate)
 }
 
 // CanCreateItem checks if organization can create new items
 func (s *featureService) CanCreateItem(ctx context.Context, orgID uint) (bool, error) {
-	sub, err := s.getSubscriptionWithPlan(ctx, orgID)
-	if err != nil {
-		return false, err
-	}
-
-	// Check max items limit
-	if sub.Plan.MaxItems != nil {
-		currentItems, err := s.itemRepo.CountByOrganizationID(ctx, orgID)
-		if err != nil {
-			return false, fmt.Errorf("failed to get item count: %w", err)
-		}
-
-		if currentItems >= *sub.Plan.MaxItems {
-			return false, ErrPlanLimitReached
-		}
-	}
-
-	return true, nil
+	return s.authorize(ctx, orgID, domain.CapabilityItemCreate)
 }
 
 // CanUseTeams checks if organization can use teams feature
 func (s *featureService) CanUseTeams(ctx context.Context, orgID uint) (bool, error) {
-	return s.checkBooleanFeature(ctx, orgID, func(f domain.PlanFeatures) bool {
-		return f.Teams
-	})
+	return s.authorize(ctx, orgID, domain.CapabilityTeamsManage)
 }
 
 // CanAccessAudit checks if organization can access audit logs
 func (s *featureService) CanAccessAudit(ctx context.Context, orgID uint) (bool, error) {
-	return s.checkBooleanFeature(ctx, orgID, func(f domain.PlanFeatures) bool {
-		return f.Audit
-	})
+	return s.authorize(ctx, orgID, domain.CapabilityAuditRead)
 }
 
 // CanUseSSO checks if organization can use SSO
 func (s *featureService) CanUseSSO(ctx context.Context, orgID uint) (bool, error) {
-	return s.checkBooleanFeature(ctx, orgID, func(f domain.PlanFeatures) bool {
-		return f.SSO
-	})
+	return s.authorize(ctx, orgID, domain.CapabilitySSOManage)
 }
 
 // CanUseBreachMonitoring checks if organization can use dark web / breach monitoring
 func (s *featureService) CanUseBreachMonitoring(ctx context.Context, orgID uint) (bool, error) {
-	return s.checkBooleanFeature(ctx, orgID, func(f domain.PlanFeatures) bool {
-		return f.BreachMonitoring
-	})
+	return s.authorize(ctx, orgID, domain.CapabilityBreachMonitoringRead)
 }
 
 // CanUsePasskeys checks if organization can use passkeys feature
 func (s *featureService) CanUsePasskeys(ctx context.Context, orgID uint) (bool, error) {
-	return s.checkBooleanFeature(ctx, orgID, func(f domain.PlanFeatures) bool {
-		return f.Passkeys
-	})
+	return s.authorize(ctx, orgID, domain.CapabilityPasskeyCreate)
 }
 
 // CanUseSharedItems checks if organization can use shared items feature
 func (s *featureService) CanUseSharedItems(ctx context.Context, orgID uint) (bool, error) {
-	return s.checkBooleanFeature(ctx, orgID, func(f domain.PlanFeatures) bool {
-		return f.SharedItems
-	})
+	return s.authorize(ctx, orgID, domain.CapabilitySharingCreate)
 }
 
 // CanUseSecureSend checks if organization can use secure send feature
 func (s *featureService) CanUseSecureSend(ctx context.Context, orgID uint) (bool, error) {
-	return s.checkBooleanFeature(ctx, orgID, func(f domain.PlanFeatures) bool {
-		return f.SecureSend
-	})
+	return s.authorize(ctx, orgID, domain.CapabilitySecureSendCreate)
 }
 
 // CanUseEmergencyAccess checks if organization can use emergency access feature
 func (s *featureService) CanUseEmergencyAccess(ctx context.Context, orgID uint) (bool, error) {
-	return s.checkBooleanFeature(ctx, orgID, func(f domain.PlanFeatures) bool {
-		return f.EmergencyAccess
-	})
+	return s.authorize(ctx, orgID, domain.CapabilityEmergencyAccessCreate)
 }
 
 // GetFeatures returns all features available to an organization
 func (s *featureService) GetFeatures(ctx context.Context, orgID uint) (*domain.PlanFeatures, error) {
-	sub, err := s.subRepo.GetByOrganizationID(ctx, orgID)
+	snapshot, err := s.entitlements.Resolve(ctx, orgID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get subscription: %w", err)
+		return nil, fmt.Errorf("resolve entitlements: %w", err)
 	}
-
-	if sub.Plan == nil {
-		return nil, fmt.Errorf("subscription plan not loaded")
-	}
-
-	return &sub.Plan.Features, nil
-}
-
-func (s *featureService) checkBooleanFeature(
-	ctx context.Context,
-	orgID uint,
-	isEnabled func(domain.PlanFeatures) bool,
-) (bool, error) {
-	sub, err := s.getSubscriptionWithPlan(ctx, orgID)
-	if err != nil {
-		return false, err
-	}
-
-	if !isEnabled(sub.Plan.Features) {
-		return false, ErrFeatureNotAvailable
-	}
-
-	return true, nil
+	features := snapshot.Features
+	return &features, nil
 }

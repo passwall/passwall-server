@@ -185,6 +185,9 @@ func (h *OrganizationHandler) Update(c *gin.Context) {
 
 	org, err := h.service.Update(ctx, id, userID, &req)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -224,6 +227,9 @@ func (h *OrganizationHandler) Delete(c *gin.Context) {
 
 	err := h.service.Delete(ctx, id, userID)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "only owner can delete organization"})
 			return
@@ -269,6 +275,9 @@ func (h *OrganizationHandler) InviteUser(c *gin.Context) {
 
 	orgUser, err := h.service.InviteUser(ctx, orgID, userID, &req)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -352,6 +361,9 @@ func (h *OrganizationHandler) UpdateMemberRole(c *gin.Context) {
 
 	err := h.service.UpdateMemberRole(ctx, orgID, orgUserID, userID, &req)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -389,6 +401,9 @@ func (h *OrganizationHandler) RemoveMember(c *gin.Context) {
 
 	err := h.service.RemoveMember(ctx, orgID, orgUserID, userID)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -428,6 +443,9 @@ func (h *OrganizationHandler) AcceptInvitation(c *gin.Context) {
 
 	err := h.service.AcceptInvitation(ctx, orgUserID, userID, req.EncryptedOrgKey)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "not authorized to accept this invitation"})
 			return
@@ -476,6 +494,9 @@ func (h *OrganizationHandler) ConfirmProvisionedMember(c *gin.Context) {
 
 	err := h.service.ConfirmProvisionedMember(ctx, orgID, orgUserID, userID, req.EncryptedOrgKey)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return

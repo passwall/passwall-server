@@ -55,6 +55,9 @@ func (h *SSOHandler) CreateConnection(c *gin.Context) {
 
 	conn, err := h.ssoService.CreateConnection(ctx, orgID, userID, &req)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		logger.Errorf("SSO CreateConnection failed: user_id=%d org_id=%d protocol=%s domain=%s err=%v", userID, orgID, req.Protocol, req.Domain, err)
 		if errors.Is(err, service.ErrSSOProtocolMismatch) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -167,6 +170,9 @@ func (h *SSOHandler) UpdateConnection(c *gin.Context) {
 
 	conn, err := h.ssoService.UpdateConnection(ctx, connID, userID, &req)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		logger.Errorf("SSO UpdateConnection failed: user_id=%d org_id=%d conn_id=%d err=%v", userID, orgID, connID, err)
 		if errors.Is(err, service.ErrSSOConnectionNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "SSO connection not found"})
@@ -203,6 +209,9 @@ func (h *SSOHandler) DeleteConnection(c *gin.Context) {
 		return
 	}
 	if err := h.ssoService.DeleteConnection(ctx, connID, userID); err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		logger.Errorf("SSO DeleteConnection failed: user_id=%d org_id=%d conn_id=%d err=%v", userID, orgID, connID, err)
 		if errors.Is(err, service.ErrSSOConnectionNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "SSO connection not found"})
@@ -243,6 +252,9 @@ func (h *SSOHandler) ActivateConnection(c *gin.Context) {
 
 	conn, err := h.ssoService.ActivateConnection(ctx, connID, userID)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		logger.Errorf("SSO ActivateConnection failed: user_id=%d org_id=%d conn_id=%d err=%v", userID, orgID, connID, err)
 		if errors.Is(err, service.ErrSSOConnectionNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "SSO connection not found"})

@@ -70,6 +70,7 @@ type itemShareService struct {
 	emailSender     email.Sender
 	emailBuilder    *email.EmailBuilder
 	logger          Logger
+	entitlements    OrganizationEntitlementService
 }
 
 func NewItemShareService(
@@ -83,8 +84,9 @@ func NewItemShareService(
 	emailSender email.Sender,
 	emailBuilder *email.EmailBuilder,
 	logger Logger,
+	entitlements ...OrganizationEntitlementService,
 ) ItemShareService {
-	return &itemShareService{
+	service := &itemShareService{
 		shareRepo:       shareRepo,
 		orgItemRepo:     orgItemRepo,
 		orgUserRepo:     orgUserRepo,
@@ -96,6 +98,10 @@ func NewItemShareService(
 		emailBuilder:    emailBuilder,
 		logger:          logger,
 	}
+	if len(entitlements) > 0 {
+		service.entitlements = entitlements[0]
+	}
+	return service
 }
 
 func (s *itemShareService) Create(ctx context.Context, ownerID uint, req *CreateItemShareRequest) (*ItemShareWithItem, error) {
@@ -115,6 +121,11 @@ func (s *itemShareService) Create(ctx context.Context, ownerID uint, req *Create
 	}
 	if err := s.authorizeItemShare(ctx, ownerID, item); err != nil {
 		return nil, err
+	}
+	if s.entitlements != nil {
+		if err := s.entitlements.Authorize(ctx, item.OrganizationID, domain.CapabilitySharingCreate); err != nil {
+			return nil, err
+		}
 	}
 
 	return s.createShareInternal(ctx, ownerID, item, req)
@@ -367,6 +378,11 @@ func (s *itemShareService) Revoke(ctx context.Context, ownerID uint, shareID uin
 	if share.OwnerID != ownerID {
 		return repository.ErrForbidden
 	}
+	if s.entitlements != nil {
+		if err := s.entitlements.Authorize(ctx, share.OrganizationID, domain.CapabilityAccessRevoke); err != nil {
+			return err
+		}
+	}
 
 	return s.shareRepo.Delete(ctx, shareID)
 }
@@ -404,6 +420,11 @@ func (s *itemShareService) UpdateSharedItem(
 	item, err := s.orgItemRepo.GetByUUID(ctx, share.ItemUUID.String())
 	if err != nil {
 		return nil, err
+	}
+	if s.entitlements != nil {
+		if err := s.entitlements.Authorize(ctx, item.OrganizationID, domain.CapabilityItemUpdate); err != nil {
+			return nil, err
+		}
 	}
 
 	item.Data = req.Data
@@ -444,6 +465,11 @@ func (s *itemShareService) ReShare(
 	if err != nil {
 		return nil, err
 	}
+	if s.entitlements != nil {
+		if err := s.entitlements.Authorize(ctx, item.OrganizationID, domain.CapabilitySharingCreate); err != nil {
+			return nil, err
+		}
+	}
 
 	return s.createShareInternal(ctx, share.OwnerID, item, req)
 }
@@ -464,6 +490,11 @@ func (s *itemShareService) UpdatePermissions(
 	}
 	if share.OwnerID != ownerID {
 		return nil, repository.ErrForbidden
+	}
+	if s.entitlements != nil {
+		if err := s.entitlements.Authorize(ctx, share.OrganizationID, domain.CapabilityItemUpdate); err != nil {
+			return nil, err
+		}
 	}
 
 	if req != nil {

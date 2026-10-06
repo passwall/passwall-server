@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -115,6 +116,7 @@ func (a *App) Run(ctx context.Context) error {
 	collectionTeamRepo := gormrepo.NewCollectionTeamRepository(a.db.DB())
 	orgItemRepo := gormrepo.NewOrganizationItemRepository(a.db.DB())
 	orgFolderRepo := gormrepo.NewOrganizationFolderRepository(a.db.DB())
+	entitlementOverrideRepo := gormrepo.NewOrganizationEntitlementOverrideRepository(a.db.DB())
 	// Item share repo (personal sharing)
 	itemShareRepo := gormrepo.NewItemShareRepository(a.db.DB())
 	// Emergency access repo
@@ -164,7 +166,20 @@ func (a *App) Run(ctx context.Context) error {
 	// Initialize subscription repos before auth service (used for plan-based device limits)
 	subscriptionRepo := gormrepo.NewSubscriptionRepository(a.db.DB())
 	planRepo := gormrepo.NewPlanRepository(a.db.DB())
+	webhookEventRepo := gormrepo.NewWebhookEventRepository(a.db.DB())
 	txManager := gormrepo.NewTxManager(a.db.DB())
+	entitlementService := service.NewOrganizationEntitlementService(
+		subscriptionRepo,
+		planRepo,
+		orgRepo,
+		orgItemRepo,
+		entitlementOverrideRepo,
+		a.config.Server.FrontendURL,
+		service.WithEntitlementEnforcementModes(
+			os.Getenv("ENTITLEMENT_ENFORCEMENT_MODES"),
+			serviceLogger,
+		),
+	)
 	personalVaultProvisioner := service.NewPersonalVaultProvisioner(
 		txManager,
 		userRepo,
@@ -180,7 +195,7 @@ func (a *App) Run(ctx context.Context) error {
 	orgPolicyRepo := gormrepo.NewOrganizationPolicyRepository(a.db.DB())
 
 	// Organization policy service (created early so failedLoginTracker can use it in authService)
-	organizationPolicyService := service.NewOrganizationPolicyService(orgPolicyRepo, orgUserRepo, subscriptionRepo, serviceLogger)
+	organizationPolicyService := service.NewOrganizationPolicyService(orgPolicyRepo, orgUserRepo, subscriptionRepo, serviceLogger, entitlementService)
 	failedLoginTracker := service.NewFailedLoginTracker(organizationPolicyService)
 
 	userService := service.NewUserService(
@@ -198,23 +213,10 @@ func (a *App) Run(ctx context.Context) error {
 		txManager,
 		personalVaultProvisioner,
 	)
-	authService := service.NewAuthService(userRepo, tokenRepo, verificationRepo, accountDeletionTokenRepo, orgRepo, orgUserRepo, invitationRepo, subscriptionRepo, orgPolicyRepo, failedLoginTracker, userActivityService, userService, emailSender, emailBuilder, authConfig, serviceLogger, personalVaultProvisioner)
+	authService := service.NewAuthService(userRepo, tokenRepo, verificationRepo, accountDeletionTokenRepo, orgRepo, orgUserRepo, invitationRepo, subscriptionRepo, orgPolicyRepo, failedLoginTracker, userActivityService, userService, emailSender, emailBuilder, authConfig, serviceLogger, personalVaultProvisioner, entitlementService)
 	userNotificationPreferencesService := service.NewUserNotificationPreferencesService(preferencesRepo, serviceLogger)
 	userAppearancePreferencesService := service.NewUserAppearancePreferencesService(preferencesRepo, serviceLogger)
 	invitationService := service.NewInvitationService(invitationRepo, userRepo, orgRepo, emailSender, emailBuilder, serviceLogger)
-
-	itemShareService := service.NewItemShareService(
-		itemShareRepo,
-		orgItemRepo,
-		orgUserRepo,
-		collectionUserRepo,
-		collectionTeamRepo,
-		teamUserRepo,
-		userRepo,
-		emailSender,
-		emailBuilder,
-		serviceLogger,
-	)
 
 	// Initialize Stripe client
 	stripeClientInstance := stripeClient.NewClient(a.config.Stripe.SecretKey, a.config.Stripe.WebhookSecret)
@@ -238,18 +240,28 @@ func (a *App) Run(ctx context.Context) error {
 		subscriptionRepo,
 		planRepo,
 		serviceLogger,
+		entitlementService,
 	)
 
 	// Subscription service (needs organizationService, stripe client, email service optional, logger)
-	subscriptionService := service.NewSubscriptionService(subscriptionRepo, planRepo, orgRepo, organizationService, nil, stripeClientInstance, serviceLogger)
+	subscriptionService := service.NewSubscriptionService(
+		subscriptionRepo,
+		planRepo,
+		orgRepo,
+		organizationService,
+		nil,
+		stripeClientInstance,
+		serviceLogger,
+		txManager,
+	)
 
 	// Payment service - handles org subscriptions via Stripe webhooks
-	paymentService = service.NewPaymentService(stripeClientInstance, orgRepo, orgUserRepo, userRepo, subscriptionService, planRepo, userActivityService, a.config, serviceLogger)
+	paymentService = service.NewPaymentService(stripeClientInstance, orgRepo, orgUserRepo, userRepo, subscriptionService, webhookEventRepo, planRepo, userActivityService, a.config, serviceLogger)
 
 	// RevenueCat service - handles mobile in-app purchases via webhooks (org-level subscriptions)
-	revenueCatService := service.NewRevenueCatService(userRepo, orgRepo, subscriptionService, planRepo, userActivityService, a.config, serviceLogger)
+	revenueCatService := service.NewRevenueCatService(userRepo, orgRepo, subscriptionService, webhookEventRepo, planRepo, userActivityService, a.config, serviceLogger)
 
-	teamService := service.NewTeamService(teamRepo, teamUserRepo, orgUserRepo, orgRepo, serviceLogger)
+	featureService := service.NewFeatureService(entitlementService)
 	collectionService := service.NewCollectionService(
 		collectionRepo,
 		collectionUserRepo,
@@ -261,8 +273,29 @@ func (a *App) Run(ctx context.Context) error {
 		orgItemRepo,
 		subscriptionRepo,
 		serviceLogger,
+		entitlementService,
 	)
-	featureService := service.NewFeatureService(organizationService, subscriptionRepo, orgItemRepo)
+	teamService := service.NewTeamService(
+		teamRepo,
+		teamUserRepo,
+		orgUserRepo,
+		orgRepo,
+		serviceLogger,
+		entitlementService,
+	)
+	itemShareService := service.NewItemShareService(
+		itemShareRepo,
+		orgItemRepo,
+		orgUserRepo,
+		collectionUserRepo,
+		collectionTeamRepo,
+		teamUserRepo,
+		userRepo,
+		emailSender,
+		emailBuilder,
+		serviceLogger,
+		entitlementService,
+	)
 
 	// Organization items service (shared vault)
 	organizationItemService := service.NewOrganizationItemService(
@@ -275,7 +308,13 @@ func (a *App) Run(ctx context.Context) error {
 		featureService,
 		serviceLogger,
 	)
-	organizationFolderService := service.NewOrganizationFolderService(orgFolderRepo, orgItemRepo, orgUserRepo, serviceLogger)
+	organizationFolderService := service.NewOrganizationFolderService(
+		orgFolderRepo,
+		orgItemRepo,
+		orgUserRepo,
+		serviceLogger,
+		entitlementService,
+	)
 
 	// Emergency access service
 	emergencyAccessService := service.NewEmergencyAccessService(
@@ -285,10 +324,11 @@ func (a *App) Run(ctx context.Context) error {
 		emailSender,
 		emailBuilder,
 		serviceLogger,
+		entitlementService,
 	)
 
 	// Send service
-	sendService := service.NewSendService(sendRepo, userRepo, orgUserRepo, orgPolicyRepo, emailSender, emailBuilder, serviceLogger)
+	sendService := service.NewSendService(sendRepo, userRepo, orgUserRepo, orgPolicyRepo, emailSender, emailBuilder, serviceLogger, entitlementService)
 
 	// HIBP clients
 	hibpClient := hibp.NewClient(a.config.HIBP.APIKey, a.config.HIBP.RateLimitMs, a.config.HIBP.MaxRetries)
@@ -303,7 +343,12 @@ func (a *App) Run(ctx context.Context) error {
 	policyFirewallService := service.NewPolicyFirewallService(organizationPolicyService)
 
 	// Organization settings service (uses existing preferences repo)
-	organizationSettingsService := service.NewOrganizationSettingsService(preferencesRepo, orgUserRepo, serviceLogger)
+	organizationSettingsService := service.NewOrganizationSettingsService(
+		preferencesRepo,
+		orgUserRepo,
+		serviceLogger,
+		entitlementService,
+	)
 
 	// SSO & SCIM repos
 	ssoConnRepo := gormrepo.NewSSOConnectionRepository(a.db.DB())
@@ -323,17 +368,19 @@ func (a *App) Run(ctx context.Context) error {
 	ssoService := service.NewSSOService(
 		ssoConnRepo, ssoStateRepo, userRepo, orgUserRepo, orgRepo,
 		authService, keyEscrowService, serviceLogger, serverBaseURL,
+		entitlementService,
 	)
 
 	// SCIM service
 	scimService := service.NewSCIMService(
 		scimTokenRepo, userRepo, orgUserRepo, teamRepo, teamUserRepo,
 		serviceLogger, serverBaseURL,
+		entitlementService,
 	)
 
 	// Initialize handlers
 	activityHandler := httpHandler.NewActivityHandler(userActivityService)
-	organizationActivityHandler := httpHandler.NewOrganizationActivityHandler(userActivityService, orgUserRepo)
+	organizationActivityHandler := httpHandler.NewOrganizationActivityHandler(userActivityService, orgUserRepo, entitlementService)
 	authHandler := httpHandler.NewAuthHandler(authService, verificationService, userActivityService, emailSender, emailBuilder)
 	userHandler := httpHandler.NewUserHandler(userService, userActivityService)
 	userNotificationPreferencesHandler := httpHandler.NewUserNotificationPreferencesHandler(userNotificationPreferencesService)
@@ -350,6 +397,7 @@ func (a *App) Run(ctx context.Context) error {
 	aiTelemetryHandler := httpHandler.NewAITelemetryHandler(aiTelemetryAnalysisService)
 	// Organization handlers
 	organizationHandler := httpHandler.NewOrganizationHandler(organizationService, organizationPolicyService, subscriptionRepo, userActivityService)
+	entitlementHandler := httpHandler.NewEntitlementHandler(entitlementService, orgUserRepo)
 	teamHandler := httpHandler.NewTeamHandler(teamService, userActivityService, organizationService)
 	collectionHandler := httpHandler.NewCollectionHandler(collectionService, userActivityService, organizationService)
 	organizationItemHandler := httpHandler.NewOrganizationItemHandler(organizationItemService, userActivityService, policyEnforcementService)
@@ -400,7 +448,12 @@ func (a *App) Run(ctx context.Context) error {
 	breachMonitorHandler := httpHandler.NewBreachMonitorHandler(breachMonitorService)
 
 	// Compromised password check handler (batch HIBP Pwned Passwords)
-	compromisedCheckHandler := httpHandler.NewCompromisedCheckHandler(pwnedPasswordsClient)
+	compromisedCheckHandler := httpHandler.NewCompromisedCheckHandler(
+		pwnedPasswordsClient,
+		userRepo,
+		orgUserRepo,
+		entitlementService,
+	)
 
 	// Icons handler (public favicon service with protection)
 	iconsHandler := httpHandler.NewIconsHandler(serviceLogger)
@@ -423,6 +476,7 @@ func (a *App) Run(ctx context.Context) error {
 		userPreferencesHandler,
 		invitationHandler,
 		organizationHandler,
+		entitlementHandler,
 		organizationPolicyHandler,
 		organizationSettingsHandler,
 		teamHandler,

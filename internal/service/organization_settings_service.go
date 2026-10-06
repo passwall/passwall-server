@@ -18,9 +18,10 @@ type OrganizationSettingsService interface {
 }
 
 type organizationSettingsService struct {
-	prefRepo    repository.PreferencesRepository
-	orgUserRepo repository.OrganizationUserRepository
-	logger      Logger
+	prefRepo     repository.PreferencesRepository
+	orgUserRepo  repository.OrganizationUserRepository
+	logger       Logger
+	entitlements OrganizationEntitlementService
 }
 
 // NewOrganizationSettingsService creates a new organization settings service
@@ -28,12 +29,17 @@ func NewOrganizationSettingsService(
 	prefRepo repository.PreferencesRepository,
 	orgUserRepo repository.OrganizationUserRepository,
 	logger Logger,
+	entitlements ...OrganizationEntitlementService,
 ) OrganizationSettingsService {
-	return &organizationSettingsService{
+	service := &organizationSettingsService{
 		prefRepo:    prefRepo,
 		orgUserRepo: orgUserRepo,
 		logger:      logger,
 	}
+	if len(entitlements) > 0 {
+		service.entitlements = entitlements[0]
+	}
+	return service
 }
 
 func (s *organizationSettingsService) ListByOrganization(ctx context.Context, orgID, userID uint, section string) ([]*domain.PreferenceDTO, error) {
@@ -56,6 +62,11 @@ func (s *organizationSettingsService) ListByOrganization(ctx context.Context, or
 func (s *organizationSettingsService) UpsertForOrganization(ctx context.Context, orgID, userID uint, req *domain.UpsertPreferencesRequest) ([]*domain.PreferenceDTO, error) {
 	if err := s.requireSettingsAdmin(ctx, orgID, userID); err != nil {
 		return nil, err
+	}
+	if s.entitlements != nil {
+		if err := s.entitlements.Authorize(ctx, orgID, domain.CapabilityOrganizationSettings); err != nil {
+			return nil, err
+		}
 	}
 
 	if req == nil || len(req.Preferences) == 0 {

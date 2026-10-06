@@ -79,6 +79,9 @@ func (h *ItemShareHandler) Create(c *gin.Context) {
 		ExpiresAt:        req.ExpiresAt,
 	})
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, service.ErrShareInviteSent) {
 			c.JSON(http.StatusAccepted, gin.H{
 				"invitation_sent": true,
@@ -202,6 +205,9 @@ func (h *ItemShareHandler) UpdateSharedItem(c *gin.Context) {
 		},
 	})
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -253,6 +259,9 @@ func (h *ItemShareHandler) UpdatePermissions(c *gin.Context) {
 		ClearExpiresAt: req.ClearExpiresAt,
 	})
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -300,6 +309,9 @@ func (h *ItemShareHandler) ReShare(c *gin.Context) {
 		ExpiresAt:        req.ExpiresAt,
 	})
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, service.ErrShareInviteSent) {
 			c.JSON(http.StatusAccepted, gin.H{
 				"invitation_sent": true,
@@ -337,6 +349,9 @@ func (h *ItemShareHandler) Revoke(c *gin.Context) {
 	}
 
 	if err := h.service.Revoke(ctx, userID, shareID); err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return

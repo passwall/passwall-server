@@ -74,6 +74,9 @@ func (h *OrganizationFolderHandler) Create(c *gin.Context) {
 
 	folder, err := h.service.Create(c.Request.Context(), orgID, userID, &req)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -117,6 +120,9 @@ func (h *OrganizationFolderHandler) Update(c *gin.Context) {
 
 	folder, err := h.service.Update(c.Request.Context(), orgID, userID, folderID, &req)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
@@ -153,6 +159,9 @@ func (h *OrganizationFolderHandler) Delete(c *gin.Context) {
 	userID := GetCurrentUserID(c)
 
 	if err := h.service.Delete(c.Request.Context(), orgID, userID, folderID); err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return

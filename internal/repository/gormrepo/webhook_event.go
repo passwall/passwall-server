@@ -2,9 +2,11 @@ package gormrepo
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/passwall/passwall-server/internal/domain"
+	"github.com/passwall/passwall-server/internal/repository"
 	"gorm.io/gorm"
 )
 
@@ -36,6 +38,9 @@ func (r *webhookEventRepository) GetByID(ctx context.Context, id uint) (*domain.
 func (r *webhookEventRepository) GetByStripeEventID(ctx context.Context, stripeEventID string) (*domain.WebhookEvent, error) {
 	var event domain.WebhookEvent
 	err := dbFromContext(ctx, r.db).Where("stripe_event_id = ?", stripeEventID).First(&event).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, repository.ErrNotFound
+	}
 	if err != nil {
 		return nil, err
 	}

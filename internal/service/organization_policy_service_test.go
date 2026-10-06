@@ -182,6 +182,33 @@ func newPolicyTestSetup(plan string) *policyTestSetup {
 
 func boolPtr(b bool) *bool { return &b }
 
+func TestPolicyTierEntitlementMapping(t *testing.T) {
+	features := domain.PlanFeatures{
+		Policies:           true,
+		BusinessPolicies:   true,
+		EnterprisePolicies: false,
+	}
+
+	assert.True(t, policyTierEnabled(features, domain.PolicyTierTeam))
+	assert.True(t, policyTierEnabled(features, domain.PolicyTierBusiness))
+	assert.False(t, policyTierEnabled(features, domain.PolicyTierEnterprise))
+	assert.Equal(
+		t,
+		domain.CapabilityPoliciesManage,
+		policyCapabilityForTier(domain.PolicyTierTeam),
+	)
+	assert.Equal(
+		t,
+		domain.CapabilityBusinessPoliciesManage,
+		policyCapabilityForTier(domain.PolicyTierBusiness),
+	)
+	assert.Equal(
+		t,
+		domain.CapabilityEnterprisePoliciesManage,
+		policyCapabilityForTier(domain.PolicyTierEnterprise),
+	)
+}
+
 // ─── RBAC Tests ─────────────────────────────────────────────────────────────────
 
 func TestListPolicies_OwnerCanAccess(t *testing.T) {

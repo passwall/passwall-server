@@ -10,10 +10,11 @@ import (
 )
 
 type organizationFolderService struct {
-	folderRepo  repository.OrganizationFolderRepository
-	itemRepo    repository.OrganizationItemRepository
-	orgUserRepo repository.OrganizationUserRepository
-	logger      Logger
+	folderRepo   repository.OrganizationFolderRepository
+	itemRepo     repository.OrganizationItemRepository
+	orgUserRepo  repository.OrganizationUserRepository
+	logger       Logger
+	entitlements OrganizationEntitlementService
 }
 
 func NewOrganizationFolderService(
@@ -21,13 +22,18 @@ func NewOrganizationFolderService(
 	itemRepo repository.OrganizationItemRepository,
 	orgUserRepo repository.OrganizationUserRepository,
 	logger Logger,
+	entitlements ...OrganizationEntitlementService,
 ) OrganizationFolderService {
-	return &organizationFolderService{
+	service := &organizationFolderService{
 		folderRepo:  folderRepo,
 		itemRepo:    itemRepo,
 		orgUserRepo: orgUserRepo,
 		logger:      logger,
 	}
+	if len(entitlements) > 0 {
+		service.entitlements = entitlements[0]
+	}
+	return service
 }
 
 func (s *organizationFolderService) ListByOrganization(ctx context.Context, orgID, userID uint) ([]*domain.OrganizationFolder, error) {
@@ -47,6 +53,11 @@ func (s *organizationFolderService) Create(ctx context.Context, orgID, userID ui
 
 	if !orgUser.CanManageCollections() {
 		return nil, repository.ErrForbidden
+	}
+	if s.entitlements != nil {
+		if err := s.entitlements.Authorize(ctx, orgID, domain.CapabilityFolderCreate); err != nil {
+			return nil, err
+		}
 	}
 
 	if _, err := s.folderRepo.GetByOrganizationAndName(ctx, orgID, req.Name); err == nil {
@@ -77,6 +88,11 @@ func (s *organizationFolderService) Update(ctx context.Context, orgID, userID, i
 	if !orgUser.CanManageCollections() {
 		return nil, repository.ErrForbidden
 	}
+	if s.entitlements != nil {
+		if err := s.entitlements.Authorize(ctx, orgID, domain.CapabilityFolderUpdate); err != nil {
+			return nil, err
+		}
+	}
 
 	folder, err := s.folderRepo.GetByID(ctx, id)
 	if err != nil {
@@ -103,6 +119,11 @@ func (s *organizationFolderService) Delete(ctx context.Context, orgID, userID, i
 
 	if !orgUser.CanManageCollections() {
 		return repository.ErrForbidden
+	}
+	if s.entitlements != nil {
+		if err := s.entitlements.Authorize(ctx, orgID, domain.CapabilityFolderDelete); err != nil {
+			return err
+		}
 	}
 
 	folder, err := s.folderRepo.GetByID(ctx, id)

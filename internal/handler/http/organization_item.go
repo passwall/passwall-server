@@ -19,15 +19,12 @@ type OrganizationItemHandler struct {
 }
 
 func respondOrganizationItemWriteError(c *gin.Context, err error) bool {
+	if respondEntitlementError(c, err) {
+		return true
+	}
 	switch {
 	case errors.Is(err, repository.ErrForbidden):
 		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
-	case errors.Is(err, service.ErrSubscriptionExpired):
-		c.JSON(http.StatusForbidden, gin.H{"error": "subscription expired", "code": "SUBSCRIPTION_EXPIRED"})
-	case errors.Is(err, service.ErrPlanLimitReached):
-		c.JSON(http.StatusForbidden, gin.H{"error": "plan limit reached", "code": "PLAN_LIMIT_REACHED"})
-	case errors.Is(err, service.ErrFeatureNotAvailable):
-		c.JSON(http.StatusForbidden, gin.H{"error": "feature not available in current plan", "code": "FEATURE_NOT_AVAILABLE"})
 	default:
 		return false
 	}
@@ -452,6 +449,9 @@ func (h *OrganizationItemHandler) AutofillSecret(c *gin.Context) {
 
 	item, err := h.service.GetAutofillSecret(ctx, id, userID)
 	if err != nil {
+		if respondEntitlementError(c, err) {
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return

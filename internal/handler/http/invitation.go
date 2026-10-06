@@ -237,6 +237,9 @@ func (h *InvitationHandler) Accept(c *gin.Context) {
 		// Use organization service to add user (this is a simplified approach)
 		// In production, you might want a dedicated method in org service
 		if err := h.organizationService.AddExistingMember(ctx, orgUser); err != nil {
+			if respondEntitlementError(c, err) {
+				return
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to join organization", "details": err.Error()})
 			return
 		}

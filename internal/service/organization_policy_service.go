@@ -31,7 +31,8 @@ type organizationPolicyService struct {
 	subRepo     interface {
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
 	}
-	logger Logger
+	logger       Logger
+	entitlements OrganizationEntitlementService
 }
 
 // NewOrganizationPolicyService creates a new organization policy service
@@ -42,13 +43,18 @@ func NewOrganizationPolicyService(
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
 	},
 	logger Logger,
+	entitlements ...OrganizationEntitlementService,
 ) OrganizationPolicyService {
-	return &organizationPolicyService{
+	service := &organizationPolicyService{
 		policyRepo:  policyRepo,
 		orgUserRepo: orgUserRepo,
 		subRepo:     subRepo,
 		logger:      logger,
 	}
+	if len(entitlements) > 0 {
+		service.entitlements = entitlements[0]
+	}
+	return service
 }
 
 func (s *organizationPolicyService) ListByOrganization(ctx context.Context, orgID, userID uint) ([]*domain.OrganizationPolicyDTO, error) {
@@ -56,9 +62,22 @@ func (s *organizationPolicyService) ListByOrganization(ctx context.Context, orgI
 		return nil, err
 	}
 
-	orgPlan, err := s.getOrganizationPlan(ctx, orgID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to determine organization plan: %w", err)
+	var (
+		orgPlan        domain.OrganizationPlan
+		policyFeatures *domain.PlanFeatures
+	)
+	if s.entitlements != nil {
+		snapshot, err := s.entitlements.Resolve(ctx, orgID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve organization entitlements: %w", err)
+		}
+		policyFeatures = &snapshot.Features
+	} else {
+		var err error
+		orgPlan, err = s.getOrganizationPlan(ctx, orgID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to determine organization plan: %w", err)
+		}
 	}
 
 	persisted, err := s.policyRepo.ListByOrganization(ctx, orgID)
@@ -75,7 +94,14 @@ func (s *organizationPolicyService) ListByOrganization(ctx context.Context, orgI
 	dtos := make([]*domain.OrganizationPolicyDTO, 0, len(definitions))
 
 	for _, def := range definitions {
-		if !domain.TierMeetsMinimum(orgPlan, def.Tier) {
+		persistedPolicy, isPersisted := persistedMap[def.Type]
+		// Enabled policies stay visible after a downgrade so admins can see
+		// what is still enforced and disable it.
+		stillEnforced := isPersisted && persistedPolicy.Enabled
+		if !stillEnforced && policyFeatures != nil && !policyTierEnabled(*policyFeatures, def.Tier) {
+			continue
+		}
+		if !stillEnforced && policyFeatures == nil && !domain.TierMeetsMinimum(orgPlan, def.Tier) {
 			continue
 		}
 
@@ -128,15 +154,26 @@ func (s *organizationPolicyService) UpdatePolicy(ctx context.Context, orgID, use
 		return nil, fmt.Errorf("unknown policy type: %s", policyType)
 	}
 
-	// Plan gating
-	orgPlan, err := s.getOrganizationPlan(ctx, orgID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to determine organization plan: %w", err)
-	}
-
+	// Turning a policy off only relaxes restrictions the org already chose,
+	// so it must stay possible after a downgrade or while frozen.
+	disableOnly := req.Enabled != nil && !*req.Enabled && req.Data == nil
 	tier, _ := domain.GetPolicyTier(policyType)
-	if !domain.TierMeetsMinimum(orgPlan, tier) {
-		return nil, fmt.Errorf("policy %s requires %s plan or higher", policyType, tier)
+	if s.entitlements != nil {
+		capability := policyCapabilityForTier(tier)
+		if disableOnly {
+			capability = domain.CapabilityPoliciesDisable
+		}
+		if err := s.entitlements.Authorize(ctx, orgID, capability); err != nil {
+			return nil, err
+		}
+	} else if !disableOnly {
+		orgPlan, err := s.getOrganizationPlan(ctx, orgID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to determine organization plan: %w", err)
+		}
+		if !domain.TierMeetsMinimum(orgPlan, tier) {
+			return nil, fmt.Errorf("policy %s requires %s plan or higher", policyType, tier)
+		}
 	}
 
 	// Enabling: validate dependency chain
@@ -330,6 +367,28 @@ func (s *organizationPolicyService) getOrganizationPlan(ctx context.Context, org
 		}
 	}
 	return domain.OrganizationPlan(base), nil
+}
+
+func policyCapabilityForTier(tier domain.PolicyTier) domain.Capability {
+	switch tier {
+	case domain.PolicyTierBusiness:
+		return domain.CapabilityBusinessPoliciesManage
+	case domain.PolicyTierEnterprise:
+		return domain.CapabilityEnterprisePoliciesManage
+	default:
+		return domain.CapabilityPoliciesManage
+	}
+}
+
+func policyTierEnabled(features domain.PlanFeatures, tier domain.PolicyTier) bool {
+	switch tier {
+	case domain.PolicyTierBusiness:
+		return features.BusinessPolicies
+	case domain.PolicyTierEnterprise:
+		return features.EnterprisePolicies
+	default:
+		return features.Policies
+	}
 }
 
 // findDependents returns enabled policies in this org that depend on the given policy type.

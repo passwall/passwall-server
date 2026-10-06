@@ -32,6 +32,7 @@ type revenueCatService struct {
 	userRepo            repository.UserRepository
 	orgRepo             repository.OrganizationRepository
 	subscriptionService SubscriptionService
+	webhookEventRepo    repository.WebhookEventRepository
 	planRepo            interface {
 		GetByCode(ctx context.Context, code string) (*domain.Plan, error)
 	}
@@ -45,6 +46,7 @@ func NewRevenueCatService(
 	userRepo repository.UserRepository,
 	orgRepo repository.OrganizationRepository,
 	subscriptionService SubscriptionService,
+	webhookEventRepo repository.WebhookEventRepository,
 	planRepo interface {
 		GetByCode(ctx context.Context, code string) (*domain.Plan, error)
 	},
@@ -65,6 +67,7 @@ func NewRevenueCatService(
 		userRepo:            userRepo,
 		orgRepo:             orgRepo,
 		subscriptionService: subscriptionService,
+		webhookEventRepo:    webhookEventRepo,
 		planRepo:            planRepo,
 		activityLogger:      NewActivityLogger(activityService),
 		config:              config,
@@ -88,6 +91,14 @@ func (s *revenueCatService) HandleWebhook(ctx context.Context, payload []byte, s
 	}
 
 	event := webhook.Event
+	eventID := "revenuecat:" + event.ID
+	skip, err := reserveWebhookEvent(ctx, s.webhookEventRepo, eventID, "revenuecat."+string(event.Type))
+	if err != nil {
+		return err
+	}
+	if skip {
+		return nil
+	}
 	s.logger.Info("RevenueCat webhook parsed",
 		"event_type", event.Type,
 		"event_id", event.ID,
@@ -138,21 +149,28 @@ func (s *revenueCatService) HandleWebhook(ctx context.Context, payload []byte, s
 
 	case revenuecat.EventTest:
 		s.logger.Info("🧪 Received TEST webhook", "event_id", event.ID)
-		// Test events don't need processing
-		return nil
 
 	default:
 		s.logger.Info("ℹ️  Unhandled RevenueCat event type (ignored)", "event_type", event.Type, "event_id", event.ID)
-		return nil
 	}
 
 	if handlerErr != nil {
+		if s.webhookEventRepo != nil {
+			if markErr := s.webhookEventRepo.MarkFailed(ctx, eventID, handlerErr.Error()); markErr != nil {
+				s.logger.Error("Failed to record RevenueCat webhook failure", "event_id", event.ID, "error", markErr)
+			}
+		}
 		s.logger.Error("❌ RevenueCat webhook handler failed",
 			"event_type", event.Type,
 			"event_id", event.ID,
 			"error", handlerErr,
 		)
 		return handlerErr
+	}
+	if s.webhookEventRepo != nil {
+		if err := s.webhookEventRepo.MarkProcessed(ctx, eventID); err != nil {
+			return fmt.Errorf("failed to mark RevenueCat webhook processed: %w", err)
+		}
 	}
 
 	s.logger.Info("✅ RevenueCat webhook processed successfully",

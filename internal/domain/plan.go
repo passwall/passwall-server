@@ -11,20 +11,22 @@ import (
 
 // PlanFeatures represents feature flags for a plan
 type PlanFeatures struct {
-	Items            *int `json:"items"`             // Max items (null = unlimited)
-	Sharing          bool `json:"sharing"`           // Item sharing enabled
-	SharedItems      bool `json:"shared_items"`      // Shared items feature enabled
-	SecureSend       bool `json:"secure_send"`       // Secure Send feature enabled
-	Passkeys         bool `json:"passkeys"`          // Passkeys feature enabled
-	EmergencyAccess  bool `json:"emergency_access"`  // Emergency access feature enabled
-	Teams            bool `json:"teams"`             // Team management enabled
-	Audit            bool `json:"audit"`             // Audit logs enabled
-	SSO              bool `json:"sso"`               // Single Sign-On enabled
-	APIAccess        bool `json:"api_access"`        // API access enabled
-	PrioritySupport  bool `json:"priority_support"`  // Priority support enabled
-	Policies         bool `json:"policies"`          // Organization policies enabled
-	SecurityInsights bool `json:"security_insights"` // Security Insights / Watchtower-style dashboard (score, weak, reused, 2FA)
-	BreachMonitoring bool `json:"breach_monitoring"` // Dark web / breach monitoring (HIBP, compromised passwords)
+	Items              *int `json:"items"`               // Max items (null = unlimited)
+	Sharing            bool `json:"sharing"`             // Item sharing enabled
+	SharedItems        bool `json:"shared_items"`        // Shared items feature enabled
+	SecureSend         bool `json:"secure_send"`         // Secure Send feature enabled
+	Passkeys           bool `json:"passkeys"`            // Passkeys feature enabled
+	EmergencyAccess    bool `json:"emergency_access"`    // Emergency access feature enabled
+	Teams              bool `json:"teams"`               // Team management enabled
+	Audit              bool `json:"audit"`               // Audit logs enabled
+	SSO                bool `json:"sso"`                 // Single Sign-On enabled
+	APIAccess          bool `json:"api_access"`          // API access enabled
+	PrioritySupport    bool `json:"priority_support"`    // Priority support enabled
+	Policies           bool `json:"policies"`            // Organization policies enabled
+	BusinessPolicies   bool `json:"business_policies"`   // Business-tier policy definitions enabled
+	EnterprisePolicies bool `json:"enterprise_policies"` // Enterprise-tier policy definitions enabled
+	SecurityInsights   bool `json:"security_insights"`   // Security Insights / Watchtower-style dashboard (score, weak, reused, 2FA)
+	BreachMonitoring   bool `json:"breach_monitoring"`   // Dark web / breach monitoring (HIBP, compromised passwords)
 }
 
 // Scan implements sql.Scanner for PlanFeatures (JSONB)
@@ -64,6 +66,10 @@ type Plan struct {
 	MaxUsers       *int `json:"max_users,omitempty"`
 	MaxCollections *int `json:"max_collections,omitempty"`
 	MaxItems       *int `json:"max_items,omitempty"`
+	MaxDevices     *int `json:"max_devices,omitempty"`
+
+	ExpiryBehavior ExpiryBehavior `json:"expiry_behavior" gorm:"type:varchar(30);not null;default:'freeze'"`
+	GraceDays      int            `json:"grace_days" gorm:"not null;default:14"`
 
 	// Feature flags
 	Features PlanFeatures `json:"features" gorm:"type:jsonb;not null"`
@@ -117,22 +123,25 @@ func (p *Plan) GetPriceDisplay() string {
 
 // PlanDTO for API responses
 type PlanDTO struct {
-	ID             uint         `json:"id"`
-	UUID           uuid.UUID    `json:"uuid"`
-	Code           string       `json:"code"`
-	Name           string       `json:"name"`
-	BillingCycle   BillingCycle `json:"billing_cycle"`
-	PriceCents     int          `json:"price_cents"`
-	PriceDisplay   string       `json:"price_display"`
-	Currency       string       `json:"currency"`
-	TrialDays      int          `json:"trial_days"`
-	MaxUsers       *int         `json:"max_users,omitempty"`
-	MaxCollections *int         `json:"max_collections,omitempty"`
-	MaxItems       *int         `json:"max_items,omitempty"`
-	Features       PlanFeatures `json:"features"`
-	IsActive       bool         `json:"is_active"`
-	CreatedAt      time.Time    `json:"created_at"`
-	UpdatedAt      time.Time    `json:"updated_at"`
+	ID             uint           `json:"id"`
+	UUID           uuid.UUID      `json:"uuid"`
+	Code           string         `json:"code"`
+	Name           string         `json:"name"`
+	BillingCycle   BillingCycle   `json:"billing_cycle"`
+	PriceCents     int            `json:"price_cents"`
+	PriceDisplay   string         `json:"price_display"`
+	Currency       string         `json:"currency"`
+	TrialDays      int            `json:"trial_days"`
+	MaxUsers       *int           `json:"max_users,omitempty"`
+	MaxCollections *int           `json:"max_collections,omitempty"`
+	MaxItems       *int           `json:"max_items,omitempty"`
+	MaxDevices     *int           `json:"max_devices,omitempty"`
+	ExpiryBehavior ExpiryBehavior `json:"expiry_behavior"`
+	GraceDays      int            `json:"grace_days"`
+	Features       PlanFeatures   `json:"features"`
+	IsActive       bool           `json:"is_active"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
 }
 
 // ToPlanDTO converts Plan to DTO
@@ -154,6 +163,9 @@ func ToPlanDTO(p *Plan) *PlanDTO {
 		MaxUsers:       p.MaxUsers,
 		MaxCollections: p.MaxCollections,
 		MaxItems:       p.MaxItems,
+		MaxDevices:     p.MaxDevices,
+		ExpiryBehavior: p.ExpiryBehavior,
+		GraceDays:      p.GraceDays,
 		Features:       p.Features,
 		IsActive:       p.IsActive,
 		CreatedAt:      p.CreatedAt,
