@@ -206,6 +206,10 @@ func (a *App) Run(ctx context.Context) error {
 	itemShareService := service.NewItemShareService(
 		itemShareRepo,
 		orgItemRepo,
+		orgUserRepo,
+		collectionUserRepo,
+		collectionTeamRepo,
+		teamUserRepo,
 		userRepo,
 		emailSender,
 		emailBuilder,

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/passwall/passwall-server/internal/authz"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/email"
 	"github.com/passwall/passwall-server/internal/repository"
@@ -49,30 +50,51 @@ type ItemShareWithItem struct {
 	Item  *domain.OrganizationItem
 }
 
+type itemShareItemRepository interface {
+	GetByUUID(ctx context.Context, uuid string) (*domain.OrganizationItem, error)
+	Update(ctx context.Context, item *domain.OrganizationItem) error
+}
+
+type activeOrganizationMembershipReader interface {
+	GetActiveByOrgAndUser(ctx context.Context, orgID, userID uint) (*domain.OrganizationUser, error)
+}
+
 type itemShareService struct {
-	shareRepo    repository.ItemShareRepository
-	orgItemRepo  repository.OrganizationItemRepository
-	userRepo     repository.UserRepository
-	emailSender  email.Sender
-	emailBuilder *email.EmailBuilder
-	logger       Logger
+	shareRepo       repository.ItemShareRepository
+	orgItemRepo     itemShareItemRepository
+	orgUserRepo     activeOrganizationMembershipReader
+	collectionUsers authz.CollectionUserAccessReader
+	collectionTeams authz.CollectionTeamAccessReader
+	teamMemberships authz.TeamMembershipReader
+	userRepo        repository.UserRepository
+	emailSender     email.Sender
+	emailBuilder    *email.EmailBuilder
+	logger          Logger
 }
 
 func NewItemShareService(
 	shareRepo repository.ItemShareRepository,
-	orgItemRepo repository.OrganizationItemRepository,
+	orgItemRepo itemShareItemRepository,
+	orgUserRepo activeOrganizationMembershipReader,
+	collectionUsers authz.CollectionUserAccessReader,
+	collectionTeams authz.CollectionTeamAccessReader,
+	teamMemberships authz.TeamMembershipReader,
 	userRepo repository.UserRepository,
 	emailSender email.Sender,
 	emailBuilder *email.EmailBuilder,
 	logger Logger,
 ) ItemShareService {
 	return &itemShareService{
-		shareRepo:    shareRepo,
-		orgItemRepo:  orgItemRepo,
-		userRepo:     userRepo,
-		emailSender:  emailSender,
-		emailBuilder: emailBuilder,
-		logger:       logger,
+		shareRepo:       shareRepo,
+		orgItemRepo:     orgItemRepo,
+		orgUserRepo:     orgUserRepo,
+		collectionUsers: collectionUsers,
+		collectionTeams: collectionTeams,
+		teamMemberships: teamMemberships,
+		userRepo:        userRepo,
+		emailSender:     emailSender,
+		emailBuilder:    emailBuilder,
+		logger:          logger,
 	}
 }
 
@@ -91,8 +113,53 @@ func (s *itemShareService) Create(ctx context.Context, ownerID uint, req *Create
 	if err != nil {
 		return nil, err
 	}
+	if err := s.authorizeItemShare(ctx, ownerID, item); err != nil {
+		return nil, err
+	}
 
 	return s.createShareInternal(ctx, ownerID, item, req)
+}
+
+func (s *itemShareService) authorizeItemShare(
+	ctx context.Context,
+	userID uint,
+	item *domain.OrganizationItem,
+) error {
+	if item == nil {
+		return repository.ErrNotFound
+	}
+
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, item.OrganizationID, userID)
+	if err != nil || orgUser == nil {
+		return repository.ErrForbidden
+	}
+	if orgUser.IsAdmin() || orgUser.AccessAll {
+		return nil
+	}
+
+	if item.CollectionID == nil {
+		if item.CreatedByUserID != userID {
+			return repository.ErrForbidden
+		}
+		return nil
+	}
+
+	access, err := authz.ComputeCollectionAccess(
+		ctx,
+		orgUser,
+		*item.CollectionID,
+		s.collectionUsers,
+		s.collectionTeams,
+		s.teamMemberships,
+	)
+	if err != nil {
+		return err
+	}
+	if !access.CanWrite && !access.CanAdmin {
+		return repository.ErrForbidden
+	}
+
+	return nil
 }
 
 func (s *itemShareService) createShareInternal(

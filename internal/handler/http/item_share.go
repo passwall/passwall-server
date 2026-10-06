@@ -94,6 +94,10 @@ func (h *ItemShareHandler) Create(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "item or user not found"})
 			return
 		}
+		if errors.Is(err, repository.ErrForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create share"})
 		return
 	}
