@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -25,6 +26,10 @@ type stubOrganizationItemService struct {
 	createCalled bool
 	createErr    error
 	createItem   *domain.OrganizationItem
+	updateErr    error
+	updateItem   *domain.OrganizationItem
+	deleteErr    error
+	deleteItem   *domain.OrganizationItem
 	v2Request    service.OrganizationItemsV2Request
 	v2Response   *service.OrganizationItemsV2Response
 	v2Err        error
@@ -62,11 +67,17 @@ func (s *stubOrganizationItemService) ListByCollection(ctx context.Context, coll
 }
 
 func (s *stubOrganizationItemService) Update(ctx context.Context, id, userID uint, req *service.UpdateOrgItemRequest) (*domain.OrganizationItem, error) {
-	return nil, repository.ErrNotFound
+	if s.updateErr != nil {
+		return nil, s.updateErr
+	}
+	return s.updateItem, nil
 }
 
 func (s *stubOrganizationItemService) Delete(ctx context.Context, id, userID uint) (*domain.OrganizationItem, error) {
-	return nil, repository.ErrNotFound
+	if s.deleteErr != nil {
+		return nil, s.deleteErr
+	}
+	return s.deleteItem, nil
 }
 
 func (s *stubOrganizationItemService) GetCollectionAccess(ctx context.Context, orgID, userID, collectionID uint) (*authz.CollectionAccess, error) {
@@ -304,4 +315,86 @@ func TestOrganizationItemHandler_Create(t *testing.T) {
 			t.Fatal("expected Create to be called when policy allows card item")
 		}
 	})
+}
+
+func TestOrganizationItemHandler_WriteEntitlementErrors(t *testing.T) {
+	t.Parallel()
+
+	errorCases := []struct {
+		name    string
+		err     error
+		message string
+		code    string
+	}{
+		{
+			name:    "expired subscription",
+			err:     service.ErrSubscriptionExpired,
+			message: "subscription expired",
+			code:    "SUBSCRIPTION_EXPIRED",
+		},
+		{
+			name:    "plan limit reached",
+			err:     service.ErrPlanLimitReached,
+			message: "plan limit reached",
+			code:    "PLAN_LIMIT_REACHED",
+		},
+		{
+			name:    "feature unavailable",
+			err:     service.ErrFeatureNotAvailable,
+			message: "feature not available in current plan",
+			code:    "FEATURE_NOT_AVAILABLE",
+		},
+	}
+
+	operations := []struct {
+		name   string
+		method string
+		route  string
+		path   string
+		body   string
+	}{
+		{name: "create", method: http.MethodPost, route: "/organizations/:id/items", path: "/organizations/99/items", body: `{"item_type":1,"data":"encrypted","metadata":{"name":"item"}}`},
+		{name: "update", method: http.MethodPut, route: "/org-items/:id", path: "/org-items/9", body: `{"is_favorite":true}`},
+		{name: "delete", method: http.MethodDelete, route: "/org-items/:id", path: "/org-items/9"},
+	}
+
+	for _, errorCase := range errorCases {
+		errorCase := errorCase
+		for _, operation := range operations {
+			operation := operation
+			t.Run(errorCase.name+"/"+operation.name, func(t *testing.T) {
+				t.Parallel()
+
+				wrappedErr := fmt.Errorf("write entitlement check failed: %w", errorCase.err)
+				itemSvc := &stubOrganizationItemService{
+					createErr: wrappedErr,
+					updateErr: wrappedErr,
+					deleteErr: wrappedErr,
+				}
+				handler := &OrganizationItemHandler{service: itemSvc}
+				router := gin.New()
+				router.Handle(operation.method, operation.route, func(c *gin.Context) {
+					c.Set(constants.ContextKeyUserID, uint(42))
+					c.Set(constants.ContextKeyOrgID, uint(99))
+					switch operation.name {
+					case "create":
+						handler.Create(c)
+					case "update":
+						handler.Update(c)
+					case "delete":
+						handler.Delete(c)
+					}
+				})
+
+				req := httptest.NewRequest(operation.method, operation.path, bytes.NewBufferString(operation.body))
+				req.Header.Set("Content-Type", "application/json")
+				rec := httptest.NewRecorder()
+				router.ServeHTTP(rec, req)
+
+				require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+				assert.JSONEq(t, fmt.Sprintf(`{"error":%q,"code":%q}`, errorCase.message, errorCase.code), rec.Body.String())
+				assert.NotContains(t, rec.Body.String(), "write entitlement check failed")
+			})
+		}
+	}
 }

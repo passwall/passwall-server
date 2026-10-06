@@ -18,6 +18,22 @@ type OrganizationItemHandler struct {
 	activityLogger    *service.ActivityLogger
 }
 
+func respondOrganizationItemWriteError(c *gin.Context, err error) bool {
+	switch {
+	case errors.Is(err, repository.ErrForbidden):
+		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+	case errors.Is(err, service.ErrSubscriptionExpired):
+		c.JSON(http.StatusForbidden, gin.H{"error": "subscription expired", "code": "SUBSCRIPTION_EXPIRED"})
+	case errors.Is(err, service.ErrPlanLimitReached):
+		c.JSON(http.StatusForbidden, gin.H{"error": "plan limit reached", "code": "PLAN_LIMIT_REACHED"})
+	case errors.Is(err, service.ErrFeatureNotAvailable):
+		c.JSON(http.StatusForbidden, gin.H{"error": "feature not available in current plan", "code": "FEATURE_NOT_AVAILABLE"})
+	default:
+		return false
+	}
+	return true
+}
+
 func NewOrganizationItemHandler(
 	svc service.OrganizationItemService,
 	activityService service.UserActivityService,
@@ -66,8 +82,7 @@ func (h *OrganizationItemHandler) Create(c *gin.Context) {
 
 	item, err := h.service.Create(ctx, orgID, userID, &req)
 	if err != nil {
-		if errors.Is(err, repository.ErrForbidden) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+		if respondOrganizationItemWriteError(c, err) {
 			return
 		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to create item", "details": err.Error()})
@@ -347,8 +362,7 @@ func (h *OrganizationItemHandler) Update(c *gin.Context) {
 
 	item, err := h.service.Update(ctx, id, userID, &req)
 	if err != nil {
-		if errors.Is(err, repository.ErrForbidden) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+		if respondOrganizationItemWriteError(c, err) {
 			return
 		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to update item", "details": err.Error()})
@@ -392,8 +406,7 @@ func (h *OrganizationItemHandler) Delete(c *gin.Context) {
 
 	item, err := h.service.Delete(ctx, id, userID)
 	if err != nil {
-		if errors.Is(err, repository.ErrForbidden) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+		if respondOrganizationItemWriteError(c, err) {
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete item"})
