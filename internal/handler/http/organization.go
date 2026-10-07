@@ -70,6 +70,10 @@ func (h *OrganizationHandler) Create(c *gin.Context) {
 
 	org, err := h.service.Create(ctx, userID, &req)
 	if err != nil {
+		if errors.Is(err, service.ErrInvalidOrganizationPlan) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid plan selection", "details": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create organization", "details": err.Error()})
 		return
 	}
@@ -286,7 +290,96 @@ func (h *OrganizationHandler) InviteUser(c *gin.Context) {
 		return
 	}
 
+	if orgUser == nil {
+		c.JSON(http.StatusAccepted, gin.H{"status": "awaiting_signup", "email": req.Email})
+		return
+	}
+
 	c.JSON(http.StatusCreated, domain.ToOrganizationUserDTO(orgUser))
+}
+
+// ListPendingInvitations godoc
+// @Summary List sign-up invitations
+// @Description List email invitations sent to people who have not signed up yet
+// @Tags organizations
+// @Produce json
+// @Param id path int true "Organization ID"
+// @Success 200 {array} domain.PendingOrgInvitationDTO
+// @Failure 403 {object} map[string]string
+// @Router /organizations/{id}/pending-invitations [get]
+func (h *OrganizationHandler) ListPendingInvitations(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := GetCurrentUserID(c)
+
+	orgID, ok := GetResolvedOrgID(c)
+	if !ok {
+		return
+	}
+
+	invitations, err := h.service.ListAwaitingSignupInvitations(ctx, orgID, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list invitations"})
+		return
+	}
+
+	dtos := make([]domain.PendingOrgInvitationDTO, 0, len(invitations))
+	for _, inv := range invitations {
+		role := ""
+		if inv.OrgRole != nil {
+			role = *inv.OrgRole
+		}
+		dtos = append(dtos, domain.PendingOrgInvitationDTO{
+			ID:        inv.ID,
+			Email:     inv.Email,
+			Role:      role,
+			CreatedAt: inv.CreatedAt,
+			ExpiresAt: inv.ExpiresAt,
+		})
+	}
+
+	c.JSON(http.StatusOK, dtos)
+}
+
+// RevokePendingInvitation godoc
+// @Summary Revoke sign-up invitation
+// @Description Cancel an email invitation that has not been used yet
+// @Tags organizations
+// @Param id path int true "Organization ID"
+// @Param invitationId path int true "Invitation ID"
+// @Success 204
+// @Failure 403 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /organizations/{id}/pending-invitations/{invitationId} [delete]
+func (h *OrganizationHandler) RevokePendingInvitation(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := GetCurrentUserID(c)
+
+	orgID, ok := GetResolvedOrgID(c)
+	if !ok {
+		return
+	}
+	invitationID, ok := GetUintParam(c, "invitationId")
+	if !ok {
+		return
+	}
+
+	if err := h.service.RevokeAwaitingSignupInvitation(ctx, orgID, invitationID, userID); err != nil {
+		switch {
+		case errors.Is(err, repository.ErrForbidden):
+			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+		case errors.Is(err, repository.ErrNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "invitation not found"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to revoke invitation"})
+		}
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }
 
 // GetMembers godoc

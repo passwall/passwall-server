@@ -11,6 +11,7 @@ import (
 
 	"github.com/passwall/passwall-server/internal/config"
 	"github.com/passwall/passwall-server/internal/domain"
+	"github.com/passwall/passwall-server/internal/email"
 	"github.com/passwall/passwall-server/internal/repository"
 	stripeClient "github.com/passwall/passwall-server/pkg/stripe"
 	"github.com/stripe/stripe-go/v81"
@@ -32,6 +33,37 @@ type paymentService struct {
 	activityLogger *ActivityLogger
 	config         *config.Config
 	logger         Logger
+	trialHistory   trialHistoryReader
+	trialEmails    *trialEmailNotifier
+}
+
+type trialHistoryReader interface {
+	HasPaidHistoryForUser(ctx context.Context, userID uint, personal bool) (bool, error)
+}
+
+type trialEmailNotifier struct {
+	sender  email.Sender
+	builder *email.EmailBuilder
+}
+
+// PaymentServiceOption configures optional payment service collaborators.
+type PaymentServiceOption func(*paymentService)
+
+// WithTrialHistory limits checkout trials to users without prior paid or trial
+// history for the organization kind. Without it every checkout receives the plan trial.
+func WithTrialHistory(reader trialHistoryReader) PaymentServiceOption {
+	return func(s *paymentService) {
+		s.trialHistory = reader
+	}
+}
+
+// WithTrialEndingEmails sends the trial-ending reminder for Stripe trial_will_end events.
+func WithTrialEndingEmails(sender email.Sender, builder *email.EmailBuilder) PaymentServiceOption {
+	return func(s *paymentService) {
+		if sender != nil && builder != nil {
+			s.trialEmails = &trialEmailNotifier{sender: sender, builder: builder}
+		}
+	}
 }
 
 // NewPaymentService creates a new payment service
@@ -48,8 +80,9 @@ func NewPaymentService(
 	activityService UserActivityService,
 	config *config.Config,
 	logger Logger,
+	opts ...PaymentServiceOption,
 ) PaymentService {
-	return &paymentService{
+	service := &paymentService{
 		stripe:              stripe,
 		orgRepo:             orgRepo,
 		orgUserRepo:         orgUserRepo,
@@ -61,6 +94,10 @@ func NewPaymentService(
 		config:              config,
 		logger:              logger,
 	}
+	for _, opt := range opts {
+		opt(service)
+	}
+	return service
 }
 
 // CreateCheckoutSession creates a Stripe checkout session for an organization
@@ -76,6 +113,14 @@ func (s *paymentService) CreateCheckoutSession(ctx context.Context, orgID, userI
 	}
 	if !org.IsPersonal && domain.IsPersonalVaultPlan(plan) && plan != string(domain.PlanFree) {
 		return "", fmt.Errorf("pro plan is only available for personal vaults")
+	}
+
+	// A plan-first organization reserved its seat count at setup; reuse it when
+	// the client resumes checkout without an explicit seat count.
+	currentSub, _ := s.subscriptionService.GetByOrganizationID(ctx, orgID)
+	isPlanFirstSetup := currentSub != nil && currentSub.State == domain.SubStateDraft
+	if seats < 1 && isPlanFirstSetup && currentSub.SeatsPurchased != nil {
+		seats = *currentSub.SeatsPurchased
 	}
 
 	// Enforce minimum seats: cannot buy fewer seats than current members.
@@ -136,13 +181,22 @@ func (s *paymentService) CreateCheckoutSession(ctx context.Context, orgID, userI
 		}
 	}
 
-	// Create checkout session
-	successURL := fmt.Sprintf("%s/organizations/%d/billing?success=true", s.config.Server.FrontendURL, orgID)
-	cancelURL := fmt.Sprintf("%s/organizations/%d/billing?canceled=true", s.config.Server.FrontendURL, orgID)
+	// Vault routes address organizations by public ID.
+	billingURL := fmt.Sprintf("%s/organizations/%s/billing", s.config.Server.FrontendURL, org.PublicID)
+	successURL := billingURL + "?success=true"
+	if isPlanFirstSetup {
+		successURL += "&onboarding=1"
+	}
+	cancelURL := billingURL + "?canceled=true"
 
 	quantity := int64(seats)
 	if quantity <= 0 {
 		quantity = 1
+	}
+
+	trialDays := planConfig.TrialDays
+	if trialDays > 0 && !s.isTrialEligible(ctx, org, userID) {
+		trialDays = 0
 	}
 
 	session, err := s.stripe.CreateCheckoutSession(stripeClient.CheckoutSessionParams{
@@ -155,18 +209,38 @@ func (s *paymentService) CreateCheckoutSession(ctx context.Context, orgID, userI
 		OrgName:      org.Name,
 		Plan:         plan,
 		BillingCycle: billingCycle,
-		TrialDays:    planConfig.TrialDays, // Trial period from config
+		TrialDays:    trialDays,
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to create checkout session: %w", err)
 	}
 
-	s.logger.Info("created checkout session", "org_id", orgID, "plan", plan, "billing_cycle", billingCycle, "session_id", session.ID)
+	s.logger.Info("created checkout session", "org_id", orgID, "plan", plan, "billing_cycle", billingCycle, "session_id", session.ID, "trial_days", trialDays)
 
 	// Log activity
 	s.activityLogger.LogCheckoutCreated(ctx, userID, ipAddress, userAgent, orgID, org.Name, plan, billingCycle, session.ID)
 
 	return session.URL, nil
+}
+
+// isTrialEligible grants a checkout trial only to users who never had a trial
+// or paid subscription for the same organization kind (personal or shared).
+func (s *paymentService) isTrialEligible(ctx context.Context, org *domain.Organization, userID uint) bool {
+	if s.trialHistory == nil {
+		return true
+	}
+	ownerID := userID
+	if org.CreatedByUserID != nil {
+		ownerID = *org.CreatedByUserID
+	} else if org.PersonalOwnerUserID != nil {
+		ownerID = *org.PersonalOwnerUserID
+	}
+	used, err := s.trialHistory.HasPaidHistoryForUser(ctx, ownerID, org.IsPersonal)
+	if err != nil {
+		s.logger.Warn("trial history lookup failed; checkout continues without trial", "org_id", org.ID, "error", err)
+		return false
+	}
+	return !used
 }
 
 // UpdateSubscriptionSeats updates seat quantity (subscription item quantity) on Stripe.
@@ -512,6 +586,9 @@ func (s *paymentService) HandleWebhook(ctx context.Context, payload []byte, sign
 	case "invoice.payment_failed":
 		s.logger.Info("⚠️  Processing invoice.payment_failed webhook", "event_id", event.ID)
 		handlerErr = s.handlePaymentFailed(ctx, event)
+	case "customer.subscription.trial_will_end":
+		s.logger.Info("Processing customer.subscription.trial_will_end webhook", "event_id", event.ID)
+		handlerErr = s.handleTrialWillEnd(ctx, event)
 	default:
 		s.logger.Info("ℹ️  Unhandled webhook event type (ignored)", "event_type", event.Type, "event_id", event.ID)
 	}
@@ -622,14 +699,16 @@ func (s *paymentService) handleSubscriptionCreated(ctx context.Context, event st
 
 	s.logger.Info("Creating subscription in database", "org_id", orgID, "plan_code", planCode, "subscription_id", sub.ID)
 
-	// Create subscription using SubscriptionService
-	subscription, err := s.subscriptionService.Create(ctx, orgID, planCode, sub.ID, seatsPurchased)
+	subscription, err := s.subscriptionService.CreateFromProvider(ctx, orgID, planCode, sub.ID, seatsPurchased, stripeTrialEnd(&sub))
 	if err != nil {
 		s.logger.Error("Failed to create subscription in database", "org_id", orgID, "subscription_id", sub.ID, "error", err)
 		return fmt.Errorf("failed to create subscription: %w", err)
 	}
 	if err := s.syncProviderPeriod(ctx, &sub); err != nil {
 		return err
+	}
+	if subscription.State == domain.SubStateTrialing {
+		s.logTrialEvent(ctx, domain.ActivityTypeTrialStarted, orgID, sub.ID, planCode)
 	}
 
 	s.logger.Info("✅ Subscription created successfully", "org_id", orgID, "subscription_id", subscription.ID, "status", sub.Status)
@@ -689,6 +768,15 @@ func (s *paymentService) handleOrgSubscriptionUpdate(ctx context.Context, sub st
 	// Handle payment success/failure through SubscriptionService
 	switch sub.Status {
 	case stripe.SubscriptionStatusActive, stripe.SubscriptionStatusTrialing:
+		if sub.Status == stripe.SubscriptionStatusActive {
+			if dbSub, err := s.subscriptionService.GetByStripeSubscriptionID(ctx, sub.ID); err == nil && dbSub.State == domain.SubStateTrialing {
+				planCode := ""
+				if dbSub.Plan != nil {
+					planCode = dbSub.Plan.Code
+				}
+				s.logTrialEvent(ctx, domain.ActivityTypeTrialConverted, dbSub.OrganizationID, sub.ID, planCode)
+			}
+		}
 		return s.subscriptionService.HandlePaymentSuccess(ctx, sub.ID)
 	case stripe.SubscriptionStatusPastDue:
 		return s.subscriptionService.HandlePaymentFailed(ctx, sub.ID)
@@ -735,6 +823,68 @@ func stripeEndedAt(sub *stripe.Subscription) *time.Time {
 	return &endedAt
 }
 
+// stripeTrialEnd returns the provider trial end, or nil when the subscription
+// has no trial.
+func stripeTrialEnd(sub *stripe.Subscription) *time.Time {
+	if sub == nil || sub.TrialEnd <= 0 {
+		return nil
+	}
+	end := time.Unix(sub.TrialEnd, 0)
+	return &end
+}
+
+// logTrialEvent records a trial funnel event against the organization owner.
+func (s *paymentService) logTrialEvent(ctx context.Context, activityType domain.ActivityType, orgID uint, subscriptionID, planCode string) {
+	ownerID := s.getOrganizationOwnerID(ctx, orgID)
+	if ownerID == 0 {
+		return
+	}
+	orgName := ""
+	if org, err := s.orgRepo.GetByID(ctx, orgID); err == nil {
+		orgName = org.Name
+	}
+	s.activityLogger.LogTrialEvent(ctx, activityType, ownerID, orgID, orgName, subscriptionID, planCode)
+}
+
+// handleTrialWillEnd reminds the billing contact before a Stripe trial converts
+// to a paid subscription.
+func (s *paymentService) handleTrialWillEnd(ctx context.Context, event stripe.Event) error {
+	var sub stripe.Subscription
+	if err := json.Unmarshal(event.Data.Raw, &sub); err != nil {
+		return fmt.Errorf("failed to parse subscription: %w", err)
+	}
+
+	var orgID uint
+	if _, err := fmt.Sscanf(sub.Metadata["organization_id"], "%d", &orgID); err != nil || orgID == 0 {
+		s.logger.Warn("trial_will_end without organization metadata (skipped)", "subscription_id", sub.ID)
+		return nil
+	}
+	trialEnd := stripeTrialEnd(&sub)
+	if trialEnd == nil {
+		return nil
+	}
+	org, err := s.orgRepo.GetByID(ctx, orgID)
+	if err != nil {
+		s.logger.Warn("trial_will_end organization not found (skipped)", "org_id", orgID, "subscription_id", sub.ID)
+		return nil
+	}
+
+	if s.trialEmails != nil && org.BillingEmail != "" {
+		billingURL := fmt.Sprintf("%s/organizations/%s/billing", s.config.Server.FrontendURL, org.PublicID)
+		message, err := s.trialEmails.builder.BuildTrialEndingEmail(org.BillingEmail, org.Name, *trialEnd, billingURL)
+		if err != nil {
+			return fmt.Errorf("failed to build trial ending email: %w", err)
+		}
+		if err := s.trialEmails.sender.Send(ctx, message); err != nil {
+			return fmt.Errorf("failed to send trial ending email: %w", err)
+		}
+	}
+
+	planCode, _ := s.mapPriceIDToPlan(stripeClient.GetPriceFromSubscription(&sub))
+	s.logTrialEvent(ctx, domain.ActivityTypeTrialEndingNotified, orgID, sub.ID, planCode)
+	return nil
+}
+
 // handleSubscriptionDeleted handles customer.subscription.deleted event
 func (s *paymentService) handleSubscriptionDeleted(ctx context.Context, event stripe.Event) error {
 	var sub stripe.Subscription
@@ -753,6 +903,13 @@ func (s *paymentService) handleSubscriptionDeleted(ctx context.Context, event st
 
 	if dbSub.State == domain.SubStateExpired {
 		return nil
+	}
+	if dbSub.State == domain.SubStateTrialing {
+		planCode := ""
+		if dbSub.Plan != nil {
+			planCode = dbSub.Plan.Code
+		}
+		s.logTrialEvent(ctx, domain.ActivityTypeTrialCanceled, dbSub.OrganizationID, sub.ID, planCode)
 	}
 
 	if err := s.subscriptionService.HandleProviderCanceled(ctx, dbSub.ID, stripeEndedAt(&sub)); err != nil {
@@ -869,7 +1026,7 @@ func (s *paymentService) updateOrgFromSubscriptionWithID(ctx context.Context, su
 		}
 	}
 
-	if _, err := s.subscriptionService.Create(ctx, orgID, planCode, sub.ID, seatsPurchased); err != nil {
+	if _, err := s.subscriptionService.CreateFromProvider(ctx, orgID, planCode, sub.ID, seatsPurchased, stripeTrialEnd(sub)); err != nil {
 		return fmt.Errorf("failed to upsert subscription: %w", err)
 	}
 

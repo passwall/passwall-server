@@ -241,6 +241,90 @@ func TestCheckExpiredSubscriptionsExpiresEndedTrial(t *testing.T) {
 	}
 }
 
+func TestCreateFromProviderUsesProviderTrialOnly(t *testing.T) {
+	plan := &domain.Plan{
+		ID:           3,
+		Code:         "team-yearly",
+		BillingCycle: domain.BillingCycleYearly,
+		TrialDays:    14,
+		IsActive:     true,
+	}
+	futureTrialEnd := time.Now().Add(14 * 24 * time.Hour).Round(time.Second)
+	pastTrialEnd := time.Now().Add(-time.Hour)
+
+	tests := []struct {
+		name      string
+		trialEnd  *time.Time
+		wantState domain.SubscriptionState
+	}{
+		{"provider trial starts trialing", &futureTrialEnd, domain.SubStateTrialing},
+		{"no provider trial ignores catalog trial", nil, domain.SubStateActive},
+		{"elapsed provider trial is active", &pastTrialEnd, domain.SubStateActive},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &lifecycleSubscriptionRepo{}
+			service := NewSubscriptionService(
+				repo,
+				lifecyclePlanRepo{free: plan},
+				lifecycleOrgRepo{org: &domain.Organization{ID: 7}},
+				nil, nil, nil, noopLogger{}, nil,
+			)
+
+			created, err := service.CreateFromProvider(context.Background(), 7, plan.Code, "sub_trial", nil, tt.trialEnd)
+			if err != nil {
+				t.Fatalf("CreateFromProvider() error = %v", err)
+			}
+			if created.State != tt.wantState {
+				t.Fatalf("state = %q, want %q", created.State, tt.wantState)
+			}
+			if tt.wantState == domain.SubStateTrialing {
+				if created.TrialEndsAt == nil || !created.TrialEndsAt.Equal(futureTrialEnd) {
+					t.Fatalf("TrialEndsAt = %v, want %v", created.TrialEndsAt, futureTrialEnd)
+				}
+			} else if created.TrialEndsAt != nil {
+				t.Fatalf("unexpected TrialEndsAt %v", created.TrialEndsAt)
+			}
+		})
+	}
+}
+
+func TestHandlePaymentSuccessKeepsRunningTrial(t *testing.T) {
+	trialEnd := time.Now().Add(10 * 24 * time.Hour)
+	plan := &domain.Plan{ID: 3, Code: "team-monthly", BillingCycle: domain.BillingCycleMonthly}
+	repo := &lifecycleSubscriptionRepo{sub: &domain.Subscription{
+		ID: 9, OrganizationID: 7, PlanID: plan.ID, Plan: plan,
+		State: domain.SubStateTrialing, TrialEndsAt: &trialEnd, RenewAt: &trialEnd,
+		StripeSubscriptionID: stringPointer("sub_trial"),
+	}}
+	service := NewSubscriptionService(repo, lifecyclePlanRepo{free: plan}, nil, nil, nil, nil, nil, nil)
+
+	if err := service.HandlePaymentSuccess(context.Background(), "sub_trial"); err != nil {
+		t.Fatalf("HandlePaymentSuccess() error = %v", err)
+	}
+	if repo.sub.State != domain.SubStateTrialing {
+		t.Fatalf("state = %q, want trialing", repo.sub.State)
+	}
+}
+
+func TestHandlePaymentSuccessActivatesDraft(t *testing.T) {
+	plan := &domain.Plan{ID: 3, Code: "team-monthly", BillingCycle: domain.BillingCycleMonthly}
+	repo := &lifecycleSubscriptionRepo{sub: &domain.Subscription{
+		ID: 9, OrganizationID: 7, PlanID: plan.ID, Plan: plan,
+		State:                domain.SubStateDraft,
+		StripeSubscriptionID: stringPointer("sub_draft"),
+	}}
+	service := NewSubscriptionService(repo, lifecyclePlanRepo{free: plan}, nil, nil, nil, nil, nil, nil)
+
+	if err := service.HandlePaymentSuccess(context.Background(), "sub_draft"); err != nil {
+		t.Fatalf("HandlePaymentSuccess() error = %v", err)
+	}
+	if repo.sub.State != domain.SubStateActive || repo.sub.StartedAt == nil || repo.sub.RenewAt == nil {
+		t.Fatalf("draft was not activated: %+v", repo.sub)
+	}
+}
+
 func boolCount(value bool) int {
 	if value {
 		return 1

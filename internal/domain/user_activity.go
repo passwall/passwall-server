@@ -35,6 +35,10 @@ const (
 	ActivityTypeInvoicePaymentFailed    ActivityType = "invoice_payment_failed"
 	ActivityTypeOrganizationUpgraded    ActivityType = "organization_upgraded"
 	ActivityTypeOrganizationDowngraded  ActivityType = "organization_downgraded"
+	ActivityTypeTrialStarted            ActivityType = "trial_started"
+	ActivityTypeTrialEndingNotified     ActivityType = "trial_ending_notified"
+	ActivityTypeTrialConverted          ActivityType = "trial_converted"
+	ActivityTypeTrialCanceled           ActivityType = "trial_canceled"
 
 	// Organization & structure
 	ActivityTypeOrganizationCreated ActivityType = "organization_created"

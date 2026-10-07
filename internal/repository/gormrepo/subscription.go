@@ -17,12 +17,14 @@ func NewSubscriptionRepository(db *gorm.DB) *subscriptionRepository {
 	return &subscriptionRepository{db: db}
 }
 
-// ExpireActiveByOrganizationID expires any active/trialing/past_due subscriptions for the org.
-// This enforces the invariant: at most one "active-like" subscription per organization.
+// ExpireActiveByOrganizationID expires any draft/active/trialing/past_due subscriptions for the org.
+// This enforces the invariant: at most one "active-like" subscription per organization,
+// and a pending plan-first draft never outlives the subscription that replaces it.
 func (r *subscriptionRepository) ExpireActiveByOrganizationID(ctx context.Context, orgID uint, endedAt time.Time) error {
 	return dbFromContext(ctx, r.db).
 		Model(&domain.Subscription{}).
 		Where("organization_id = ? AND state IN ?", orgID, []domain.SubscriptionState{
+			domain.SubStateDraft,
 			domain.SubStateActive,
 			domain.SubStateTrialing,
 			domain.SubStatePastDue,
@@ -234,6 +236,36 @@ func (r *subscriptionRepository) ListExpiring(ctx context.Context, before time.T
 		}).
 		Find(&subs).Error
 	return subs, err
+}
+
+// HasPaidHistoryForUser reports whether any provider-billed subscription (trial
+// or paid) exists on an organization of the same kind (personal or shared) that
+// the user created or personally owns. Organization rows are kept after
+// deletion, so deleting and recreating an organization does not reset it.
+func (r *subscriptionRepository) HasPaidHistoryForUser(ctx context.Context, userID uint, personal bool) (bool, error) {
+	var count int64
+	err := dbFromContext(ctx, r.db).
+		Model(&domain.Subscription{}).
+		Joins("JOIN organizations ON organizations.id = subscriptions.organization_id").
+		Where("(organizations.created_by_user_id = ? OR organizations.personal_owner_user_id = ?)", userID, userID).
+		Where("organizations.is_personal = ?", personal).
+		Where("subscriptions.stripe_subscription_id IS NOT NULL").
+		Count(&count).Error
+	return count > 0, err
+}
+
+// ListAbandonedDraftOrganizationIDs returns non-personal organizations created
+// before the cutoff whose only subscriptions are plan-first drafts, i.e. the
+// owner never completed checkout.
+func (r *subscriptionRepository) ListAbandonedDraftOrganizationIDs(ctx context.Context, createdBefore time.Time) ([]uint, error) {
+	var ids []uint
+	err := dbFromContext(ctx, r.db).
+		Model(&domain.Organization{}).
+		Where("organizations.is_personal = ? AND organizations.deleted_at IS NULL AND organizations.created_at < ?", false, createdBefore).
+		Where("EXISTS (SELECT 1 FROM subscriptions s WHERE s.organization_id = organizations.id AND s.state = ?)", domain.SubStateDraft).
+		Where("NOT EXISTS (SELECT 1 FROM subscriptions s WHERE s.organization_id = organizations.id AND s.state <> ?)", domain.SubStateDraft).
+		Pluck("organizations.id", &ids).Error
+	return ids, err
 }
 
 // ListTrialEnding retrieves trial subscriptions ending before a given date

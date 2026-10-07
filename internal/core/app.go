@@ -36,6 +36,7 @@ type App struct {
 	sendCleanup         *cleanup.SendCleanup
 	breachMonitorWorker *cleanup.BreachMonitorWorker
 	subscriptionWorker  *cleanup.SubscriptionWorker
+	draftOrgCleanup     *cleanup.DraftOrganizationCleanup
 	emailSender         email.Sender
 	readiness           atomic.Bool
 	workerWG            sync.WaitGroup
@@ -256,7 +257,11 @@ func (a *App) Run(ctx context.Context) error {
 	)
 
 	// Payment service - handles org subscriptions via Stripe webhooks
-	paymentService = service.NewPaymentService(stripeClientInstance, orgRepo, orgUserRepo, userRepo, subscriptionService, webhookEventRepo, planRepo, userActivityService, a.config, serviceLogger)
+	paymentService = service.NewPaymentService(
+		stripeClientInstance, orgRepo, orgUserRepo, userRepo, subscriptionService, webhookEventRepo, planRepo, userActivityService, a.config, serviceLogger,
+		service.WithTrialHistory(subscriptionRepo),
+		service.WithTrialEndingEmails(emailSender, emailBuilder),
+	)
 
 	// RevenueCat service - handles mobile in-app purchases via webhooks (org-level subscriptions)
 	revenueCatService := service.NewRevenueCatService(userRepo, orgRepo, subscriptionService, webhookEventRepo, planRepo, userActivityService, a.config, serviceLogger)
@@ -544,6 +549,9 @@ func (a *App) Run(ctx context.Context) error {
 	// Initialize subscription expiry worker (runs every 6 hours)
 	a.subscriptionWorker = cleanup.NewSubscriptionWorker(subscriptionService, serviceLogger, 6*time.Hour)
 
+	// Remove plan-first organizations whose checkout was never completed (daily, after 7 days)
+	a.draftOrgCleanup = cleanup.NewDraftOrganizationCleanup(subscriptionRepo, orgRepo, serviceLogger, 7*24*time.Hour, 24*time.Hour)
+
 	runCtx, cancelWorkers := context.WithCancel(ctx)
 	defer cancelWorkers()
 
@@ -553,6 +561,7 @@ func (a *App) Run(ctx context.Context) error {
 	a.startWorker(func() { a.sendCleanup.Start(runCtx) })
 	a.startWorker(func() { a.breachMonitorWorker.Start(runCtx) })
 	a.startWorker(func() { a.subscriptionWorker.Run(runCtx) })
+	a.startWorker(func() { a.draftOrgCleanup.Run(runCtx) })
 
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {

@@ -43,6 +43,14 @@ func (i *Invitation) IsUsed() bool {
 	return i.UsedAt != nil
 }
 
+// IsAwaitingSignup reports whether this is an organization invitation for
+// someone without an account yet: it carries no wrapped org key, so the member
+// needs admin confirmation (key exchange) after signing up.
+func (i *Invitation) IsAwaitingSignup() bool {
+	return i.OrganizationID != nil && i.OrgRole != nil &&
+		(i.EncryptedOrgKey == nil || *i.EncryptedOrgKey == "")
+}
+
 // CreateInvitationRequest represents invitation creation request
 type CreateInvitationRequest struct {
 	Email       string  `json:"email" validate:"required,email"`

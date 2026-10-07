@@ -180,6 +180,16 @@ func (l *ActivityLogger) LogInvoicePaymentFailed(ctx context.Context, userID uin
 	})
 }
 
+// LogTrialEvent logs a trial funnel event (started, ending notified, converted, canceled).
+func (l *ActivityLogger) LogTrialEvent(ctx context.Context, activityType domain.ActivityType, userID uint, orgID uint, orgName, subscriptionID, plan string) {
+	_ = l.LogActivity(ctx, userID, activityType, "webhook", "Stripe Webhook", ActivityDetails{
+		ActivityFieldOrganizationID:   orgID,
+		ActivityFieldOrganizationName: orgName,
+		ActivityFieldSubscriptionID:   subscriptionID,
+		ActivityFieldPlan:             plan,
+	})
+}
+
 // Organization Activity Builders
 
 // LogOrganizationCreated logs organization creation

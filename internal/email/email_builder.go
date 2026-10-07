@@ -383,6 +383,35 @@ func (b *EmailBuilder) BuildRecoveryDeleteCompleteEmail(to string) (*EmailMessag
 	}, nil
 }
 
+// BuildTrialEndingEmail reminds the billing contact that a trial is about to convert.
+func (b *EmailBuilder) BuildTrialEndingEmail(to, orgName string, trialEnd time.Time, billingURL string) (*EmailMessage, error) {
+	if to == "" {
+		return nil, fmt.Errorf("recipient email is required")
+	}
+	if billingURL == "" {
+		return nil, fmt.Errorf("billing URL is required")
+	}
+
+	data := &TemplateData{
+		OrganizationName: orgName,
+		TrialEndDate:     trialEnd.UTC().Format("January 2, 2006"),
+		BillingURL:       billingURL,
+		Year:             currentYear(),
+	}
+
+	htmlBody, err := b.templateManager.Render(TemplateTrialEnding, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to render trial-ending template: %w", err)
+	}
+
+	return &EmailMessage{
+		To:      to,
+		From:    b.defaultFrom,
+		Subject: fmt.Sprintf("Your Passwall trial for %s ends soon", orgName),
+		Body:    htmlBody,
+	}, nil
+}
+
 // BuildCustomEmail builds a custom email with provided subject and body
 func (b *EmailBuilder) BuildCustomEmail(to, subject, htmlBody string) (*EmailMessage, error) {
 	if to == "" {

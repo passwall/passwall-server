@@ -18,6 +18,8 @@ type InvitationService interface {
 	GetSentInvitations(ctx context.Context, userID uint) ([]*domain.Invitation, error)
 	AcceptInvitation(ctx context.Context, invitationID uint, userID uint) error
 	DeclineInvitation(ctx context.Context, invitationID uint, userID uint) error
+	ListAwaitingSignup(ctx context.Context, orgID uint) ([]*domain.Invitation, error)
+	RevokeOrgInvitation(ctx context.Context, orgID, invitationID uint) error
 }
 
 type invitationService struct {
@@ -166,6 +168,34 @@ func (s *invitationService) GetSentInvitations(ctx context.Context, userID uint)
 		return nil, fmt.Errorf("failed to get sent invitations: %w", err)
 	}
 	return invitations, nil
+}
+
+// ListAwaitingSignup returns active organization invitations sent to people who
+// have not signed up yet.
+func (s *invitationService) ListAwaitingSignup(ctx context.Context, orgID uint) ([]*domain.Invitation, error) {
+	invitations, err := s.repo.ListActiveByOrganization(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list organization invitations: %w", err)
+	}
+	pending := make([]*domain.Invitation, 0, len(invitations))
+	for _, inv := range invitations {
+		if inv != nil && inv.IsAwaitingSignup() {
+			pending = append(pending, inv)
+		}
+	}
+	return pending, nil
+}
+
+// RevokeOrgInvitation deletes a sign-up invitation that belongs to the organization.
+func (s *invitationService) RevokeOrgInvitation(ctx context.Context, orgID, invitationID uint) error {
+	invitation, err := s.repo.GetByID(ctx, invitationID)
+	if err != nil {
+		return err
+	}
+	if invitation.OrganizationID == nil || *invitation.OrganizationID != orgID {
+		return repository.ErrForbidden
+	}
+	return s.repo.Delete(ctx, invitationID)
 }
 
 func (s *invitationService) AcceptInvitation(ctx context.Context, invitationID uint, userID uint) error {

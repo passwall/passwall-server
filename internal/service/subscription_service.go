@@ -13,6 +13,7 @@ import (
 // SubscriptionService handles subscription operations
 type SubscriptionService interface {
 	Create(ctx context.Context, orgID uint, planCode string, stripeSubscriptionID string, seatsPurchased *int) (*domain.Subscription, error)
+	CreateFromProvider(ctx context.Context, orgID uint, planCode string, providerSubscriptionID string, seatsPurchased *int, trialEndsAt *time.Time) (*domain.Subscription, error)
 	GetByID(ctx context.Context, id uint) (*domain.Subscription, error)
 	GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
 	Update(ctx context.Context, sub *domain.Subscription) error
@@ -110,8 +111,27 @@ func NewSubscriptionService(
 	}
 }
 
-// Create creates a new subscription
+// Create creates a new subscription. A trial is derived from the plan catalog.
 func (s *subscriptionService) Create(ctx context.Context, orgID uint, planCode string, stripeSubscriptionID string, seatsPurchased *int) (*domain.Subscription, error) {
+	return s.create(ctx, orgID, planCode, stripeSubscriptionID, seatsPurchased, nil, true)
+}
+
+// CreateFromProvider creates a subscription whose trial is decided by the
+// billing provider: trialEndsAt is the provider trial end, or nil when the
+// provider started the subscription without a trial.
+func (s *subscriptionService) CreateFromProvider(ctx context.Context, orgID uint, planCode string, providerSubscriptionID string, seatsPurchased *int, trialEndsAt *time.Time) (*domain.Subscription, error) {
+	return s.create(ctx, orgID, planCode, providerSubscriptionID, seatsPurchased, trialEndsAt, false)
+}
+
+func (s *subscriptionService) create(
+	ctx context.Context,
+	orgID uint,
+	planCode string,
+	stripeSubscriptionID string,
+	seatsPurchased *int,
+	providerTrialEnd *time.Time,
+	usePlanTrial bool,
+) (*domain.Subscription, error) {
 	s.logger.Info("subscription.create called",
 		"org_id", orgID,
 		"plan_code", planCode,
@@ -170,11 +190,20 @@ func (s *subscriptionService) Create(ctx context.Context, orgID uint, planCode s
 	}
 
 	// Handle trial period
-	if plan.HasTrial() {
+	var trialEnd *time.Time
+	switch {
+	case !usePlanTrial:
+		if providerTrialEnd != nil && providerTrialEnd.After(now) {
+			trialEnd = providerTrialEnd
+		}
+	case plan.HasTrial():
+		end := now.AddDate(0, 0, plan.TrialDays)
+		trialEnd = &end
+	}
+	if trialEnd != nil {
 		sub.State = domain.SubStateTrialing
-		trialEnd := time.Now().AddDate(0, 0, plan.TrialDays)
-		sub.TrialEndsAt = &trialEnd
-		sub.RenewAt = &trialEnd
+		sub.TrialEndsAt = trialEnd
+		sub.RenewAt = trialEnd
 	} else {
 		// Set renew date based on billing cycle
 		var renewAt time.Time
@@ -531,7 +560,15 @@ func (s *subscriptionService) HandlePaymentSuccess(ctx context.Context, stripeSu
 	now := time.Now()
 
 	switch sub.State {
-	case domain.SubStateDraft, domain.SubStateTrialing:
+	case domain.SubStateTrialing:
+		// The $0 invoice that opens a provider trial must not end the trial early.
+		if sub.TrialEndsAt != nil && sub.TrialEndsAt.After(now) {
+			return nil
+		}
+		sub.State = domain.SubStateActive
+		sub.StartedAt = &now
+
+	case domain.SubStateDraft:
 		// First payment succeeded - activate subscription
 		sub.State = domain.SubStateActive
 		sub.StartedAt = &now

@@ -266,12 +266,33 @@ type OrganizationUserDTO struct {
 	CreatedAt      time.Time              `json:"created_at"`
 }
 
-// CreateOrganizationRequest for API requests
+// CreateOrganizationRequest for API requests.
+//
+// Plan selects the shared plan the organization is created for (family, team,
+// business). When set, the organization starts with a draft subscription that
+// grants no paid access until checkout completes. An empty plan (or "free")
+// keeps the legacy behavior of a free organization.
 type CreateOrganizationRequest struct {
 	Name            string `json:"name" validate:"required,max=255"`
 	BillingEmail    string `json:"billing_email" validate:"required,email"`
-	Plan            string `json:"plan" validate:"omitempty,oneof=free business enterprise"`
+	Plan            string `json:"plan" validate:"omitempty,oneof=free family team business"`
+	BillingCycle    string `json:"billing_cycle,omitempty" validate:"omitempty,oneof=monthly yearly"`
+	Seats           int    `json:"seats,omitempty" validate:"omitempty,min=1"`
 	EncryptedOrgKey string `json:"encrypted_org_key" validate:"required"` // Owner's copy of org key
+}
+
+// IsSharedPlanSetup reports whether the request creates an organization for a
+// paid shared plan (plan-first setup).
+func (r *CreateOrganizationRequest) IsSharedPlanSetup() bool {
+	if r == nil {
+		return false
+	}
+	switch OrganizationPlan(r.Plan) {
+	case PlanFamily, PlanTeam, PlanBusiness:
+		return true
+	default:
+		return false
+	}
 }
 
 // ToOrganizationDTOWithSubscription converts Organization to DTO and derives plan/limits
@@ -343,11 +364,24 @@ type UpdateOrganizationRequest struct {
 
 // InviteUserToOrgRequest for inviting users
 type InviteUserToOrgRequest struct {
-	Email           string           `json:"email" binding:"required,email"`
-	Role            OrganizationRole `json:"role" binding:"required,oneof=owner admin manager member"`
-	EncryptedOrgKey string           `json:"encrypted_org_key" binding:"required"` // Org key wrapped for invitee
-	AccessAll       bool             `json:"access_all"`
-	Collections     []uint           `json:"collections,omitempty"` // Collection IDs to grant access
+	Email string           `json:"email" binding:"required,email"`
+	Role  OrganizationRole `json:"role" binding:"required,oneof=owner admin manager member"`
+	// EncryptedOrgKey is the org key wrapped with the invitee's public key. It is
+	// required for registered invitees and omitted for people who have not signed
+	// up yet; those receive the key when an admin confirms them after sign-up.
+	EncryptedOrgKey string `json:"encrypted_org_key"`
+	AccessAll       bool   `json:"access_all"`
+	Collections     []uint `json:"collections,omitempty"` // Collection IDs to grant access
+}
+
+// PendingOrgInvitationDTO is an email invitation for someone who has not
+// signed up yet.
+type PendingOrgInvitationDTO struct {
+	ID        uint      `json:"id"`
+	Email     string    `json:"email"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"created_at"`
+	ExpiresAt time.Time `json:"expires_at"`
 }
 
 // UpdateOrgUserRoleRequest for updating user role

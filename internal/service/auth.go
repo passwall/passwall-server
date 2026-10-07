@@ -899,7 +899,7 @@ func (s *authService) processPendingOrgInvitations(ctx context.Context, user *do
 		if inv == nil {
 			continue
 		}
-		if inv.OrganizationID != nil && inv.OrgRole != nil && inv.EncryptedOrgKey != nil {
+		if inv.OrganizationID != nil && inv.OrgRole != nil && !inv.IsExpired() {
 			invitation = inv
 			break
 		}
@@ -907,12 +907,13 @@ func (s *authService) processPendingOrgInvitations(ctx context.Context, user *do
 	if invitation == nil {
 		return nil
 	}
+	awaitingKeyExchange := invitation.IsAwaitingSignup()
 
 	// Check if user is already in the organization
 	existing, err := s.orgUserRepo.GetByOrgAndUser(ctx, *invitation.OrganizationID, user.ID)
 	if err == nil && existing != nil {
 		now := time.Now()
-		if existing.Status == domain.OrgUserStatusInvited {
+		if existing.Status == domain.OrgUserStatusInvited && !awaitingKeyExchange {
 			existing.Status = domain.OrgUserStatusAccepted
 			existing.AcceptedAt = &now
 			if invitation.EncryptedOrgKey != nil && *invitation.EncryptedOrgKey != "" {
@@ -938,14 +939,20 @@ func (s *authService) processPendingOrgInvitations(ctx context.Context, user *do
 	// Add user to organization
 	now := time.Now()
 	orgUser := &domain.OrganizationUser{
-		OrganizationID:  *invitation.OrganizationID,
-		UserID:          user.ID,
-		Role:            domain.OrganizationRole(*invitation.OrgRole),
-		EncryptedOrgKey: *invitation.EncryptedOrgKey,
-		AccessAll:       invitation.AccessAll,
-		Status:          domain.OrgUserStatusAccepted, // Auto-accepted since they signed up via invitation
-		InvitedAt:       &invitation.CreatedAt,
-		AcceptedAt:      &now,
+		OrganizationID: *invitation.OrganizationID,
+		UserID:         user.ID,
+		Role:           domain.OrganizationRole(*invitation.OrgRole),
+		AccessAll:      invitation.AccessAll,
+		InvitedAt:      &invitation.CreatedAt,
+		AcceptedAt:     &now,
+	}
+	if awaitingKeyExchange {
+		// No org key exists for this user yet; an admin confirms them by
+		// wrapping the org key with their public key.
+		orgUser.Status = domain.OrgUserStatusProvisioned
+	} else {
+		orgUser.EncryptedOrgKey = *invitation.EncryptedOrgKey
+		orgUser.Status = domain.OrgUserStatusAccepted // Auto-accepted since they signed up via invitation
 	}
 
 	if err := s.orgUserRepo.Create(ctx, orgUser); err != nil {
@@ -959,10 +966,11 @@ func (s *authService) processPendingOrgInvitations(ctx context.Context, user *do
 		// Don't fail - user is already added to org
 	}
 
-	s.logger.Info("user auto-joined organization from pending invitation",
+	s.logger.Info("user joined organization from pending invitation",
 		"user_id", user.ID,
 		"org_id", *invitation.OrganizationID,
-		"org_role", *invitation.OrgRole)
+		"org_role", *invitation.OrgRole,
+		"status", orgUser.Status)
 
 	return nil
 }

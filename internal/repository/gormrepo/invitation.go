@@ -89,6 +89,18 @@ func (r *invitationRepository) GetByCreator(ctx context.Context, createdBy uint)
 	return invitations, nil
 }
 
+func (r *invitationRepository) ListActiveByOrganization(ctx context.Context, orgID uint) ([]*domain.Invitation, error) {
+	var invitations []*domain.Invitation
+	err := dbFromContext(ctx, r.db).
+		Where("organization_id = ? AND used_at IS NULL AND expires_at > ?", orgID, time.Now()).
+		Order("created_at DESC").
+		Find(&invitations).Error
+	if err != nil {
+		return nil, err
+	}
+	return invitations, nil
+}
+
 func (r *invitationRepository) Update(ctx context.Context, invitation *domain.Invitation) error {
 	return dbFromContext(ctx, r.db).Save(invitation).Error
 }

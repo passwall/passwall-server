@@ -80,6 +80,10 @@ func NewOrganizationService(
 	return service
 }
 
+// ErrInvalidOrganizationPlan is returned when an organization is created for a
+// plan, billing cycle, or seat count the plan catalog cannot satisfy.
+var ErrInvalidOrganizationPlan = errors.New("invalid organization plan")
+
 const (
 	defaultTeamName       = "All Members"
 	defaultTeamDesc       = "System default team (cannot be deleted)"
@@ -178,6 +182,11 @@ func (s *organizationService) ensureOrgUserInDefaultTeam(ctx context.Context, or
 }
 
 func (s *organizationService) Create(ctx context.Context, userID uint, req *domain.CreateOrganizationRequest) (*domain.Organization, error) {
+	initialPlan, seats, err := s.resolveInitialPlan(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
 	creator, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, repository.ErrForbidden
@@ -243,24 +252,22 @@ func (s *organizationService) Create(ctx context.Context, userID uint, req *doma
 	}
 
 	// Ensure every organization has a subscription row (source-of-truth invariant).
-	// New orgs created after initial seeding MUST get a default free subscription.
-	const freePlanCode = "free-monthly"
+	// Plan-first setups get a draft subscription for the selected shared plan; it
+	// grants no paid access until checkout activates it. Everything else starts free.
 	if _, err := s.subRepo.GetByOrganizationID(ctx, org.ID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			freePlan, err := s.planRepo.GetByCode(ctx, freePlanCode)
-			if err != nil || freePlan == nil {
-				// Rollback: delete organization
-				_ = s.orgRepo.Delete(ctx, org.ID)
-				return nil, fmt.Errorf("failed to load free plan (%s): %w", freePlanCode, err)
-			}
-
 			now := time.Now()
 			sub := &domain.Subscription{
 				UUID:           uuid.New(),
 				OrganizationID: org.ID,
-				PlanID:         freePlan.ID,
+				PlanID:         initialPlan.ID,
 				State:          domain.SubStateActive,
 				StartedAt:      &now,
+			}
+			if req.IsSharedPlanSetup() {
+				sub.State = domain.SubStateDraft
+				sub.StartedAt = nil
+				sub.SeatsPurchased = &seats
 			}
 
 			if err := s.subRepo.Create(ctx, sub); err != nil {
@@ -275,8 +282,49 @@ func (s *organizationService) Create(ctx context.Context, userID uint, req *doma
 		}
 	}
 
-	s.logger.Info("organization created", "org_id", org.ID, "owner_id", userID, "name", org.Name)
+	s.logger.Info("organization created", "org_id", org.ID, "owner_id", userID, "name", org.Name, "plan", initialPlan.Code)
 	return org, nil
+}
+
+// resolveInitialPlan returns the plan a new organization starts on and the
+// seat count to reserve. Shared plans are resolved from plan + billing cycle;
+// anything else falls back to the free plan.
+func (s *organizationService) resolveInitialPlan(ctx context.Context, req *domain.CreateOrganizationRequest) (*domain.Plan, int, error) {
+	const freePlanCode = "free-monthly"
+	if req.Plan != "" && req.Plan != string(domain.PlanFree) && !req.IsSharedPlanSetup() {
+		return nil, 0, fmt.Errorf("%w: unsupported plan %q", ErrInvalidOrganizationPlan, req.Plan)
+	}
+
+	if !req.IsSharedPlanSetup() {
+		plan, err := s.planRepo.GetByCode(ctx, freePlanCode)
+		if err != nil || plan == nil {
+			return nil, 0, fmt.Errorf("failed to load free plan (%s): %w", freePlanCode, err)
+		}
+		return plan, 1, nil
+	}
+
+	cycle := req.BillingCycle
+	if cycle == "" {
+		cycle = string(domain.BillingCycleYearly)
+	}
+	if cycle != string(domain.BillingCycleMonthly) && cycle != string(domain.BillingCycleYearly) {
+		return nil, 0, fmt.Errorf("%w: unsupported billing cycle %q", ErrInvalidOrganizationPlan, req.BillingCycle)
+	}
+
+	planCode := fmt.Sprintf("%s-%s", req.Plan, cycle)
+	plan, err := s.planRepo.GetByCode(ctx, planCode)
+	if err != nil || plan == nil || !plan.IsActive {
+		return nil, 0, fmt.Errorf("%w: plan %s is not available", ErrInvalidOrganizationPlan, planCode)
+	}
+
+	seats := req.Seats
+	if seats < 1 {
+		seats = 1
+	}
+	if plan.MaxUsers != nil && seats > *plan.MaxUsers {
+		return nil, 0, fmt.Errorf("%w: %s allows at most %d users", ErrInvalidOrganizationPlan, plan.Name, *plan.MaxUsers)
+	}
+	return plan, seats, nil
 }
 
 func (s *organizationService) GetByID(ctx context.Context, id uint, userID uint) (*domain.Organization, error) {
@@ -447,19 +495,26 @@ func (s *organizationService) InviteUser(ctx context.Context, orgID uint, invite
 		}
 	}
 
-	// Get invitee user by email (must be already registered)
 	invitee, err := s.userRepo.GetByEmail(ctx, req.Email)
-	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			return nil, fmt.Errorf("user not found in Passwall. Invite via 'Invite a Friend' first")
-		}
+	if err != nil && !errors.Is(err, repository.ErrNotFound) {
 		return nil, fmt.Errorf("failed to get invitee by email: %w", err)
 	}
 
-	// Check if user is already a member
-	existing, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, invitee.ID)
-	if err == nil && existing != nil {
-		return nil, fmt.Errorf("user is already a member of this organization")
+	if invitee != nil {
+		if existing, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, invitee.ID); err == nil && existing != nil {
+			return nil, fmt.Errorf("user is already a member of this organization")
+		}
+	}
+
+	if err := s.ensureSeatAvailable(ctx, orgID); err != nil {
+		return nil, err
+	}
+
+	if invitee == nil {
+		return nil, s.inviteAwaitingSignup(ctx, orgID, inviterUserID, req)
+	}
+	if req.EncryptedOrgKey == "" {
+		return nil, fmt.Errorf("encrypted_org_key is required for registered users")
 	}
 
 	// Enforce Single Organization policy:
@@ -522,6 +577,87 @@ func (s *organizationService) InviteUser(ctx context.Context, orgID uint, invite
 	// Email is sent via InvitationService (above).
 
 	return orgUser, nil
+}
+
+// inviteAwaitingSignup emails an invitation to someone without a Passwall
+// account. No org key is shared yet: after sign-up the member is provisioned and
+// an admin confirms them by wrapping the org key with their public key.
+func (s *organizationService) inviteAwaitingSignup(ctx context.Context, orgID, inviterUserID uint, req *domain.InviteUserToOrgRequest) error {
+	inviter, err := s.userRepo.GetByID(ctx, inviterUserID)
+	if err != nil {
+		return fmt.Errorf("failed to get inviter info: %w", err)
+	}
+
+	orgRole := string(req.Role)
+	accessAll := req.AccessAll
+	if _, err := s.invitationService.CreateInvitation(ctx, &domain.CreateInvitationRequest{
+		Email:          req.Email,
+		RoleID:         2, // Member role for platform access
+		OrganizationID: &orgID,
+		OrgRole:        &orgRole,
+		AccessAll:      &accessAll,
+	}, inviterUserID, inviter.Name); err != nil {
+		return fmt.Errorf("failed to create invitation: %w", err)
+	}
+
+	s.logger.Info("sign-up invitation sent for organization", "org_id", orgID, "role", req.Role)
+	return nil
+}
+
+// ensureSeatAvailable rejects invitations once members plus outstanding
+// invitations reach the organization's purchased seats or plan user limit.
+func (s *organizationService) ensureSeatAvailable(ctx context.Context, orgID uint) error {
+	if s.entitlements == nil {
+		return nil
+	}
+	snapshot, err := s.entitlements.Resolve(ctx, orgID)
+	if err != nil {
+		return err
+	}
+	if snapshot == nil || snapshot.Limits.MaxUsers == nil {
+		return nil
+	}
+
+	members, err := s.orgUserRepo.ListByOrganization(ctx, orgID)
+	if err != nil {
+		return fmt.Errorf("failed to count members: %w", err)
+	}
+	occupied := 0
+	for _, member := range members {
+		if member != nil && member.Status != domain.OrgUserStatusSuspended {
+			occupied++
+		}
+	}
+	pending, err := s.invitationService.ListAwaitingSignup(ctx, orgID)
+	if err != nil {
+		return err
+	}
+	occupied += len(pending)
+
+	if occupied >= *snapshot.Limits.MaxUsers {
+		return &EntitlementDeniedError{
+			Capability: domain.CapabilityMemberInvite,
+			Reason:     domain.EntitlementReasonPlanLimitReached,
+			Cause:      ErrPlanLimitReached,
+		}
+	}
+	return nil
+}
+
+// ListAwaitingSignupInvitations returns sign-up invitations for owners and admins.
+func (s *organizationService) ListAwaitingSignupInvitations(ctx context.Context, orgID uint, requestingUserID uint) ([]*domain.Invitation, error) {
+	if err := s.checkPermission(ctx, orgID, requestingUserID, true); err != nil {
+		return nil, err
+	}
+	return s.invitationService.ListAwaitingSignup(ctx, orgID)
+}
+
+// RevokeAwaitingSignupInvitation cancels a sign-up invitation and frees its seat.
+func (s *organizationService) RevokeAwaitingSignupInvitation(ctx context.Context, orgID, invitationID uint, requestingUserID uint) error {
+	if err := s.checkPermission(ctx, orgID, requestingUserID, true); err != nil {
+		return err
+	}
+	return s.invitationService.RevokeOrgInvitation(ctx, orgID, invitationID)
 }
 
 func (s *organizationService) GetMembers(ctx context.Context, orgID uint, requestingUserID uint) ([]*domain.OrganizationUser, error) {

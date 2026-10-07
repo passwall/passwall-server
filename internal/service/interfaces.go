@@ -126,6 +126,8 @@ type OrganizationService interface {
 	ConfirmProvisionedMember(ctx context.Context, orgID, orgUserID uint, requestingUserID uint, encryptedOrgKey string) error
 	AddExistingMember(ctx context.Context, orgUser *domain.OrganizationUser) error
 	DeclineInvitationForUser(ctx context.Context, orgID uint, userID uint) error
+	ListAwaitingSignupInvitations(ctx context.Context, orgID uint, requestingUserID uint) ([]*domain.Invitation, error)
+	RevokeAwaitingSignupInvitation(ctx context.Context, orgID, invitationID uint, requestingUserID uint) error
 
 	// Statistics
 	GetMemberCount(ctx context.Context, orgID uint) (int, error)

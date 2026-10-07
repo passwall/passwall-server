@@ -421,6 +421,8 @@ func SetupRouter(
 			orgsGroup.PUT("/:id/members/:userId", organizationHandler.UpdateMemberRole)
 			orgsGroup.DELETE("/:id/members/:userId", organizationHandler.RemoveMember)
 			orgsGroup.POST("/:id/members/:userId/confirm", organizationHandler.ConfirmProvisionedMember)
+			orgsGroup.GET("/:id/pending-invitations", organizationHandler.ListPendingInvitations)
+			orgsGroup.DELETE("/:id/pending-invitations/:invitationId", organizationHandler.RevokePendingInvitation)
 
 			// Teams nested under organization
 			orgsGroup.POST("/:id/teams", teamHandler.Create)

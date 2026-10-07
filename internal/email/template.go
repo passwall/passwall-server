@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -23,6 +24,7 @@ const (
 	TemplateSendNotify             TemplateType = "send-notify"
 	TemplateRecoveryDeleteRequest  TemplateType = "recover-delete-request"
 	TemplateRecoveryDeleteComplete TemplateType = "recover-delete-complete"
+	TemplateTrialEnding            TemplateType = "trial-ending"
 )
 
 // TemplateData holds data for email templates
@@ -53,6 +55,9 @@ type TemplateData struct {
 	// Recover-delete fields
 	DeleteURL string
 	UserEmail string
+	// Trial fields
+	TrialEndDate string
+	BillingURL   string
 }
 
 // TemplateManager handles email template rendering
@@ -136,6 +141,12 @@ func NewTemplateManager() (*TemplateManager, error) {
 		return nil, fmt.Errorf("failed to parse recover-delete-complete template: %w", err)
 	}
 	tm.templates[TemplateRecoveryDeleteComplete] = recoverDeleteCompleteTmpl
+
+	trialEndingTmpl, err := template.New("trial-ending").Parse(trialEndingEmailTemplate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse trial-ending template: %w", err)
+	}
+	tm.templates[TemplateTrialEnding] = trialEndingTmpl
 
 	return tm, nil
 }
@@ -300,7 +311,7 @@ func BuildInvitationEmail(frontendURL, to, inviterName, code, role string) (*Tem
 		return nil, fmt.Errorf("frontend URL is required for invitation emails")
 	}
 
-	invitationURL := fmt.Sprintf("%s/sign-up?email=%s&invitation=%s", frontendURL, to, code)
+	invitationURL := fmt.Sprintf("%s/sign-up?email=%s&invitation=%s", frontendURL, url.QueryEscape(to), url.QueryEscape(code))
 
 	return &TemplateData{
 		InviterName:   inviterName,
@@ -318,7 +329,7 @@ func BuildInvitationEmailWithOrg(frontendURL, to, inviterName, code, role, orgNa
 		return nil, fmt.Errorf("frontend URL is required for invitation emails")
 	}
 
-	invitationURL := fmt.Sprintf("%s/sign-up?email=%s&invitation=%s", frontendURL, to, code)
+	invitationURL := fmt.Sprintf("%s/sign-up?email=%s&invitation=%s", frontendURL, url.QueryEscape(to), url.QueryEscape(code))
 
 	return &TemplateData{
 		InviterName:      inviterName,
@@ -340,7 +351,7 @@ func BuildShareInviteEmail(frontendURL, to, inviterName, itemName string) (*Temp
 		return nil, fmt.Errorf("recipient email is required")
 	}
 
-	signupURL := fmt.Sprintf("%s/sign-up?email=%s&source=secure-share", frontendURL, to)
+	signupURL := fmt.Sprintf("%s/sign-up?email=%s&source=secure-share", frontendURL, url.QueryEscape(to))
 
 	return &TemplateData{
 		ShareInviterName: inviterName,
@@ -773,6 +784,29 @@ const recoverDeleteCompleteEmailTemplate = `<!DOCTYPE html>
 <p style="margin:0;font-size:14px;color:#276749;"><strong>Fresh start:</strong> You can create a new Passwall account at any time using the same or a different email address.</p>
 </div>
 <p style="margin:20px 0 0;font-size:14px;line-height:1.6;color:#718096;">If you did not request this deletion or believe this was done in error, please contact us immediately at <a href="mailto:hello@passwall.io" style="color:#3b82f6;">hello@passwall.io</a>.</p>
+</td></tr>
+<tr><td style="padding:30px 40px;background-color:#f7fafc;border-top:1px solid #e0e0e0;border-radius:0 0 8px 8px;">
+<p style="margin:0 0 10px;font-size:14px;color:#718096;text-align:center;">This is an automated message, please do not reply.</p>
+<p style="margin:0;font-size:12px;color:#a0aec0;text-align:center;">© {{.Year}} Passwall. All rights reserved.</p>
+</td></tr></table></td></tr></table></body></html>`
+
+const trialEndingEmailTemplate = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Your trial ends soon</title></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background-color:#f5f5f5;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5;padding:40px 20px;"><tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+<tr><td style="padding:40px 40px 20px;text-align:center;border-bottom:1px solid #e0e0e0;">
+<h1 style="margin:0;font-size:32px;font-weight:700;color:#1a1a1a;"><span style="color:#3b82f6;">Pass</span>wall</h1>
+</td></tr>
+<tr><td style="padding:40px;">
+<h2 style="margin:0 0 20px;font-size:24px;font-weight:600;color:#1a1a1a;">Your trial ends on {{.TrialEndDate}}</h2>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#4a5568;">The free trial for <strong>{{.OrganizationName}}</strong> ends on <strong>{{.TrialEndDate}}</strong>. After that, the payment method on file will be charged and your team keeps full access without interruption.</p>
+<p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:#4a5568;">You can review your plan, change the number of users, update the payment method, or cancel before the trial ends.</p>
+<p style="margin:0 0 24px;text-align:center;">
+<a href="{{.BillingURL}}" style="display:inline-block;padding:14px 32px;background-color:#3b82f6;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;font-size:16px;">Manage billing</a>
+</p>
+<p style="margin:20px 0 0;font-size:14px;line-height:1.6;color:#718096;">Questions? Contact us at <a href="mailto:hello@passwall.io" style="color:#3b82f6;">hello@passwall.io</a>.</p>
 </td></tr>
 <tr><td style="padding:30px 40px;background-color:#f7fafc;border-top:1px solid #e0e0e0;border-radius:0 0 8px 8px;">
 <p style="margin:0 0 10px;font-size:14px;color:#718096;text-align:center;">This is an automated message, please do not reply.</p>

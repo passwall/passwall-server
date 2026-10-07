@@ -14,6 +14,7 @@ type InvitationRepository interface {
 	GetByID(ctx context.Context, id uint) (*domain.Invitation, error)
 	GetAllByEmail(ctx context.Context, email string) ([]*domain.Invitation, error)
 	GetByCreator(ctx context.Context, createdBy uint) ([]*domain.Invitation, error)
+	ListActiveByOrganization(ctx context.Context, orgID uint) ([]*domain.Invitation, error)
 	Update(ctx context.Context, invitation *domain.Invitation) error
 	Delete(ctx context.Context, id uint) error
 	DeleteByEmail(ctx context.Context, email string) error
