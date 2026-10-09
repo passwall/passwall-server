@@ -14,113 +14,52 @@ type invitationRepository struct {
 	db *gorm.DB
 }
 
-// NewInvitationRepository creates a new invitation repository
+// NewInvitationRepository creates the referral invitation repository.
 func NewInvitationRepository(db *gorm.DB) repository.InvitationRepository {
 	return &invitationRepository{db: db}
+}
+
+func (r *invitationRepository) referrals(ctx context.Context) *gorm.DB {
+	return dbFromContext(ctx, r.db).Model(&domain.Invitation{}).Where("organization_id IS NULL")
 }
 
 func (r *invitationRepository) Create(ctx context.Context, invitation *domain.Invitation) error {
 	return dbFromContext(ctx, r.db).Create(invitation).Error
 }
 
-func (r *invitationRepository) GetByEmail(ctx context.Context, email string) (*domain.Invitation, error) {
+func (r *invitationRepository) GetActiveByEmail(ctx context.Context, email string) (*domain.Invitation, error) {
 	var invitation domain.Invitation
-	err := dbFromContext(ctx, r.db).
+	err := r.referrals(ctx).
 		Where("LOWER(email) = LOWER(?) AND used_at IS NULL AND expires_at > ?", email, time.Now()).
 		First(&invitation).Error
-
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, repository.ErrNotFound
-		}
-		return nil, err
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, repository.ErrNotFound
 	}
-	return &invitation, nil
+	return &invitation, err
 }
 
-func (r *invitationRepository) GetByCode(ctx context.Context, code string) (*domain.Invitation, error) {
-	var invitation domain.Invitation
-	err := dbFromContext(ctx, r.db).
-		Where("code = ? AND used_at IS NULL AND expires_at > ?", code, time.Now()).
-		First(&invitation).Error
-
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, repository.ErrNotFound
-		}
-		return nil, err
-	}
-	return &invitation, nil
-}
-
-func (r *invitationRepository) GetByID(ctx context.Context, id uint) (*domain.Invitation, error) {
-	var invitation domain.Invitation
-	err := dbFromContext(ctx, r.db).First(&invitation, id).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, repository.ErrNotFound
-		}
-		return nil, err
-	}
-	return &invitation, nil
-}
-
-func (r *invitationRepository) GetAllByEmail(ctx context.Context, email string) ([]*domain.Invitation, error) {
+func (r *invitationRepository) ListByCreator(ctx context.Context, createdBy uint) ([]*domain.Invitation, error) {
 	var invitations []*domain.Invitation
-	err := dbFromContext(ctx, r.db).
-		Where("LOWER(email) = LOWER(?) AND used_at IS NULL AND expires_at > ?", email, time.Now()).
+	err := r.referrals(ctx).
+		Where("created_by = ?", createdBy).
 		Order("created_at DESC").
+		Limit(200).
 		Find(&invitations).Error
-	if err != nil {
-		return nil, err
-	}
-	return invitations, nil
+	return invitations, err
 }
 
-func (r *invitationRepository) GetByCreator(ctx context.Context, createdBy uint) ([]*domain.Invitation, error) {
-	var invitations []*domain.Invitation
-	err := dbFromContext(ctx, r.db).
-		Where("created_by = ? AND expires_at > ?", createdBy, time.Now()).
-		Order("created_at DESC").
-		Find(&invitations).Error
-	if err != nil {
-		return nil, err
-	}
-	return invitations, nil
+func (r *invitationRepository) CountByCreatorSince(ctx context.Context, createdBy uint, since time.Time) (int, error) {
+	var count int64
+	err := r.referrals(ctx).Where("created_by = ? AND created_at >= ?", createdBy, since).Count(&count).Error
+	return int(count), err
 }
 
-func (r *invitationRepository) ListActiveByOrganization(ctx context.Context, orgID uint) ([]*domain.Invitation, error) {
-	var invitations []*domain.Invitation
-	err := dbFromContext(ctx, r.db).
-		Where("organization_id = ? AND used_at IS NULL AND expires_at > ?", orgID, time.Now()).
-		Order("created_at DESC").
-		Find(&invitations).Error
-	if err != nil {
-		return nil, err
-	}
-	return invitations, nil
-}
-
-func (r *invitationRepository) Update(ctx context.Context, invitation *domain.Invitation) error {
-	return dbFromContext(ctx, r.db).Save(invitation).Error
-}
-
-func (r *invitationRepository) Delete(ctx context.Context, id uint) error {
-	return dbFromContext(ctx, r.db).Delete(&domain.Invitation{}, id).Error
+func (r *invitationRepository) MarkUsedByEmail(ctx context.Context, email string, usedAt time.Time) error {
+	return r.referrals(ctx).
+		Where("LOWER(email) = LOWER(?) AND used_at IS NULL", email).
+		Update("used_at", usedAt).Error
 }
 
 func (r *invitationRepository) DeleteByEmail(ctx context.Context, email string) error {
-	return dbFromContext(ctx, r.db).
-		Where("email = ?", email).
-		Delete(&domain.Invitation{}).Error
-}
-
-func (r *invitationRepository) DeleteExpired(ctx context.Context) error {
-	return dbFromContext(ctx, r.db).
-		Where("expires_at < ? OR used_at IS NOT NULL", time.Now()).
-		Delete(&domain.Invitation{}).Error
-}
-
-func (r *invitationRepository) Migrate() error {
-	return r.db.AutoMigrate(&domain.Invitation{})
+	return dbFromContext(ctx, r.db).Where("LOWER(email) = LOWER(?)", email).Delete(&domain.Invitation{}).Error
 }

@@ -23,7 +23,6 @@ type organizationService struct {
 	collectionTeamRepo repository.CollectionTeamRepository
 	policyRepo         repository.OrganizationPolicyRepository
 	paymentService     PaymentService
-	invitationService  InvitationService
 	subRepo            interface {
 		Create(ctx context.Context, sub *domain.Subscription) error
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
@@ -33,6 +32,7 @@ type organizationService struct {
 	}
 	logger       Logger
 	entitlements OrganizationEntitlementService
+	invites      *OrgInvitationDeps
 }
 
 // NewOrganizationService creates a new organization service
@@ -47,7 +47,6 @@ func NewOrganizationService(
 	collectionTeamRepo repository.CollectionTeamRepository,
 	policyRepo repository.OrganizationPolicyRepository,
 	paymentService PaymentService,
-	invitationService InvitationService,
 	subRepo interface {
 		Create(ctx context.Context, sub *domain.Subscription) error
 		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
@@ -56,7 +55,7 @@ func NewOrganizationService(
 		GetByCode(ctx context.Context, code string) (*domain.Plan, error)
 	},
 	logger Logger,
-	entitlements ...OrganizationEntitlementService,
+	options ...OrganizationServiceOption,
 ) OrganizationService {
 	service := &organizationService{
 		orgRepo:            orgRepo,
@@ -69,13 +68,12 @@ func NewOrganizationService(
 		collectionTeamRepo: collectionTeamRepo,
 		policyRepo:         policyRepo,
 		paymentService:     paymentService,
-		invitationService:  invitationService,
 		subRepo:            subRepo,
 		planRepo:           planRepo,
 		logger:             logger,
 	}
-	if len(entitlements) > 0 {
-		service.entitlements = entitlements[0]
+	for _, option := range options {
+		option(service)
 	}
 	return service
 }
@@ -461,150 +459,7 @@ func (s *organizationService) Delete(ctx context.Context, id uint, userID uint) 
 	return nil
 }
 
-func (s *organizationService) InviteUser(ctx context.Context, orgID uint, inviterUserID uint, req *domain.InviteUserToOrgRequest) (*domain.OrganizationUser, error) {
-	if !isSupportedOrgRole(req.Role) {
-		return nil, fmt.Errorf("invalid organization role: %s", req.Role)
-	}
-
-	// Personal vaults are single-user; members must be invited to a shared organization.
-	org, err := s.orgRepo.GetByID(ctx, orgID)
-	if err != nil {
-		return nil, fmt.Errorf("organization not found: %w", err)
-	}
-	if org.IsPersonal {
-		return nil, fmt.Errorf("cannot invite members to a personal vault; create a separate organization for sharing")
-	}
-
-	// Check if inviter can manage users
-	if err := s.checkPermission(ctx, orgID, inviterUserID, true); err != nil {
-		return nil, err
-	}
-
-	// Only current owner can invite another owner.
-	inviterMembership, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, inviterUserID)
-	if err != nil {
-		return nil, repository.ErrForbidden
-	}
-	if req.Role == domain.OrgRoleOwner && inviterMembership.Role != domain.OrgRoleOwner {
-		return nil, repository.ErrForbidden
-	}
-
-	if s.entitlements != nil {
-		if err := s.entitlements.Authorize(ctx, orgID, domain.CapabilityMemberInvite); err != nil {
-			return nil, err
-		}
-	}
-
-	invitee, err := s.userRepo.GetByEmail(ctx, req.Email)
-	if err != nil && !errors.Is(err, repository.ErrNotFound) {
-		return nil, fmt.Errorf("failed to get invitee by email: %w", err)
-	}
-
-	if invitee != nil {
-		if existing, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, invitee.ID); err == nil && existing != nil {
-			return nil, fmt.Errorf("user is already a member of this organization")
-		}
-	}
-
-	if err := s.ensureSeatAvailable(ctx, orgID); err != nil {
-		return nil, err
-	}
-
-	if invitee == nil {
-		return nil, s.inviteAwaitingSignup(ctx, orgID, inviterUserID, req)
-	}
-	if req.EncryptedOrgKey == "" {
-		return nil, fmt.Errorf("encrypted_org_key is required for registered users")
-	}
-
-	// Enforce Single Organization policy:
-	// 1) If the target org has the policy enabled, the invitee must not belong to any other org.
-	// 2) If any of the invitee's current orgs has the policy, they cannot join a new one.
-	if err := s.checkSingleOrganizationPolicy(ctx, orgID, invitee.ID); err != nil {
-		return nil, err
-	}
-
-	// Create an invitation record as well (unified invitation management + email).
-	// This enables a single "Invitations" area to manage both platform and org invites.
-	inviter, err := s.userRepo.GetByID(ctx, inviterUserID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get inviter info: %w", err)
-	}
-
-	orgRoleStr := string(req.Role)
-	accessAll := req.AccessAll
-	invitationReq := &domain.CreateInvitationRequest{
-		Email:           req.Email,
-		RoleID:          2, // Member role for platform access (invitee already exists, but keep consistent)
-		OrganizationID:  &orgID,
-		OrgRole:         &orgRoleStr,
-		EncryptedOrgKey: &req.EncryptedOrgKey,
-		AccessAll:       &accessAll,
-	}
-	if _, err := s.invitationService.CreateInvitation(ctx, invitationReq, inviterUserID, inviter.Name); err != nil {
-		return nil, fmt.Errorf("failed to create invitation: %w", err)
-	}
-
-	// Create organization user (invitation)
-	now := time.Now()
-	orgUser := &domain.OrganizationUser{
-		OrganizationID:  orgID,
-		UserID:          invitee.ID,
-		Role:            req.Role,
-		EncryptedOrgKey: req.EncryptedOrgKey,
-		AccessAll:       req.AccessAll,
-		Status:          domain.OrgUserStatusInvited,
-		InvitedAt:       &now,
-	}
-
-	if err := s.orgUserRepo.Create(ctx, orgUser); err != nil {
-		s.logger.Error("failed to invite user", "org_id", orgID, "user_email", req.Email, "error", err)
-		return nil, fmt.Errorf("failed to invite user: %w", err)
-	}
-
-	// Ensure invited user is in default team (prevents orphan memberships).
-	// Keep LDAP sync safe by never using ExternalID for defaults.
-	if err := s.ensureOrgUserInDefaultTeam(ctx, orgID, orgUser.ID); err != nil {
-		return nil, fmt.Errorf("failed to ensure default team membership: %w", err)
-	}
-	if defTeam, err := s.ensureDefaultTeam(ctx, orgID); err == nil && defTeam != nil {
-		if defCol, err := s.ensureDefaultCollection(ctx, orgID); err == nil && defCol != nil {
-			_ = s.ensureDefaultCollectionTeamAccess(ctx, defCol.ID, defTeam.ID)
-		}
-	}
-
-	s.logger.Info("user invited to organization", "org_id", orgID, "invitee_email", req.Email, "role", req.Role)
-	// Email is sent via InvitationService (above).
-
-	return orgUser, nil
-}
-
-// inviteAwaitingSignup emails an invitation to someone without a Passwall
-// account. No org key is shared yet: after sign-up the member is provisioned and
-// an admin confirms them by wrapping the org key with their public key.
-func (s *organizationService) inviteAwaitingSignup(ctx context.Context, orgID, inviterUserID uint, req *domain.InviteUserToOrgRequest) error {
-	inviter, err := s.userRepo.GetByID(ctx, inviterUserID)
-	if err != nil {
-		return fmt.Errorf("failed to get inviter info: %w", err)
-	}
-
-	orgRole := string(req.Role)
-	accessAll := req.AccessAll
-	if _, err := s.invitationService.CreateInvitation(ctx, &domain.CreateInvitationRequest{
-		Email:          req.Email,
-		RoleID:         2, // Member role for platform access
-		OrganizationID: &orgID,
-		OrgRole:        &orgRole,
-		AccessAll:      &accessAll,
-	}, inviterUserID, inviter.Name); err != nil {
-		return fmt.Errorf("failed to create invitation: %w", err)
-	}
-
-	s.logger.Info("sign-up invitation sent for organization", "org_id", orgID, "role", req.Role)
-	return nil
-}
-
-// ensureSeatAvailable rejects invitations once members plus outstanding
+// ensureSeatAvailable rejects invitations once members plus pending
 // invitations reach the organization's purchased seats or plan user limit.
 func (s *organizationService) ensureSeatAvailable(ctx context.Context, orgID uint) error {
 	if s.entitlements == nil {
@@ -628,11 +483,13 @@ func (s *organizationService) ensureSeatAvailable(ctx context.Context, orgID uin
 			occupied++
 		}
 	}
-	pending, err := s.invitationService.ListAwaitingSignup(ctx, orgID)
-	if err != nil {
-		return err
+	if s.invites != nil && s.invites.Invitations != nil {
+		pending, err := s.invites.Invitations.CountPendingByOrganization(ctx, orgID, time.Now())
+		if err != nil {
+			return fmt.Errorf("failed to count pending invitations: %w", err)
+		}
+		occupied += pending
 	}
-	occupied += len(pending)
 
 	if occupied >= *snapshot.Limits.MaxUsers {
 		return &EntitlementDeniedError{
@@ -642,22 +499,6 @@ func (s *organizationService) ensureSeatAvailable(ctx context.Context, orgID uin
 		}
 	}
 	return nil
-}
-
-// ListAwaitingSignupInvitations returns sign-up invitations for owners and admins.
-func (s *organizationService) ListAwaitingSignupInvitations(ctx context.Context, orgID uint, requestingUserID uint) ([]*domain.Invitation, error) {
-	if err := s.checkPermission(ctx, orgID, requestingUserID, true); err != nil {
-		return nil, err
-	}
-	return s.invitationService.ListAwaitingSignup(ctx, orgID)
-}
-
-// RevokeAwaitingSignupInvitation cancels a sign-up invitation and frees its seat.
-func (s *organizationService) RevokeAwaitingSignupInvitation(ctx context.Context, orgID, invitationID uint, requestingUserID uint) error {
-	if err := s.checkPermission(ctx, orgID, requestingUserID, true); err != nil {
-		return err
-	}
-	return s.invitationService.RevokeOrgInvitation(ctx, orgID, invitationID)
 }
 
 func (s *organizationService) GetMembers(ctx context.Context, orgID uint, requestingUserID uint) ([]*domain.OrganizationUser, error) {
@@ -786,79 +627,6 @@ func (s *organizationService) RemoveMember(ctx context.Context, orgID, orgUserID
 	return nil
 }
 
-func (s *organizationService) AcceptInvitation(ctx context.Context, orgUserID uint, userID uint, encryptedOrgKey string) error {
-	if encryptedOrgKey == "" {
-		return fmt.Errorf("encrypted_org_key is required")
-	}
-
-	orgUser, err := s.orgUserRepo.GetByID(ctx, orgUserID)
-	if err != nil {
-		return fmt.Errorf("invitation not found: %w", err)
-	}
-
-	// Check if user is the invitee
-	if orgUser.UserID != userID {
-		return repository.ErrForbidden
-	}
-
-	// Check if already accepted
-	if orgUser.Status != domain.OrgUserStatusInvited {
-		return fmt.Errorf("invitation already processed")
-	}
-
-	// Re-check Single Organization policy at acceptance time
-	if err := s.checkSingleOrganizationPolicy(ctx, orgUser.OrganizationID, userID); err != nil {
-		return err
-	}
-	if s.entitlements != nil {
-		if err := s.entitlements.Authorize(ctx, orgUser.OrganizationID, domain.CapabilityMemberInvite); err != nil {
-			return err
-		}
-	}
-
-	// Persist invitee-specific wrapped org key on acceptance.
-	orgUser.EncryptedOrgKey = encryptedOrgKey
-
-	// Update status
-	now := time.Now()
-	orgUser.Status = domain.OrgUserStatusAccepted
-	orgUser.AcceptedAt = &now
-
-	if err := s.orgUserRepo.Update(ctx, orgUser); err != nil {
-		s.logger.Error("failed to accept invitation", "org_user_id", orgUserID, "error", err)
-		return fmt.Errorf("failed to accept invitation: %w", err)
-	}
-
-	// Ensure accepted user is in default team.
-	if err := s.ensureOrgUserInDefaultTeam(ctx, orgUser.OrganizationID, orgUser.ID); err != nil {
-		return fmt.Errorf("failed to ensure default team membership: %w", err)
-	}
-
-	// Keep unified invitations list in sync for legacy /org-invitations accept route.
-	user, userErr := s.userRepo.GetByID(ctx, userID)
-	if userErr != nil {
-		s.logger.Warn("failed to resolve user while syncing invitation acceptance", "user_id", userID, "error", userErr)
-	} else {
-		pendingInvitations, invErr := s.invitationService.GetPendingInvitations(ctx, user.Email)
-		if invErr != nil {
-			s.logger.Warn("failed to load pending invitations while syncing invitation acceptance", "user_id", userID, "error", invErr)
-		} else {
-			for _, inv := range pendingInvitations {
-				if inv == nil || inv.OrganizationID == nil || *inv.OrganizationID != orgUser.OrganizationID {
-					continue
-				}
-				if err := s.invitationService.AcceptInvitation(ctx, inv.ID, userID); err != nil {
-					s.logger.Warn("failed to mark matching invitation as accepted", "invitation_id", inv.ID, "user_id", userID, "error", err)
-				}
-				break
-			}
-		}
-	}
-
-	s.logger.Info("invitation accepted", "org_id", orgUser.OrganizationID, "user_id", userID)
-	return nil
-}
-
 func (s *organizationService) ConfirmProvisionedMember(ctx context.Context, orgID, orgUserID uint, requestingUserID uint, encryptedOrgKey string) error {
 	if encryptedOrgKey == "" {
 		return fmt.Errorf("encrypted_org_key is required")
@@ -906,116 +674,6 @@ func (s *organizationService) ConfirmProvisionedMember(ctx context.Context, orgI
 	s.logger.Info("provisioned member confirmed", "org_id", orgID, "org_user_id", orgUserID)
 	return nil
 }
-
-func (s *organizationService) AddExistingMember(ctx context.Context, orgUser *domain.OrganizationUser) error {
-	if orgUser == nil || orgUser.EncryptedOrgKey == "" {
-		return fmt.Errorf("encrypted_org_key is required")
-	}
-
-	// Personal vaults are single-user; reject adding members.
-	org, err := s.orgRepo.GetByID(ctx, orgUser.OrganizationID)
-	if err != nil {
-		return fmt.Errorf("organization not found: %w", err)
-	}
-	if org.IsPersonal {
-		return fmt.Errorf("cannot add members to a personal vault")
-	}
-	// Check if user is already a member
-	existing, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgUser.OrganizationID, orgUser.UserID)
-	if err == nil && existing != nil {
-		// If there's a pending org membership invitation, accept it instead of failing.
-		if existing.Status == domain.OrgUserStatusInvited {
-			if s.entitlements != nil {
-				if err := s.entitlements.Authorize(ctx, orgUser.OrganizationID, domain.CapabilityMemberInvite); err != nil {
-					return err
-				}
-			}
-			now := time.Now()
-			existing.EncryptedOrgKey = orgUser.EncryptedOrgKey
-			existing.Status = domain.OrgUserStatusAccepted
-			existing.AcceptedAt = &now
-			// Keep the org role / access_all from the existing record to avoid privilege escalation
-			// from any client-controlled invitation metadata.
-			if err := s.orgUserRepo.Update(ctx, existing); err != nil {
-				return fmt.Errorf("failed to accept existing invitation: %w", err)
-			}
-
-			s.logger.Info("existing org invitation accepted",
-				"org_id", existing.OrganizationID,
-				"user_id", existing.UserID,
-				"role", existing.Role)
-			return nil
-		}
-
-		return fmt.Errorf("user is already a member of this organization")
-	}
-	if s.entitlements != nil {
-		if err := s.entitlements.Authorize(ctx, orgUser.OrganizationID, domain.CapabilityMemberInvite); err != nil {
-			return err
-		}
-	}
-
-	// Set timestamps
-	now := time.Now()
-	if orgUser.InvitedAt == nil {
-		orgUser.InvitedAt = &now
-	}
-	if orgUser.AcceptedAt == nil {
-		orgUser.AcceptedAt = &now
-	}
-
-	// Create organization user membership
-	if err := s.orgUserRepo.Create(ctx, orgUser); err != nil {
-		s.logger.Error("failed to add existing member",
-			"org_id", orgUser.OrganizationID,
-			"user_id", orgUser.UserID,
-			"error", err)
-		return fmt.Errorf("failed to add member: %w", err)
-	}
-
-	// Ensure membership is not orphaned: add to default team.
-	if err := s.ensureOrgUserInDefaultTeam(ctx, orgUser.OrganizationID, orgUser.ID); err != nil {
-		return fmt.Errorf("failed to ensure default team membership: %w", err)
-	}
-
-	s.logger.Info("existing member added to organization",
-		"org_id", orgUser.OrganizationID,
-		"user_id", orgUser.UserID,
-		"role", orgUser.Role)
-
-	return nil
-}
-
-// DeclineInvitationForUser removes a pending org membership invitation for the invitee.
-// This is used when the user declines an organization invitation via the unified invitations flow.
-func (s *organizationService) DeclineInvitationForUser(ctx context.Context, orgID uint, userID uint) error {
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
-	if err != nil {
-		// No org membership record exists (e.g. invite was only stored as an Invitation row)
-		if err == repository.ErrNotFound {
-			return nil
-		}
-		return err
-	}
-
-	// Only allow declining if it's still a pending invite
-	if orgUser.Status != domain.OrgUserStatusInvited {
-		return fmt.Errorf("invitation already processed")
-	}
-
-	if err := s.orgUserRepo.Delete(ctx, orgUser.ID); err != nil {
-		return fmt.Errorf("failed to decline org invitation: %w", err)
-	}
-
-	s.logger.Info("org invitation declined",
-		"org_id", orgID,
-		"user_id", userID,
-		"org_user_id", orgUser.ID)
-
-	return nil
-}
-
-// Helper methods for permission checking
 
 func (s *organizationService) checkMembership(ctx context.Context, orgID, userID uint) error {
 	_, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)

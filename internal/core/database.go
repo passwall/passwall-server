@@ -112,6 +112,7 @@ func autoMigrateSchema(gormDB *gorm.DB) error {
 	if err := gormDB.AutoMigrate(
 		&domain.Organization{},
 		&domain.OrganizationUser{},
+		&domain.OrganizationInvitation{},
 		&domain.Team{},
 		&domain.TeamUser{},
 		&domain.Collection{},

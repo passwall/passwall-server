@@ -37,6 +37,7 @@ type App struct {
 	breachMonitorWorker *cleanup.BreachMonitorWorker
 	subscriptionWorker  *cleanup.SubscriptionWorker
 	draftOrgCleanup     *cleanup.DraftOrganizationCleanup
+	invitationExpiry    *cleanup.InvitationExpiry
 	emailSender         email.Sender
 	readiness           atomic.Bool
 	workerWG            sync.WaitGroup
@@ -106,6 +107,7 @@ func (a *App) Run(ctx context.Context) error {
 	verdictRepo := gormrepo.NewTelemetryAIVerdictRepository(a.db.DB())
 	preferencesRepo := gormrepo.NewPreferencesRepository(a.db.DB())
 	invitationRepo := gormrepo.NewInvitationRepository(a.db.DB())
+	orgInvitationRepo := gormrepo.NewOrganizationInvitationRepository(a.db.DB())
 
 	// Organization repos
 	orgRepo := gormrepo.NewOrganizationRepository(a.db.DB())
@@ -217,7 +219,7 @@ func (a *App) Run(ctx context.Context) error {
 	authService := service.NewAuthService(userRepo, tokenRepo, verificationRepo, accountDeletionTokenRepo, orgRepo, orgUserRepo, invitationRepo, subscriptionRepo, orgPolicyRepo, failedLoginTracker, userActivityService, userService, emailSender, emailBuilder, authConfig, serviceLogger, personalVaultProvisioner, entitlementService)
 	userNotificationPreferencesService := service.NewUserNotificationPreferencesService(preferencesRepo, serviceLogger)
 	userAppearancePreferencesService := service.NewUserAppearancePreferencesService(preferencesRepo, serviceLogger)
-	invitationService := service.NewInvitationService(invitationRepo, userRepo, orgRepo, emailSender, emailBuilder, serviceLogger)
+	invitationService := service.NewInvitationService(invitationRepo, userRepo, emailSender, emailBuilder, serviceLogger)
 
 	// Initialize Stripe client
 	stripeClientInstance := stripeClient.NewClient(a.config.Stripe.SecretKey, a.config.Stripe.WebhookSecret)
@@ -237,11 +239,17 @@ func (a *App) Run(ctx context.Context) error {
 		collectionTeamRepo,
 		orgPolicyRepo,
 		paymentService,
-		invitationService,
 		subscriptionRepo,
 		planRepo,
 		serviceLogger,
-		entitlementService,
+		service.WithOrganizationEntitlements(entitlementService),
+		service.WithOrganizationInvitations(service.OrgInvitationDeps{
+			Invitations:  orgInvitationRepo,
+			Preferences:  preferencesRepo,
+			TxManager:    txManager,
+			EmailSender:  emailSender,
+			EmailBuilder: emailBuilder,
+		}),
 	)
 
 	// Subscription service (needs organizationService, stripe client, email service optional, logger)
@@ -555,6 +563,7 @@ func (a *App) Run(ctx context.Context) error {
 
 	// Remove plan-first organizations whose checkout was never completed (daily, after 7 days)
 	a.draftOrgCleanup = cleanup.NewDraftOrganizationCleanup(subscriptionRepo, orgRepo, serviceLogger, 7*24*time.Hour, 24*time.Hour)
+	a.invitationExpiry = cleanup.NewInvitationExpiry(organizationService, serviceLogger, time.Hour)
 
 	runCtx, cancelWorkers := context.WithCancel(ctx)
 	defer cancelWorkers()
@@ -566,6 +575,7 @@ func (a *App) Run(ctx context.Context) error {
 	a.startWorker(func() { a.breachMonitorWorker.Start(runCtx) })
 	a.startWorker(func() { a.subscriptionWorker.Run(runCtx) })
 	a.startWorker(func() { a.draftOrgCleanup.Run(runCtx) })
+	a.startWorker(func() { a.invitationExpiry.Run(runCtx) })
 
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {

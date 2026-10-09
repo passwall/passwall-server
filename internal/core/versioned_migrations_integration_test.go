@@ -63,10 +63,10 @@ func TestMigrateDatabaseBootstrapsAndIsIdempotent(t *testing.T) {
 	require.NoError(t, err)
 	version, err := goose.GetDBVersionContext(ctx, sqlDB)
 	require.NoError(t, err)
-	require.EqualValues(t, 6, version)
+	require.EqualValues(t, 7, version)
 
 	require.NoError(t, MigrateDatabase(ctx, db))
 	version, err = goose.GetDBVersionContext(ctx, sqlDB)
 	require.NoError(t, err)
-	require.EqualValues(t, 6, version)
+	require.EqualValues(t, 7, version)
 }

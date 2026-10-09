@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
+	"math/big"
 	"strings"
 	"time"
 
@@ -12,30 +14,39 @@ import (
 	"github.com/passwall/passwall-server/internal/repository"
 )
 
+// Referral ("invite a friend to Passwall") invitations. They create no
+// membership; organization invitations are handled by OrganizationService.
+
+const (
+	referralExpiry       = 7 * 24 * time.Hour
+	maxReferralsPerDay   = 20
+	referralEmailTimeout = 15 * time.Second
+)
+
+const (
+	ReferralCodeAlreadyRegistered = "ALREADY_REGISTERED"
+	ReferralCodeExists            = "REFERRAL_EXISTS"
+	ReferralCodeLimit             = "REFERRAL_LIMIT_REACHED"
+	ReferralCodeInvalidEmail      = "INVALID_EMAIL"
+)
+
 type InvitationService interface {
-	CreateInvitation(ctx context.Context, req *domain.CreateInvitationRequest, createdBy uint, inviterName string) (*domain.Invitation, error)
-	GetPendingInvitations(ctx context.Context, email string) ([]*domain.Invitation, error)
-	GetSentInvitations(ctx context.Context, userID uint) ([]*domain.Invitation, error)
-	AcceptInvitation(ctx context.Context, invitationID uint, userID uint) error
-	DeclineInvitation(ctx context.Context, invitationID uint, userID uint) error
-	ListAwaitingSignup(ctx context.Context, orgID uint) ([]*domain.Invitation, error)
-	RevokeOrgInvitation(ctx context.Context, orgID, invitationID uint) error
+	CreateReferral(ctx context.Context, email string, createdBy uint, inviterName string) (*domain.Invitation, error)
+	ListSentReferrals(ctx context.Context, userID uint) ([]*domain.Invitation, error)
 }
 
 type invitationService struct {
 	repo         repository.InvitationRepository
 	userRepo     repository.UserRepository
-	orgRepo      repository.OrganizationRepository
 	emailSender  email.Sender
 	emailBuilder *email.EmailBuilder
 	logger       Logger
 }
 
-// NewInvitationService creates a new invitation service
+// NewInvitationService creates the referral invitation service.
 func NewInvitationService(
 	repo repository.InvitationRepository,
 	userRepo repository.UserRepository,
-	orgRepo repository.OrganizationRepository,
 	emailSender email.Sender,
 	emailBuilder *email.EmailBuilder,
 	logger Logger,
@@ -43,261 +54,77 @@ func NewInvitationService(
 	return &invitationService{
 		repo:         repo,
 		userRepo:     userRepo,
-		orgRepo:      orgRepo,
 		emailSender:  emailSender,
 		emailBuilder: emailBuilder,
 		logger:       logger,
 	}
 }
 
-func (s *invitationService) CreateInvitation(ctx context.Context, req *domain.CreateInvitationRequest, createdBy uint, inviterName string) (*domain.Invitation, error) {
-	// Validate request
-	if err := req.Validate(); err != nil {
-		return nil, fmt.Errorf("validation failed: %w", err)
+func (s *invitationService) CreateReferral(ctx context.Context, emailAddr string, createdBy uint, inviterName string) (*domain.Invitation, error) {
+	emailAddr = domain.NormalizeInvitationEmail(emailAddr)
+	if emailAddr == "" || !strings.Contains(emailAddr, "@") {
+		return nil, invitationErr(400, ReferralCodeInvalidEmail, "a valid email address is required")
+	}
+	if existing, err := s.userRepo.GetByEmail(ctx, emailAddr); err == nil && existing != nil {
+		return nil, invitationErr(409, ReferralCodeAlreadyRegistered, "this person already uses Passwall")
+	}
+	if _, err := s.repo.GetActiveByEmail(ctx, emailAddr); err == nil {
+		return nil, invitationErr(409, ReferralCodeExists, "an invitation was already sent to this email")
+	} else if !errors.Is(err, repository.ErrNotFound) {
+		return nil, fmt.Errorf("check referral: %w", err)
+	}
+	sent, err := s.repo.CountByCreatorSince(ctx, createdBy, time.Now().Add(-24*time.Hour))
+	if err != nil {
+		return nil, fmt.Errorf("count referrals: %w", err)
+	}
+	if sent >= maxReferralsPerDay {
+		return nil, invitationErr(429, ReferralCodeLimit, "daily invitation limit reached; try again tomorrow")
 	}
 
-	// Platform/site invitations are only for non-registered users.
-	// Organization invitations MAY target existing users.
-	if req.OrganizationID == nil {
-		existingUser, err := s.userRepo.GetByEmail(ctx, req.Email)
-		if err == nil && existingUser != nil {
-			return nil, repository.ErrAlreadyExists
-		}
-	}
-
-	// Check if there's already an active invitation for the same scope:
-	// - Platform invite: (email + organization_id IS NULL)
-	// - Org invite: (email + organization_id = orgID)
-	existingInvites, err := s.repo.GetAllByEmail(ctx, req.Email)
-	if err != nil && err != repository.ErrNotFound {
-		return nil, fmt.Errorf("failed to check existing invitations: %w", err)
-	}
-	for _, inv := range existingInvites {
-		// Only active invites are returned by GetAllByEmail, but keep defensively.
-		if inv == nil || inv.IsUsed() || inv.IsExpired() {
-			continue
-		}
-
-		// Platform scope collision
-		if req.OrganizationID == nil && inv.OrganizationID == nil {
-			return nil, fmt.Errorf("active invitation already exists for this email")
-		}
-
-		// Org scope collision
-		if req.OrganizationID != nil && inv.OrganizationID != nil && *req.OrganizationID == *inv.OrganizationID {
-			return nil, fmt.Errorf("active invitation already exists for this email")
-		}
-	}
-
-	// Generate invitation code (32 chars, URL-safe)
 	code, err := generateInvitationCode()
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate invitation code: %w", err)
+		return nil, fmt.Errorf("generate invitation code: %w", err)
 	}
-
-	// Create invitation
 	invitation := &domain.Invitation{
-		Email:           req.Email,
-		Code:            code,
-		RoleID:          req.RoleID,
-		CreatedBy:       createdBy,
-		ExpiresAt:       time.Now().Add(7 * 24 * time.Hour), // 7 days
-		OrganizationID:  req.OrganizationID,
-		OrgRole:         req.OrgRole,
-		EncryptedOrgKey: req.EncryptedOrgKey,
-		AccessAll:       req.AccessAll != nil && *req.AccessAll,
+		Email:     emailAddr,
+		Code:      code,
+		RoleID:    2,
+		CreatedBy: createdBy,
+		ExpiresAt: time.Now().Add(referralExpiry),
 	}
-
 	if err := s.repo.Create(ctx, invitation); err != nil {
-		s.logger.Error("failed to create invitation", "email", req.Email, "error", err)
-		return nil, fmt.Errorf("failed to create invitation: %w", err)
+		return nil, fmt.Errorf("create referral: %w", err)
 	}
 
-	// Send invitation email (async)
-	go func() {
-		emailCtx := context.Background()
-		roleName := getRoleName(req.RoleID)
-
-		// Get organization name if this is an org invitation
-		orgName := ""
-		if req.OrganizationID != nil {
-			if org, err := s.orgRepo.GetByID(emailCtx, *req.OrganizationID); err == nil {
-				orgName = org.Name
-			}
+	if s.emailSender != nil && s.emailBuilder != nil {
+		message, err := s.emailBuilder.BuildInvitationEmail(emailAddr, inviterName, code, "Member")
+		if err == nil {
+			sendCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), referralEmailTimeout)
+			defer cancel()
+			err = s.emailSender.Send(sendCtx, message)
 		}
-
-		// Build invitation email message
-		var message *email.EmailMessage
-		var err error
-		if orgName != "" {
-			message, err = s.emailBuilder.BuildInvitationWithOrgEmail(req.Email, inviterName, code, roleName, orgName)
-		} else {
-			message, err = s.emailBuilder.BuildInvitationEmail(req.Email, inviterName, code, roleName)
-		}
-
 		if err != nil {
-			s.logger.Error("failed to build invitation email", "email", req.Email, "error", err)
-			return
+			s.logger.Error("failed to send referral email", "invitation_id", invitation.ID, "error", err)
 		}
-
-		// Send email
-		if err := s.emailSender.Send(emailCtx, message); err != nil {
-			s.logger.Error("failed to send invitation email", "email", req.Email, "error", err)
-		}
-	}()
-
-	s.logger.Info("invitation created",
-		"email", req.Email,
-		"created_by", createdBy,
-		"role_id", req.RoleID)
-
+	}
 	return invitation, nil
 }
 
-func (s *invitationService) GetPendingInvitations(ctx context.Context, email string) ([]*domain.Invitation, error) {
-	invitations, err := s.repo.GetAllByEmail(ctx, email)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get pending invitations: %w", err)
-	}
-	return invitations, nil
+func (s *invitationService) ListSentReferrals(ctx context.Context, userID uint) ([]*domain.Invitation, error) {
+	return s.repo.ListByCreator(ctx, userID)
 }
 
-func (s *invitationService) GetSentInvitations(ctx context.Context, userID uint) ([]*domain.Invitation, error) {
-	invitations, err := s.repo.GetByCreator(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get sent invitations: %w", err)
-	}
-	return invitations, nil
-}
-
-// ListAwaitingSignup returns active organization invitations sent to people who
-// have not signed up yet.
-func (s *invitationService) ListAwaitingSignup(ctx context.Context, orgID uint) ([]*domain.Invitation, error) {
-	invitations, err := s.repo.ListActiveByOrganization(ctx, orgID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list organization invitations: %w", err)
-	}
-	pending := make([]*domain.Invitation, 0, len(invitations))
-	for _, inv := range invitations {
-		if inv != nil && inv.IsAwaitingSignup() {
-			pending = append(pending, inv)
-		}
-	}
-	return pending, nil
-}
-
-// RevokeOrgInvitation deletes a sign-up invitation that belongs to the organization.
-func (s *invitationService) RevokeOrgInvitation(ctx context.Context, orgID, invitationID uint) error {
-	invitation, err := s.repo.GetByID(ctx, invitationID)
-	if err != nil {
-		return err
-	}
-	if invitation.OrganizationID == nil || *invitation.OrganizationID != orgID {
-		return repository.ErrForbidden
-	}
-	return s.repo.Delete(ctx, invitationID)
-}
-
-func (s *invitationService) AcceptInvitation(ctx context.Context, invitationID uint, userID uint) error {
-	// Get invitation
-	invitation, err := s.repo.GetByID(ctx, invitationID)
-	if err != nil {
-		return fmt.Errorf("invitation not found: %w", err)
-	}
-
-	// Verify invitation belongs to this user's email
-	user, err := s.userRepo.GetByID(ctx, userID)
-	if err != nil {
-		return fmt.Errorf("user not found: %w", err)
-	}
-
-	if !strings.EqualFold(invitation.Email, user.Email) {
-		return repository.ErrForbidden
-	}
-
-	// Check if already used
-	if invitation.IsUsed() {
-		return fmt.Errorf("invitation already used")
-	}
-
-	// Check if expired
-	if invitation.IsExpired() {
-		return fmt.Errorf("invitation expired")
-	}
-
-	// If this is an organization invitation, add user to org
-	if invitation.OrganizationID != nil && invitation.OrgRole != nil && invitation.EncryptedOrgKey != nil {
-		// This will be handled by organization service
-		// We'll return the invitation data and let the caller handle org join
-		s.logger.Info("invitation accepted - requires org join",
-			"invitation_id", invitationID,
-			"user_id", userID,
-			"org_id", *invitation.OrganizationID)
-	}
-
-	// Mark invitation as used
-	now := time.Now()
-	invitation.UsedAt = &now
-	if err := s.repo.Update(ctx, invitation); err != nil {
-		return fmt.Errorf("failed to mark invitation as used: %w", err)
-	}
-
-	s.logger.Info("invitation accepted",
-		"invitation_id", invitationID,
-		"user_id", userID)
-
-	return nil
-}
-
-func (s *invitationService) DeclineInvitation(ctx context.Context, invitationID uint, userID uint) error {
-	// Get invitation
-	invitation, err := s.repo.GetByID(ctx, invitationID)
-	if err != nil {
-		return fmt.Errorf("invitation not found: %w", err)
-	}
-
-	// Verify invitation belongs to this user's email
-	user, err := s.userRepo.GetByID(ctx, userID)
-	if err != nil {
-		return fmt.Errorf("user not found: %w", err)
-	}
-
-	if !strings.EqualFold(invitation.Email, user.Email) {
-		return repository.ErrForbidden
-	}
-
-	// Delete invitation (declined)
-	if err := s.repo.Delete(ctx, invitationID); err != nil {
-		return fmt.Errorf("failed to decline invitation: %w", err)
-	}
-
-	s.logger.Info("invitation declined",
-		"invitation_id", invitationID,
-		"user_id", userID)
-
-	return nil
-}
-
-// generateInvitationCode generates a secure random invitation code
+// generateInvitationCode returns an unbiased 32-character alphanumeric code.
 func generateInvitationCode() (string, error) {
 	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-	const length = 32
-	code := make([]byte, length)
-
+	code := make([]byte, 32)
+	limit := big.NewInt(int64(len(charset)))
 	for i := range code {
-		b := make([]byte, 1)
-		if _, err := rand.Read(b); err != nil {
+		n, err := rand.Int(rand.Reader, limit)
+		if err != nil {
 			return "", err
 		}
-		code[i] = charset[int(b[0])%len(charset)]
+		code[i] = charset[n.Int64()]
 	}
-
 	return string(code), nil
-}
-
-func getRoleName(roleID uint) string {
-	if roleID == 1 {
-		return "Admin"
-	}
-	return "Member"
 }
