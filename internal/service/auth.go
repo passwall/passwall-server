@@ -334,11 +334,11 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 	}
 
 	// Store tokens
-	if err := s.tokenRepo.Create(ctx, int(user.ID), tokenDetails.SessionUUID, deviceUUID, creds.App, "access", tokenDetails.AtUUID, tokenDetails.AccessToken, tokenDetails.AtExpiresTime); err != nil {
+	if err := s.tokenRepo.Create(ctx, int(user.ID), tokenDetails.SessionUUID, deviceUUID, creds.App, tokenKindAccess, tokenDetails.AtUUID, tokenDetails.AccessToken, tokenDetails.AtExpiresTime); err != nil {
 		return nil, fmt.Errorf("failed to store access token: %w", err)
 	}
 
-	if err := s.tokenRepo.Create(ctx, int(user.ID), tokenDetails.SessionUUID, deviceUUID, creds.App, "refresh", tokenDetails.RtUUID, tokenDetails.RefreshToken, tokenDetails.RtExpiresTime); err != nil {
+	if err := s.tokenRepo.Create(ctx, int(user.ID), tokenDetails.SessionUUID, deviceUUID, creds.App, tokenKindRefresh, tokenDetails.RtUUID, tokenDetails.RefreshToken, tokenDetails.RtExpiresTime); err != nil {
 		return nil, fmt.Errorf("failed to store refresh token: %w", err)
 	}
 
@@ -423,10 +423,10 @@ func (s *authService) IssueTokenForUser(ctx context.Context, userID uint, app st
 		return nil, fmt.Errorf("failed to create token: %w", err)
 	}
 
-	if err := s.tokenRepo.Create(ctx, int(user.ID), tokenDetails.SessionUUID, deviceUUID, app, "access", tokenDetails.AtUUID, tokenDetails.AccessToken, tokenDetails.AtExpiresTime); err != nil {
+	if err := s.tokenRepo.Create(ctx, int(user.ID), tokenDetails.SessionUUID, deviceUUID, app, tokenKindAccess, tokenDetails.AtUUID, tokenDetails.AccessToken, tokenDetails.AtExpiresTime); err != nil {
 		return nil, fmt.Errorf("failed to store access token: %w", err)
 	}
-	if err := s.tokenRepo.Create(ctx, int(user.ID), tokenDetails.SessionUUID, deviceUUID, app, "refresh", tokenDetails.RtUUID, tokenDetails.RefreshToken, tokenDetails.RtExpiresTime); err != nil {
+	if err := s.tokenRepo.Create(ctx, int(user.ID), tokenDetails.SessionUUID, deviceUUID, app, tokenKindRefresh, tokenDetails.RtUUID, tokenDetails.RefreshToken, tokenDetails.RtExpiresTime); err != nil {
 		return nil, fmt.Errorf("failed to store refresh token: %w", err)
 	}
 
@@ -609,11 +609,11 @@ func (s *authService) RefreshToken(ctx context.Context, refreshToken string) (*d
 	}
 
 	// Store new tokens (preserve device/app info from the validated refresh token row)
-	if err := s.tokenRepo.Create(ctx, int(user.ID), tokenDetails.SessionUUID, dbToken.DeviceID, dbToken.App, "access", tokenDetails.AtUUID, tokenDetails.AccessToken, tokenDetails.AtExpiresTime); err != nil {
+	if err := s.tokenRepo.Create(ctx, int(user.ID), tokenDetails.SessionUUID, dbToken.DeviceID, dbToken.App, tokenKindAccess, tokenDetails.AtUUID, tokenDetails.AccessToken, tokenDetails.AtExpiresTime); err != nil {
 		return nil, fmt.Errorf("failed to store access token: %w", err)
 	}
 
-	if err := s.tokenRepo.Create(ctx, int(user.ID), tokenDetails.SessionUUID, dbToken.DeviceID, dbToken.App, "refresh", tokenDetails.RtUUID, tokenDetails.RefreshToken, tokenDetails.RtExpiresTime); err != nil {
+	if err := s.tokenRepo.Create(ctx, int(user.ID), tokenDetails.SessionUUID, dbToken.DeviceID, dbToken.App, tokenKindRefresh, tokenDetails.RtUUID, tokenDetails.RefreshToken, tokenDetails.RtExpiresTime); err != nil {
 		return nil, fmt.Errorf("failed to store refresh token: %w", err)
 	}
 
@@ -659,6 +659,13 @@ func (s *authService) ValidateToken(ctx context.Context, tokenString string) (*d
 		return nil, ErrExpiredToken
 	}
 
+	// SECURITY: Only access tokens authenticate API requests. Refresh tokens are
+	// long-lived and must only be exchanged at /auth/refresh. Legacy rows without
+	// a kind are accepted until they expire.
+	if dbToken.Kind == tokenKindRefresh {
+		return nil, ErrUnauthorized
+	}
+
 	// Get user to get user ID, email, schema, and role
 	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
@@ -673,6 +680,12 @@ func (s *authService) ValidateToken(ctx context.Context, tokenString string) (*d
 		Exp:    int64(exp),
 	}, nil
 }
+
+// Token kinds stored in tokens.kind.
+const (
+	tokenKindAccess  = "access"
+	tokenKindRefresh = "refresh"
+)
 
 func (s *authService) SignOut(ctx context.Context, tokenUUID string) error {
 	// Revoke only the current session (device).

@@ -382,10 +382,6 @@ func SetupRouter(
 			adminGroup.GET("/icons", iconsHandler.ListCustomIcons)
 			adminGroup.POST("/icons/:domain", iconsHandler.UploadCustomIcon)
 			adminGroup.DELETE("/icons/:domain", iconsHandler.DeleteCustomIcon)
-
-			// Legacy endpoint (backward compatibility)
-			adminGroup.POST("/bulk-email", adminMailHandler.CreateJob)
-			adminGroup.GET("/bulk-email/:jobId", adminMailHandler.GetJob)
 		}
 
 		// ============================================================
