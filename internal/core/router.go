@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/passwall/passwall-server/internal/config"
+	"github.com/passwall/passwall-server/internal/domain"
 	httpHandler "github.com/passwall/passwall-server/internal/handler/http"
 	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/internal/service"
@@ -46,6 +47,8 @@ func SetupRouter(
 	adminSubscriptionsHandler *httpHandler.AdminSubscriptionsHandler,
 	adminMailHandler *httpHandler.AdminMailHandler,
 	adminLogsHandler *httpHandler.AdminLogsHandler,
+	adminStepUpHandler *httpHandler.AdminStepUpHandler,
+	adminAuditLogger *service.ActivityLogger,
 	adminDirectoryHandler *httpHandler.AdminDirectoryHandler,
 	iconsHandler *httpHandler.IconsHandler,
 	ssoHandler *httpHandler.SSOHandler,
@@ -137,6 +140,7 @@ func SetupRouter(
 	recoveryDeleteRequestLimiter := httpHandler.NewRateLimiter(300*time.Second, 2)
 	// Recovery delete confirm: 6 requests per 10 minutes per IP
 	recoveryDeleteConfirmLimiter := httpHandler.NewRateLimiter(100*time.Second, 6)
+	stepUpRateLimiter := httpHandler.NewRateLimiter(60*time.Second, 5)
 
 	// Create reCAPTCHA middleware (optional - only applies if token is sent)
 	recaptchaMiddleware := httpHandler.OptionalRecaptchaMiddleware(
@@ -316,21 +320,31 @@ func SetupRouter(
 		apiGroup.GET("/activities/me", activityHandler.GetMyActivities)
 		apiGroup.GET("/activities/last-signin", activityHandler.GetLastSignIn)
 
-		// User management routes - Admin only
+		// Platform administration has two tiers:
+		//  - admin: read-only support (lists, details, activities, log tail)
+		//  - system admin (admin + is_system_user, DB-checked): every change,
+		//    and destructive changes also need a fresh step-up (master password + 2FA).
+		systemAdmin := httpHandler.RequireSystemAdminMiddleware(userRepo)
+		stepUp := httpHandler.RequireAdminStepUpMiddleware(authService)
+		audit := func(activityType domain.ActivityType) gin.HandlerFunc {
+			return httpHandler.AdminAuditMiddleware(adminAuditLogger, activityType)
+		}
+
+		// User management routes. Accounts are created by self-signup only;
+		// an admin never sets another user's master password.
 		usersGroup := apiGroup.Group("/users")
 		usersGroup.Use(httpHandler.RequireAdminMiddleware())
 		{
 			usersGroup.GET("", userHandler.List)
 			usersGroup.GET("/:id", userHandler.GetByID)
-			usersGroup.POST("", userHandler.Create)
-			usersGroup.PUT("/:id", userHandler.Update)
-			usersGroup.DELETE("/:id", userHandler.Delete)
+			usersGroup.PUT("/:id", systemAdmin, stepUp, userHandler.Update)
+			usersGroup.DELETE("/:id", systemAdmin, stepUp, userHandler.Delete)
 			usersGroup.GET("/:id/activities", activityHandler.GetUserActivities)
 
 			// Ownership management for user deletion
 			usersGroup.GET("/:id/ownership-check", userHandler.CheckOwnership)
-			usersGroup.POST("/:id/transfer-ownership", userHandler.TransferOwnership)
-			usersGroup.POST("/:id/delete-with-organizations", userHandler.DeleteWithOrganizations)
+			usersGroup.POST("/:id/transfer-ownership", systemAdmin, stepUp, audit(domain.ActivityTypeAdminOwnershipTransferred), userHandler.TransferOwnership)
+			usersGroup.POST("/:id/delete-with-organizations", systemAdmin, stepUp, audit(domain.ActivityTypeAdminUserDeletedWithOrgs), userHandler.DeleteWithOrganizations)
 		}
 
 		// Invitations - Any authenticated user
@@ -353,35 +367,39 @@ func SetupRouter(
 			adminActivitiesGroup.GET("", activityHandler.ListActivities)
 		}
 
-		// Admin subscription management (Admin only)
+		// Platform admin API
 		adminGroup := apiGroup.Group("/admin")
 		adminGroup.Use(httpHandler.RequireAdminMiddleware())
 		{
+			adminGroup.POST("/step-up", systemAdmin, httpHandler.RateLimitMiddleware(stepUpRateLimiter), audit(domain.ActivityTypeAdminStepUp), adminStepUpHandler.Create)
+
 			adminGroup.GET("/organizations", adminSubscriptionsHandler.ListOrganizations)
 			adminGroup.GET("/subscriptions", adminSubscriptionsHandler.List)
-			systemAdmin := httpHandler.RequireSystemAdminMiddleware(userRepo)
-			adminGroup.POST("/organizations/:id/subscription/grant", systemAdmin, adminSubscriptionsHandler.GrantManual)
-			adminGroup.POST("/organizations/:id/subscription/extend", systemAdmin, adminSubscriptionsHandler.ExtendManual)
-			adminGroup.POST("/organizations/:id/subscription/revoke", systemAdmin, adminSubscriptionsHandler.RevokeManual)
-			// Mail (admin broadcast)
-			adminGroup.POST("/mail", adminMailHandler.CreateJob)
-			adminGroup.GET("/mail/:jobId", adminMailHandler.GetJob)
-			// Server logs (admin)
+			adminGroup.POST("/organizations/:id/subscription/grant", systemAdmin, stepUp, adminSubscriptionsHandler.GrantManual)
+			adminGroup.POST("/organizations/:id/subscription/extend", systemAdmin, stepUp, adminSubscriptionsHandler.ExtendManual)
+			adminGroup.POST("/organizations/:id/subscription/revoke", systemAdmin, stepUp, adminSubscriptionsHandler.RevokeManual)
+
+			// Mail to registered users
+			adminGroup.POST("/mail", systemAdmin, stepUp, audit(domain.ActivityTypeAdminMailSent), adminMailHandler.CreateJob)
+			adminGroup.GET("/mail/:jobId", systemAdmin, adminMailHandler.GetJob)
+
+			// Server logs: tail for support; downloads contain PII. Logs are never
+			// deleted through the API (the 15-day rotation is automatic).
 			adminGroup.GET("/logs", adminLogsHandler.List)
-			adminGroup.GET("/logs/download", adminLogsHandler.Download)
-			adminGroup.GET("/logs/download-bundle", adminLogsHandler.DownloadBundle)
-			adminGroup.POST("/logs/clear", adminLogsHandler.Clear)
+			adminGroup.GET("/logs/download", systemAdmin, stepUp, audit(domain.ActivityTypeAdminLogsDownloaded), adminLogsHandler.Download)
+			adminGroup.GET("/logs/download-bundle", systemAdmin, stepUp, audit(domain.ActivityTypeAdminLogsDownloaded), adminLogsHandler.DownloadBundle)
+
 			adminGroup.GET("/telemetry/compat", compatTelemetryHandler.ListAdmin)
 			adminGroup.GET("/telemetry/compat/summary", compatTelemetryHandler.ListSummaryAdmin)
-			adminGroup.POST("/telemetry/compat/cleanup", compatTelemetryHandler.CleanupAdmin)
-			adminGroup.GET("/telemetry/compat/analyze", aiTelemetryHandler.Analyze)
+			adminGroup.POST("/telemetry/compat/cleanup", systemAdmin, stepUp, audit(domain.ActivityTypeAdminTelemetryCleaned), compatTelemetryHandler.CleanupAdmin)
+			adminGroup.GET("/telemetry/compat/analyze", systemAdmin, audit(domain.ActivityTypeAdminTelemetryAnalyzed), aiTelemetryHandler.Analyze)
 			adminGroup.GET("/telemetry/compat/analyze/verdicts", aiTelemetryHandler.ListVerdicts)
-			adminGroup.DELETE("/telemetry/compat/analyze/verdicts", aiTelemetryHandler.ResetVerdicts)
+			adminGroup.DELETE("/telemetry/compat/analyze/verdicts", systemAdmin, stepUp, audit(domain.ActivityTypeAdminTelemetryVerdictsReset), aiTelemetryHandler.ResetVerdicts)
 
-			// Custom icons management (admin only)
+			// Custom icons
 			adminGroup.GET("/icons", iconsHandler.ListCustomIcons)
-			adminGroup.POST("/icons/:domain", iconsHandler.UploadCustomIcon)
-			adminGroup.DELETE("/icons/:domain", iconsHandler.DeleteCustomIcon)
+			adminGroup.POST("/icons/:domain", systemAdmin, audit(domain.ActivityTypeAdminIconChanged), iconsHandler.UploadCustomIcon)
+			adminGroup.DELETE("/icons/:domain", systemAdmin, audit(domain.ActivityTypeAdminIconChanged), iconsHandler.DeleteCustomIcon)
 		}
 
 		// ============================================================

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/passwall/passwall-server/internal/domain"
@@ -17,86 +18,69 @@ type UserHandler struct {
 	service         service.UserService
 	activityService service.UserActivityService
 	activityLogger  *service.ActivityLogger
+	lastSignIns     lastSignInReader
 }
 
-func NewUserHandler(userService service.UserService, activityService service.UserActivityService) *UserHandler {
+type lastSignInReader interface {
+	GetLastSignInTimes(ctx context.Context, userIDs []uint) (map[uint]time.Time, error)
+}
+
+func NewUserHandler(userService service.UserService, activityService service.UserActivityService, lastSignIns lastSignInReader) *UserHandler {
 	return &UserHandler{
 		service:         userService,
 		activityService: activityService,
 		activityLogger:  service.NewActivityLogger(activityService),
+		lastSignIns:     lastSignIns,
 	}
 }
 
+type adminUserListResponse struct {
+	Items    []*domain.UserDTO `json:"items"`
+	Total    int64             `json:"total"`
+	Filtered int64             `json:"filtered"`
+}
+
+// List users for platform admins, paginated server-side.
+// GET /api/users?search=&role=admin|member&limit=&offset=
 func (h *UserHandler) List(c *gin.Context) {
 	ctx := c.Request.Context()
+	limit, offset := parseAdminPagination(c)
 
-	users, err := h.service.List(ctx)
+	filter := repository.ListFilter{
+		Search: strings.TrimSpace(c.Query("search")),
+		Limit:  limit,
+		Offset: offset,
+		Sort:   "created_at",
+		Order:  "desc",
+	}
+	switch c.Query("role") {
+	case constants.RoleAdmin:
+		filter.RoleID = constants.RoleIDAdmin
+	case constants.RoleMember:
+		filter.RoleID = constants.RoleIDMember
+	}
+	users, result, err := h.service.ListPage(ctx, filter)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch users"})
 		return
 	}
 
 	dtos := domain.ToUserDTOs(users)
-	for i, u := range users {
-		last, err := h.activityService.GetLastSignIn(ctx, u.ID)
-		if err == nil && last != nil {
-			dtos[i].LastSignInAt = &last.CreatedAt
+	if h.lastSignIns != nil && len(users) > 0 {
+		ids := make([]uint, len(users))
+		for i, u := range users {
+			ids[i] = u.ID
+		}
+		if times, err := h.lastSignIns.GetLastSignInTimes(ctx, ids); err == nil {
+			for i, u := range users {
+				if at, ok := times[u.ID]; ok {
+					at := at
+					dtos[i].LastSignInAt = &at
+				}
+			}
 		}
 	}
-	c.JSON(http.StatusOK, dtos)
-}
-
-func (h *UserHandler) Create(c *gin.Context) {
-	ctx := c.Request.Context()
-
-	var req domain.CreateUserByAdminRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
-		return
-	}
-
-	// Set default role if not provided
-	if req.RoleID == nil {
-		defaultRole := constants.RoleIDMember
-		req.RoleID = &defaultRole
-	}
-
-	user, err := h.service.CreateByAdmin(ctx, &req)
-	if err != nil {
-		if errors.Is(err, repository.ErrAlreadyExists) {
-			c.JSON(http.StatusConflict, gin.H{"error": "user already exists"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user", "details": err.Error()})
-		return
-	}
-
-	// Audit log (admin action) - never log secrets (hashes/keys)
-	if actorID, actorErr := GetUserID(c); actorErr == nil && h.activityLogger != nil {
-		ipAddress := GetIPAddress(c)
-		userAgent := GetUserAgent(c)
-		targetRoleID := constants.RoleIDMember
-		if req.RoleID != nil {
-			targetRoleID = *req.RoleID
-		}
-
-		go func() {
-			_ = h.activityLogger.LogActivity(context.Background(), actorID, domain.ActivityTypeAdminUserCreated, ipAddress, userAgent, service.ActivityDetails{
-				service.ActivityFieldUserID:    user.ID,
-				service.ActivityFieldUserEmail: user.Email,
-				service.ActivityFieldRole:      targetRoleID,
-			})
-		}()
-	}
-
-	// Get created user with role data
-	createdUser, err := h.service.GetByID(ctx, user.ID)
-	if err == nil {
-		c.JSON(http.StatusCreated, domain.ToUserDTO(createdUser))
-		return
-	}
-
-	c.JSON(http.StatusCreated, domain.ToUserDTO(user))
+	c.JSON(http.StatusOK, adminUserListResponse{Items: dtos, Total: result.Total, Filtered: result.Filtered})
 }
 
 func (h *UserHandler) GetByID(c *gin.Context) {
@@ -128,85 +112,84 @@ func (h *UserHandler) Update(c *gin.Context) {
 	if !ok {
 		return
 	}
+	actorID, err := GetUserID(c)
+	if err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
 
 	var req domain.UpdateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
 		return
 	}
-
-	// Check if there are any updates
 	if !req.HasUpdates() {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "no fields to update"})
 		return
 	}
 
-	// Get existing user
-	existingUser, err := h.service.GetByID(ctx, id)
+	before, updated, err := h.service.UpdateByAdmin(ctx, actorID, id, &req)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		writeAdminUserError(c, err, "failed to update user")
+		return
+	}
+	h.logUserUpdate(c, actorID, before, updated)
+
+	if fresh, err := h.service.GetByID(ctx, id); err == nil {
+		updated = fresh
+	}
+	c.JSON(http.StatusOK, domain.ToUserDTO(updated))
+}
+
+// logUserUpdate writes the audit entry synchronously; a role change gets its
+// own activity type so it is easy to find.
+func (h *UserHandler) logUserUpdate(c *gin.Context, actorID uint, before domain.User, after *domain.User) {
+	if h.activityLogger == nil || after == nil {
+		return
+	}
+	details := service.ActivityDetails{
+		service.ActivityFieldUserID:    after.ID,
+		service.ActivityFieldUserEmail: after.Email,
+	}
+	if before.Name != after.Name {
+		details["old_name"], details["new_name"] = before.Name, after.Name
+	}
+	if before.Email != after.Email {
+		details["old_email"], details["new_email"] = before.Email, after.Email
+	}
+	if before.Language != after.Language {
+		details["old_language"], details["new_language"] = before.Language, after.Language
+	}
+	activityType := domain.ActivityTypeAdminUserUpdated
+	if before.RoleID != after.RoleID {
+		details[service.ActivityFieldOldRole], details[service.ActivityFieldNewRole] = before.RoleID, after.RoleID
+		activityType = domain.ActivityTypeAdminUserRoleChanged
+	}
+	_ = h.activityLogger.LogActivity(c.Request.Context(), actorID, activityType, GetIPAddress(c), GetUserAgent(c), details)
+}
+
+func writeAdminUserError(c *gin.Context, err error, fallback string) {
+	type mapped struct {
+		status int
+		code   string
+	}
+	for target, m := range map[error]mapped{
+		service.ErrAdminRoleInvalid:    {http.StatusBadRequest, "ROLE_INVALID"},
+		service.ErrAdminSelfRoleChange: {http.StatusBadRequest, "CANNOT_CHANGE_OWN_ROLE"},
+		service.ErrAdminSelfDelete:     {http.StatusBadRequest, "CANNOT_DELETE_SELF"},
+		service.ErrSystemUserProtected: {http.StatusConflict, "SYSTEM_USER_PROTECTED"},
+		service.ErrLastAdmin:           {http.StatusConflict, "LAST_ADMIN"},
+	} {
+		if errors.Is(err, target) {
+			c.JSON(m.status, gin.H{"error": target.Error(), "code": m.code})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch user"})
+	}
+	if errors.Is(err, repository.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
 	}
-
-	// Capture old values for audit diff
-	oldName := existingUser.Name
-	oldEmail := existingUser.Email
-	oldRoleID := existingUser.RoleID
-	oldLanguage := existingUser.Language
-
-	// Apply updates
-	req.ApplyTo(existingUser)
-
-	// Update in database
-	if err := h.service.Update(ctx, id, existingUser); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user"})
-		return
-	}
-
-	// Audit log (admin action)
-	if actorID, actorErr := GetUserID(c); actorErr == nil && h.activityLogger != nil {
-		ipAddress := GetIPAddress(c)
-		userAgent := GetUserAgent(c)
-		details := service.ActivityDetails{
-			service.ActivityFieldUserID:    id,
-			service.ActivityFieldUserEmail: existingUser.Email,
-		}
-
-		if oldName != existingUser.Name {
-			details["old_name"] = oldName
-			details["new_name"] = existingUser.Name
-		}
-		if oldEmail != existingUser.Email {
-			details["old_email"] = oldEmail
-			details["new_email"] = existingUser.Email
-		}
-		if oldRoleID != existingUser.RoleID {
-			details[service.ActivityFieldOldRole] = oldRoleID
-			details[service.ActivityFieldNewRole] = existingUser.RoleID
-		}
-		if oldLanguage != existingUser.Language {
-			details["old_language"] = oldLanguage
-			details["new_language"] = existingUser.Language
-		}
-
-		go func() {
-			_ = h.activityLogger.LogActivity(context.Background(), actorID, domain.ActivityTypeAdminUserUpdated, ipAddress, userAgent, details)
-		}()
-	}
-
-	// Get updated user with fresh role data
-	updatedUser, err := h.service.GetByID(ctx, id)
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"message": "user updated successfully"})
-		return
-	}
-
-	// Convert to DTO for API response
-	c.JSON(http.StatusOK, domain.ToUserDTO(updatedUser))
+	c.JSON(http.StatusInternalServerError, gin.H{"error": fallback})
 }
 
 func (h *UserHandler) Delete(c *gin.Context) {
@@ -227,26 +210,32 @@ func (h *UserHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	// Audit log (admin action) - before deletion
-	if actorID, actorErr := GetUserID(c); actorErr == nil && h.activityLogger != nil {
-		ipAddress := GetIPAddress(c)
-		userAgent := GetUserAgent(c)
-		go func() {
-			_ = h.activityLogger.LogActivity(context.Background(), actorID, domain.ActivityTypeAdminUserDeleted, ipAddress, userAgent, service.ActivityDetails{
-				service.ActivityFieldUserID:    id,
-				service.ActivityFieldUserEmail: user.Email,
-				service.ActivityFieldRole:      user.RoleID,
-			})
-		}()
+	actorID, err := GetUserID(c)
+	if err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+	if actorID == id {
+		writeAdminUserError(c, service.ErrAdminSelfDelete, "failed to delete user")
+		return
 	}
 
 	if err := h.service.Delete(ctx, id); err != nil {
 		if errors.Is(err, repository.ErrForbidden) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			c.JSON(http.StatusForbidden, gin.H{"error": "system users cannot be deleted", "code": "SYSTEM_USER_PROTECTED"})
 			return
 		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to delete user", "details": err.Error()})
 		return
+	}
+
+	// Audit after the delete succeeded so failed attempts are not recorded as deletions.
+	if h.activityLogger != nil {
+		_ = h.activityLogger.LogActivity(ctx, actorID, domain.ActivityTypeAdminUserDeleted, GetIPAddress(c), GetUserAgent(c), service.ActivityDetails{
+			service.ActivityFieldUserID:    id,
+			service.ActivityFieldUserEmail: user.Email,
+			service.ActivityFieldRole:      user.RoleID,
+		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "user deleted successfully"})

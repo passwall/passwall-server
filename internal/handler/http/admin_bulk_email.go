@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/passwall/passwall-server/internal/email"
 	"github.com/passwall/passwall-server/internal/repository"
+	"github.com/passwall/passwall-server/internal/service"
 )
 
 type AdminMailHandler struct {
@@ -202,6 +203,7 @@ func (h *AdminMailHandler) createMailJob(c *gin.Context, req AdminMailCreateRequ
 			"source", "user_ids",
 		)
 
+		SetAdminAuditDetails(c, service.ActivityDetails{"job_id": jobID, "send_to": "user_ids", "recipient_count": len(recipients), "subject": subject})
 		c.JSON(http.StatusOK, AdminMailCreateResponse{JobID: jobID, Total: len(recipients)})
 		return
 
@@ -229,6 +231,7 @@ func (h *AdminMailHandler) createMailJob(c *gin.Context, req AdminMailCreateRequ
 			"search", search,
 		)
 
+		SetAdminAuditDetails(c, service.ActivityDetails{"job_id": jobID, "send_to": "all_users", "search": search, "subject": subject})
 		c.JSON(http.StatusOK, AdminMailCreateResponse{JobID: jobID, Total: 0})
 		return
 	}

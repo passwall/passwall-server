@@ -24,6 +24,17 @@ const (
 	ActivityTypeAdminUserCreated ActivityType = "admin_user_created"
 	ActivityTypeAdminUserUpdated ActivityType = "admin_user_updated"
 	ActivityTypeAdminUserDeleted ActivityType = "admin_user_deleted"
+	// Platform admin actions; prefix "admin_" keeps them out of retention cleanup.
+	ActivityTypeAdminUserRoleChanged        ActivityType = "admin_user_role_changed"
+	ActivityTypeAdminOwnershipTransferred   ActivityType = "admin_ownership_transferred"
+	ActivityTypeAdminUserDeletedWithOrgs    ActivityType = "admin_user_deleted_with_organizations"
+	ActivityTypeAdminMailSent               ActivityType = "admin_mail_sent"
+	ActivityTypeAdminLogsDownloaded         ActivityType = "admin_logs_downloaded"
+	ActivityTypeAdminTelemetryCleaned       ActivityType = "admin_telemetry_cleaned"
+	ActivityTypeAdminTelemetryAnalyzed      ActivityType = "admin_telemetry_analyzed"
+	ActivityTypeAdminTelemetryVerdictsReset ActivityType = "admin_telemetry_verdicts_reset"
+	ActivityTypeAdminIconChanged            ActivityType = "admin_icon_changed"
+	ActivityTypeAdminStepUp                 ActivityType = "admin_step_up"
 
 	// Billing & Subscription Activities
 	ActivityTypeCheckoutCreated           ActivityType = "checkout_created"

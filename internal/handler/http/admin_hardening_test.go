@@ -8,9 +8,12 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/passwall/passwall-server/internal/config"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/internal/service"
+	"github.com/passwall/passwall-server/pkg/constants"
 )
 
 func TestAdminMailRejectsFreeFormRecipients(t *testing.T) {
@@ -70,5 +73,90 @@ func TestAdminActivityLimitsAreBounded(t *testing.T) {
 
 	if stub.filterLimit != maxAdminActivityLimit || stub.userLimit != maxAdminActivityLimit {
 		t.Fatalf("limits = list %d, user %d; want %d", stub.filterLimit, stub.userLimit, maxAdminActivityLimit)
+	}
+}
+
+type stepUpAuthStub struct {
+	service.AuthService
+	valid string
+}
+
+func (s stepUpAuthStub) VerifyAdminStepUp(token string, _ uint, _ uuid.UUID) error {
+	if token != "" && token == s.valid {
+		return nil
+	}
+	return service.ErrStepUpInvalid
+}
+
+type auditActivityStub struct {
+	service.UserActivityService
+	entries []*domain.CreateActivityRequest
+}
+
+func (s *auditActivityStub) LogActivity(_ context.Context, req *domain.CreateActivityRequest) error {
+	s.entries = append(s.entries, req)
+	return nil
+}
+
+func TestAdminStepUpAndAuditMiddleware(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	activities := &auditActivityStub{}
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(constants.ContextKeyUserID, uint(42))
+		c.Set(constants.ContextKeySessionID, uuid.New())
+	})
+	router.POST("/danger/:id",
+		RequireAdminStepUpMiddleware(stepUpAuthStub{valid: "good"}),
+		AdminAuditMiddleware(service.NewActivityLogger(activities), domain.ActivityTypeAdminMailSent),
+		func(c *gin.Context) {
+			SetAdminAuditDetails(c, service.ActivityDetails{"recipient_count": 3})
+			c.Status(http.StatusAccepted)
+		})
+
+	for _, tt := range []struct {
+		header string
+		want   int
+	}{{"", http.StatusForbidden}, {"bad", http.StatusForbidden}, {"good", http.StatusAccepted}} {
+		recorder := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/danger/7", nil)
+		if tt.header != "" {
+			req.Header.Set(AdminStepUpHeader, tt.header)
+		}
+		router.ServeHTTP(recorder, req)
+		if recorder.Code != tt.want {
+			t.Fatalf("header %q: status = %d, want %d", tt.header, recorder.Code, tt.want)
+		}
+		if tt.want == http.StatusForbidden && !strings.Contains(recorder.Body.String(), `"STEP_UP_REQUIRED"`) {
+			t.Fatalf("missing STEP_UP_REQUIRED code: %s", recorder.Body.String())
+		}
+	}
+
+	if len(activities.entries) != 1 {
+		t.Fatalf("audit entries = %d, want 1 (only the request that reached the handler)", len(activities.entries))
+	}
+	entry := activities.entries[0]
+	if entry.UserID != 42 || entry.ActivityType != domain.ActivityTypeAdminMailSent ||
+		!strings.Contains(entry.Details, `"recipient_count":3`) || !strings.Contains(entry.Details, `"param_id":"7"`) ||
+		!strings.Contains(entry.Details, `"status":202`) {
+		t.Fatalf("audit entry = %+v", entry)
+	}
+}
+
+func TestCORSAllowsAdminStepUpHeader(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(CORSMiddleware(&config.ServerConfig{FrontendURL: "https://vault.example.com"}))
+	router.PUT("/api/users/:id", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodOptions, "/api/users/7", nil)
+	req.Header.Set("Origin", "https://vault.example.com")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPut)
+	req.Header.Set("Access-Control-Request-Headers", "authorization,content-type,x-passwall-step-up")
+	router.ServeHTTP(recorder, req)
+
+	if !strings.Contains(recorder.Header().Get("Access-Control-Allow-Headers"), AdminStepUpHeader) {
+		t.Fatalf("preflight does not allow %s: %q", AdminStepUpHeader, recorder.Header().Get("Access-Control-Allow-Headers"))
 	}
 }

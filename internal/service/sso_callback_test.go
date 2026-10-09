@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/beevik/etree"
+	"github.com/google/uuid"
 	dsig "github.com/russellhaering/goxmldsig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -174,6 +175,7 @@ func (f *fakeUserRepo) GetByEmail(_ context.Context, email string) (*domain.User
 func (f *fakeUserRepo) List(_ context.Context, _ repository.ListFilter) ([]*domain.User, *repository.ListResult, error) {
 	return nil, nil, nil
 }
+func (f *fakeUserRepo) CountByRoleID(context.Context, uint) (int64, error) { return 0, nil }
 func (f *fakeUserRepo) Create(_ context.Context, u *domain.User) error {
 	f.users[u.Email] = u
 	return nil
@@ -352,6 +354,10 @@ func (f *fakeAuthService) GetTwoFactorCompliance(_ context.Context, _ uint, _ ui
 func (f *fakeAuthService) GetMandatoryTwoFactorSetupRequirement(_ context.Context, _ uint) (*domain.TwoFactorSetupRequirement, error) {
 	return nil, nil
 }
+func (f *fakeAuthService) IssueAdminStepUp(context.Context, uint, uuid.UUID, string, string) (string, time.Time, error) {
+	return "", time.Time{}, nil
+}
+func (f *fakeAuthService) VerifyAdminStepUp(string, uint, uuid.UUID) error { return nil }
 
 // inactiveSSOConnRepo is a fake that always returns the same connection from GetByDomain
 // (even if inactive). This lets us test the InitiateLogin path where a domain
