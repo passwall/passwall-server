@@ -72,6 +72,9 @@ func (h *ActivityHandler) GetLastSignIn(c *gin.Context) {
 	c.JSON(http.StatusOK, domain.ToUserActivityDTO(activity))
 }
 
+// maxAdminActivityLimit bounds admin activity pages like the self endpoint.
+const maxAdminActivityLimit = 100
+
 // GetUserActivities returns activities for a specific user (admin only)
 func (h *ActivityHandler) GetUserActivities(c *gin.Context) {
 	userID, err := strconv.ParseUint(c.Param("id"), 10, 32)
@@ -80,10 +83,10 @@ func (h *ActivityHandler) GetUserActivities(c *gin.Context) {
 		return
 	}
 
-	limit := 100 // Default for admin view
+	limit := maxAdminActivityLimit // Default for admin view
 	if limitStr := c.Query("limit"); limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
-			limit = l
+			limit = min(l, maxAdminActivityLimit)
 		}
 	}
 
@@ -122,7 +125,7 @@ func (h *ActivityHandler) ListActivities(c *gin.Context) {
 
 	if limitStr := c.Query("limit"); limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
-			filter.Limit = l
+			filter.Limit = min(l, maxAdminActivityLimit)
 		}
 	}
 

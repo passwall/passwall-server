@@ -60,14 +60,6 @@ type mailJob struct {
 	Error *string `json:"error,omitempty"`
 }
 
-// Legacy request (kept for backward compatibility with /admin/bulk-email)
-type AdminBulkEmailCreateRequest struct {
-	Recipients []string `json:"recipients" binding:"required,min=1,max=1500"`
-	Subject    string   `json:"subject" binding:"required,min=1,max=200"`
-	Message    string   `json:"message" binding:"required,min=1,max=20000"`
-	IsHTML     *bool    `json:"is_html"`
-}
-
 type AdminMailCreateRequest struct {
 	// send_to determines recipient source:
 	// - "all_users": sends to users in the system (optionally filtered by search)
@@ -103,99 +95,19 @@ func (h *AdminMailHandler) CreateJob(c *gin.Context) {
 		return
 	}
 
-	// Try new request shape first, then fall back to legacy bulk-email request.
+	// Recipients always come from registered users. The former free-form
+	// "recipients" payload let an admin mail arbitrary external addresses.
 	var req AdminMailCreateRequest
-	reqErr := json.Unmarshal(bodyBytes, &req)
-
-	if reqErr != nil || (strings.TrimSpace(req.SendTo) == "" && len(req.UserIDs) == 0 && strings.TrimSpace(req.Subject) == "" && strings.TrimSpace(req.Message) == "") {
-		var legacy AdminBulkEmailCreateRequest
-		if err := json.Unmarshal(bodyBytes, &legacy); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":   "invalid request",
-				"details": err.Error(),
-			})
-			return
-		}
-		h.createLegacyJob(c, legacy)
+	if err := json.Unmarshal(bodyBytes, &req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	if strings.TrimSpace(req.SendTo) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "send_to is required (all_users or user_ids)"})
 		return
 	}
 
 	h.createMailJob(c, req)
-}
-
-func (h *AdminMailHandler) createLegacyJob(c *gin.Context, req AdminBulkEmailCreateRequest) {
-	subject := strings.TrimSpace(req.Subject)
-	if subject == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "subject is required"})
-		return
-	}
-
-	message := strings.TrimSpace(req.Message)
-	if message == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "message is required"})
-		return
-	}
-
-	recipients, invalid := normalizeAndValidateEmails(req.Recipients)
-	if len(invalid) > 0 {
-		// Return a bounded sample of invalid emails to avoid huge payloads.
-		sample := invalid
-		if len(sample) > 50 {
-			sample = sample[:50]
-		}
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":         "invalid recipients",
-			"invalid_count": len(invalid),
-			"invalid":       sample,
-		})
-		return
-	}
-
-	if len(recipients) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "at least one recipient is required"})
-		return
-	}
-	if len(recipients) > 1500 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "too many recipients (max 1500)"})
-		return
-	}
-
-	jobID := newJobID()
-	now := time.Now().UTC()
-
-	job := &mailJob{
-		ID:        jobID,
-		State:     mailJobQueued,
-		CreatedAt: now,
-		Total:     len(recipients),
-		Failures:  make([]mailFailure, 0),
-		Subject:   subject,
-	}
-
-	h.mu.Lock()
-	h.jobs[jobID] = job
-	h.mu.Unlock()
-
-	isHTML := false
-	if req.IsHTML != nil {
-		isHTML = *req.IsHTML
-	} else {
-		isHTML = detectLikelyHTML(message)
-	}
-
-	// Start async worker (avoid request timeout).
-	go h.runExplicitRecipientsJob(context.Background(), jobID, recipients, subject, message, isHTML)
-
-	h.logger.Info("admin mail job created",
-		"job_id", jobID,
-		"recipient_count", len(recipients),
-		"source", "explicit_recipients",
-	)
-
-	c.JSON(http.StatusOK, AdminMailCreateResponse{
-		JobID: jobID,
-		Total: len(recipients),
-	})
 }
 
 func (h *AdminMailHandler) createMailJob(c *gin.Context, req AdminMailCreateRequest) {
@@ -608,34 +520,6 @@ func (h *AdminMailHandler) sendWithRetry(ctx context.Context, to, subject, body 
 		return err
 	}
 	return nil
-}
-
-func normalizeAndValidateEmails(input []string) ([]string, []string) {
-	seen := make(map[string]struct{}, len(input))
-	out := make([]string, 0, len(input))
-	invalid := make([]string, 0)
-
-	for _, raw := range input {
-		s := strings.TrimSpace(raw)
-		if s == "" {
-			continue
-		}
-		// Normalize
-		s = strings.ToLower(s)
-
-		if _, err := mail.ParseAddress(s); err != nil {
-			invalid = append(invalid, s)
-			continue
-		}
-
-		if _, ok := seen[s]; ok {
-			continue
-		}
-		seen[s] = struct{}{}
-		out = append(out, s)
-	}
-
-	return out, invalid
 }
 
 func buildAdminBroadcastBody(message string, isHTML bool) string {
