@@ -58,6 +58,12 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*domain.
 	return &user, nil
 }
 
+func (r *userRepository) CountByRoleID(ctx context.Context, roleID uint) (int64, error) {
+	var count int64
+	err := dbFromContext(ctx, r.db).Model(&domain.User{}).Where("role_id = ?", roleID).Count(&count).Error
+	return count, err
+}
+
 func (r *userRepository) List(ctx context.Context, filter repository.ListFilter) ([]*domain.User, *repository.ListResult, error) {
 	var users []*domain.User
 	var total int64
@@ -72,8 +78,12 @@ func (r *userRepository) List(ctx context.Context, filter repository.ListFilter)
 	// Apply filters
 	if filter.Search != "" {
 		searchPattern := "%" + filter.Search + "%"
-		query = query.Where("name LIKE ? OR email LIKE ? OR role LIKE ?",
-			searchPattern, searchPattern, searchPattern)
+		query = query.Where("LOWER(name) LIKE LOWER(?) OR LOWER(email) LIKE LOWER(?)",
+			searchPattern, searchPattern)
+	}
+
+	if filter.RoleID > 0 {
+		query = query.Where("role_id = ?", filter.RoleID)
 	}
 
 	// Count filtered

@@ -153,9 +153,14 @@ func (r *userActivityRepository) ListByUserIDs(ctx context.Context, userIDs []ui
 	return activities, nil
 }
 
+// adminAuditTypePattern matches platform-admin audit entries (actor = user_id).
+// They are retained when the actor is deleted and are exempt from age-based
+// cleanup, so the audit trail of admin actions cannot disappear.
+const adminAuditTypePattern = "admin\\_%"
+
 func (r *userActivityRepository) DeleteByUserID(ctx context.Context, userID uint) error {
 	return dbFromContext(ctx, r.db).
-		Where("user_id = ?", userID).
+		Where("user_id = ? AND activity_type NOT LIKE ? ESCAPE '\\'", userID, adminAuditTypePattern).
 		Delete(&domain.UserActivity{}).Error
 }
 
@@ -163,7 +168,7 @@ func (r *userActivityRepository) DeleteOldActivities(ctx context.Context, olderT
 	cutoffTime := time.Now().Add(-olderThan)
 
 	result := dbFromContext(ctx, r.db).
-		Where("created_at < ?", cutoffTime).
+		Where("created_at < ? AND activity_type NOT LIKE ? ESCAPE '\\'", cutoffTime, adminAuditTypePattern).
 		Delete(&domain.UserActivity{})
 
 	if result.Error != nil {

@@ -388,7 +388,7 @@ func (a *App) Run(ctx context.Context) error {
 	activityHandler := httpHandler.NewActivityHandler(userActivityService)
 	organizationActivityHandler := httpHandler.NewOrganizationActivityHandler(userActivityService, orgUserRepo, entitlementService)
 	authHandler := httpHandler.NewAuthHandler(authService, verificationService, userActivityService, emailSender, emailBuilder)
-	userHandler := httpHandler.NewUserHandler(userService, userActivityService)
+	userHandler := httpHandler.NewUserHandler(userService, userActivityService, userActivityRepo)
 	userNotificationPreferencesHandler := httpHandler.NewUserNotificationPreferencesHandler(userNotificationPreferencesService)
 	userAppearancePreferencesHandler := httpHandler.NewUserAppearancePreferencesHandler(userAppearancePreferencesService)
 	userPreferencesHandler := httpHandler.NewUserPreferencesHandler(preferencesService)
@@ -499,6 +499,8 @@ func (a *App) Run(ctx context.Context) error {
 		adminSubscriptionsHandler,
 		adminMailHandler,
 		adminLogsHandler,
+		httpHandler.NewAdminStepUpHandler(authService, userActivityService),
+		service.NewActivityLogger(userActivityService),
 		adminDirectoryHandler,
 		iconsHandler,
 		ssoHandler,

@@ -43,6 +43,7 @@ func AuthMiddleware(authService service.AuthService) gin.HandlerFunc {
 		c.Set(constants.ContextKeyEmail, claims.Email)
 		c.Set(constants.ContextKeyUserRole, claims.Role)
 		c.Set(constants.ContextKeyTokenUUID, claims.UUID.String())
+		c.Set(constants.ContextKeySessionID, claims.SessionUUID)
 
 		// Enforce mandatory org-level 2FA setup for authenticated APIs.
 		// Allow only setup/status/disable endpoints and signout until setup is complete.
@@ -142,7 +143,7 @@ func CORSMiddleware(cfg *config.ServerConfig) gin.HandlerFunc {
 		// When no Origin header is present (server-to-server, mobile apps,
 		// curl, etc.) no CORS headers are needed.
 
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, X-Recaptcha-Token")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, X-Recaptcha-Token, X-Passwall-Step-Up")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
 
 		if c.Request.Method == "OPTIONS" {

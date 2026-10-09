@@ -5,11 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/pkg/constants"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type userService struct {
@@ -86,71 +84,63 @@ func (s *userService) List(ctx context.Context) ([]*domain.User, error) {
 	return users, nil
 }
 
-func (s *userService) Create(ctx context.Context, user *domain.User) error {
-	return errors.New("use CreateByAdmin for admin-created users with proper encryption setup")
+// Typed errors for platform-admin user edits.
+var (
+	ErrAdminRoleInvalid    = errors.New("role must be admin or member")
+	ErrAdminSelfRoleChange = errors.New("you cannot change your own role")
+	ErrAdminSelfDelete     = errors.New("you cannot delete your own account here")
+	ErrSystemUserProtected = errors.New("system users cannot have their role or email changed")
+	ErrLastAdmin           = errors.New("at least one admin must remain")
+)
+
+func (s *userService) ListPage(ctx context.Context, filter repository.ListFilter) ([]*domain.User, *repository.ListResult, error) {
+	users, result, err := s.repo.List(ctx, filter)
+	if err != nil {
+		s.logger.Error("failed to list users", "error", err)
+		return nil, nil, err
+	}
+	return users, result, nil
 }
 
-// CreateByAdmin creates a user by admin (with proper zero-knowledge setup)
-func (s *userService) CreateByAdmin(ctx context.Context, req *domain.CreateUserByAdminRequest) (*domain.User, error) {
-	// Validate request
-	if err := req.Validate(); err != nil {
-		return nil, fmt.Errorf("validation failed: %w", err)
-	}
-
-	// Check if user already exists
-	existingUser, err := s.repo.GetByEmail(ctx, req.Email)
-	if err == nil && existingUser != nil {
-		return nil, repository.ErrAlreadyExists
-	}
-
-	// Hash the master password hash with bcrypt (defense in depth)
-	// Client sends: HKDF(masterKey, info="auth")
-	// Server stores: bcrypt(HKDF(masterKey, info="auth"))
-	hashedPassword, err := bcrypt.GenerateFromPassword(
-		[]byte(req.MasterPasswordHash),
-		constants.BcryptCost,
-	)
+func (s *userService) UpdateByAdmin(ctx context.Context, actorID, id uint, req *domain.UpdateUserRequest) (domain.User, *domain.User, error) {
+	user, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		s.logger.Error("failed to hash password", "error", err)
-		return nil, fmt.Errorf("failed to hash password: %w", err)
+		return domain.User{}, nil, err
+	}
+	before := *user
+
+	roleChanges := req.RoleID != nil && *req.RoleID != user.RoleID
+	if roleChanges {
+		if *req.RoleID != constants.RoleIDAdmin && *req.RoleID != constants.RoleIDMember {
+			return before, nil, ErrAdminRoleInvalid
+		}
+		if actorID == id {
+			return before, nil, ErrAdminSelfRoleChange
+		}
+	}
+	emailChanges := req.Email != nil && *req.Email != user.Email
+	if user.IsSystemUser && (roleChanges || emailChanges) {
+		return before, nil, ErrSystemUserProtected
+	}
+	if roleChanges && user.RoleID == constants.RoleIDAdmin {
+		admins, err := s.repo.CountByRoleID(ctx, constants.RoleIDAdmin)
+		if err != nil {
+			return before, nil, fmt.Errorf("count admins: %w", err)
+		}
+		if admins <= 1 {
+			return before, nil, ErrLastAdmin
+		}
 	}
 
-	// Set role
-	roleID := constants.RoleIDMember
-	if req.RoleID != nil {
-		roleID = *req.RoleID
+	req.ApplyTo(user)
+	if err := s.Update(ctx, id, user); err != nil {
+		return before, nil, err
 	}
+	return before, user, nil
+}
 
-	// Create user with zero-knowledge fields from admin
-	user := &domain.User{
-		UUID:               uuid.New(),
-		Name:               req.Name,
-		Email:              req.Email,
-		MasterPasswordHash: string(hashedPassword),
-		ProtectedUserKey:   req.ProtectedUserKey, // EncString from admin
-		KdfType:            req.KdfConfig.Type,
-		KdfIterations:      req.KdfConfig.Iterations,
-		KdfMemory:          req.KdfConfig.Memory,
-		KdfParallelism:     req.KdfConfig.Parallelism,
-		KdfSalt:            req.KdfSalt, // Random salt from admin
-		RoleID:             roleID,
-		IsVerified:         true, // Admin-created users are auto-verified
-	}
-
-	if err := s.vaultProvisioner.Provision(ctx, user, req.EncryptedOrgKey); err != nil {
-		s.logger.Error("failed to provision admin-created account", "email", req.Email, "error", err)
-		return nil, fmt.Errorf("failed to provision account: %w", err)
-	}
-
-	s.logger.Info("user created by admin (zero-knowledge)",
-		"id", user.ID,
-		"email", req.Email,
-		"role_id", roleID,
-		"kdf_type", user.KdfType.String(),
-		"iterations", user.KdfIterations,
-		"is_verified", true)
-
-	return user, nil
+func (s *userService) Create(ctx context.Context, user *domain.User) error {
+	return errors.New("users are created through signup with client-side key generation")
 }
 
 func (s *userService) Update(ctx context.Context, id uint, user *domain.User) error {
