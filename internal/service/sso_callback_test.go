@@ -225,6 +225,9 @@ func (f *fakeOrgUserRepo) GetActiveByOrgAndUser(ctx context.Context, orgID, user
 func (f *fakeOrgUserRepo) ListByOrganization(_ context.Context, _ uint) ([]*domain.OrganizationUser, error) {
 	return nil, nil
 }
+func (f *fakeOrgUserRepo) ListOwnersByOrganizationIDs(_ context.Context, _ []uint) (map[uint]*domain.OrganizationUser, error) {
+	return map[uint]*domain.OrganizationUser{}, nil
+}
 func (f *fakeOrgUserRepo) ListByUser(_ context.Context, _ uint) ([]*domain.OrganizationUser, error) {
 	return nil, nil
 }
@@ -281,6 +284,9 @@ func (f *fakeOrgRepo) GetMemberCount(_ context.Context, _ uint) (int, error)    
 func (f *fakeOrgRepo) GetTeamCount(_ context.Context, _ uint) (int, error)       { return 0, nil }
 func (f *fakeOrgRepo) GetCollectionCount(_ context.Context, _ uint) (int, error) { return 0, nil }
 func (f *fakeOrgRepo) GetItemCount(_ context.Context, _ uint) (int, error)       { return 0, nil }
+func (f *fakeOrgRepo) GetCountsByIDs(_ context.Context, _ []uint) (map[uint]repository.OrganizationCounts, error) {
+	return map[uint]repository.OrganizationCounts{}, nil
+}
 
 // fakeAuthService implements AuthService (minimal)
 type fakeAuthService struct {

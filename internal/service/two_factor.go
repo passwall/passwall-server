@@ -223,6 +223,7 @@ func (s *authService) VerifyTwoFactorSignIn(ctx context.Context, twoFactorToken 
 			Email:                  user.Email,
 			Name:                   user.Name,
 			Role:                   user.GetRoleName(),
+			IsSystemUser:           user.IsSystemUser,
 			IsVerified:             user.IsVerified,
 			Language:               user.Language,
 			TwoFactorEnabled:       user.TwoFactorEnabled,

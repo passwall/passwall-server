@@ -35,12 +35,13 @@ type Subscription struct {
 	State          SubscriptionState `json:"state" gorm:"type:varchar(20);not null;default:'draft'"`
 
 	// Lifecycle timestamps
-	StartedAt         *time.Time `json:"started_at,omitempty"`
-	RenewAt           *time.Time `json:"renew_at,omitempty"`
-	CancelAt          *time.Time `json:"cancel_at,omitempty"`
-	EndedAt           *time.Time `json:"ended_at,omitempty"`
-	GracePeriodEndsAt *time.Time `json:"grace_period_ends_at,omitempty"`
-	TrialEndsAt       *time.Time `json:"trial_ends_at,omitempty"`
+	StartedAt             *time.Time `json:"started_at,omitempty"`
+	RenewAt               *time.Time `json:"renew_at,omitempty"`
+	CancelAt              *time.Time `json:"cancel_at,omitempty"`
+	EndedAt               *time.Time `json:"ended_at,omitempty"`
+	GracePeriodEndsAt     *time.Time `json:"grace_period_ends_at,omitempty"`
+	TrialEndsAt           *time.Time `json:"trial_ends_at,omitempty"`
+	ManualEndNoticeSentAt *time.Time `json:"manual_end_notice_sent_at,omitempty"`
 
 	// Stripe integration
 	StripeSubscriptionID *string `json:"stripe_subscription_id,omitempty" gorm:"type:varchar(255);uniqueIndex"`
@@ -103,21 +104,22 @@ func (s *Subscription) ShouldExpire() bool {
 
 // SubscriptionDTO for API responses
 type SubscriptionDTO struct {
-	ID                   uint              `json:"id"`
-	UUID                 uuid.UUID         `json:"uuid"`
-	OrganizationID       uint              `json:"organization_id"`
-	Plan                 *PlanDTO          `json:"plan,omitempty"`
-	State                SubscriptionState `json:"state"`
-	StartedAt            *time.Time        `json:"started_at,omitempty"`
-	RenewAt              *time.Time        `json:"renew_at,omitempty"`
-	CancelAt             *time.Time        `json:"cancel_at,omitempty"`
-	EndedAt              *time.Time        `json:"ended_at,omitempty"`
-	GracePeriodEndsAt    *time.Time        `json:"grace_period_ends_at,omitempty"`
-	TrialEndsAt          *time.Time        `json:"trial_ends_at,omitempty"`
-	StripeSubscriptionID *string           `json:"stripe_subscription_id,omitempty"`
-	SeatsPurchased       *int              `json:"seats_purchased,omitempty"`
-	CreatedAt            time.Time         `json:"created_at"`
-	UpdatedAt            time.Time         `json:"updated_at"`
+	ID                    uint              `json:"id"`
+	UUID                  uuid.UUID         `json:"uuid"`
+	OrganizationID        uint              `json:"organization_id"`
+	Plan                  *PlanDTO          `json:"plan,omitempty"`
+	State                 SubscriptionState `json:"state"`
+	StartedAt             *time.Time        `json:"started_at,omitempty"`
+	RenewAt               *time.Time        `json:"renew_at,omitempty"`
+	CancelAt              *time.Time        `json:"cancel_at,omitempty"`
+	EndedAt               *time.Time        `json:"ended_at,omitempty"`
+	GracePeriodEndsAt     *time.Time        `json:"grace_period_ends_at,omitempty"`
+	TrialEndsAt           *time.Time        `json:"trial_ends_at,omitempty"`
+	ManualEndNoticeSentAt *time.Time        `json:"manual_end_notice_sent_at,omitempty"`
+	StripeSubscriptionID  *string           `json:"stripe_subscription_id,omitempty"`
+	SeatsPurchased        *int              `json:"seats_purchased,omitempty"`
+	CreatedAt             time.Time         `json:"created_at"`
+	UpdatedAt             time.Time         `json:"updated_at"`
 }
 
 // CreateSubscriptionRequest for API requests
@@ -142,20 +144,21 @@ func ToSubscriptionDTO(s *Subscription) *SubscriptionDTO {
 	}
 
 	dto := &SubscriptionDTO{
-		ID:                   s.ID,
-		UUID:                 s.UUID,
-		OrganizationID:       s.OrganizationID,
-		State:                s.State,
-		StartedAt:            s.StartedAt,
-		RenewAt:              s.RenewAt,
-		CancelAt:             s.CancelAt,
-		EndedAt:              s.EndedAt,
-		GracePeriodEndsAt:    s.GracePeriodEndsAt,
-		TrialEndsAt:          s.TrialEndsAt,
-		StripeSubscriptionID: s.StripeSubscriptionID,
-		SeatsPurchased:       s.SeatsPurchased,
-		CreatedAt:            s.CreatedAt,
-		UpdatedAt:            s.UpdatedAt,
+		ID:                    s.ID,
+		UUID:                  s.UUID,
+		OrganizationID:        s.OrganizationID,
+		State:                 s.State,
+		StartedAt:             s.StartedAt,
+		RenewAt:               s.RenewAt,
+		CancelAt:              s.CancelAt,
+		EndedAt:               s.EndedAt,
+		GracePeriodEndsAt:     s.GracePeriodEndsAt,
+		TrialEndsAt:           s.TrialEndsAt,
+		ManualEndNoticeSentAt: s.ManualEndNoticeSentAt,
+		StripeSubscriptionID:  s.StripeSubscriptionID,
+		SeatsPurchased:        s.SeatsPurchased,
+		CreatedAt:             s.CreatedAt,
+		UpdatedAt:             s.UpdatedAt,
 	}
 
 	// Add plan if loaded

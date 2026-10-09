@@ -2,60 +2,50 @@ package http
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/internal/service"
 )
 
-const maxManualGrantDuration = 5 * 365 * 24 * time.Hour
-
 type AdminSubscriptionsHandler struct {
-	orgRepo     repository.OrganizationRepository
-	orgUserRepo repository.OrganizationUserRepository
-	subRepo     interface {
-		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
-		Create(ctx context.Context, sub *domain.Subscription) error
-		Update(ctx context.Context, sub *domain.Subscription) error
-	}
-	planRepo interface {
-		GetByCode(ctx context.Context, code string) (*domain.Plan, error)
-	}
-	paymentService service.PaymentService
-	activityLogger *service.ActivityLogger
-	logger         service.Logger
+	orgRepo             repository.OrganizationRepository
+	orgUserRepo         repository.OrganizationUserRepository
+	subRepo             adminSubscriptionReader
+	subscriptionService service.SubscriptionService
+	paymentService      service.PaymentService
+	activityLogger      *service.ActivityLogger
+	logger              service.Logger
 }
 
 func NewAdminSubscriptionsHandler(
 	orgRepo repository.OrganizationRepository,
 	orgUserRepo repository.OrganizationUserRepository,
-	subRepo interface {
-		GetByOrganizationID(ctx context.Context, orgID uint) (*domain.Subscription, error)
-		Create(ctx context.Context, sub *domain.Subscription) error
-		Update(ctx context.Context, sub *domain.Subscription) error
-	},
-	planRepo interface {
-		GetByCode(ctx context.Context, code string) (*domain.Plan, error)
-	},
+	subRepo adminSubscriptionReader,
+	subscriptionService service.SubscriptionService,
 	paymentService service.PaymentService,
 	userActivityService service.UserActivityService,
 	logger service.Logger,
 ) *AdminSubscriptionsHandler {
 	return &AdminSubscriptionsHandler{
-		orgRepo:        orgRepo,
-		orgUserRepo:    orgUserRepo,
-		subRepo:        subRepo,
-		planRepo:       planRepo,
-		paymentService: paymentService,
-		activityLogger: service.NewActivityLogger(userActivityService),
-		logger:         logger,
+		orgRepo:             orgRepo,
+		orgUserRepo:         orgUserRepo,
+		subRepo:             subRepo,
+		subscriptionService: subscriptionService,
+		paymentService:      paymentService,
+		activityLogger:      service.NewActivityLogger(userActivityService),
+		logger:              logger,
 	}
+}
+
+type adminSubscriptionReader interface {
+	GetEffectiveByOrganizationIDs(ctx context.Context, orgIDs []uint) (map[uint]*domain.Subscription, error)
 }
 
 type adminSubscriptionOwnerDTO struct {
@@ -65,14 +55,19 @@ type adminSubscriptionOwnerDTO struct {
 }
 
 type adminSubscriptionItemDTO struct {
-	Organization *domain.OrganizationDTO    `json:"organization"`
-	Subscription *domain.SubscriptionDTO    `json:"subscription,omitempty"`
-	Owner        *adminSubscriptionOwnerDTO `json:"owner,omitempty"`
-	CurrentUsers int                        `json:"current_users"`
-	IsStripe     bool                       `json:"is_stripe"`
-	StripeCustID *string                    `json:"stripe_customer_id,omitempty"`
-	RiskExpiring bool                       `json:"risk_expiring"`
-	DaysToEnd    *int                       `json:"days_to_end,omitempty"`
+	Organization   *domain.OrganizationDTO    `json:"organization"`
+	Subscription   *domain.SubscriptionDTO    `json:"subscription,omitempty"`
+	Owner          *adminSubscriptionOwnerDTO `json:"owner,omitempty"`
+	CurrentUsers   int                        `json:"current_users"`
+	IsStripe       bool                       `json:"is_stripe"`
+	StripeCustID   *string                    `json:"stripe_customer_id,omitempty"`
+	Provider       domain.PaymentProvider     `json:"provider"`
+	AccessEndsAt   *time.Time                 `json:"access_ends_at,omitempty"`
+	AutoRenews     bool                       `json:"auto_renews"`
+	CanManualGrant bool                       `json:"can_manual_grant"`
+	BlockedReason  *string                    `json:"blocked_reason,omitempty"`
+	RiskExpiring   bool                       `json:"risk_expiring"`
+	DaysToEnd      *int                       `json:"days_to_end,omitempty"`
 }
 
 type adminSubscriptionListResponse struct {
@@ -82,14 +77,90 @@ type adminSubscriptionListResponse struct {
 }
 
 // List subscriptions across all organizations (admin-only).
-// GET /api/admin/subscriptions?search=&limit=&offset=
+// GET /api/admin/subscriptions?search=&owner_user_id=&ending_within_days=&sort=access_end&limit=&offset=
+// search matches organization name, billing email and owner email/name.
 func (h *AdminSubscriptionsHandler) List(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	search := c.Query("search")
+	ownerUserID := parseUintWithDefault(firstNonEmpty(c.Query("owner_user_id"), c.Query("ownerUserId")), 0)
+	limit, offset := parseAdminPagination(c)
+	now := time.Now()
+
+	filter := repository.ListFilter{
+		Search:             c.Query("search"),
+		SearchOwners:       true,
+		OwnerUserID:        ownerUserID,
+		Limit:              limit,
+		Offset:             offset,
+		Sort:               "created_at",
+		Order:              "desc",
+		SortByAccessEndAsc: c.Query("sort") == "access_end",
+	}
+	if days := parseIntWithDefault(c.Query("ending_within_days"), 0); days > 0 {
+		if days > 365 {
+			days = 365
+		}
+		cutoff := now.Add(time.Duration(days) * 24 * time.Hour)
+		filter.ManualGrantEndsBefore = &cutoff
+	}
+
+	orgs, res, err := h.orgRepo.List(ctx, filter)
+	if err != nil {
+		h.logger.Error("admin subscriptions: failed to list organizations", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list organizations"})
+		return
+	}
+
+	orgIDs := organizationIDs(orgs)
+	owners := h.loadOwners(ctx, orgIDs)
+	subs := h.loadSubscriptions(ctx, orgIDs)
+	counts := h.loadCounts(ctx, orgIDs)
+	expiringCutoff := now.Add(7 * 24 * time.Hour)
+
+	items := make([]*adminSubscriptionItemDTO, 0, len(orgs))
+	for _, org := range orgs {
+		sub := subs[org.ID]
+		item := &adminSubscriptionItemDTO{
+			Organization:   domain.ToOrganizationDTOWithSubscription(org, sub),
+			Owner:          owners[org.ID],
+			CurrentUsers:   counts[org.ID].Members,
+			StripeCustID:   org.StripeCustomerID,
+			Provider:       domain.PaymentProviderNone,
+			CanManualGrant: true,
+		}
+		if sub != nil {
+			item.Subscription = domain.ToSubscriptionDTO(sub)
+			item.Provider = domain.AdminListProvider(sub)
+			item.IsStripe = item.Provider == domain.PaymentProviderStripe
+			item.AccessEndsAt = sub.RenewAt
+			item.AutoRenews = (item.Provider == domain.PaymentProviderStripe || item.Provider == domain.PaymentProviderRevenueCat) &&
+				sub.State != domain.SubStateCanceled &&
+				sub.State != domain.SubStateExpired
+			if reason := adminManualGrantBlockedReason(sub, now); reason != nil {
+				item.CanManualGrant = false
+				item.BlockedReason = reason
+			}
+			// For external providers renew_at is the next renewal, not an end;
+			// only manual grants are flagged as expiring.
+			if item.Provider == domain.PaymentProviderManual && sub.RenewAt != nil {
+				item.RiskExpiring = sub.RenewAt.Before(expiringCutoff)
+				d := int(sub.RenewAt.Sub(now).Hours() / 24)
+				item.DaysToEnd = &d
+			}
+		}
+		items = append(items, item)
+	}
+
+	c.JSON(http.StatusOK, &adminSubscriptionListResponse{
+		Items:    items,
+		Total:    res.Total,
+		Filtered: res.Filtered,
+	})
+}
+
+func parseAdminPagination(c *gin.Context) (int, int) {
 	limit := parseIntWithDefault(c.Query("limit"), 20)
 	offset := parseIntWithDefault(c.Query("offset"), 0)
-
 	if limit <= 0 {
 		limit = 20
 	}
@@ -99,91 +170,48 @@ func (h *AdminSubscriptionsHandler) List(c *gin.Context) {
 	if offset < 0 {
 		offset = 0
 	}
+	return limit, offset
+}
 
-	orgs, res, err := h.orgRepo.List(ctx, repository.ListFilter{
-		Search: search,
-		Limit:  limit,
-		Offset: offset,
-		Sort:   "created_at",
-		Order:  "desc",
-	})
-	if err != nil {
-		h.logger.Error("admin subscriptions: failed to list organizations", "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list organizations"})
-		return
-	}
-
-	now := time.Now()
-	expiringCutoff := now.Add(7 * 24 * time.Hour)
-
-	items := make([]*adminSubscriptionItemDTO, 0, len(orgs))
+func organizationIDs(orgs []*domain.Organization) []uint {
+	ids := make([]uint, 0, len(orgs))
 	for _, org := range orgs {
-		// Owner info (best-effort)
-		var owner *adminSubscriptionOwnerDTO
-		if members, err := h.orgUserRepo.ListByOrganization(ctx, org.ID); err == nil {
-			for _, m := range members {
-				if m.Role == domain.OrgRoleOwner && m.User != nil {
-					owner = &adminSubscriptionOwnerDTO{
-						UserID: m.UserID,
-						Email:  m.User.Email,
-						Name:   m.User.Name,
-					}
-					break
-				}
-			}
-		}
-
-		// Subscription (best-effort)
-		var sub *domain.Subscription
-		var subDTO *domain.SubscriptionDTO
-		isStripe := false
-		riskExpiring := false
-		var daysToEnd *int
-
-		if s, err := h.subRepo.GetByOrganizationID(ctx, org.ID); err == nil && s != nil {
-			sub = s
-			subDTO = domain.ToSubscriptionDTO(s)
-			if s.StripeSubscriptionID != nil && *s.StripeSubscriptionID != "" {
-				isStripe = true
-			}
-
-			// Business-risk highlighting:
-			// - Stripe subscriptions: "renew_at" is next renewal (not end), we don't flag as expiring.
-			// - Manual grants (stripe_subscription_id null): we treat "renew_at" as end date.
-			if !isStripe && s.RenewAt != nil {
-				if s.RenewAt.Before(expiringCutoff) {
-					riskExpiring = true
-				}
-				d := int(s.RenewAt.Sub(now).Hours() / 24)
-				daysToEnd = &d
-			}
-		}
-
-		orgDTO := domain.ToOrganizationDTOWithSubscription(org, sub)
-
-		// Current users (best-effort)
-		currentUsers := 0
-		if cnt, err := h.orgRepo.GetMemberCount(ctx, org.ID); err == nil {
-			currentUsers = cnt
-		}
-
-		items = append(items, &adminSubscriptionItemDTO{
-			Organization: orgDTO,
-			Subscription: subDTO,
-			Owner:        owner,
-			CurrentUsers: currentUsers,
-			IsStripe:     isStripe,
-			StripeCustID: org.StripeCustomerID,
-			RiskExpiring: riskExpiring,
-			DaysToEnd:    daysToEnd,
-		})
+		ids = append(ids, org.ID)
 	}
+	return ids
+}
 
-	c.JSON(http.StatusOK, &adminSubscriptionListResponse{
-		Items:    items,
-		Total:    res.Total,
-		Filtered: res.Filtered,
-	})
+// loadOwners, loadSubscriptions and loadCounts are best-effort: a failure
+// degrades the list to missing columns instead of failing the page.
+func (h *AdminSubscriptionsHandler) loadOwners(ctx context.Context, orgIDs []uint) map[uint]*adminSubscriptionOwnerDTO {
+	out := make(map[uint]*adminSubscriptionOwnerDTO, len(orgIDs))
+	owners, err := h.orgUserRepo.ListOwnersByOrganizationIDs(ctx, orgIDs)
+	if err != nil {
+		h.logger.Warn("admin subscriptions: failed to load owners", "error", err)
+		return out
+	}
+	for orgID, owner := range owners {
+		out[orgID] = &adminSubscriptionOwnerDTO{UserID: owner.UserID, Email: owner.User.Email, Name: owner.User.Name}
+	}
+	return out
+}
+
+func (h *AdminSubscriptionsHandler) loadSubscriptions(ctx context.Context, orgIDs []uint) map[uint]*domain.Subscription {
+	subs, err := h.subRepo.GetEffectiveByOrganizationIDs(ctx, orgIDs)
+	if err != nil {
+		h.logger.Warn("admin subscriptions: failed to load subscriptions", "error", err)
+		return map[uint]*domain.Subscription{}
+	}
+	return subs
+}
+
+func (h *AdminSubscriptionsHandler) loadCounts(ctx context.Context, orgIDs []uint) map[uint]repository.OrganizationCounts {
+	counts, err := h.orgRepo.GetCountsByIDs(ctx, orgIDs)
+	if err != nil {
+		h.logger.Warn("admin subscriptions: failed to load usage counts", "error", err)
+		return map[uint]repository.OrganizationCounts{}
+	}
+	return counts
 }
 
 type adminOrganizationsItemDTO struct {
@@ -205,23 +233,10 @@ type adminOrganizationsListResponse struct {
 // GET /api/admin/organizations?search=&limit=&offset=
 func (h *AdminSubscriptionsHandler) ListOrganizations(c *gin.Context) {
 	ctx := c.Request.Context()
-
-	search := c.Query("search")
-	limit := parseIntWithDefault(c.Query("limit"), 20)
-	offset := parseIntWithDefault(c.Query("offset"), 0)
-
-	if limit <= 0 {
-		limit = 20
-	}
-	if limit > 100 {
-		limit = 100
-	}
-	if offset < 0 {
-		offset = 0
-	}
+	limit, offset := parseAdminPagination(c)
 
 	orgs, res, err := h.orgRepo.List(ctx, repository.ListFilter{
-		Search: search,
+		Search: c.Query("search"),
 		Limit:  limit,
 		Offset: offset,
 		Sort:   "created_at",
@@ -233,22 +248,14 @@ func (h *AdminSubscriptionsHandler) ListOrganizations(c *gin.Context) {
 		return
 	}
 
+	orgIDs := organizationIDs(orgs)
+	owners := h.loadOwners(ctx, orgIDs)
+	subs := h.loadSubscriptions(ctx, orgIDs)
+	counts := h.loadCounts(ctx, orgIDs)
+
 	items := make([]*adminOrganizationsItemDTO, 0, len(orgs))
 	for _, org := range orgs {
-		// Owner info (best-effort)
-		var owner *adminSubscriptionOwnerDTO
-		if members, err := h.orgUserRepo.ListByOrganization(ctx, org.ID); err == nil {
-			for _, m := range members {
-				if m.Role == domain.OrgRoleOwner && m.User != nil {
-					owner = &adminSubscriptionOwnerDTO{
-						UserID: m.UserID,
-						Email:  m.User.Email,
-						Name:   m.User.Name,
-					}
-					break
-				}
-			}
-		}
+		owner := owners[org.ID]
 		if owner != nil &&
 			org.CreatedByUserID == nil &&
 			org.CreatedByUserEmail == nil &&
@@ -270,44 +277,19 @@ func (h *AdminSubscriptionsHandler) ListOrganizations(c *gin.Context) {
 			}
 		}
 
-		// Subscription (best-effort) - used to derive plan/limits
-		var sub *domain.Subscription
-		if s, err := h.subRepo.GetByOrganizationID(ctx, org.ID); err == nil && s != nil {
-			sub = s
-		}
-
-		// Stats (best-effort)
-		memberCount := 0
-		teamCount := 0
-		collectionCount := 0
-		itemCount := 0
-
-		if cnt, err := h.orgRepo.GetMemberCount(ctx, org.ID); err == nil {
-			memberCount = cnt
-			org.MemberCount = &memberCount
-		}
-		if cnt, err := h.orgRepo.GetTeamCount(ctx, org.ID); err == nil {
-			teamCount = cnt
-			org.TeamCount = &teamCount
-		}
-		if cnt, err := h.orgRepo.GetCollectionCount(ctx, org.ID); err == nil {
-			collectionCount = cnt
-			org.CollectionCount = &collectionCount
-		}
-		if cnt, err := h.orgRepo.GetItemCount(ctx, org.ID); err == nil {
-			itemCount = cnt
-			org.ItemCount = &itemCount
-		}
-
-		orgDTO := domain.ToOrganizationDTOWithSubscription(org, sub)
+		count := counts[org.ID]
+		org.MemberCount = &count.Members
+		org.TeamCount = &count.Teams
+		org.CollectionCount = &count.Collections
+		org.ItemCount = &count.Items
 
 		items = append(items, &adminOrganizationsItemDTO{
-			Organization:    orgDTO,
+			Organization:    domain.ToOrganizationDTOWithSubscription(org, subs[org.ID]),
 			Owner:           owner,
-			MemberCount:     memberCount,
-			TeamCount:       teamCount,
-			CollectionCount: collectionCount,
-			ItemCount:       itemCount,
+			MemberCount:     count.Members,
+			TeamCount:       count.Teams,
+			CollectionCount: count.Collections,
+			ItemCount:       count.Items,
 		})
 	}
 
@@ -323,260 +305,177 @@ type grantManualSubscriptionRequest struct {
 	EndsAt   string `json:"ends_at" binding:"required"` // RFC3339 timestamp
 	Users    *int   `json:"users,omitempty"`            // Optional effective user limit
 	Seats    *int   `json:"seats,omitempty"`            // Legacy alias (backward compatibility)
-	Note     string `json:"note,omitempty"`
+	Note     string `json:"note" binding:"required"`
 }
 
-// GrantManual grants a plan to an organization without payment (admin-only).
-// Manual grant subscriptions are marked active and use renew_at as the grant end date.
-// Subscription worker will move them to expired when renew_at passes.
-//
-// POST /api/admin/organizations/:id/subscription/grant
 func (h *AdminSubscriptionsHandler) GrantManual(c *gin.Context) {
 	ctx := c.Request.Context()
-
 	orgID, ok := GetUintParam(c, "id")
 	if !ok {
 		return
 	}
-
 	var req grantManualSubscriptionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
-
 	endsAt, err := time.Parse(time.RFC3339, req.EndsAt)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid ends_at (must be RFC3339)"})
-		return
-	}
-	now := time.Now()
-	if !endsAt.After(now) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "ends_at must be in the future"})
-		return
-	}
-	if endsAt.After(now.Add(maxManualGrantDuration)) {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("ends_at cannot be more than %d years in the future", int(maxManualGrantDuration.Hours()/(24*365))),
+		writeManualSubscriptionError(c, &service.ManualSubscriptionError{
+			Code: service.ManualSubscriptionCodeInvalidEndDate, Message: "ends_at must be RFC3339",
 		})
 		return
 	}
-
-	org, err := h.orgRepo.GetByID(ctx, orgID)
+	seats := req.Users
+	if seats == nil {
+		seats = req.Seats
+	}
+	change, err := h.subscriptionService.GrantManual(ctx, orgID, service.ManualSubscriptionInput{
+		PlanCode: req.PlanCode,
+		EndsAt:   endsAt,
+		Seats:    seats,
+		Note:     req.Note,
+	})
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "organization not found"})
+		writeManualSubscriptionError(c, err)
 		return
 	}
-
-	plan, err := h.planRepo.GetByCode(ctx, req.PlanCode)
-	if err != nil || plan == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "plan not found"})
-		return
-	}
-	if !plan.IsActive {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "plan is not active"})
-		return
-	}
-
-	requestedUsers := req.Users
-	if requestedUsers == nil {
-		requestedUsers = req.Seats // Legacy payload support
-	}
-
-	if requestedUsers != nil && *requestedUsers <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "users must be greater than 0"})
-		return
-	}
-	if requestedUsers != nil && plan.MaxUsers != nil && *requestedUsers > *plan.MaxUsers {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("users (%d) cannot exceed plan max users (%d)", *requestedUsers, *plan.MaxUsers),
-		})
-		return
-	}
-
-	// Validate that manual plan assignment does not immediately violate plan limits.
-	// This keeps admin operations safe and prevents accidental lockouts after downgrade.
-	effectiveMaxUsers := plan.MaxUsers
-	if requestedUsers != nil {
-		effectiveMaxUsers = requestedUsers
-	}
-
-	if effectiveMaxUsers != nil {
-		memberCount, err := h.orgRepo.GetMemberCount(ctx, orgID)
-		if err != nil {
-			h.logger.Error("admin subscriptions: failed to get organization member count", "org_id", orgID, "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to validate organization usage"})
-			return
-		}
-		if memberCount > *effectiveMaxUsers {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": fmt.Sprintf("cannot grant plan %q: organization has %d members but effective seats limit is %d", plan.Code, memberCount, *effectiveMaxUsers),
-			})
-			return
-		}
-	}
-	if plan.MaxCollections != nil {
-		collectionCount, err := h.orgRepo.GetCollectionCount(ctx, orgID)
-		if err != nil {
-			h.logger.Error("admin subscriptions: failed to get organization collection count", "org_id", orgID, "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to validate organization usage"})
-			return
-		}
-		if collectionCount > *plan.MaxCollections {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": fmt.Sprintf("cannot grant plan %q: organization has %d collections but plan limit is %d", plan.Code, collectionCount, *plan.MaxCollections),
-			})
-			return
-		}
-	}
-	if plan.MaxItems != nil {
-		itemCount, err := h.orgRepo.GetItemCount(ctx, orgID)
-		if err != nil {
-			h.logger.Error("admin subscriptions: failed to get organization item count", "org_id", orgID, "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to validate organization usage"})
-			return
-		}
-		if itemCount > *plan.MaxItems {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": fmt.Sprintf("cannot grant plan %q: organization has %d items but plan limit is %d", plan.Code, itemCount, *plan.MaxItems),
-			})
-			return
-		}
-	}
-
-	// Load existing subscription (if any)
-	sub, subErr := h.subRepo.GetByOrganizationID(ctx, orgID)
-	if subErr == nil && sub != nil && sub.StripeSubscriptionID != nil && *sub.StripeSubscriptionID != "" {
-		// Safety: do not override Stripe-managed subscriptions via manual grant.
-		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot manually grant plan for Stripe-managed subscription"})
-		return
-	}
-
-	oldPlanCode := ""
-	if sub != nil && sub.Plan != nil {
-		oldPlanCode = sub.Plan.Code
-	}
-
-	if sub == nil || subErr != nil {
-		sub = &domain.Subscription{
-			UUID:           uuid.New(),
-			OrganizationID: orgID,
-		}
-	}
-
-	sub.PlanID = plan.ID
-	// IMPORTANT:
-	// We may have loaded an existing subscription with Preload("Plan"), meaning sub.Plan can point to the old plan.
-	// GORM can sync foreign keys from loaded associations on Save(), which would overwrite PlanID.
-	// Clear the association to ensure PlanID is persisted.
-	sub.Plan = nil
-	// Manual grants should appear as ACTIVE to the business/user.
-	// We use renew_at as the manual end date and expire it via the worker when time passes.
-	sub.State = domain.SubStateActive
-	sub.StartedAt = &now
-	sub.CancelAt = nil
-	sub.RenewAt = &endsAt
-	sub.EndedAt = nil
-	sub.GracePeriodEndsAt = nil
-	sub.TrialEndsAt = nil
-	sub.StripeSubscriptionID = nil
-	sub.SeatsPurchased = requestedUsers
-
-	if sub.ID == 0 {
-		if err := h.subRepo.Create(ctx, sub); err != nil {
-			h.logger.Error("admin subscriptions: failed to create manual subscription", "org_id", orgID, "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to grant subscription"})
-			return
-		}
-	} else {
-		if err := h.subRepo.Update(ctx, sub); err != nil {
-			h.logger.Error("admin subscriptions: failed to update manual subscription", "org_id", orgID, "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to grant subscription"})
-			return
-		}
-	}
-
-	// Audit log (admin action)
-	if actorID, actorErr := GetUserID(c); actorErr == nil && h.activityLogger != nil {
-		ipAddress := GetIPAddress(c)
-		userAgent := GetUserAgent(c)
-		h.activityLogger.LogCustomActivity(ctx, actorID, domain.ActivityTypeSubscriptionUpdated, ipAddress, userAgent, service.ActivityDetails{
-			service.ActivityFieldOrganizationID:   orgID,
-			service.ActivityFieldOrganizationName: org.Name,
-			service.ActivityFieldOldPlan:          oldPlanCode,
-			service.ActivityFieldNewPlan:          plan.Code,
-			service.ActivityFieldReason:           req.Note,
-			"manual_grant":                        true,
-			"ends_at":                             endsAt.Format(time.RFC3339),
-			"users":                               requestedUsers,
-		})
-	}
-
-	// Return fresh billing info for convenience
-	if billingInfo, err := h.paymentService.GetBillingInfo(ctx, orgID); err == nil {
-		c.JSON(http.StatusOK, billingInfo)
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "subscription granted"})
+	h.logManualChange(c, domain.ActivityTypeAdminSubscriptionGranted, change, req.Note)
+	h.writeBillingInfo(c, orgID, "subscription granted")
 }
 
-// RevokeManual expires a manual grant immediately (admin-only).
-// POST /api/admin/organizations/:id/subscription/revoke
-func (h *AdminSubscriptionsHandler) RevokeManual(c *gin.Context) {
-	ctx := c.Request.Context()
+type extendManualSubscriptionRequest struct {
+	EndsAt string `json:"ends_at" binding:"required"`
+	Note   string `json:"note" binding:"required"`
+}
 
+func (h *AdminSubscriptionsHandler) ExtendManual(c *gin.Context) {
 	orgID, ok := GetUintParam(c, "id")
 	if !ok {
 		return
 	}
-
-	org, err := h.orgRepo.GetByID(ctx, orgID)
+	var req extendManualSubscriptionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+	endsAt, err := time.Parse(time.RFC3339, req.EndsAt)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "organization not found"})
-		return
-	}
-
-	sub, err := h.subRepo.GetByOrganizationID(ctx, orgID)
-	if err != nil || sub == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "subscription not found"})
-		return
-	}
-
-	if sub.StripeSubscriptionID != nil && *sub.StripeSubscriptionID != "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot revoke Stripe-managed subscription via this endpoint"})
-		return
-	}
-
-	now := time.Now()
-	sub.State = domain.SubStateExpired
-	sub.EndedAt = &now
-	sub.RenewAt = nil
-	sub.SeatsPurchased = nil
-
-	if err := h.subRepo.Update(ctx, sub); err != nil {
-		h.logger.Error("admin subscriptions: failed to revoke manual subscription", "org_id", orgID, "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to revoke subscription"})
-		return
-	}
-
-	// Audit log
-	if actorID, actorErr := GetUserID(c); actorErr == nil && h.activityLogger != nil {
-		ipAddress := GetIPAddress(c)
-		userAgent := GetUserAgent(c)
-		h.activityLogger.LogCustomActivity(ctx, actorID, domain.ActivityTypeSubscriptionUpdated, ipAddress, userAgent, service.ActivityDetails{
-			service.ActivityFieldOrganizationID:   orgID,
-			service.ActivityFieldOrganizationName: org.Name,
-			"manual_revoke":                       true,
+		writeManualSubscriptionError(c, &service.ManualSubscriptionError{
+			Code: service.ManualSubscriptionCodeInvalidEndDate, Message: "ends_at must be RFC3339",
 		})
+		return
 	}
+	change, err := h.subscriptionService.ExtendManual(c.Request.Context(), orgID, endsAt, req.Note)
+	if err != nil {
+		writeManualSubscriptionError(c, err)
+		return
+	}
+	h.logManualChange(c, domain.ActivityTypeAdminSubscriptionExtended, change, req.Note)
+	h.writeBillingInfo(c, orgID, "subscription extended")
+}
 
-	if billingInfo, err := h.paymentService.GetBillingInfo(ctx, orgID); err == nil {
+type endManualSubscriptionRequest struct {
+	Note string `json:"note" binding:"required"`
+}
+
+func (h *AdminSubscriptionsHandler) RevokeManual(c *gin.Context) {
+	orgID, ok := GetUintParam(c, "id")
+	if !ok {
+		return
+	}
+	var req endManualSubscriptionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+	change, err := h.subscriptionService.EndManual(c.Request.Context(), orgID, req.Note)
+	if err != nil {
+		writeManualSubscriptionError(c, err)
+		return
+	}
+	h.logManualChange(c, domain.ActivityTypeAdminSubscriptionEnded, change, req.Note)
+	h.writeBillingInfo(c, orgID, "subscription ended")
+}
+
+func (h *AdminSubscriptionsHandler) writeBillingInfo(c *gin.Context, orgID uint, message string) {
+	if billingInfo, err := h.paymentService.GetBillingInfo(c.Request.Context(), orgID); err == nil {
 		c.JSON(http.StatusOK, billingInfo)
 		return
 	}
+	c.JSON(http.StatusOK, gin.H{"message": message})
+}
 
-	c.JSON(http.StatusOK, gin.H{"message": "subscription revoked"})
+func (h *AdminSubscriptionsHandler) logManualChange(c *gin.Context, activityType domain.ActivityType, change *service.ManualSubscriptionChange, note string) {
+	actorID, err := GetUserID(c)
+	if err != nil || h.activityLogger == nil || change == nil || change.Organization == nil {
+		return
+	}
+	details := service.ActivityDetails{
+		service.ActivityFieldOrganizationID:   change.Organization.ID,
+		service.ActivityFieldOrganizationName: change.Organization.Name,
+		service.ActivityFieldOldPlan:          change.OldPlan,
+		service.ActivityFieldNewPlan:          change.NewPlan,
+		service.ActivityFieldReason:           strings.TrimSpace(note),
+		"provider":                            change.Provider,
+		"ends_at":                             change.EndsAt,
+		"seats":                               change.Seats,
+	}
+	if owner := h.findOwner(c.Request.Context(), change.Organization.ID); owner != nil {
+		details["owner_user_id"] = owner.UserID
+		details["owner_email"] = owner.Email
+	}
+	_ = h.activityLogger.LogActivity(
+		c.Request.Context(), actorID, activityType,
+		GetIPAddress(c), GetUserAgent(c), details,
+	)
+}
+
+func (h *AdminSubscriptionsHandler) findOwner(ctx context.Context, orgID uint) *adminSubscriptionOwnerDTO {
+	members, err := h.orgUserRepo.ListByOrganization(ctx, orgID)
+	if err != nil {
+		return nil
+	}
+	for _, member := range members {
+		if member.Role == domain.OrgRoleOwner && member.User != nil {
+			return &adminSubscriptionOwnerDTO{UserID: member.UserID, Email: member.User.Email, Name: member.User.Name}
+		}
+	}
+	return nil
+}
+
+func writeManualSubscriptionError(c *gin.Context, err error) {
+	var typed *service.ManualSubscriptionError
+	if errors.As(err, &typed) {
+		status := http.StatusBadRequest
+		if typed.Code == service.ManualSubscriptionCodeExternalActive {
+			status = http.StatusConflict
+		}
+		c.JSON(status, gin.H{"error": typed.Message, "code": typed.Code})
+		return
+	}
+	c.JSON(http.StatusInternalServerError, gin.H{"error": "manual subscription operation failed"})
+}
+
+func adminManualGrantBlockedReason(sub *domain.Subscription, now time.Time) *string {
+	provider := domain.AdminListProvider(sub)
+	if (provider == domain.PaymentProviderStripe || provider == domain.PaymentProviderRevenueCat) &&
+		adminExternalSubscriptionBlocksGrant(sub, now) {
+		reason := service.ManualSubscriptionCodeExternalActive
+		return &reason
+	}
+	return nil
+}
+
+func adminExternalSubscriptionBlocksGrant(sub *domain.Subscription, now time.Time) bool {
+	switch sub.State {
+	case domain.SubStateActive, domain.SubStateTrialing, domain.SubStatePastDue:
+		return true
+	case domain.SubStateCanceled:
+		return sub.RenewAt != nil && sub.RenewAt.After(now)
+	default:
+		return false
+	}
 }
 
 func parseIntWithDefault(v string, def int) int {
@@ -588,4 +487,24 @@ func parseIntWithDefault(v string, def int) int {
 		return def
 	}
 	return i
+}
+
+func parseUintWithDefault(v string, def uint) uint {
+	if v == "" {
+		return def
+	}
+	i, err := strconv.ParseUint(v, 10, 64)
+	if err != nil {
+		return def
+	}
+	return uint(i)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }

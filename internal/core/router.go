@@ -17,6 +17,7 @@ func SetupRouter(
 	authService service.AuthService,
 	firewallService service.PolicyFirewallService,
 	orgRepo repository.OrganizationRepository,
+	userRepo repository.UserRepository,
 	authHandler *httpHandler.AuthHandler,
 	twoFactorHandler *httpHandler.TwoFactorHandler,
 	activityHandler *httpHandler.ActivityHandler,
@@ -358,8 +359,10 @@ func SetupRouter(
 		{
 			adminGroup.GET("/organizations", adminSubscriptionsHandler.ListOrganizations)
 			adminGroup.GET("/subscriptions", adminSubscriptionsHandler.List)
-			adminGroup.POST("/organizations/:id/subscription/grant", adminSubscriptionsHandler.GrantManual)
-			adminGroup.POST("/organizations/:id/subscription/revoke", adminSubscriptionsHandler.RevokeManual)
+			systemAdmin := httpHandler.RequireSystemAdminMiddleware(userRepo)
+			adminGroup.POST("/organizations/:id/subscription/grant", systemAdmin, adminSubscriptionsHandler.GrantManual)
+			adminGroup.POST("/organizations/:id/subscription/extend", systemAdmin, adminSubscriptionsHandler.ExtendManual)
+			adminGroup.POST("/organizations/:id/subscription/revoke", systemAdmin, adminSubscriptionsHandler.RevokeManual)
 			// Mail (admin broadcast)
 			adminGroup.POST("/mail", adminMailHandler.CreateJob)
 			adminGroup.GET("/mail/:jobId", adminMailHandler.GetJob)

@@ -254,6 +254,7 @@ func (a *App) Run(ctx context.Context) error {
 		stripeClientInstance,
 		serviceLogger,
 		txManager,
+		service.WithManualSubscriptionEmails(emailSender, emailBuilder, orgUserRepo, a.config.Server.FrontendURL),
 	)
 
 	// Payment service - handles org subscriptions via Stripe webhooks
@@ -421,7 +422,7 @@ func (a *App) Run(ctx context.Context) error {
 		orgRepo,
 		orgUserRepo,
 		subscriptionRepo,
-		planRepo,
+		subscriptionService,
 		paymentService,
 		userActivityService,
 		serviceLogger,
@@ -469,6 +470,7 @@ func (a *App) Run(ctx context.Context) error {
 		authService,
 		policyFirewallService,
 		orgRepo,
+		userRepo,
 		authHandler,
 		twoFactorHandler,
 		activityHandler,

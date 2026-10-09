@@ -699,6 +699,10 @@ func (s *paymentService) handleSubscriptionCreated(ctx context.Context, event st
 
 	s.logger.Info("Creating subscription in database", "org_id", orgID, "plan_code", planCode, "subscription_id", sub.ID)
 
+	if sub.Status != stripe.SubscriptionStatusActive && sub.Status != stripe.SubscriptionStatusTrialing && sub.Status != stripe.SubscriptionStatusPastDue {
+		s.logger.Info("skipping non-access Stripe subscription", "subscription_id", sub.ID, "status", sub.Status)
+		return nil
+	}
 	subscription, err := s.subscriptionService.CreateFromProvider(ctx, orgID, planCode, sub.ID, seatsPurchased, stripeTrialEnd(&sub))
 	if err != nil {
 		s.logger.Error("Failed to create subscription in database", "org_id", orgID, "subscription_id", sub.ID, "error", err)
@@ -709,6 +713,11 @@ func (s *paymentService) handleSubscriptionCreated(ctx context.Context, event st
 	}
 	if subscription.State == domain.SubStateTrialing {
 		s.logTrialEvent(ctx, domain.ActivityTypeTrialStarted, orgID, sub.ID, planCode)
+	}
+	if sub.Status == stripe.SubscriptionStatusPastDue {
+		if err := s.subscriptionService.HandlePaymentFailed(ctx, sub.ID); err != nil {
+			return err
+		}
 	}
 
 	s.logger.Info("✅ Subscription created successfully", "org_id", orgID, "subscription_id", subscription.ID, "status", sub.Status)
@@ -990,6 +999,14 @@ func (s *paymentService) updateOrgFromSubscription(ctx context.Context, sub *str
 		return nil
 	}
 
+	// Webhooks also fire for subscriptions without current access (e.g. the
+	// final invoice of a canceled subscription). Nothing to apply; returning an
+	// error would only make Stripe retry the event.
+	if sub.Status != stripe.SubscriptionStatusActive && sub.Status != stripe.SubscriptionStatusTrialing {
+		s.logger.Info("skipping organization update for Stripe subscription without access", "org_id", orgID, "subscription_id", sub.ID, "status", sub.Status)
+		return nil
+	}
+
 	s.logger.Info("Updating organization from subscription data", "org_id", orgID, "subscription_id", sub.ID)
 
 	err := s.updateOrgFromSubscriptionWithID(ctx, sub, orgID)
@@ -1004,6 +1021,9 @@ func (s *paymentService) updateOrgFromSubscription(ctx context.Context, sub *str
 
 // updateOrgFromSubscriptionWithID updates organization from subscription with explicit orgID
 func (s *paymentService) updateOrgFromSubscriptionWithID(ctx context.Context, sub *stripe.Subscription, orgID uint) error {
+	if sub.Status != stripe.SubscriptionStatusActive && sub.Status != stripe.SubscriptionStatusTrialing {
+		return fmt.Errorf("stripe subscription has no current access (status: %s)", sub.Status)
+	}
 	org, err := s.orgRepo.GetByID(ctx, orgID)
 	if err != nil {
 		return fmt.Errorf("organization not found: %w", err)
@@ -1229,6 +1249,10 @@ func (s *paymentService) GetBillingInfo(ctx context.Context, orgID uint) (*domai
 
 // SyncSubscription manually syncs subscription data from Stripe
 func (s *paymentService) SyncSubscription(ctx context.Context, orgID uint) error {
+	if current, err := s.subscriptionService.GetByOrganizationID(ctx, orgID); err == nil &&
+		isActiveManual(current, time.Now()) {
+		return fmt.Errorf("active manual subscription cannot be overwritten")
+	}
 	org, err := s.orgRepo.GetByID(ctx, orgID)
 	if err != nil {
 		return fmt.Errorf("organization not found: %w", err)
@@ -1258,12 +1282,7 @@ func (s *paymentService) SyncSubscription(ctx context.Context, orgID uint) error
 	}
 
 	if activeSub == nil {
-		// No active subscription, check for canceled/past_due
-		if len(subscriptions) > 0 {
-			activeSub = subscriptions[0] // Use the most recent one
-		} else {
-			return fmt.Errorf("no active subscription found")
-		}
+		return fmt.Errorf("no active or trialing subscription found")
 	}
 
 	// Update organization from subscription

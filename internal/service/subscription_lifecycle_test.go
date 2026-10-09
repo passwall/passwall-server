@@ -2,18 +2,23 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/passwall/passwall-server/internal/domain"
+	"gorm.io/gorm"
 )
 
 type lifecycleSubscriptionRepo struct {
 	sub         *domain.Subscription
 	created     []*domain.Subscription
 	endedTrials []*domain.Subscription
+	endingSoon  []*domain.Subscription
 	expiredInTx bool
 	createdInTx bool
+	lockedInTx  bool
+	missing     bool // mimic the GORM repository when the org has no subscription
 }
 
 type lifecycleTxContextKey struct{}
@@ -31,10 +36,16 @@ func (r *lifecycleSubscriptionRepo) GetByID(context.Context, uint) (*domain.Subs
 	return r.sub, nil
 }
 func (r *lifecycleSubscriptionRepo) GetByOrganizationID(context.Context, uint) (*domain.Subscription, error) {
+	if r.missing {
+		return nil, gorm.ErrRecordNotFound
+	}
 	return r.sub, nil
 }
-func (r *lifecycleSubscriptionRepo) GetByStripeSubscriptionID(context.Context, string) (*domain.Subscription, error) {
-	return r.sub, nil
+func (r *lifecycleSubscriptionRepo) GetByStripeSubscriptionID(_ context.Context, id string) (*domain.Subscription, error) {
+	if r.sub != nil && r.sub.StripeSubscriptionID != nil && *r.sub.StripeSubscriptionID == id {
+		return r.sub, nil
+	}
+	return nil, errors.New("not found")
 }
 func (r *lifecycleSubscriptionRepo) Update(_ context.Context, sub *domain.Subscription) error {
 	r.sub = sub
@@ -52,6 +63,13 @@ func (r *lifecycleSubscriptionRepo) ListTrialEnding(context.Context, time.Time) 
 func (r *lifecycleSubscriptionRepo) ListManualExpired(context.Context) ([]*domain.Subscription, error) {
 	return nil, nil
 }
+func (r *lifecycleSubscriptionRepo) ListManualEndingSoon(context.Context, time.Time) ([]*domain.Subscription, error) {
+	return r.endingSoon, nil
+}
+func (r *lifecycleSubscriptionRepo) LockOrganization(ctx context.Context, _ uint) error {
+	r.lockedInTx, _ = ctx.Value(lifecycleTxContextKey{}).(bool)
+	return nil
+}
 
 type lifecyclePlanRepo struct {
 	free *domain.Plan
@@ -65,11 +83,23 @@ func (r lifecyclePlanRepo) GetByID(context.Context, uint) (*domain.Plan, error) 
 }
 
 type lifecycleOrgRepo struct {
-	org *domain.Organization
+	org         *domain.Organization
+	members     int
+	collections int
+	items       int
 }
 
 func (r lifecycleOrgRepo) GetByID(context.Context, uint) (*domain.Organization, error) {
 	return r.org, nil
+}
+func (r lifecycleOrgRepo) GetMemberCount(context.Context, uint) (int, error) {
+	return r.members, nil
+}
+func (r lifecycleOrgRepo) GetCollectionCount(context.Context, uint) (int, error) {
+	return r.collections, nil
+}
+func (r lifecycleOrgRepo) GetItemCount(context.Context, uint) (int, error) {
+	return r.items, nil
 }
 
 type lifecycleTxManager struct {
@@ -108,10 +138,11 @@ func TestCreateReplacesEffectiveSubscriptionAtomically(t *testing.T) {
 	if created == nil || len(repo.created) != 1 {
 		t.Fatalf("created subscription = %+v, persisted rows = %d", created, len(repo.created))
 	}
-	if !txManager.called || !repo.expiredInTx || !repo.createdInTx {
+	if !txManager.called || !repo.lockedInTx || !repo.expiredInTx || !repo.createdInTx {
 		t.Fatalf(
-			"transaction coverage: manager=%v expire=%v create=%v",
+			"transaction coverage: manager=%v lock=%v expire=%v create=%v",
 			txManager.called,
+			repo.lockedInTx,
 			repo.expiredInTx,
 			repo.createdInTx,
 		)

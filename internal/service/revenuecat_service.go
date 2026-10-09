@@ -587,6 +587,11 @@ func (s *revenueCatService) handleExpiration(ctx context.Context, event *revenue
 		}
 		return fmt.Errorf("failed to get subscription: %w", err)
 	}
+	if sub != nil && domain.IsManualSubscription(sub) &&
+		sub.State == domain.SubStateActive &&
+		sub.RenewAt != nil && sub.RenewAt.After(time.Now()) {
+		return nil
+	}
 
 	// Expire the subscription
 	if err := s.subscriptionService.ExpireSubscription(ctx, sub.ID); err != nil {

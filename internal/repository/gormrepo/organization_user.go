@@ -115,6 +115,31 @@ func (r *organizationUserRepository) ListByOrganization(ctx context.Context, org
 	return orgUsers, nil
 }
 
+func (r *organizationUserRepository) ListOwnersByOrganizationIDs(ctx context.Context, orgIDs []uint) (map[uint]*domain.OrganizationUser, error) {
+	out := make(map[uint]*domain.OrganizationUser, len(orgIDs))
+	if len(orgIDs) == 0 {
+		return out, nil
+	}
+	var owners []*domain.OrganizationUser
+	err := dbFromContext(ctx, r.db).
+		Preload("User").
+		Where("organization_id IN ? AND role = ?", orgIDs, domain.OrgRoleOwner).
+		Order("created_at ASC").
+		Find(&owners).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, owner := range owners {
+		if owner == nil || owner.User == nil {
+			continue
+		}
+		if _, exists := out[owner.OrganizationID]; !exists {
+			out[owner.OrganizationID] = owner
+		}
+	}
+	return out, nil
+}
+
 func (r *organizationUserRepository) ListByUser(ctx context.Context, userID uint) ([]*domain.OrganizationUser, error) {
 	var orgUsers []*domain.OrganizationUser
 	err := dbFromContext(ctx, r.db).

@@ -62,6 +62,10 @@ func (w *SubscriptionWorker) Run(ctx context.Context) {
 func (w *SubscriptionWorker) processExpiredSubscriptions(ctx context.Context) {
 	w.logger.Info("checking for expired subscriptions")
 
+	if err := w.subService.SendManualExpiryReminders(ctx); err != nil {
+		w.logger.Error("failed to send manual subscription reminders", "error", err)
+	}
+
 	if err := w.subService.CheckExpiredSubscriptions(ctx); err != nil {
 		w.logger.Error("failed to check expired subscriptions", "error", err)
 		return

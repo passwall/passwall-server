@@ -296,6 +296,42 @@ func currentYear() int {
 	return time.Now().Year()
 }
 
+// BuildManualSubscriptionEndingEmail reminds the owner that an administrator-granted
+// plan is about to end. It intentionally contains no vault data.
+func (b *EmailBuilder) BuildManualSubscriptionEndingEmail(to, orgName, planName string, endsAt time.Time, personal bool, billingURL string) (*EmailMessage, error) {
+	if to == "" {
+		return nil, fmt.Errorf("recipient email is required")
+	}
+	if billingURL == "" {
+		return nil, fmt.Errorf("billing URL is required")
+	}
+
+	afterEnd := "After that, the organization becomes read-only: members can still view and export items, but cannot create new ones."
+	if personal {
+		afterEnd = "After that, your Personal Vault moves to the Free plan."
+	}
+	data := &TemplateData{
+		OrganizationName: orgName,
+		PlanName:         planName,
+		AccessEndDate:    endsAt.UTC().Format("January 2, 2006"),
+		AfterEndNotice:   afterEnd,
+		BillingURL:       billingURL,
+		Year:             currentYear(),
+	}
+
+	htmlBody, err := b.templateManager.Render(TemplateManualPlanEnding, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to render manual-plan-ending template: %w", err)
+	}
+
+	return &EmailMessage{
+		To:      to,
+		From:    b.defaultFrom,
+		Subject: fmt.Sprintf("Your Passwall %s plan ends soon", planName),
+		Body:    htmlBody,
+	}, nil
+}
+
 // BuildSecureSendNotifyEmail builds a secure send notification email
 func (b *EmailBuilder) BuildSecureSendNotifyEmail(to, senderName, sendName, sendURL string) (*EmailMessage, error) {
 	if to == "" {
