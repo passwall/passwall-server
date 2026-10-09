@@ -52,6 +52,7 @@ type UserRepository interface {
 	GetByUUID(ctx context.Context, uuid string) (*domain.User, error)
 	GetByEmail(ctx context.Context, email string) (*domain.User, error)
 	List(ctx context.Context, filter ListFilter) ([]*domain.User, *ListResult, error)
+	CountByRoleID(ctx context.Context, roleID uint) (int64, error)
 	Create(ctx context.Context, user *domain.User) error
 	Update(ctx context.Context, user *domain.User) error
 	Delete(ctx context.Context, id uint) error

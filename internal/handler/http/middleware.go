@@ -43,6 +43,7 @@ func AuthMiddleware(authService service.AuthService) gin.HandlerFunc {
 		c.Set(constants.ContextKeyEmail, claims.Email)
 		c.Set(constants.ContextKeyUserRole, claims.Role)
 		c.Set(constants.ContextKeyTokenUUID, claims.UUID.String())
+		c.Set(constants.ContextKeySessionID, claims.SessionUUID)
 
 		// Enforce mandatory org-level 2FA setup for authenticated APIs.
 		// Allow only setup/status/disable endpoints and signout until setup is complete.
