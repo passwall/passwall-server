@@ -21,6 +21,7 @@ var (
 // ListFilter represents common list filter parameters
 type ListFilter struct {
 	Search      string
+	RoleID      uint // users only
 	OwnerUserID uint
 	Limit       int
 	Offset      int

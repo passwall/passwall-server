@@ -82,6 +82,10 @@ func (r *userRepository) List(ctx context.Context, filter repository.ListFilter)
 			searchPattern, searchPattern)
 	}
 
+	if filter.RoleID > 0 {
+		query = query.Where("role_id = ?", filter.RoleID)
+	}
+
 	// Count filtered
 	var filtered int64
 	if err := query.Count(&filtered).Error; err != nil {

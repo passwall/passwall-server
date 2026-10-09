@@ -41,18 +41,25 @@ type adminUserListResponse struct {
 }
 
 // List users for platform admins, paginated server-side.
-// GET /api/users?search=&limit=&offset=
+// GET /api/users?search=&role=admin|member&limit=&offset=
 func (h *UserHandler) List(c *gin.Context) {
 	ctx := c.Request.Context()
 	limit, offset := parseAdminPagination(c)
 
-	users, result, err := h.service.ListPage(ctx, repository.ListFilter{
+	filter := repository.ListFilter{
 		Search: strings.TrimSpace(c.Query("search")),
 		Limit:  limit,
 		Offset: offset,
 		Sort:   "created_at",
 		Order:  "desc",
-	})
+	}
+	switch c.Query("role") {
+	case constants.RoleAdmin:
+		filter.RoleID = constants.RoleIDAdmin
+	case constants.RoleMember:
+		filter.RoleID = constants.RoleIDMember
+	}
+	users, result, err := h.service.ListPage(ctx, filter)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch users"})
 		return

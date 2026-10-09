@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/passwall/passwall-server/internal/config"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/internal/service"
@@ -139,5 +140,23 @@ func TestAdminStepUpAndAuditMiddleware(t *testing.T) {
 		!strings.Contains(entry.Details, `"recipient_count":3`) || !strings.Contains(entry.Details, `"param_id":"7"`) ||
 		!strings.Contains(entry.Details, `"status":202`) {
 		t.Fatalf("audit entry = %+v", entry)
+	}
+}
+
+func TestCORSAllowsAdminStepUpHeader(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(CORSMiddleware(&config.ServerConfig{FrontendURL: "https://vault.example.com"}))
+	router.PUT("/api/users/:id", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodOptions, "/api/users/7", nil)
+	req.Header.Set("Origin", "https://vault.example.com")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPut)
+	req.Header.Set("Access-Control-Request-Headers", "authorization,content-type,x-passwall-step-up")
+	router.ServeHTTP(recorder, req)
+
+	if !strings.Contains(recorder.Header().Get("Access-Control-Allow-Headers"), AdminStepUpHeader) {
+		t.Fatalf("preflight does not allow %s: %q", AdminStepUpHeader, recorder.Header().Get("Access-Control-Allow-Headers"))
 	}
 }
