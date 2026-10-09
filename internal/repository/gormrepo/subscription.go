@@ -2,10 +2,12 @@ package gormrepo
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/passwall/passwall-server/internal/domain"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type subscriptionRepository struct {
@@ -35,6 +37,16 @@ func (r *subscriptionRepository) ExpireActiveByOrganizationID(ctx context.Contex
 		}).Error
 }
 
+// LockOrganization serializes subscription transitions per organization.
+// Locking the parent row also works when the organization has no subscription yet.
+func (r *subscriptionRepository) LockOrganization(ctx context.Context, orgID uint) error {
+	var org domain.Organization
+	return dbFromContext(ctx, r.db).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("id").
+		First(&org, orgID).Error
+}
+
 // selectEffectiveSubscription picks the subscription that should be treated as the
 // current source of truth for entitlements.
 //
@@ -54,6 +66,9 @@ func selectEffectiveSubscription(subs []*domain.Subscription, now time.Time) *do
 		}
 		switch s.State {
 		case domain.SubStateActive, domain.SubStateTrialing, domain.SubStatePastDue:
+			if DetectManualSubscription(s) && s.RenewAt != nil && !s.RenewAt.After(now) {
+				continue
+			}
 			return s
 		}
 	}
@@ -68,6 +83,11 @@ func selectEffectiveSubscription(subs []*domain.Subscription, now time.Time) *do
 	}
 
 	return subs[0]
+}
+
+// DetectManualSubscription treats both historical blank provider IDs and NULL as manual.
+func DetectManualSubscription(sub *domain.Subscription) bool {
+	return sub != nil && (sub.StripeSubscriptionID == nil || strings.TrimSpace(*sub.StripeSubscriptionID) == "")
 }
 
 // Create creates a new subscription
@@ -216,10 +236,24 @@ func (r *subscriptionRepository) ListManualExpired(ctx context.Context) ([]*doma
 	err := dbFromContext(ctx, r.db).
 		Preload("Plan").
 		Preload("Organization").
-		Where("stripe_subscription_id IS NULL AND renew_at IS NOT NULL AND renew_at < ? AND state IN ?", now, []domain.SubscriptionState{
+		Where("(stripe_subscription_id IS NULL OR TRIM(stripe_subscription_id) = '') AND renew_at IS NOT NULL AND renew_at <= ? AND state IN ?", now, []domain.SubscriptionState{
 			domain.SubStateActive,
 			domain.SubStateTrialing,
 		}).
+		Find(&subs).Error
+	return subs, err
+}
+
+// ListManualEndingSoon retrieves unsent reminders for active manual grants.
+func (r *subscriptionRepository) ListManualEndingSoon(ctx context.Context, before time.Time) ([]*domain.Subscription, error) {
+	var subs []*domain.Subscription
+	now := time.Now()
+	err := dbFromContext(ctx, r.db).
+		Preload("Plan").
+		Preload("Organization").
+		Where("(stripe_subscription_id IS NULL OR TRIM(stripe_subscription_id) = '')").
+		Where("state = ? AND manual_end_notice_sent_at IS NULL", domain.SubStateActive).
+		Where("renew_at > ? AND renew_at <= ?", now, before).
 		Find(&subs).Error
 	return subs, err
 }

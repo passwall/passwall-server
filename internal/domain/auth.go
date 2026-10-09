@@ -185,6 +185,7 @@ type UserAuthDTO struct {
 	Email                  string `json:"email"`
 	Name                   string `json:"name"`
 	Role                   string `json:"role"`
+	IsSystemUser           bool   `json:"is_system_user"`
 	IsVerified             bool   `json:"is_verified"`
 	Language               string `json:"language"`
 	TwoFactorEnabled       bool   `json:"two_factor_enabled"`

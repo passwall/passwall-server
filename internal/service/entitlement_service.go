@@ -341,7 +341,9 @@ func resolveAccessState(
 	hasCurrentAccess := false
 	switch subscription.State {
 	case domain.SubStateActive:
-		hasCurrentAccess = true
+		hasCurrentAccess = !domain.IsManualSubscription(subscription) ||
+			subscription.RenewAt == nil ||
+			subscription.RenewAt.After(now)
 	case domain.SubStateTrialing:
 		hasCurrentAccess = subscription.TrialEndsAt != nil &&
 			subscription.TrialEndsAt.After(now)

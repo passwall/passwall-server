@@ -20,11 +20,24 @@ var (
 
 // ListFilter represents common list filter parameters
 type ListFilter struct {
-	Search string
-	Limit  int
-	Offset int
-	Sort   string
-	Order  string
+	Search      string
+	OwnerUserID uint
+	Limit       int
+	Offset      int
+	Sort        string
+	Order       string
+	// Organization-only admin filters.
+	SearchOwners          bool       // also match owner email/name
+	ManualGrantEndsBefore *time.Time // only open manual grants ending before this time
+	SortByAccessEndAsc    bool       // soonest access end first, organizations without one last
+}
+
+// OrganizationCounts holds usage counters for one organization.
+type OrganizationCounts struct {
+	Members     int
+	Teams       int
+	Collections int
+	Items       int
 }
 
 // ListResult represents list query results with pagination info
@@ -130,6 +143,8 @@ type OrganizationRepository interface {
 	GetTeamCount(ctx context.Context, orgID uint) (int, error)
 	GetCollectionCount(ctx context.Context, orgID uint) (int, error)
 	GetItemCount(ctx context.Context, orgID uint) (int, error)
+	// GetCountsByIDs batches the counters above for list views.
+	GetCountsByIDs(ctx context.Context, orgIDs []uint) (map[uint]OrganizationCounts, error)
 }
 
 // OrganizationUserRepository defines organization user data access methods
@@ -140,6 +155,8 @@ type OrganizationUserRepository interface {
 	GetByOrgAndUser(ctx context.Context, orgID, userID uint) (*domain.OrganizationUser, error)
 	GetActiveByOrgAndUser(ctx context.Context, orgID, userID uint) (*domain.OrganizationUser, error)
 	ListByOrganization(ctx context.Context, orgID uint) ([]*domain.OrganizationUser, error)
+	// ListOwnersByOrganizationIDs returns the earliest owner (with User) per organization.
+	ListOwnersByOrganizationIDs(ctx context.Context, orgIDs []uint) (map[uint]*domain.OrganizationUser, error)
 	ListByUser(ctx context.Context, userID uint) ([]*domain.OrganizationUser, error)
 	Update(ctx context.Context, orgUser *domain.OrganizationUser) error
 	Delete(ctx context.Context, id uint) error

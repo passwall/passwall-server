@@ -35,13 +35,35 @@ func (p PaymentProvider) IsManagedExternally() bool {
 // RevenueCat subscriptions use the format "rc_{store}_{transaction_id}".
 // Empty or nil subscription IDs indicate a manual/admin grant.
 func DetectPaymentProvider(subscriptionID *string) PaymentProvider {
-	if subscriptionID == nil || *subscriptionID == "" {
+	if subscriptionID == nil || strings.TrimSpace(*subscriptionID) == "" {
 		return PaymentProviderManual
 	}
 	if strings.HasPrefix(*subscriptionID, "rc_") {
 		return PaymentProviderRevenueCat
 	}
 	return PaymentProviderStripe
+}
+
+func IsManualSubscription(subscription *Subscription) bool {
+	return subscription != nil && DetectPaymentProvider(subscription.StripeSubscriptionID) == PaymentProviderManual
+}
+
+// AdminListProvider distinguishes catalog Free rows from time-limited manual grants.
+func AdminListProvider(subscription *Subscription) PaymentProvider {
+	if subscription == nil {
+		return PaymentProviderNone
+	}
+	provider := DetectPaymentProvider(subscription.StripeSubscriptionID)
+	if provider != PaymentProviderManual {
+		return provider
+	}
+	if subscription.Plan != nil && subscription.Plan.IsFree() {
+		return PaymentProviderNone
+	}
+	if subscription.Plan == nil && (subscription.RenewAt == nil || subscription.State == SubStateExpired) {
+		return PaymentProviderNone
+	}
+	return PaymentProviderManual
 }
 
 // DetectStoreFromSubscriptionID extracts the store name from a RevenueCat subscription ID.

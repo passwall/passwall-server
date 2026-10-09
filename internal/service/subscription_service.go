@@ -2,13 +2,52 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/passwall/passwall-server/internal/domain"
+	"github.com/passwall/passwall-server/internal/email"
+	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/pkg/stripe"
+	"gorm.io/gorm"
 )
+
+const (
+	ManualSubscriptionCodePlanNotAllowed    = "PLAN_NOT_ALLOWED_FOR_ORG"
+	ManualSubscriptionCodeExternalActive    = "EXTERNAL_SUBSCRIPTION_ACTIVE"
+	ManualSubscriptionCodeSeatsBelowMembers = "SEATS_BELOW_MEMBERS"
+	ManualSubscriptionCodeInvalidEndDate    = "INVALID_END_DATE"
+	ManualSubscriptionCodeUsageExceedsPlan  = "USAGE_EXCEEDS_PLAN"
+	ManualSubscriptionCodeNotActiveManual   = "MANUAL_SUBSCRIPTION_NOT_ACTIVE"
+	ManualSubscriptionCodeNoteRequired      = "NOTE_REQUIRED"
+)
+
+type ManualSubscriptionError struct {
+	Code    string
+	Message string
+}
+
+func (e *ManualSubscriptionError) Error() string { return e.Message }
+
+type ManualSubscriptionInput struct {
+	PlanCode string
+	EndsAt   time.Time
+	Seats    *int
+	Note     string
+}
+
+type ManualSubscriptionChange struct {
+	Subscription *domain.Subscription
+	Organization *domain.Organization
+	OldPlan      string
+	NewPlan      string
+	Provider     domain.PaymentProvider
+	EndsAt       *time.Time
+	Seats        *int
+}
 
 // SubscriptionService handles subscription operations
 type SubscriptionService interface {
@@ -30,6 +69,10 @@ type SubscriptionService interface {
 	GetByStripeSubscriptionID(ctx context.Context, stripeSubID string) (*domain.Subscription, error)
 	ExpireSubscription(ctx context.Context, subID uint) error
 	CheckExpiredSubscriptions(ctx context.Context) error
+	GrantManual(ctx context.Context, orgID uint, input ManualSubscriptionInput) (*ManualSubscriptionChange, error)
+	ExtendManual(ctx context.Context, orgID uint, endsAt time.Time, note string) (*ManualSubscriptionChange, error)
+	EndManual(ctx context.Context, orgID uint, note string) (*ManualSubscriptionChange, error)
+	SendManualExpiryReminders(ctx context.Context) error
 }
 
 type subscriptionService struct {
@@ -44,6 +87,8 @@ type subscriptionService struct {
 		ListCanceledExpired(ctx context.Context) ([]*domain.Subscription, error)
 		ListTrialEnding(ctx context.Context, before time.Time) ([]*domain.Subscription, error)
 		ListManualExpired(ctx context.Context) ([]*domain.Subscription, error)
+		ListManualEndingSoon(ctx context.Context, before time.Time) ([]*domain.Subscription, error)
+		LockOrganization(ctx context.Context, orgID uint) error
 	}
 	planRepo interface {
 		GetByCode(ctx context.Context, code string) (*domain.Plan, error)
@@ -51,6 +96,9 @@ type subscriptionService struct {
 	}
 	orgRepo interface {
 		GetByID(ctx context.Context, id uint) (*domain.Organization, error)
+		GetMemberCount(ctx context.Context, orgID uint) (int, error)
+		GetCollectionCount(ctx context.Context, orgID uint) (int, error)
+		GetItemCount(ctx context.Context, orgID uint) (int, error)
 	}
 	orgService OrganizationService
 	// emailService interface for sending emails (optional - can be nil)
@@ -65,6 +113,10 @@ type subscriptionService struct {
 	txManager interface {
 		WithinTx(ctx context.Context, fn func(context.Context) error) error
 	}
+	manualEmailSender  email.Sender
+	manualEmailBuilder *email.EmailBuilder
+	orgUserRepo        repository.OrganizationUserRepository
+	frontendURL        string
 }
 
 // NewSubscriptionService creates a new subscription service
@@ -80,6 +132,8 @@ func NewSubscriptionService(
 		ListCanceledExpired(ctx context.Context) ([]*domain.Subscription, error)
 		ListTrialEnding(ctx context.Context, before time.Time) ([]*domain.Subscription, error)
 		ListManualExpired(ctx context.Context) ([]*domain.Subscription, error)
+		ListManualEndingSoon(ctx context.Context, before time.Time) ([]*domain.Subscription, error)
+		LockOrganization(ctx context.Context, orgID uint) error
 	},
 	planRepo interface {
 		GetByCode(ctx context.Context, code string) (*domain.Plan, error)
@@ -87,6 +141,9 @@ func NewSubscriptionService(
 	},
 	orgRepo interface {
 		GetByID(ctx context.Context, id uint) (*domain.Organization, error)
+		GetMemberCount(ctx context.Context, orgID uint) (int, error)
+		GetCollectionCount(ctx context.Context, orgID uint) (int, error)
+		GetItemCount(ctx context.Context, orgID uint) (int, error)
 	},
 	orgService OrganizationService,
 	emailService interface {
@@ -98,8 +155,9 @@ func NewSubscriptionService(
 	txManager interface {
 		WithinTx(ctx context.Context, fn func(context.Context) error) error
 	},
+	options ...SubscriptionServiceOption,
 ) SubscriptionService {
-	return &subscriptionService{
+	service := &subscriptionService{
 		subRepo:      subRepo,
 		planRepo:     planRepo,
 		orgRepo:      orgRepo,
@@ -108,6 +166,21 @@ func NewSubscriptionService(
 		stripe:       stripe,
 		logger:       logger,
 		txManager:    txManager,
+	}
+	for _, option := range options {
+		option(service)
+	}
+	return service
+}
+
+type SubscriptionServiceOption func(*subscriptionService)
+
+func WithManualSubscriptionEmails(sender email.Sender, builder *email.EmailBuilder, orgUsers repository.OrganizationUserRepository, frontendURL string) SubscriptionServiceOption {
+	return func(service *subscriptionService) {
+		service.manualEmailSender = sender
+		service.manualEmailBuilder = builder
+		service.orgUserRepo = orgUsers
+		service.frontendURL = strings.TrimRight(frontendURL, "/")
 	}
 }
 
@@ -216,6 +289,21 @@ func (s *subscriptionService) create(
 	}
 
 	if err := s.withinTx(ctx, func(txCtx context.Context) error {
+		if err := s.subRepo.LockOrganization(txCtx, orgID); err != nil {
+			return fmt.Errorf("lock organization subscription: %w", err)
+		}
+		// A new provider subscription is a real purchase (existing provider IDs
+		// returned above), so it supersedes an administrator grant: the owner
+		// is paying and must get what they pay for.
+		if stripeSubscriptionID != "" {
+			current, currentErr := s.subRepo.GetByOrganizationID(txCtx, orgID)
+			if currentErr == nil && isOpenManualGrant(current) {
+				s.logger.Info("subscription.create supersedes manual grant",
+					"org_id", orgID,
+					"manual_subscription_id", current.ID,
+				)
+			}
+		}
 		// Keep the effective-subscription invariant atomic: a failed insert
 		// must not leave the organization without its previous entitlement.
 		if err := s.subRepo.ExpireActiveByOrganizationID(txCtx, orgID, now); err != nil {
@@ -238,6 +326,365 @@ func (s *subscriptionService) create(
 	return sub, nil
 }
 
+func (s *subscriptionService) GrantManual(ctx context.Context, orgID uint, input ManualSubscriptionInput) (*ManualSubscriptionChange, error) {
+	if err := validateManualNote(input.Note); err != nil {
+		return nil, err
+	}
+	if err := validateManualEndDate(input.EndsAt, time.Now()); err != nil {
+		return nil, err
+	}
+
+	org, err := s.orgRepo.GetByID(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("organization not found: %w", err)
+	}
+	plan, err := s.planRepo.GetByCode(ctx, strings.TrimSpace(input.PlanCode))
+	if err != nil || plan == nil {
+		return nil, &ManualSubscriptionError{Code: ManualSubscriptionCodePlanNotAllowed, Message: "plan is not available"}
+	}
+	if !plan.IsActive || !manualPlanAllowed(org.IsPersonal, plan.Code) {
+		return nil, &ManualSubscriptionError{Code: ManualSubscriptionCodePlanNotAllowed, Message: "plan is not allowed for this organization"}
+	}
+	if input.Seats != nil && *input.Seats <= 0 {
+		return nil, &ManualSubscriptionError{Code: ManualSubscriptionCodeSeatsBelowMembers, Message: "seats must be greater than zero"}
+	}
+	if input.Seats != nil && plan.MaxUsers != nil && *input.Seats > *plan.MaxUsers {
+		return nil, &ManualSubscriptionError{Code: ManualSubscriptionCodeUsageExceedsPlan, Message: "seats exceed the plan limit"}
+	}
+	var change *ManualSubscriptionChange
+	err = s.withinTx(ctx, func(txCtx context.Context) error {
+		if err := s.subRepo.LockOrganization(txCtx, orgID); err != nil {
+			return fmt.Errorf("lock organization subscription: %w", err)
+		}
+		// Usage is read under the organization lock so a concurrent change
+		// cannot slip in between the check and the grant.
+		if !plan.IsFree() {
+			if err := s.validateManualPaidUsage(txCtx, orgID, plan, input.Seats); err != nil {
+				return err
+			}
+		}
+
+		current, currentErr := s.subRepo.GetByOrganizationID(txCtx, orgID)
+		if currentErr != nil && !isNotFound(currentErr) {
+			return fmt.Errorf("load current subscription: %w", currentErr)
+		}
+		if currentErr != nil {
+			current = nil
+		}
+		if blocksManualGrant(current, time.Now()) {
+			return &ManualSubscriptionError{
+				Code:    ManualSubscriptionCodeExternalActive,
+				Message: "an external subscription still has access",
+			}
+		}
+
+		oldPlan := ""
+		var noticeSentAt *time.Time
+		if current != nil {
+			if current.Plan != nil {
+				oldPlan = current.Plan.Code
+			}
+			// A plan change that keeps the end date must not resend the
+			// reminder the owner already received for that date.
+			if isOpenManualGrant(current) && current.RenewAt.Equal(input.EndsAt) {
+				noticeSentAt = current.ManualEndNoticeSentAt
+			}
+		}
+
+		now := time.Now()
+		if err := s.subRepo.ExpireActiveByOrganizationID(txCtx, orgID, now); err != nil {
+			return fmt.Errorf("expire current subscription: %w", err)
+		}
+
+		manual := &domain.Subscription{
+			UUID:                  uuid.New(),
+			OrganizationID:        orgID,
+			PlanID:                plan.ID,
+			Plan:                  plan,
+			State:                 domain.SubStateActive,
+			StartedAt:             &now,
+			RenewAt:               &input.EndsAt,
+			StripeSubscriptionID:  nil,
+			SeatsPurchased:        cloneOptionalInt(input.Seats),
+			ManualEndNoticeSentAt: noticeSentAt,
+		}
+		if err := s.subRepo.Create(txCtx, manual); err != nil {
+			return fmt.Errorf("create manual subscription: %w", err)
+		}
+		change = &ManualSubscriptionChange{
+			Subscription: manual,
+			Organization: org,
+			OldPlan:      oldPlan,
+			NewPlan:      plan.Code,
+			Provider:     domain.PaymentProviderManual,
+			EndsAt:       manual.RenewAt,
+			Seats:        manual.SeatsPurchased,
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return change, nil
+}
+
+func (s *subscriptionService) ExtendManual(ctx context.Context, orgID uint, endsAt time.Time, note string) (*ManualSubscriptionChange, error) {
+	if err := validateManualNote(note); err != nil {
+		return nil, err
+	}
+	if err := validateManualEndDate(endsAt, time.Now()); err != nil {
+		return nil, err
+	}
+
+	var change *ManualSubscriptionChange
+	err := s.withinTx(ctx, func(txCtx context.Context) error {
+		if err := s.subRepo.LockOrganization(txCtx, orgID); err != nil {
+			return fmt.Errorf("lock organization subscription: %w", err)
+		}
+		org, err := s.orgRepo.GetByID(txCtx, orgID)
+		if err != nil {
+			return fmt.Errorf("organization not found: %w", err)
+		}
+		sub, err := s.subRepo.GetByOrganizationID(txCtx, orgID)
+		if err != nil {
+			if isNotFound(err) {
+				return errManualNotActive()
+			}
+			return fmt.Errorf("load current subscription: %w", err)
+		}
+		// A grant whose end date just passed is still extendable until the
+		// worker finalizes it; the caller computes the new end from now.
+		if !isOpenManualGrant(sub) {
+			return errManualNotActive()
+		}
+		planCode := ""
+		if sub.Plan != nil {
+			planCode = sub.Plan.Code
+		}
+		sub.RenewAt = &endsAt
+		sub.ManualEndNoticeSentAt = nil
+		if err := s.subRepo.Update(txCtx, sub); err != nil {
+			return fmt.Errorf("extend manual subscription: %w", err)
+		}
+		change = &ManualSubscriptionChange{
+			Subscription: sub,
+			Organization: org,
+			OldPlan:      planCode,
+			NewPlan:      planCode,
+			Provider:     domain.PaymentProviderManual,
+			EndsAt:       sub.RenewAt,
+			Seats:        cloneOptionalInt(sub.SeatsPurchased),
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return change, nil
+}
+
+func (s *subscriptionService) EndManual(ctx context.Context, orgID uint, note string) (*ManualSubscriptionChange, error) {
+	if err := validateManualNote(note); err != nil {
+		return nil, err
+	}
+
+	var change *ManualSubscriptionChange
+	err := s.withinTx(ctx, func(txCtx context.Context) error {
+		if err := s.subRepo.LockOrganization(txCtx, orgID); err != nil {
+			return fmt.Errorf("lock organization subscription: %w", err)
+		}
+		org, err := s.orgRepo.GetByID(txCtx, orgID)
+		if err != nil {
+			return fmt.Errorf("organization not found: %w", err)
+		}
+		sub, err := s.subRepo.GetByOrganizationID(txCtx, orgID)
+		if err != nil {
+			if isNotFound(err) {
+				return errManualNotActive()
+			}
+			return fmt.Errorf("load current subscription: %w", err)
+		}
+		if !domain.IsManualSubscription(sub) {
+			if blocksManualGrant(sub, time.Now()) {
+				return &ManualSubscriptionError{Code: ManualSubscriptionCodeExternalActive, Message: "an external subscription still has access"}
+			}
+			return errManualNotActive()
+		}
+		if !isOpenManualGrant(sub) {
+			return errManualNotActive()
+		}
+		if sub.Plan == nil {
+			sub.Plan, err = s.planRepo.GetByID(txCtx, sub.PlanID)
+			if err != nil {
+				return fmt.Errorf("load subscription plan: %w", err)
+			}
+		}
+
+		now := time.Now()
+		oldPlan := sub.Plan.Code
+		seats := cloneOptionalInt(sub.SeatsPurchased)
+		sub.State = domain.SubStateExpired
+		sub.EndedAt = &now
+		sub.RenewAt = nil
+		sub.SeatsPurchased = nil
+		if err := s.subRepo.Update(txCtx, sub); err != nil {
+			return fmt.Errorf("end manual subscription: %w", err)
+		}
+
+		newPlan := oldPlan
+		resultSub := sub
+		if org.IsPersonal && !sub.Plan.IsFree() {
+			freePlan, err := s.planRepo.GetByCode(txCtx, "free-monthly")
+			if err != nil {
+				return fmt.Errorf("load free plan: %w", err)
+			}
+			freeSub := &domain.Subscription{
+				UUID:           uuid.New(),
+				OrganizationID: orgID,
+				PlanID:         freePlan.ID,
+				Plan:           freePlan,
+				State:          domain.SubStateActive,
+				StartedAt:      &now,
+			}
+			if err := s.subRepo.Create(txCtx, freeSub); err != nil {
+				return fmt.Errorf("create free subscription: %w", err)
+			}
+			newPlan = freePlan.Code
+			resultSub = freeSub
+		}
+		change = &ManualSubscriptionChange{
+			Subscription: resultSub,
+			Organization: org,
+			OldPlan:      oldPlan,
+			NewPlan:      newPlan,
+			Provider:     domain.PaymentProviderManual,
+			EndsAt:       &now,
+			Seats:        seats,
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return change, nil
+}
+
+func (s *subscriptionService) validateManualPaidUsage(ctx context.Context, orgID uint, plan *domain.Plan, seats *int) error {
+	maxUsers := plan.MaxUsers
+	if seats != nil {
+		maxUsers = seats
+	}
+	if maxUsers != nil {
+		members, err := s.orgRepo.GetMemberCount(ctx, orgID)
+		if err != nil {
+			return fmt.Errorf("load member usage: %w", err)
+		}
+		if members > *maxUsers {
+			return &ManualSubscriptionError{Code: ManualSubscriptionCodeSeatsBelowMembers, Message: "seats cannot be below current members"}
+		}
+	}
+	if plan.MaxCollections != nil {
+		collections, err := s.orgRepo.GetCollectionCount(ctx, orgID)
+		if err != nil {
+			return fmt.Errorf("load collection usage: %w", err)
+		}
+		if collections > *plan.MaxCollections {
+			return &ManualSubscriptionError{Code: ManualSubscriptionCodeUsageExceedsPlan, Message: "collections exceed the target plan limit"}
+		}
+	}
+	if plan.MaxItems != nil {
+		items, err := s.orgRepo.GetItemCount(ctx, orgID)
+		if err != nil {
+			return fmt.Errorf("load item usage: %w", err)
+		}
+		if items > *plan.MaxItems {
+			return &ManualSubscriptionError{Code: ManualSubscriptionCodeUsageExceedsPlan, Message: "items exceed the target plan limit"}
+		}
+	}
+	return nil
+}
+
+func validateManualNote(note string) error {
+	if strings.TrimSpace(note) == "" {
+		return &ManualSubscriptionError{Code: ManualSubscriptionCodeNoteRequired, Message: "note is required"}
+	}
+	return nil
+}
+
+func validateManualEndDate(endsAt, now time.Time) error {
+	if endsAt.IsZero() || !endsAt.After(now) || endsAt.After(now.AddDate(5, 0, 0)) {
+		return &ManualSubscriptionError{Code: ManualSubscriptionCodeInvalidEndDate, Message: "ends_at must be in the future and no more than 5 years away"}
+	}
+	return nil
+}
+
+func manualPlanAllowed(personal bool, planCode string) bool {
+	if personal {
+		return domain.IsPersonalVaultPlan(planCode)
+	}
+	base := strings.TrimSuffix(strings.TrimSuffix(planCode, "-monthly"), "-yearly")
+	return base == string(domain.PlanFamily) || base == string(domain.PlanTeam) || base == string(domain.PlanBusiness)
+}
+
+func blocksManualGrant(sub *domain.Subscription, now time.Time) bool {
+	if sub == nil || domain.IsManualSubscription(sub) {
+		return false
+	}
+	switch sub.State {
+	case domain.SubStateActive, domain.SubStateTrialing, domain.SubStatePastDue:
+		return true
+	case domain.SubStateCanceled:
+		return sub.RenewAt != nil && sub.RenewAt.After(now)
+	default:
+		return false
+	}
+}
+
+// isOpenManualGrant reports a time-limited manual grant that has not been
+// finalized yet, including one whose end date passed before the worker ran.
+// Catalog Free rows (no end date) are not grants.
+func isOpenManualGrant(sub *domain.Subscription) bool {
+	return sub != nil &&
+		domain.IsManualSubscription(sub) &&
+		sub.State == domain.SubStateActive &&
+		sub.RenewAt != nil &&
+		(sub.Plan == nil || !sub.Plan.IsFree())
+}
+
+func errManualNotActive() error {
+	return &ManualSubscriptionError{Code: ManualSubscriptionCodeNotActiveManual, Message: "active manual subscription not found"}
+}
+
+// isNotFound covers both the repository sentinel and GORM's, since
+// subscription lookups surface the latter.
+func isNotFound(err error) bool {
+	return errors.Is(err, repository.ErrNotFound) || errors.Is(err, gorm.ErrRecordNotFound)
+}
+
+func isActiveManual(sub *domain.Subscription, now time.Time) bool {
+	return sub != nil &&
+		domain.IsManualSubscription(sub) &&
+		sub.State == domain.SubStateActive &&
+		sub.RenewAt != nil &&
+		sub.RenewAt.After(now)
+}
+
+func (s *subscriptionService) activeManualGrantSupersedes(ctx context.Context, providerSub *domain.Subscription) bool {
+	if providerSub == nil {
+		return false
+	}
+	current, err := s.subRepo.GetByOrganizationID(ctx, providerSub.OrganizationID)
+	return err == nil && current != nil && current.ID != providerSub.ID && isActiveManual(current, time.Now())
+}
+
+func cloneOptionalInt(value *int) *int {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
+}
+
 func (s *subscriptionService) UpdateSeatsPurchasedByStripeSubscriptionID(ctx context.Context, stripeSubID string, seatsPurchased *int) error {
 	if stripeSubID == "" {
 		return fmt.Errorf("stripe subscription id required")
@@ -250,6 +697,9 @@ func (s *subscriptionService) UpdateSeatsPurchasedByStripeSubscriptionID(ctx con
 	if err != nil {
 		s.logger.Error("subscription.seats sync failed to load", "stripe_subscription_id", stripeSubID, "error", err)
 		return fmt.Errorf("failed to get subscription: %w", err)
+	}
+	if s.activeManualGrantSupersedes(ctx, sub) {
+		return nil
 	}
 	sub.SeatsPurchased = seatsPurchased
 	if err := s.subRepo.Update(ctx, sub); err != nil {
@@ -268,6 +718,9 @@ func (s *subscriptionService) SyncProviderPeriod(
 	sub, err := s.subRepo.GetByStripeSubscriptionID(ctx, stripeSubID)
 	if err != nil {
 		return fmt.Errorf("failed to get subscription: %w", err)
+	}
+	if s.activeManualGrantSupersedes(ctx, sub) {
+		return nil
 	}
 	if !periodEnd.IsZero() {
 		sub.RenewAt = &periodEnd
@@ -295,6 +748,12 @@ func (s *subscriptionService) GetByStripeSubscriptionID(ctx context.Context, str
 
 // Update updates a subscription
 func (s *subscriptionService) Update(ctx context.Context, sub *domain.Subscription) error {
+	if sub != nil {
+		current, err := s.subRepo.GetByID(ctx, sub.ID)
+		if err == nil && isActiveManual(current, time.Now()) {
+			return nil
+		}
+	}
 	return s.subRepo.Update(ctx, sub)
 }
 
@@ -555,6 +1014,9 @@ func (s *subscriptionService) HandlePaymentSuccess(ctx context.Context, stripeSu
 	if err != nil {
 		return fmt.Errorf("failed to get subscription: %w", err)
 	}
+	if s.activeManualGrantSupersedes(ctx, sub) {
+		return nil
+	}
 
 	// Transition state based on current state
 	now := time.Now()
@@ -601,6 +1063,9 @@ func (s *subscriptionService) HandlePaymentFailed(ctx context.Context, stripeSub
 	sub, err := s.subRepo.GetByStripeSubscriptionID(ctx, stripeSubID)
 	if err != nil {
 		return fmt.Errorf("failed to get subscription: %w", err)
+	}
+	if s.activeManualGrantSupersedes(ctx, sub) {
+		return nil
 	}
 
 	// Move to past_due state with grace period
@@ -755,6 +1220,92 @@ func (s *subscriptionService) CheckExpiredSubscriptions(ctx context.Context) err
 		return fmt.Errorf("failed to expire %d subscription(s)", failed)
 	}
 	return nil
+}
+
+func (s *subscriptionService) SendManualExpiryReminders(ctx context.Context) error {
+	if s.manualEmailSender == nil || s.manualEmailBuilder == nil {
+		return nil
+	}
+	subscriptions, err := s.subRepo.ListManualEndingSoon(ctx, time.Now().Add(7*24*time.Hour))
+	if err != nil {
+		return fmt.Errorf("list manual subscription reminders: %w", err)
+	}
+
+	var failed int
+	for _, sub := range subscriptions {
+		if sub == nil || sub.RenewAt == nil || sub.ManualEndNoticeSentAt != nil {
+			continue
+		}
+		// StartedAt is available for manual grants, so suppress a seven-day
+		// reminder when the original grant itself was shorter than seven days.
+		if sub.StartedAt != nil && sub.RenewAt.Sub(*sub.StartedAt) < 7*24*time.Hour {
+			continue
+		}
+		org := sub.Organization
+		if org == nil {
+			org, err = s.orgRepo.GetByID(ctx, sub.OrganizationID)
+			if err != nil {
+				failed++
+				continue
+			}
+		}
+		recipient := strings.TrimSpace(org.BillingEmail)
+		if recipient == "" {
+			recipient = s.organizationOwnerEmail(ctx, org.ID)
+		}
+		if recipient == "" {
+			continue
+		}
+		planName := "paid"
+		if sub.Plan != nil {
+			planName = strings.TrimSpace(sub.Plan.Name)
+			if planName == "" {
+				planName = sub.Plan.Code
+			}
+		}
+		billingURL := fmt.Sprintf("%s/organizations/%s/billing", s.frontendURL, org.PublicID)
+		message, err := s.manualEmailBuilder.BuildManualSubscriptionEndingEmail(
+			recipient,
+			org.Name,
+			planName,
+			*sub.RenewAt,
+			org.IsPersonal,
+			billingURL,
+		)
+		if err != nil {
+			failed++
+			continue
+		}
+		if err := s.manualEmailSender.Send(ctx, message); err != nil {
+			failed++
+			continue
+		}
+		sentAt := time.Now()
+		sub.ManualEndNoticeSentAt = &sentAt
+		if err := s.subRepo.Update(ctx, sub); err != nil {
+			failed++
+		}
+	}
+	if failed > 0 {
+		return fmt.Errorf("failed to process %d manual subscription reminder(s)", failed)
+	}
+	return nil
+}
+
+func (s *subscriptionService) organizationOwnerEmail(ctx context.Context, orgID uint) string {
+	if s.orgUserRepo == nil {
+		return ""
+	}
+	members, err := s.orgUserRepo.ListByOrganization(ctx, orgID)
+	if err != nil {
+		return ""
+	}
+	for _, member := range members {
+		if member != nil && member.Role == domain.OrgRoleOwner && member.User != nil {
+			return strings.TrimSpace(member.User.Email)
+		}
+	}
+	return ""
 }
 
 // calculateNextRenewal calculates the next renewal date based on billing cycle

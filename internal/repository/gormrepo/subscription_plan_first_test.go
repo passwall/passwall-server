@@ -26,7 +26,7 @@ func openSubscriptionDB(t *testing.T) *gorm.DB {
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
-	require.NoError(t, db.AutoMigrate(&domain.Organization{}, &domain.Subscription{}))
+	require.NoError(t, db.AutoMigrate(&domain.Organization{}, &domain.Plan{}, &domain.Subscription{}))
 	return db
 }
 
@@ -111,4 +111,31 @@ func TestSubscriptionRepository_ListAbandonedDraftOrganizationIDs(t *testing.T) 
 	ids, err := repo.ListAbandonedDraftOrganizationIDs(context.Background(), now.Add(-7*24*time.Hour))
 	require.NoError(t, err)
 	assert.Equal(t, []uint{1}, ids)
+}
+
+func TestSubscriptionRepository_ListManualExpiredIncludesNullAndBlankProviderIDs(t *testing.T) {
+	db := openSubscriptionDB(t)
+	repo := NewSubscriptionRepository(db)
+	now := time.Now()
+	past := now.Add(-time.Minute)
+	future := now.Add(time.Hour)
+
+	createPlanFirstOrg(t, db, 11, true, 7, now)
+	createPlanFirstOrg(t, db, 12, true, 7, now)
+	createPlanFirstOrg(t, db, 13, true, 7, now)
+	blank := "   "
+	stripeID := "sub_external"
+	for _, sub := range []*domain.Subscription{
+		{UUID: uuid.New(), OrganizationID: 11, PlanID: 1, State: domain.SubStateActive, RenewAt: &past},
+		{UUID: uuid.New(), OrganizationID: 12, PlanID: 1, State: domain.SubStateActive, RenewAt: &past, StripeSubscriptionID: &blank},
+		{UUID: uuid.New(), OrganizationID: 13, PlanID: 1, State: domain.SubStateActive, RenewAt: &past, StripeSubscriptionID: &stripeID},
+		{UUID: uuid.New(), OrganizationID: 11, PlanID: 1, State: domain.SubStateActive, RenewAt: &future},
+	} {
+		require.NoError(t, db.Create(sub).Error)
+	}
+
+	expired, err := repo.ListManualExpired(context.Background())
+	require.NoError(t, err)
+	require.Len(t, expired, 2)
+	assert.ElementsMatch(t, []uint{11, 12}, []uint{expired[0].OrganizationID, expired[1].OrganizationID})
 }
