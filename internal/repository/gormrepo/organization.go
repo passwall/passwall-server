@@ -314,6 +314,10 @@ func (r *organizationRepository) Delete(ctx context.Context, id uint) error {
 			Delete(&domain.Invitation{}).Error; err != nil {
 			return err
 		}
+		if err := tx.Where("organization_id = ?", id).
+			Delete(&domain.OrganizationInvitation{}).Error; err != nil {
+			return err
+		}
 
 		// Collection access tables (be robust even if FKs aren't cascading in older schemas)
 		if err := tx.Exec(`
@@ -393,6 +397,9 @@ func (r *organizationRepository) PurgePersonal(ctx context.Context, id uint) err
 			return err
 		}
 		if err := tx.Where("organization_id = ?", id).Delete(&domain.Invitation{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("organization_id = ?", id).Delete(&domain.OrganizationInvitation{}).Error; err != nil {
 			return err
 		}
 		if err := tx.Exec(`

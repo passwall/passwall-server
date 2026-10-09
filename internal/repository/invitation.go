@@ -2,21 +2,20 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/passwall/passwall-server/internal/domain"
 )
 
-// InvitationRepository defines the interface for invitation data access
+// InvitationRepository stores referral ("invite a friend") invitations.
+// Organization invitations live in OrganizationInvitationRepository.
 type InvitationRepository interface {
 	Create(ctx context.Context, invitation *domain.Invitation) error
-	GetByEmail(ctx context.Context, email string) (*domain.Invitation, error)
-	GetByCode(ctx context.Context, code string) (*domain.Invitation, error)
-	GetByID(ctx context.Context, id uint) (*domain.Invitation, error)
-	GetAllByEmail(ctx context.Context, email string) ([]*domain.Invitation, error)
-	GetByCreator(ctx context.Context, createdBy uint) ([]*domain.Invitation, error)
-	ListActiveByOrganization(ctx context.Context, orgID uint) ([]*domain.Invitation, error)
-	Update(ctx context.Context, invitation *domain.Invitation) error
-	Delete(ctx context.Context, id uint) error
+	// GetActiveByEmail returns an unused, unexpired referral for email.
+	GetActiveByEmail(ctx context.Context, email string) (*domain.Invitation, error)
+	ListByCreator(ctx context.Context, createdBy uint) ([]*domain.Invitation, error)
+	CountByCreatorSince(ctx context.Context, createdBy uint, since time.Time) (int, error)
+	// MarkUsedByEmail records that the invited person signed up.
+	MarkUsedByEmail(ctx context.Context, email string, usedAt time.Time) error
 	DeleteByEmail(ctx context.Context, email string) error
-	DeleteExpired(ctx context.Context) error
 }

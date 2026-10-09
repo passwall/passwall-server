@@ -26,6 +26,8 @@ const (
 	TemplateRecoveryDeleteComplete TemplateType = "recover-delete-complete"
 	TemplateTrialEnding            TemplateType = "trial-ending"
 	TemplateManualPlanEnding       TemplateType = "manual-plan-ending"
+	TemplateOrgInvitation          TemplateType = "org-invitation"
+	TemplateOrgMemberAwaiting      TemplateType = "org-member-awaiting-confirmation"
 )
 
 // TemplateData holds data for email templates
@@ -63,6 +65,11 @@ type TemplateData struct {
 	PlanName       string
 	AccessEndDate  string
 	AfterEndNotice string
+	// Organization invitation fields
+	ActionURL   string
+	ActionLabel string
+	MemberEmail string
+	NeedsSignup bool
 }
 
 // TemplateManager handles email template rendering
@@ -158,6 +165,18 @@ func NewTemplateManager() (*TemplateManager, error) {
 		return nil, fmt.Errorf("failed to parse manual-plan-ending template: %w", err)
 	}
 	tm.templates[TemplateManualPlanEnding] = manualPlanEndingTmpl
+
+	orgInvitationTmpl, err := template.New("org-invitation").Parse(orgInvitationEmailTemplate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse org-invitation template: %w", err)
+	}
+	tm.templates[TemplateOrgInvitation] = orgInvitationTmpl
+
+	orgMemberAwaitingTmpl, err := template.New("org-member-awaiting-confirmation").Parse(orgMemberAwaitingEmailTemplate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse org-member-awaiting-confirmation template: %w", err)
+	}
+	tm.templates[TemplateOrgMemberAwaiting] = orgMemberAwaitingTmpl
 
 	return tm, nil
 }
@@ -839,6 +858,53 @@ const manualPlanEndingEmailTemplate = `<!DOCTYPE html>
 <p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:#4a5568;">{{.AfterEndNotice}} Your data is preserved. To keep paid features, choose a plan before the end date.</p>
 <p style="margin:0 0 24px;text-align:center;">
 <a href="{{.BillingURL}}" style="display:inline-block;padding:14px 32px;background-color:#3b82f6;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;font-size:16px;">Choose a plan</a>
+</p>
+<p style="margin:20px 0 0;font-size:14px;line-height:1.6;color:#718096;">Questions? Contact us at <a href="mailto:hello@passwall.io" style="color:#3b82f6;">hello@passwall.io</a>.</p>
+</td></tr>
+<tr><td style="padding:30px 40px;background-color:#f7fafc;border-top:1px solid #e0e0e0;border-radius:0 0 8px 8px;">
+<p style="margin:0 0 10px;font-size:14px;color:#718096;text-align:center;">This is an automated message, please do not reply.</p>
+<p style="margin:0;font-size:12px;color:#a0aec0;text-align:center;">© {{.Year}} Passwall. All rights reserved.</p>
+</td></tr></table></td></tr></table></body></html>`
+
+const orgInvitationEmailTemplate = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Passwall</title></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background-color:#f5f5f5;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5;padding:40px 20px;"><tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+<tr><td style="padding:40px 40px 20px;text-align:center;border-bottom:1px solid #e0e0e0;">
+<h1 style="margin:0;font-size:32px;font-weight:700;color:#1a1a1a;"><span style="color:#3b82f6;">Pass</span>wall</h1>
+</td></tr>
+<tr><td style="padding:40px;">
+<h2 style="margin:0 0 20px;font-size:24px;font-weight:600;color:#1a1a1a;">Join {{.OrganizationName}} on Passwall</h2>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#4a5568;"><strong>{{.InviterName}}</strong> invited you to join <strong>{{.OrganizationName}}</strong> as <strong>{{.Role}}</strong>.</p>
+{{if .NeedsSignup}}<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#4a5568;">Create your Passwall account with this email address, then accept the invitation. An administrator of {{.OrganizationName}} will confirm your access afterwards.</p>{{else}}<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#4a5568;">Sign in to Passwall and accept the invitation to start sharing.</p>{{end}}
+<p style="margin:0 0 24px;font-size:14px;line-height:1.6;color:#718096;">The invitation expires on {{.ExpiryTime}}. If you did not expect it, you can ignore this email.</p>
+<p style="margin:0 0 24px;text-align:center;">
+<a href="{{.ActionURL}}" style="display:inline-block;padding:14px 32px;background-color:#3b82f6;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;font-size:16px;">{{.ActionLabel}}</a>
+</p>
+<p style="margin:20px 0 0;font-size:14px;line-height:1.6;color:#718096;">Questions? Contact us at <a href="mailto:hello@passwall.io" style="color:#3b82f6;">hello@passwall.io</a>.</p>
+</td></tr>
+<tr><td style="padding:30px 40px;background-color:#f7fafc;border-top:1px solid #e0e0e0;border-radius:0 0 8px 8px;">
+<p style="margin:0 0 10px;font-size:14px;color:#718096;text-align:center;">This is an automated message, please do not reply.</p>
+<p style="margin:0;font-size:12px;color:#a0aec0;text-align:center;">© {{.Year}} Passwall. All rights reserved.</p>
+</td></tr></table></td></tr></table></body></html>`
+
+const orgMemberAwaitingEmailTemplate = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Passwall</title></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background-color:#f5f5f5;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5;padding:40px 20px;"><tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+<tr><td style="padding:40px 40px 20px;text-align:center;border-bottom:1px solid #e0e0e0;">
+<h1 style="margin:0;font-size:32px;font-weight:700;color:#1a1a1a;"><span style="color:#3b82f6;">Pass</span>wall</h1>
+</td></tr>
+<tr><td style="padding:40px;">
+<h2 style="margin:0 0 20px;font-size:24px;font-weight:600;color:#1a1a1a;">Confirm a new member of {{.OrganizationName}}</h2>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#4a5568;"><strong>{{.MemberEmail}}</strong> accepted the invitation to <strong>{{.OrganizationName}}</strong>.</p>
+<p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:#4a5568;">Their vault access starts after an administrator confirms them on the Members page; confirming shares the organization key with their account.</p>
+<p style="margin:0 0 24px;text-align:center;">
+<a href="{{.ActionURL}}" style="display:inline-block;padding:14px 32px;background-color:#3b82f6;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;font-size:16px;">{{.ActionLabel}}</a>
 </p>
 <p style="margin:20px 0 0;font-size:14px;line-height:1.6;color:#718096;">Questions? Contact us at <a href="mailto:hello@passwall.io" style="color:#3b82f6;">hello@passwall.io</a>.</p>
 </td></tr>

@@ -166,8 +166,13 @@ func (s *authService) SignUp(ctx context.Context, req *domain.SignUpRequest) (*d
 		return nil, fmt.Errorf("failed to provision account: %w", err)
 	}
 
-	// Note: Organization invitations remain pending - user will see them after sign-in
-	// and can accept/decline them manually
+	// Organization invitations stay pending until the user accepts them in the
+	// app. A referral to this email is marked as joined.
+	if s.invitationRepo != nil {
+		if err := s.invitationRepo.MarkUsedByEmail(ctx, user.Email, time.Now()); err != nil {
+			s.logger.Warn("failed to mark referral as joined", "error", err)
+		}
+	}
 
 	// Generate verification code
 	code, err := generateRandomVerificationCode(6)
@@ -357,11 +362,6 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 
 	// Check if org policy requires 2FA setup (blocking for past-grace-period users)
 	twoFactorSetupReq := s.checkTwoFactorSetupRequired(ctx, user)
-
-	// Process any pending org invitations for this user (e.g. invite link signup)
-	if err := s.processPendingOrgInvitations(ctx, user); err != nil {
-		s.logger.Error("failed to process pending org invitations", "user_id", user.ID, "error", err)
-	}
 
 	// Return auth response with protected user key
 	// Client will decrypt User Key with their Master Key
@@ -892,101 +892,6 @@ func (s *authService) ChangeMasterPassword(ctx context.Context, req *domain.Chan
 	s.logger.Info("master password changed successfully",
 		"user_id", user.ID,
 		"new_kdf", user.KdfType.String())
-
-	return nil
-}
-
-// processPendingOrgInvitations checks for pending organization invitations and adds user to organizations
-func (s *authService) processPendingOrgInvitations(ctx context.Context, user *domain.User) error {
-	// Check if there's a pending invitation for this email
-	invitations, err := s.invitationRepo.GetAllByEmail(ctx, user.Email)
-	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			// No pending invitation - this is normal
-			return nil
-		}
-		return fmt.Errorf("failed to check pending invitations: %w", err)
-	}
-
-	// Find the first org invitation (if any). We keep this simple to avoid surprising
-	// auto-joins across multiple orgs; can be extended later.
-	var invitation *domain.Invitation
-	for _, inv := range invitations {
-		if inv == nil {
-			continue
-		}
-		if inv.OrganizationID != nil && inv.OrgRole != nil && !inv.IsExpired() {
-			invitation = inv
-			break
-		}
-	}
-	if invitation == nil {
-		return nil
-	}
-	awaitingKeyExchange := invitation.IsAwaitingSignup()
-
-	// Check if user is already in the organization
-	existing, err := s.orgUserRepo.GetByOrgAndUser(ctx, *invitation.OrganizationID, user.ID)
-	if err == nil && existing != nil {
-		now := time.Now()
-		if existing.Status == domain.OrgUserStatusInvited && !awaitingKeyExchange {
-			existing.Status = domain.OrgUserStatusAccepted
-			existing.AcceptedAt = &now
-			if invitation.EncryptedOrgKey != nil && *invitation.EncryptedOrgKey != "" {
-				existing.EncryptedOrgKey = *invitation.EncryptedOrgKey
-			}
-			if err := s.orgUserRepo.Update(ctx, existing); err != nil {
-				return fmt.Errorf("failed to update pending org membership: %w", err)
-			}
-			s.logger.Info("accepted existing org membership from pending invitation", "org_id", *invitation.OrganizationID, "user_id", user.ID)
-		} else {
-			s.logger.Info("user already in organization", "org_id", *invitation.OrganizationID, "user_id", user.ID)
-		}
-
-		// Mark invitation as used
-		invitation.UsedAt = &now
-		_ = s.invitationRepo.Delete(ctx, invitation.ID)
-		return nil
-	}
-	if err != nil && !errors.Is(err, repository.ErrNotFound) {
-		return fmt.Errorf("failed to check existing org membership: %w", err)
-	}
-
-	// Add user to organization
-	now := time.Now()
-	orgUser := &domain.OrganizationUser{
-		OrganizationID: *invitation.OrganizationID,
-		UserID:         user.ID,
-		Role:           domain.OrganizationRole(*invitation.OrgRole),
-		AccessAll:      invitation.AccessAll,
-		InvitedAt:      &invitation.CreatedAt,
-		AcceptedAt:     &now,
-	}
-	if awaitingKeyExchange {
-		// No org key exists for this user yet; an admin confirms them by
-		// wrapping the org key with their public key.
-		orgUser.Status = domain.OrgUserStatusProvisioned
-	} else {
-		orgUser.EncryptedOrgKey = *invitation.EncryptedOrgKey
-		orgUser.Status = domain.OrgUserStatusAccepted // Auto-accepted since they signed up via invitation
-	}
-
-	if err := s.orgUserRepo.Create(ctx, orgUser); err != nil {
-		return fmt.Errorf("failed to add user to organization: %w", err)
-	}
-
-	// Mark invitation as used and delete
-	invitation.UsedAt = &now
-	if err := s.invitationRepo.Delete(ctx, invitation.ID); err != nil {
-		s.logger.Error("failed to delete used invitation", "invitation_id", invitation.ID, "error", err)
-		// Don't fail - user is already added to org
-	}
-
-	s.logger.Info("user joined organization from pending invitation",
-		"user_id", user.ID,
-		"org_id", *invitation.OrganizationID,
-		"org_role", *invitation.OrgRole,
-		"status", orgUser.Status)
 
 	return nil
 }

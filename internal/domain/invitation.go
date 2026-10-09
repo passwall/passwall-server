@@ -1,12 +1,11 @@
 package domain
 
 import (
-	"errors"
-	"strings"
 	"time"
 )
 
-// Invitation represents a user invitation
+// Invitation is a referral ("invite a friend to Passwall"). Rows with an
+// organization_id are legacy and were moved to organization_invitations.
 type Invitation struct {
 	ID        uint      `gorm:"primary_key" json:"id"`
 	CreatedAt time.Time `json:"created_at"`
@@ -41,38 +40,4 @@ func (i *Invitation) IsExpired() bool {
 // IsUsed checks if invitation is already used
 func (i *Invitation) IsUsed() bool {
 	return i.UsedAt != nil
-}
-
-// IsAwaitingSignup reports whether this is an organization invitation for
-// someone without an account yet: it carries no wrapped org key, so the member
-// needs admin confirmation (key exchange) after signing up.
-func (i *Invitation) IsAwaitingSignup() bool {
-	return i.OrganizationID != nil && i.OrgRole != nil &&
-		(i.EncryptedOrgKey == nil || *i.EncryptedOrgKey == "")
-}
-
-// CreateInvitationRequest represents invitation creation request
-type CreateInvitationRequest struct {
-	Email       string  `json:"email" validate:"required,email"`
-	RoleID      uint    `json:"role_id" validate:"required"`
-	Description *string `json:"description,omitempty"` // Optional personal note
-
-	// Organization invitation fields (optional)
-	OrganizationID  *uint   `json:"organization_id,omitempty"`
-	OrgRole         *string `json:"org_role,omitempty"`
-	EncryptedOrgKey *string `json:"encrypted_org_key,omitempty"`
-	AccessAll       *bool   `json:"access_all,omitempty"`
-}
-
-// Validate validates the invitation request
-func (r *CreateInvitationRequest) Validate() error {
-	r.Email = strings.ToLower(strings.TrimSpace(r.Email))
-
-	if r.Email == "" {
-		return errors.New("email is required")
-	}
-	if r.RoleID == 0 {
-		return errors.New("role_id is required")
-	}
-	return nil
 }

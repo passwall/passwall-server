@@ -2,6 +2,7 @@ package email
 
 import (
 	"fmt"
+	"net/url"
 	"time"
 )
 
@@ -127,6 +128,66 @@ func (b *EmailBuilder) BuildInvitationWithOrgEmail(to, inviterName, code, role, 
 		To:      to,
 		From:    b.defaultFrom,
 		Subject: subject,
+		Body:    htmlBody,
+	}, nil
+}
+
+// BuildOrgInvitationEmail builds the invitation to join an organization.
+// needsSignup selects the copy for invitees without an account.
+func (b *EmailBuilder) BuildOrgInvitationEmail(to, inviterName, orgName, role string, expiresAt time.Time, needsSignup bool) (*EmailMessage, error) {
+	if to == "" {
+		return nil, fmt.Errorf("recipient email is required")
+	}
+	if b.frontendURL == "" {
+		return nil, fmt.Errorf("frontend URL is required for invitation emails")
+	}
+	actionURL := b.frontendURL + "/invitations"
+	actionLabel := "View invitation"
+	if needsSignup {
+		actionURL = fmt.Sprintf("%s/sign-up?email=%s", b.frontendURL, url.QueryEscape(to))
+		actionLabel = "Create account"
+	}
+	htmlBody, err := b.templateManager.Render(TemplateOrgInvitation, &TemplateData{
+		InviterName:      inviterName,
+		OrganizationName: orgName,
+		Role:             role,
+		ExpiryTime:       expiresAt.UTC().Format("January 2, 2006"),
+		ActionURL:        actionURL,
+		ActionLabel:      actionLabel,
+		NeedsSignup:      needsSignup,
+		Year:             currentYear(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to render org-invitation template: %w", err)
+	}
+	return &EmailMessage{
+		To:      to,
+		From:    b.defaultFrom,
+		Subject: fmt.Sprintf("%s invited you to %s on Passwall", inviterName, orgName),
+		Body:    htmlBody,
+	}, nil
+}
+
+// BuildOrgMemberAwaitingConfirmationEmail tells an organization admin that an
+// invitee accepted and needs confirmation (key exchange).
+func (b *EmailBuilder) BuildOrgMemberAwaitingConfirmationEmail(to, orgName, orgPublicID, memberEmail string) (*EmailMessage, error) {
+	if to == "" {
+		return nil, fmt.Errorf("recipient email is required")
+	}
+	htmlBody, err := b.templateManager.Render(TemplateOrgMemberAwaiting, &TemplateData{
+		OrganizationName: orgName,
+		MemberEmail:      memberEmail,
+		ActionURL:        fmt.Sprintf("%s/organizations/%s/members", b.frontendURL, orgPublicID),
+		ActionLabel:      "Review members",
+		Year:             currentYear(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to render org-member-awaiting template: %w", err)
+	}
+	return &EmailMessage{
+		To:      to,
+		From:    b.defaultFrom,
+		Subject: fmt.Sprintf("%s is waiting for confirmation in %s", memberEmail, orgName),
 		Body:    htmlBody,
 	}, nil
 }

@@ -74,6 +74,9 @@ const (
 	ActivityTypeMemberRoleChanged  ActivityType = "member_role_changed"
 	ActivityTypeInvitationSent     ActivityType = "invitation_sent"
 	ActivityTypeInvitationAccepted ActivityType = "invitation_accepted"
+	ActivityTypeInvitationDeclined ActivityType = "invitation_declined"
+	ActivityTypeInvitationRevoked  ActivityType = "invitation_revoked"
+	ActivityTypeInvitationResent   ActivityType = "invitation_resent"
 
 	// Secure Send
 	ActivityTypeSendCreated  ActivityType = "send_created"

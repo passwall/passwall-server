@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
@@ -124,13 +125,13 @@ func (r seatOrgUserRepo) ListByOrganization(context.Context, uint) ([]*domain.Or
 	return r.members, nil
 }
 
-type seatInvitationService struct {
-	InvitationService
-	pending []*domain.Invitation
+type seatInvitationRepo struct {
+	repository.OrganizationInvitationRepository
+	pending int
 }
 
-func (s seatInvitationService) ListAwaitingSignup(context.Context, uint) ([]*domain.Invitation, error) {
-	return s.pending, nil
+func (r seatInvitationRepo) CountPendingByOrganization(context.Context, uint, time.Time) (int, error) {
+	return r.pending, nil
 }
 
 func TestEnsureSeatAvailableCountsPendingInvitations(t *testing.T) {
@@ -153,11 +154,10 @@ func TestEnsureSeatAvailableCountsPendingInvitations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pending := make([]*domain.Invitation, tt.pending)
 			svc := &organizationService{
-				entitlements:      seatEntitlements{maxUsers: tt.maxUsers},
-				orgUserRepo:       seatOrgUserRepo{members: members},
-				invitationService: seatInvitationService{pending: pending},
+				entitlements: seatEntitlements{maxUsers: tt.maxUsers},
+				orgUserRepo:  seatOrgUserRepo{members: members},
+				invites:      &OrgInvitationDeps{Invitations: seatInvitationRepo{pending: tt.pending}},
 			}
 			err := svc.ensureSeatAvailable(context.Background(), 1)
 			var denied *EntitlementDeniedError
@@ -166,30 +166,6 @@ func TestEnsureSeatAvailableCountsPendingInvitations(t *testing.T) {
 			}
 			if tt.wantDeny && denied.Reason != domain.EntitlementReasonPlanLimitReached {
 				t.Fatalf("reason = %q, want plan limit reached", denied.Reason)
-			}
-		})
-	}
-}
-
-func TestInvitationIsAwaitingSignup(t *testing.T) {
-	orgID := uint(1)
-	role := "member"
-	key := "wrapped"
-	empty := ""
-	tests := []struct {
-		name string
-		inv  domain.Invitation
-		want bool
-	}{
-		{"platform invitation", domain.Invitation{}, false},
-		{"registered invitee with key", domain.Invitation{OrganizationID: &orgID, OrgRole: &role, EncryptedOrgKey: &key}, false},
-		{"keyless org invitation", domain.Invitation{OrganizationID: &orgID, OrgRole: &role}, true},
-		{"empty key org invitation", domain.Invitation{OrganizationID: &orgID, OrgRole: &role, EncryptedOrgKey: &empty}, true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.inv.IsAwaitingSignup(); got != tt.want {
-				t.Fatalf("IsAwaitingSignup() = %v, want %v", got, tt.want)
 			}
 		})
 	}

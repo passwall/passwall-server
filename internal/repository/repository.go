@@ -149,6 +149,19 @@ type OrganizationRepository interface {
 	GetCountsByIDs(ctx context.Context, orgIDs []uint) (map[uint]OrganizationCounts, error)
 }
 
+// OrganizationInvitationRepository stores invitations to join an organization.
+type OrganizationInvitationRepository interface {
+	Create(ctx context.Context, inv *domain.OrganizationInvitation) error
+	Update(ctx context.Context, inv *domain.OrganizationInvitation) error
+	GetByID(ctx context.Context, id uint) (*domain.OrganizationInvitation, error)
+	GetPendingByOrgAndEmail(ctx context.Context, orgID uint, email string) (*domain.OrganizationInvitation, error)
+	ListByOrganization(ctx context.Context, orgID uint, statuses []domain.OrganizationInvitationStatus) ([]*domain.OrganizationInvitation, error)
+	ListPendingByEmail(ctx context.Context, email string, now time.Time) ([]*domain.OrganizationInvitation, error)
+	CountPendingByOrganization(ctx context.Context, orgID uint, now time.Time) (int, error)
+	ExpireOverdue(ctx context.Context, now time.Time) (int64, error)
+	LockOrganization(ctx context.Context, orgID uint) error
+}
+
 // OrganizationUserRepository defines organization user data access methods
 type OrganizationUserRepository interface {
 	Create(ctx context.Context, orgUser *domain.OrganizationUser) error

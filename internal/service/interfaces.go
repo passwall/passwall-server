@@ -125,21 +125,25 @@ type OrganizationService interface {
 	Delete(ctx context.Context, id uint, userID uint) error
 
 	// Member management
-	InviteUser(ctx context.Context, orgID uint, inviterUserID uint, req *domain.InviteUserToOrgRequest) (*domain.OrganizationUser, error)
 	GetMembers(ctx context.Context, orgID uint, requestingUserID uint) ([]*domain.OrganizationUser, error)
 	GetMembership(ctx context.Context, userID uint, orgID uint) (*domain.OrganizationUser, error)
 	UpdateMemberRole(ctx context.Context, orgID, orgUserID uint, requestingUserID uint, req *domain.UpdateOrgUserRoleRequest) error
 	RemoveMember(ctx context.Context, orgID, orgUserID uint, requestingUserID uint) error
-	AcceptInvitation(ctx context.Context, orgUserID uint, userID uint, encryptedOrgKey string) error
 	ConfirmProvisionedMember(ctx context.Context, orgID, orgUserID uint, requestingUserID uint, encryptedOrgKey string) error
-	AddExistingMember(ctx context.Context, orgUser *domain.OrganizationUser) error
-	DeclineInvitationForUser(ctx context.Context, orgID uint, userID uint) error
-	ListAwaitingSignupInvitations(ctx context.Context, orgID uint, requestingUserID uint) ([]*domain.Invitation, error)
-	RevokeAwaitingSignupInvitation(ctx context.Context, orgID, invitationID uint, requestingUserID uint) error
 
 	// Statistics
 	GetMemberCount(ctx context.Context, orgID uint) (int, error)
 	GetCollectionCount(ctx context.Context, orgID uint) (int, error)
+
+	// Invitations (organization_invitations is the single source of truth)
+	InviteMember(ctx context.Context, orgID, inviterUserID uint, req *domain.CreateOrgInvitationRequest) (*InviteResult, error)
+	ListInvitations(ctx context.Context, orgID, requestingUserID uint, status string) ([]*domain.OrganizationInvitation, error)
+	ResendInvitation(ctx context.Context, orgID, invitationID, requestingUserID uint) (*InviteResult, error)
+	RevokeInvitation(ctx context.Context, orgID, invitationID, requestingUserID uint) (*domain.OrganizationInvitation, error)
+	ListReceivedInvitations(ctx context.Context, userID uint) ([]*domain.OrganizationInvitation, error)
+	AcceptReceivedInvitation(ctx context.Context, invitationID, userID uint, encryptedOrgKey string) (*domain.OrganizationUser, error)
+	DeclineReceivedInvitation(ctx context.Context, invitationID, userID uint) error
+	ExpireOverdueInvitations(ctx context.Context) (int64, error)
 }
 
 // TeamService defines the business logic for teams

@@ -347,18 +347,20 @@ func SetupRouter(
 			usersGroup.POST("/:id/delete-with-organizations", systemAdmin, stepUp, audit(domain.ActivityTypeAdminUserDeletedWithOrgs), userHandler.DeleteWithOrganizations)
 		}
 
-		// Invitations - Any authenticated user
+		// Organization invitations addressed to the current user
 		invitationsGroup := apiGroup.Group("/invitations")
 		{
-			invitationsGroup.POST("", invitationHandler.Invite)              // Create invitation (old /invite endpoint)
-			invitationsGroup.GET("/pending", invitationHandler.GetPending)   // Get my pending invitations
-			invitationsGroup.GET("/sent", invitationHandler.GetSent)         // Get invitations I sent
-			invitationsGroup.POST("/:id/accept", invitationHandler.Accept)   // Accept invitation
-			invitationsGroup.POST("/:id/decline", invitationHandler.Decline) // Decline invitation
+			invitationsGroup.GET("", invitationHandler.ListReceived)
+			invitationsGroup.POST("/:id/accept", invitationHandler.Accept)
+			invitationsGroup.POST("/:id/decline", invitationHandler.Decline)
 		}
 
-		// Legacy endpoint (backward compatibility)
-		apiGroup.POST("/invite", invitationHandler.Invite)
+		// Referral invitations ("invite a friend to Passwall")
+		referralsGroup := apiGroup.Group("/referrals")
+		{
+			referralsGroup.GET("", invitationHandler.ListReferrals)
+			referralsGroup.POST("", invitationHandler.CreateReferral)
+		}
 
 		// Activity management routes - Admin only
 		adminActivitiesGroup := apiGroup.Group("/activities")
@@ -433,13 +435,16 @@ func SetupRouter(
 			orgsGroup.DELETE("/:id/folders/:folderId", organizationFolderHandler.Delete)
 
 			// Member management (nested under organization)
-			orgsGroup.POST("/:id/members", organizationHandler.InviteUser)
 			orgsGroup.GET("/:id/members", organizationHandler.GetMembers)
 			orgsGroup.PUT("/:id/members/:userId", organizationHandler.UpdateMemberRole)
 			orgsGroup.DELETE("/:id/members/:userId", organizationHandler.RemoveMember)
 			orgsGroup.POST("/:id/members/:userId/confirm", organizationHandler.ConfirmProvisionedMember)
-			orgsGroup.GET("/:id/pending-invitations", organizationHandler.ListPendingInvitations)
-			orgsGroup.DELETE("/:id/pending-invitations/:invitationId", organizationHandler.RevokePendingInvitation)
+
+			// Invitations (single source of truth; membership is created on accept)
+			orgsGroup.POST("/:id/invitations", invitationHandler.CreateOrgInvitation)
+			orgsGroup.GET("/:id/invitations", invitationHandler.ListOrgInvitations)
+			orgsGroup.POST("/:id/invitations/:invitationId/resend", invitationHandler.ResendOrgInvitation)
+			orgsGroup.DELETE("/:id/invitations/:invitationId", invitationHandler.RevokeOrgInvitation)
 
 			// Teams nested under organization
 			orgsGroup.POST("/:id/teams", teamHandler.Create)
@@ -503,9 +508,6 @@ func SetupRouter(
 			orgsGroup.POST("/:id/subscription/reactivate", paymentHandler.ReactivateSubscription)
 			orgsGroup.POST("/:id/subscription/sync", paymentHandler.SyncSubscription)
 		}
-
-		// Invitation acceptance (not nested)
-		apiGroup.POST("/org-invitations/:id/accept", organizationHandler.AcceptInvitation)
 
 		// Teams (direct access by ID)
 		teamsGroup := apiGroup.Group("/teams")
