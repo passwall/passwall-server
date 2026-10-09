@@ -673,11 +673,12 @@ func (s *authService) ValidateToken(ctx context.Context, tokenString string) (*d
 	}
 
 	return &domain.TokenClaims{
-		UserID: user.ID,
-		Email:  user.Email,
-		Role:   user.GetRoleName(),
-		UUID:   parseUUIDOrNil(tokenUUID),
-		Exp:    int64(exp),
+		UserID:      user.ID,
+		Email:       user.Email,
+		Role:        user.GetRoleName(),
+		UUID:        parseUUIDOrNil(tokenUUID),
+		Exp:         int64(exp),
+		SessionUUID: dbToken.SessionUUID,
 	}, nil
 }
 

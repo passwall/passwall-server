@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/passwall/passwall-server/internal/authz"
 	"github.com/passwall/passwall-server/internal/domain"
 	"github.com/passwall/passwall-server/internal/repository"
@@ -43,6 +45,10 @@ type AuthService interface {
 	// Organization 2FA compliance
 	GetTwoFactorCompliance(ctx context.Context, requesterUserID uint, orgID uint) (*domain.TwoFactorComplianceResponse, error)
 	GetMandatoryTwoFactorSetupRequirement(ctx context.Context, userID uint) (*domain.TwoFactorSetupRequirement, error)
+
+	// Admin step-up re-authentication for destructive platform actions.
+	IssueAdminStepUp(ctx context.Context, userID uint, sessionUUID uuid.UUID, masterPasswordHash, code string) (string, time.Time, error)
+	VerifyAdminStepUp(token string, userID uint, sessionUUID uuid.UUID) error
 }
 
 // UserService defines the business logic for users
@@ -50,8 +56,10 @@ type UserService interface {
 	GetByID(ctx context.Context, id uint) (*domain.User, error)
 	GetByEmail(ctx context.Context, email string) (*domain.User, error)
 	List(ctx context.Context) ([]*domain.User, error)
+	ListPage(ctx context.Context, filter repository.ListFilter) ([]*domain.User, *repository.ListResult, error)
+	// UpdateByAdmin applies a platform-admin edit with role and system-user guards.
+	UpdateByAdmin(ctx context.Context, actorID, id uint, req *domain.UpdateUserRequest) (before domain.User, after *domain.User, err error)
 	Create(ctx context.Context, user *domain.User) error
-	CreateByAdmin(ctx context.Context, req *domain.CreateUserByAdminRequest) (*domain.User, error)
 	Update(ctx context.Context, id uint, user *domain.User) error
 	Delete(ctx context.Context, id uint) error
 	ChangeMasterPassword(ctx context.Context, req *domain.ChangeMasterPasswordRequest) error

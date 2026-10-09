@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -54,50 +53,6 @@ func ToUserDTOs(users []*User) []*UserDTO {
 		dtos[i] = ToUserDTO(user)
 	}
 	return dtos
-}
-
-// CreateUserByAdminRequest represents admin-created user request (zero-knowledge)
-type CreateUserByAdminRequest struct {
-	Name               string     `json:"name" validate:"required,max=100"`
-	Email              string     `json:"email" validate:"required,email"`
-	MasterPasswordHash string     `json:"master_password_hash" validate:"required"` // HKDF(masterKey, info="auth")
-	ProtectedUserKey   string     `json:"protected_user_key" validate:"required"`   // EncString: "2.iv|ct|mac"
-	EncryptedOrgKey    string     `json:"encrypted_org_key" validate:"required"`    // Organization key encrypted with User Key
-	KdfConfig          *KdfConfig `json:"kdf_config" validate:"required"`
-	KdfSalt            string     `json:"kdf_salt" validate:"required"` // hex-encoded random salt
-	RoleID             *uint      `json:"role_id,omitempty"`
-}
-
-// Validate validates the create user request
-func (r *CreateUserByAdminRequest) Validate() error {
-	if r.Name == "" {
-		return errors.New("name is required")
-	}
-	if r.Email == "" {
-		return errors.New("email is required")
-	}
-	if r.MasterPasswordHash == "" {
-		return errors.New("master password hash is required")
-	}
-	if r.ProtectedUserKey == "" {
-		return errors.New("protected user key is required")
-	}
-	if r.EncryptedOrgKey == "" {
-		return errors.New("encrypted org key is required")
-	}
-	if r.KdfConfig == nil {
-		return errors.New("KDF configuration is required")
-	}
-	if r.KdfSalt == "" {
-		return errors.New("KDF salt is required")
-	}
-
-	// Validate KDF config
-	if err := r.KdfConfig.Validate(); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // UpdateUserRequest represents user update request

@@ -176,6 +176,8 @@ type TokenClaims struct {
 	Role   string    `json:"role"`
 	UUID   uuid.UUID `json:"uuid"`
 	Exp    int64     `json:"exp"`
+	// SessionUUID groups the access/refresh pair of one login.
+	SessionUUID uuid.UUID `json:"sid"`
 }
 
 // UserAuthDTO represents user data in auth responses

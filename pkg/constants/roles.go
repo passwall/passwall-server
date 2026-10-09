@@ -6,6 +6,7 @@ const (
 	ContextKeyEmail     = "email"
 	ContextKeyUserRole  = "user_role"
 	ContextKeyTokenUUID = "token_uuid"
+	ContextKeySessionID = "session_uuid"
 	ContextKeyOrgID     = "resolved_org_id"
 )
 
