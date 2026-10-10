@@ -254,3 +254,32 @@ func TestSharesStayInsideTheOrganization(t *testing.T) {
 	_, err = f.shares.GetByUUID(ctx, colleague.ID, created.Share.UUID.String())
 	require.ErrorIs(t, err, repository.ErrForbidden)
 }
+
+func TestRewrapOwnOrgKey(t *testing.T) {
+	f := newAccessFixture(t)
+	ctx := context.Background()
+	const userWrapped = "2.aXZpdml2aXZpdml2aXZpdg==|Y2lwaGVydGV4dA==|bWFjbWFjbWFj"
+
+	rsaUser, rsaMember := f.member(t, f.org, "rsa@example.com", domain.OrgRoleMember, domain.OrgUserStatusConfirmed)
+	require.NoError(t, f.db.Model(rsaMember).Update("encrypted_org_key", "cnNhLXdyYXBwZWQta2V5").Error)
+
+	// Only a well-formed user-key EncString is accepted.
+	for _, bad := range []string{"cnNhLXdyYXBwZWQ=", "2.only-one-part", "2.a|b", "2.!!|!!|!!"} {
+		require.ErrorIs(t, f.svc.RewrapOwnOrgKey(ctx, f.org.ID, rsaUser.ID, bad), ErrInvalidOrgKeyEncoding, bad)
+	}
+
+	require.NoError(t, f.svc.RewrapOwnOrgKey(ctx, f.org.ID, rsaUser.ID, userWrapped))
+	var reloaded domain.OrganizationUser
+	require.NoError(t, f.db.First(&reloaded, rsaMember.ID).Error)
+	assert.Equal(t, userWrapped, reloaded.EncryptedOrgKey)
+
+	// A copy that is already user-wrapped cannot be replaced.
+	require.ErrorIs(t, f.svc.RewrapOwnOrgKey(ctx, f.org.ID, rsaUser.ID, userWrapped), ErrOrgKeyAlreadyUserWrapped)
+
+	// Non-members and suspended members are refused.
+	stranger := f.addUser(t, "stranger@example.com")
+	require.ErrorIs(t, f.svc.RewrapOwnOrgKey(ctx, f.org.ID, stranger.ID, userWrapped), repository.ErrForbidden)
+	suspendedUser, suspended := f.member(t, f.org, "suspended@example.com", domain.OrgRoleMember, domain.OrgUserStatusSuspended)
+	require.NoError(t, f.db.Model(suspended).Update("encrypted_org_key", "cnNhLXdyYXBwZWQta2V5").Error)
+	require.ErrorIs(t, f.svc.RewrapOwnOrgKey(ctx, f.org.ID, suspendedUser.ID, userWrapped), repository.ErrForbidden)
+}

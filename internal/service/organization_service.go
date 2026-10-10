@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -628,6 +630,60 @@ func (s *organizationService) RemoveMember(ctx context.Context, orgID, orgUserID
 
 	s.logger.Info("member removed from organization", "org_id", orgID, "org_user_id", orgUserID)
 	return nil
+}
+
+// ErrOrgKeyAlreadyUserWrapped is returned when a member tries to replace an
+// organization key that is already wrapped with their user key.
+var ErrOrgKeyAlreadyUserWrapped = errors.New("organization key is already wrapped with the user key")
+
+// ErrInvalidOrgKeyEncoding is returned when the replacement key is not an
+// EncString wrapped with the user key.
+var ErrInvalidOrgKeyEncoding = errors.New("organization key must be an EncString wrapped with the user key")
+
+// RewrapOwnOrgKey replaces the caller's RSA-wrapped copy of the organization
+// key with a copy wrapped by their user key. An admin confirms keyless members
+// by wrapping the key with the member's RSA public key; clients that only
+// handle symmetric keys (extension, mobile, desktop) cannot open that copy, so
+// the first client that can unwraps it and stores the symmetric form. Only the
+// member's own copy changes and only while it is still RSA-wrapped.
+func (s *organizationService) RewrapOwnOrgKey(ctx context.Context, orgID, userID uint, encryptedOrgKey string) error {
+	if !isUserKeyEncString(encryptedOrgKey) {
+		return ErrInvalidOrgKeyEncoding
+	}
+	membership, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
+	if err != nil {
+		return repository.ErrForbidden
+	}
+	if membership.EncryptedOrgKey == "" {
+		return repository.ErrForbidden
+	}
+	if strings.HasPrefix(membership.EncryptedOrgKey, "2.") {
+		return ErrOrgKeyAlreadyUserWrapped
+	}
+	membership.EncryptedOrgKey = encryptedOrgKey
+	if err := s.orgUserRepo.Update(ctx, membership); err != nil {
+		return fmt.Errorf("failed to store organization key: %w", err)
+	}
+	s.logger.Info("member organization key rewrapped with user key", "org_id", orgID, "org_user_id", membership.ID)
+	return nil
+}
+
+// isUserKeyEncString checks the "2.iv|ciphertext|mac" shape of a key wrapped
+// with a user key (AES-CBC-256 + HMAC-SHA256).
+func isUserKeyEncString(value string) bool {
+	if !strings.HasPrefix(value, "2.") {
+		return false
+	}
+	parts := strings.Split(strings.TrimPrefix(value, "2."), "|")
+	if len(parts) != 3 {
+		return false
+	}
+	for _, part := range parts {
+		if _, err := base64.StdEncoding.DecodeString(part); err != nil || part == "" {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *organizationService) ConfirmProvisionedMember(ctx context.Context, orgID, orgUserID uint, requestingUserID uint, encryptedOrgKey string) error {

@@ -376,6 +376,50 @@ func (h *OrganizationHandler) RemoveMember(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// RewrapOwnOrgKey godoc
+// @Summary Store the caller's organization key wrapped with their user key
+// @Description Replaces the caller's RSA-wrapped copy of the organization key with a copy wrapped by their user key
+// @Tags organizations
+// @Accept json
+// @Produce json
+// @Param id path string true "Organization public ID"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Router /organizations/{id}/membership/key [put]
+func (h *OrganizationHandler) RewrapOwnOrgKey(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := GetCurrentUserID(c)
+
+	orgID, ok := GetResolvedOrgID(c)
+	if !ok {
+		return
+	}
+
+	var req struct {
+		EncryptedOrgKey string `json:"encrypted_org_key" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	err := h.service.RewrapOwnOrgKey(ctx, orgID, userID, req.EncryptedOrgKey)
+	switch {
+	case err == nil:
+		c.JSON(http.StatusOK, gin.H{"message": "organization key updated"})
+	case errors.Is(err, service.ErrInvalidOrgKeyEncoding):
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "code": "INVALID_ORG_KEY"})
+	case errors.Is(err, service.ErrOrgKeyAlreadyUserWrapped):
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error(), "code": "ORG_KEY_ALREADY_USER_WRAPPED"})
+	case errors.Is(err, repository.ErrForbidden):
+		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+	default:
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update organization key"})
+	}
+}
+
 // ConfirmProvisionedMember godoc
 // @Summary Confirm provisioned member
 // @Description Confirm a provisioned member by providing their encrypted org key (key exchange)
