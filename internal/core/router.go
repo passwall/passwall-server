@@ -439,6 +439,7 @@ func SetupRouter(
 			orgsGroup.PUT("/:id/members/:userId", organizationHandler.UpdateMemberRole)
 			orgsGroup.DELETE("/:id/members/:userId", organizationHandler.RemoveMember)
 			orgsGroup.POST("/:id/members/:userId/confirm", organizationHandler.ConfirmProvisionedMember)
+			orgsGroup.PUT("/:id/membership/key", organizationHandler.RewrapOwnOrgKey)
 
 			// Invitations (single source of truth; membership is created on accept)
 			orgsGroup.POST("/:id/invitations", invitationHandler.CreateOrgInvitation)

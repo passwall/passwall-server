@@ -130,6 +130,7 @@ type OrganizationService interface {
 	UpdateMemberRole(ctx context.Context, orgID, orgUserID uint, requestingUserID uint, req *domain.UpdateOrgUserRoleRequest) error
 	RemoveMember(ctx context.Context, orgID, orgUserID uint, requestingUserID uint) error
 	ConfirmProvisionedMember(ctx context.Context, orgID, orgUserID uint, requestingUserID uint, encryptedOrgKey string) error
+	RewrapOwnOrgKey(ctx context.Context, orgID, userID uint, encryptedOrgKey string) error
 
 	// Statistics
 	GetMemberCount(ctx context.Context, orgID uint) (int, error)
