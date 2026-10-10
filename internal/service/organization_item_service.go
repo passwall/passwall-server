@@ -75,6 +75,11 @@ type OrganizationItemsV2Request struct {
 	Cursor        string
 	Limit         int
 	SinceRevision int64
+	// ClientHidesPasswords: the client enforces hidden passwords itself, so
+	// hidden items keep their encrypted data (needed for autofill).
+	ClientHidesPasswords bool
+	// IncludePermissions adds per-item permissions to the response.
+	IncludePermissions bool
 }
 
 type OrganizationItemsV2Response struct {
@@ -364,10 +369,19 @@ func (s *organizationItemService) ListV2(ctx context.Context, orgID, userID uint
 				}
 				accessCache[collectionID] = access
 			}
+			if req.IncludePermissions {
+				dto.Permissions = access.ItemPermissions()
+			}
 			if access.HidePasswords {
 				dto.HidePasswords = true
-				dto.Data = ""
+				if !req.ClientHidesPasswords {
+					dto.Data = ""
+				}
 			}
+		} else if !dto.Deleted && req.IncludePermissions {
+			// Items without a collection are visible only to their creator
+			// and to unrestricted members, who have full access to them.
+			dto.Permissions = domain.FullItemPermissions()
 		}
 		dtos = append(dtos, dto)
 	}

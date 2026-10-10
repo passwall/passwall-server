@@ -109,6 +109,11 @@ type CollectionDTO struct {
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 
+	// Permission and Permissions describe the caller's own access, when the
+	// response is built for a specific user.
+	Permission  CollectionPermission `json:"permission,omitempty"`
+	Permissions *ItemPermissions     `json:"permissions,omitempty"`
+
 	// Stats (optional)
 	ItemCount *int `json:"item_count,omitempty"`
 	UserCount *int `json:"user_count,omitempty"`
@@ -117,30 +122,34 @@ type CollectionDTO struct {
 
 // CollectionUserDTO for API responses
 type CollectionUserDTO struct {
-	ID                 uint      `json:"id"`
-	CollectionID       uint      `json:"collection_id"`
-	OrganizationUserID uint      `json:"organization_user_id"`
-	UserID             uint      `json:"user_id"`
-	UserEmail          string    `json:"user_email"`
-	UserName           string    `json:"user_name"`
-	CanRead            bool      `json:"can_read"`
-	CanWrite           bool      `json:"can_write"`
-	CanAdmin           bool      `json:"can_admin"`
-	HidePasswords      bool      `json:"hide_passwords"`
-	CreatedAt          time.Time `json:"created_at"`
+	ID                 uint   `json:"id"`
+	CollectionID       uint   `json:"collection_id"`
+	OrganizationUserID uint   `json:"organization_user_id"`
+	UserID             uint   `json:"user_id"`
+	UserEmail          string `json:"user_email"`
+	UserName           string `json:"user_name"`
+	CanRead            bool   `json:"can_read"`
+	CanWrite           bool   `json:"can_write"`
+	CanAdmin           bool   `json:"can_admin"`
+	HidePasswords      bool   `json:"hide_passwords"`
+	// Permission is the same access expressed as a single level.
+	Permission CollectionPermission `json:"permission"`
+	CreatedAt  time.Time            `json:"created_at"`
 }
 
 // CollectionTeamDTO for API responses
 type CollectionTeamDTO struct {
-	ID            uint      `json:"id"`
-	CollectionID  uint      `json:"collection_id"`
-	TeamID        uint      `json:"team_id"`
-	TeamName      string    `json:"team_name"`
-	CanRead       bool      `json:"can_read"`
-	CanWrite      bool      `json:"can_write"`
-	CanAdmin      bool      `json:"can_admin"`
-	HidePasswords bool      `json:"hide_passwords"`
-	CreatedAt     time.Time `json:"created_at"`
+	ID            uint   `json:"id"`
+	CollectionID  uint   `json:"collection_id"`
+	TeamID        uint   `json:"team_id"`
+	TeamName      string `json:"team_name"`
+	CanRead       bool   `json:"can_read"`
+	CanWrite      bool   `json:"can_write"`
+	CanAdmin      bool   `json:"can_admin"`
+	HidePasswords bool   `json:"hide_passwords"`
+	// Permission is the same access expressed as a single level.
+	Permission CollectionPermission `json:"permission"`
+	CreatedAt  time.Time            `json:"created_at"`
 }
 
 // CreateCollectionRequest for API requests
@@ -160,10 +169,35 @@ type UpdateCollectionRequest struct {
 
 // GrantCollectionAccessRequest for granting access to users/teams
 type GrantCollectionAccessRequest struct {
-	CanRead       bool `json:"can_read"`
-	CanWrite      bool `json:"can_write"`
-	CanAdmin      bool `json:"can_admin"`
-	HidePasswords bool `json:"hide_passwords"`
+	// Permission, when set, takes precedence over the individual flags.
+	Permission    CollectionPermission `json:"permission,omitempty"`
+	CanRead       bool                 `json:"can_read"`
+	CanWrite      bool                 `json:"can_write"`
+	CanAdmin      bool                 `json:"can_admin"`
+	HidePasswords bool                 `json:"hide_passwords"`
+}
+
+// Normalize applies Permission to the flags (or derives Permission from the
+// flags) so both request forms store the same values. It reports false for
+// an unknown permission or a request that grants nothing.
+func (r *GrantCollectionAccessRequest) Normalize() bool {
+	if r.Permission != CollectionPermissionNone {
+		if !r.Permission.IsValid() {
+			return false
+		}
+		r.CanRead, r.CanWrite, r.CanAdmin, r.HidePasswords = r.Permission.Flags()
+		return true
+	}
+	if r.CanWrite || r.CanAdmin {
+		r.CanRead = true
+	}
+	r.Permission = CollectionPermissionFromFlags(r.CanRead, r.CanWrite, r.CanAdmin, r.HidePasswords)
+	if r.Permission == CollectionPermissionNone {
+		return false
+	}
+	// Store the canonical flags for the permission (manage never hides).
+	r.CanRead, r.CanWrite, r.CanAdmin, r.HidePasswords = r.Permission.Flags()
+	return true
 }
 
 // ToCollectionDTO converts Collection to DTO
@@ -203,6 +237,7 @@ func ToCollectionUserDTO(cu *CollectionUser) *CollectionUserDTO {
 		CanWrite:           cu.CanWrite,
 		CanAdmin:           cu.CanAdmin,
 		HidePasswords:      cu.HidePasswords,
+		Permission:         CollectionPermissionFromFlags(cu.CanRead, cu.CanWrite, cu.CanAdmin, cu.HidePasswords),
 		CreatedAt:          cu.CreatedAt,
 	}
 
@@ -230,6 +265,7 @@ func ToCollectionTeamDTO(ct *CollectionTeam) *CollectionTeamDTO {
 		CanWrite:      ct.CanWrite,
 		CanAdmin:      ct.CanAdmin,
 		HidePasswords: ct.HidePasswords,
+		Permission:    CollectionPermissionFromFlags(ct.CanRead, ct.CanWrite, ct.CanAdmin, ct.HidePasswords),
 		CreatedAt:     ct.CreatedAt,
 	}
 

@@ -49,6 +49,20 @@ func (h *CollectionHandler) orgName(ctx context.Context, orgID uint, userID uint
 // @Failure 400 {object} map[string]string
 // @Failure 403 {object} map[string]string
 // @Router /organizations/{orgId}/collections [post]
+// collectionDTOForCaller adds the caller's own permission so clients render
+// the server's decision instead of re-deriving it.
+func (h *CollectionHandler) collectionDTOForCaller(ctx context.Context, col *domain.Collection, userID uint) *domain.CollectionDTO {
+	dto := domain.ToCollectionDTO(col)
+	if dto == nil {
+		return nil
+	}
+	if access, err := h.service.CallerAccess(ctx, col.OrganizationID, col.ID, userID); err == nil {
+		dto.Permission = access.Permission()
+		dto.Permissions = access.ItemPermissions()
+	}
+	return dto
+}
+
 func (h *CollectionHandler) Create(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := GetCurrentUserID(c)
@@ -115,7 +129,7 @@ func (h *CollectionHandler) List(c *gin.Context) {
 
 	dtos := make([]*domain.CollectionDTO, len(collections))
 	for i, col := range collections {
-		dtos[i] = domain.ToCollectionDTO(col)
+		dtos[i] = h.collectionDTOForCaller(ctx, col, userID)
 	}
 
 	c.JSON(http.StatusOK, dtos)
@@ -155,7 +169,7 @@ func (h *CollectionHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, domain.ToCollectionDTO(collection))
+	c.JSON(http.StatusOK, h.collectionDTOForCaller(ctx, collection, userID))
 }
 
 // Update godoc

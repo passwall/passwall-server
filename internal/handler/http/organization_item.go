@@ -1,7 +1,9 @@
 package http
 
 import (
+	"context"
 	"errors"
+	"github.com/passwall/passwall-server/internal/authz"
 	"net/http"
 	"strconv"
 	"strings"
@@ -178,22 +180,10 @@ func (h *OrganizationItemHandler) ListByOrganization(c *gin.Context) {
 	}
 
 	dtos := make([]*domain.OrganizationItemDTO, len(items))
-	accessCache := make(map[uint]*bool)
+	accessCache := make(map[uint]*authz.CollectionAccess)
 	for i, item := range items {
 		dtos[i] = domain.ToOrganizationItemDTO(item)
-		if item.CollectionID != nil {
-			cid := *item.CollectionID
-			if _, ok := accessCache[cid]; !ok {
-				access, err := h.service.GetCollectionAccess(ctx, orgID, userID, cid)
-				// Fail closed: if access cannot be resolved, withhold the secret.
-				hide := err != nil || access.HidePasswords
-				accessCache[cid] = &hide
-			}
-			if accessCache[cid] != nil && *accessCache[cid] {
-				dtos[i].HidePasswords = true
-				dtos[i].Data = ""
-			}
-		}
+		h.applyCallerAccess(ctx, dtos[i], item, userID, accessCache, ClientHasCapability(c, CapHidePasswordsClient))
 	}
 
 	c.JSON(http.StatusOK, dtos)
@@ -207,7 +197,11 @@ func (h *OrganizationItemHandler) ListV2(c *gin.Context) {
 		return
 	}
 
-	req := service.OrganizationItemsV2Request{Cursor: strings.TrimSpace(c.Query("cursor"))}
+	req := service.OrganizationItemsV2Request{
+		Cursor:               strings.TrimSpace(c.Query("cursor")),
+		ClientHidesPasswords: ClientHasCapability(c, CapHidePasswordsClient),
+		IncludePermissions:   ClientHasCapability(c, CapItemPermissions),
+	}
 	if value := c.Query("limit"); value != "" {
 		limit, err := strconv.Atoi(value)
 		if err != nil || limit < 1 || limit > 500 {
@@ -269,19 +263,10 @@ func (h *OrganizationItemHandler) ListByCollection(c *gin.Context) {
 	}
 
 	dtos := make([]*domain.OrganizationItemDTO, len(items))
-	var hidePasswords *bool
+	accessCache := make(map[uint]*authz.CollectionAccess)
 	for i, item := range items {
 		dtos[i] = domain.ToOrganizationItemDTO(item)
-		if hidePasswords == nil && item.CollectionID != nil {
-			access, err := h.service.GetCollectionAccess(ctx, item.OrganizationID, userID, *item.CollectionID)
-			// Fail closed: if access cannot be resolved, withhold the secret.
-			hide := err != nil || access.HidePasswords
-			hidePasswords = &hide
-		}
-		if hidePasswords != nil && *hidePasswords {
-			dtos[i].HidePasswords = true
-			dtos[i].Data = ""
-		}
+		h.applyCallerAccess(ctx, dtos[i], item, userID, accessCache, ClientHasCapability(c, CapHidePasswordsClient))
 	}
 
 	c.JSON(http.StatusOK, dtos)
@@ -321,14 +306,7 @@ func (h *OrganizationItemHandler) GetByID(c *gin.Context) {
 	}
 
 	dto := domain.ToOrganizationItemDTO(item)
-	if item.CollectionID != nil {
-		access, err := h.service.GetCollectionAccess(ctx, item.OrganizationID, userID, *item.CollectionID)
-		// Fail closed: if access cannot be resolved, withhold the secret.
-		if err != nil || access.HidePasswords {
-			dto.HidePasswords = true
-			dto.Data = ""
-		}
-	}
+	h.applyCallerAccess(ctx, dto, item, userID, nil, ClientHasCapability(c, CapHidePasswordsClient))
 
 	c.JSON(http.StatusOK, dto)
 }
@@ -484,5 +462,50 @@ func (h *OrganizationItemHandler) AutofillSecret(c *gin.Context) {
 			details[service.ActivityFieldCollectionID] = *item.CollectionID
 		}
 		_ = h.activityLogger.LogActivity(ctx, userID, domain.ActivityTypeItemAutofillSecret, c.ClientIP(), c.GetHeader("User-Agent"), details)
+	}
+}
+
+// applyCallerAccess sets the caller's permissions on an item and, unless the
+// client hides passwords itself, withholds its encrypted data when passwords
+// are hidden. It fails closed: if access
+// cannot be resolved, the data is withheld and only viewing is allowed.
+func (h *OrganizationItemHandler) applyCallerAccess(
+	ctx context.Context,
+	dto *domain.OrganizationItemDTO,
+	item *domain.OrganizationItem,
+	userID uint,
+	cache map[uint]*authz.CollectionAccess,
+	clientHidesPasswords bool,
+) {
+	if item.CollectionID == nil {
+		// Only the creator and unrestricted members can see these.
+		dto.Permissions = domain.FullItemPermissions()
+		return
+	}
+	cid := *item.CollectionID
+	access, ok := cache[cid]
+	if !ok {
+		resolved, err := h.service.GetCollectionAccess(ctx, item.OrganizationID, userID, cid)
+		if err == nil {
+			access = resolved
+		}
+		if cache != nil {
+			cache[cid] = access
+		}
+	}
+	if access == nil {
+		dto.Permissions = &domain.ItemPermissions{View: true}
+		dto.HidePasswords = true
+		dto.Data = ""
+		return
+	}
+	dto.Permissions = access.ItemPermissions()
+	if access.HidePasswords {
+		dto.HidePasswords = true
+		// Clients that hide passwords themselves still need the data for
+		// autofill; older clients rely on the server withholding it.
+		if !clientHidesPasswords {
+			dto.Data = ""
+		}
 	}
 }

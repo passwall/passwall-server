@@ -171,22 +171,19 @@ func TestCollectionManagerCannotEscalate(t *testing.T) {
 	manager, managerMembership := f.member(t, f.org, "manager@example.com", domain.OrgRoleMember, domain.OrgUserStatusConfirmed)
 	_, peer := f.member(t, f.org, "peer@example.com", domain.OrgRoleMember, domain.OrgUserStatusConfirmed)
 	vault := f.collection(t, f.org, "Production")
-	f.grant(t, vault, managerMembership, true, true, true)
+	f.grant(t, vault, managerMembership, true, true, false)
 	ownTeam := f.team(t, f.org, "Ops", managerMembership)
 	otherTeam := f.team(t, f.org, "Finance", peer)
 
 	visible := &domain.GrantCollectionAccessRequest{CanRead: true, CanWrite: true, CanAdmin: true}
 	hidden := &domain.GrantCollectionAccessRequest{CanRead: true, HidePasswords: true}
 
-	// Cannot lift their own restrictions, directly or through their team.
+	// Cannot change their own access, directly or through their team.
 	require.ErrorIs(t, f.collections.GrantUserAccess(ctx, vault.ID, managerMembership.ID, manager.ID, visible), repository.ErrForbidden)
 	require.ErrorIs(t, f.collections.GrantTeamAccess(ctx, vault.ID, ownTeam.ID, manager.ID, hidden), repository.ErrForbidden)
-	// Cannot grant password visibility they do not have.
-	require.ErrorIs(t, f.collections.GrantUserAccess(ctx, vault.ID, peer.ID, manager.ID, visible), repository.ErrForbidden)
-	require.ErrorIs(t, f.collections.GrantTeamAccess(ctx, vault.ID, otherTeam.ID, manager.ID, visible), repository.ErrForbidden)
-	// Can grant within their own level.
+	// Can grant others, up to manage (which always includes passwords).
 	require.NoError(t, f.collections.GrantUserAccess(ctx, vault.ID, peer.ID, manager.ID, hidden))
-	require.NoError(t, f.collections.GrantTeamAccess(ctx, vault.ID, otherTeam.ID, manager.ID, hidden))
+	require.NoError(t, f.collections.GrantTeamAccess(ctx, vault.ID, otherTeam.ID, manager.ID, visible))
 
 	// Organization admins are not capped.
 	require.NoError(t, f.collections.GrantUserAccess(ctx, vault.ID, peer.ID, f.owner.ID, visible))
