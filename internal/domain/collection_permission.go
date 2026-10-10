@@ -89,6 +89,6 @@ func ItemPermissionsFor(p CollectionPermission) *ItemPermissions {
 		EditPassword: edit && !hide,
 		Manage:       canAdmin,
 		Delete:       edit,
-		Share:        edit,
+		Share:        edit && !hide,
 	}
 }

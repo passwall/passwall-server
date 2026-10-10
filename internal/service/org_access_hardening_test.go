@@ -280,3 +280,36 @@ func TestRewrapOwnOrgKey(t *testing.T) {
 	require.NoError(t, f.db.Model(suspended).Update("encrypted_org_key", "cnNhLXdyYXBwZWQta2V5").Error)
 	require.ErrorIs(t, f.svc.RewrapOwnOrgKey(ctx, f.org.ID, suspendedUser.ID, userWrapped), repository.ErrForbidden)
 }
+
+func TestListForUserCountsWriteOnlyLegacyGrants(t *testing.T) {
+	f := newAccessFixture(t)
+	ctx := context.Background()
+	user, membership := f.member(t, f.org, "writer@example.com", domain.OrgRoleMember, domain.OrgUserStatusConfirmed)
+	legacy := f.collection(t, f.org, "Legacy")
+	require.NoError(t, f.db.Create(&domain.CollectionUser{CollectionID: legacy.ID, OrganizationUserID: membership.ID, CanWrite: true}).Error)
+	require.NoError(t, f.db.Model(&domain.CollectionUser{}).Where("collection_id = ?", legacy.ID).Update("can_read", false).Error)
+
+	collections, err := gormrepo.NewCollectionRepository(f.db).ListForUser(ctx, f.org.ID, user.ID)
+	require.NoError(t, err)
+	require.Len(t, collections, 1, "a write grant implies read, as in the access resolver")
+}
+
+func TestHiddenPasswordsCannotBeShared(t *testing.T) {
+	f := newAccessFixture(t)
+	ctx := context.Background()
+	editor, editorMembership := f.member(t, f.org, "editor@example.com", domain.OrgRoleMember, domain.OrgUserStatusConfirmed)
+	colleague, _ := f.member(t, f.org, "colleague2@example.com", domain.OrgRoleMember, domain.OrgUserStatusConfirmed)
+	vault := f.collection(t, f.org, "Restricted")
+	f.grant(t, vault, editorMembership, true, false, true) // edit_except_passwords
+	itemUUID := uuid.New()
+	require.NoError(t, f.db.Exec(
+		`INSERT INTO organization_items (uuid, support_id, organization_id, collection_id, item_type, data, metadata, created_by_user_id, revision, created_at, updated_at)
+		 VALUES (?, 2, ?, ?, ?, ?, CAST('{}' AS BLOB), ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		itemUUID.String(), f.org.ID, vault.ID, domain.ItemTypePassword, "2.cipher", editor.ID,
+	).Error)
+
+	_, err := f.shares.Create(ctx, editor.ID, &CreateItemShareRequest{
+		ItemUUID: itemUUID.String(), SharedWithUserID: &colleague.ID, EncryptedKey: "rsa",
+	})
+	require.ErrorIs(t, err, repository.ErrForbidden)
+}

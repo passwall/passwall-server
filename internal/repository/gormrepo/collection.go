@@ -137,7 +137,7 @@ func (r *collectionRepository) ListForUser(ctx context.Context, orgID, userID ui
 				  SELECT 1 FROM collection_users 
 				  WHERE collection_users.collection_id = collections.id 
 				    AND collection_users.organization_user_id = ?
-				    AND collection_users.can_read = true
+				    AND (collection_users.can_read OR collection_users.can_write OR collection_users.can_admin)
 			  )
 			  OR
 			  -- Team access
@@ -146,7 +146,7 @@ func (r *collectionRepository) ListForUser(ctx context.Context, orgID, userID ui
 				  INNER JOIN team_users ON team_users.team_id = collection_teams.team_id
 				  WHERE collection_teams.collection_id = collections.id
 				    AND team_users.organization_user_id = ?
-				    AND collection_teams.can_read = true
+				    AND (collection_teams.can_read OR collection_teams.can_write OR collection_teams.can_admin)
 			  )
 		  )
 		ORDER BY collections.name ASC

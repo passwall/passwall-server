@@ -175,6 +175,11 @@ func (s *itemShareService) authorizeItemShare(
 	if !access.CanWrite && !access.CanAdmin {
 		return repository.ErrForbidden
 	}
+	// Sharing hands the recipient the item's secrets, so it needs password
+	// visibility too (edit_except_passwords cannot share).
+	if access.HidePasswords {
+		return repository.ErrForbidden
+	}
 
 	return nil
 }
