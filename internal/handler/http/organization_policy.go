@@ -163,6 +163,18 @@ func (h *OrganizationPolicyHandler) UpdatePolicy(c *gin.Context) {
 // @Produce json
 // @Success 200 {array} domain.PolicyDefinition
 // @Router /policies/definitions [get]
+// GetEffectivePolicies returns the policies that bind the current user across
+// all organizations, merged into their strictest form.
+func (h *OrganizationPolicyHandler) GetEffectivePolicies(c *gin.Context) {
+	userID := GetCurrentUserID(c)
+	resp, err := h.service.GetEffectivePolicies(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load policies"})
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
 func (h *OrganizationPolicyHandler) ListPolicyDefinitions(c *gin.Context) {
 	c.JSON(http.StatusOK, domain.AllPolicyDefinitions())
 }

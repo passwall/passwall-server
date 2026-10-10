@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,6 +24,9 @@ type OrganizationPolicyService interface {
 	GetPolicyData(ctx context.Context, orgID uint, policyType domain.PolicyType) (domain.PolicyData, error)
 	ListEnabledPolicies(ctx context.Context, orgID uint) ([]*domain.OrganizationPolicyDTO, error)
 	GetActivePolicySummary(ctx context.Context, orgID, userID uint) (map[domain.PolicyType]domain.PolicyData, error)
+	// GetEffectivePolicies returns the client-enforced policies that bind
+	// userID, merged across organizations.
+	GetEffectivePolicies(ctx context.Context, userID uint) (*domain.EffectivePoliciesResponse, error)
 }
 
 type organizationPolicyService struct {
@@ -347,6 +351,60 @@ func (s *organizationPolicyService) GetActivePolicySummary(ctx context.Context, 
 		summary[p.Type] = p.Data
 	}
 	return summary, nil
+}
+
+func (s *organizationPolicyService) GetEffectivePolicies(ctx context.Context, userID uint) (*domain.EffectivePoliciesResponse, error) {
+	memberships, err := s.orgUserRepo.ListByUser(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list memberships: %w", err)
+	}
+	sort.Slice(memberships, func(i, j int) bool { return memberships[i].OrganizationID < memberships[j].OrganizationID })
+
+	type collected struct {
+		datas []domain.PolicyData
+		orgs  []domain.EffectivePolicyOrg
+	}
+	byType := map[domain.PolicyType]*collected{}
+	for _, m := range memberships {
+		if m == nil || (m.Status != domain.OrgUserStatusAccepted && m.Status != domain.OrgUserStatusConfirmed) {
+			continue
+		}
+		if m.Organization != nil && m.Organization.IsPersonal {
+			continue
+		}
+		policies, err := s.policyRepo.ListEnabledByOrganization(ctx, m.OrganizationID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list enabled policies: %w", err)
+		}
+		for _, p := range policies {
+			if !domain.IsPolicyAvailable(p.Type) || !domain.PolicyAppliesToMember(p.Type, m.Role) {
+				continue
+			}
+			c := byType[p.Type]
+			if c == nil {
+				c = &collected{}
+				byType[p.Type] = c
+			}
+			c.datas = append(c.datas, p.Data)
+			org := domain.EffectivePolicyOrg{ID: m.OrganizationID}
+			if m.Organization != nil {
+				org.PublicID = m.Organization.PublicID
+				org.Name = m.Organization.Name
+			}
+			c.orgs = append(c.orgs, org)
+		}
+	}
+
+	resp := &domain.EffectivePoliciesResponse{Policies: []domain.EffectivePolicy{}}
+	for t, c := range byType {
+		resp.Policies = append(resp.Policies, domain.EffectivePolicy{
+			Type:          t,
+			Data:          domain.MergePolicyData(t, c.datas),
+			Organizations: c.orgs,
+		})
+	}
+	domain.SortEffectivePolicies(resp.Policies)
+	return resp, nil
 }
 
 // adminOnlyPolicyData are policies whose configuration is hidden from

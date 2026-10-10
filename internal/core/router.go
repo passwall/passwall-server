@@ -235,6 +235,7 @@ func SetupRouter(
 
 		// Policy & settings definitions catalog (authenticated, no org context needed)
 		apiGroup.GET("/policies/definitions", organizationPolicyHandler.ListPolicyDefinitions)
+		apiGroup.GET("/policies/effective", organizationPolicyHandler.GetEffectivePolicies)
 		apiGroup.GET("/settings/definitions", organizationSettingsHandler.ListSettingsDefinitions)
 
 		// Compromised password check (batch SHA-1 hash check via HIBP Pwned Passwords)

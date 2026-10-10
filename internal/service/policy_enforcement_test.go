@@ -49,6 +49,10 @@ func (m *mockOrganizationPolicyService) GetActivePolicySummary(ctx context.Conte
 	return nil, nil
 }
 
+func (m *mockOrganizationPolicyService) GetEffectivePolicies(ctx context.Context, userID uint) (*domain.EffectivePoliciesResponse, error) {
+	return &domain.EffectivePoliciesResponse{}, nil
+}
+
 func TestPolicyEnforcement_CheckCardTypeAllowed(t *testing.T) {
 	t.Parallel()
 
