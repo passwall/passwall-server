@@ -826,7 +826,7 @@ func (s *scimService) filterOrgUsers(orgUsers []*domain.OrganizationUser, filter
 			continue
 		}
 		switch attr {
-		case "username", "emails.value", "emails[type eq \"work\"].value":
+		case "username", "emails.value":
 			if strings.EqualFold(ou.User.Email, value) {
 				result = append(result, ou)
 			}

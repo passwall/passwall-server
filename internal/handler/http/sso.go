@@ -58,6 +58,7 @@ func respondSSOError(c *gin.Context, err error, fallback string) {
 		{service.ErrSSOInvalidCodeChallenge, http.StatusBadRequest, "SSO_INVALID_CODE_CHALLENGE"},
 		{service.ErrSSOInvalidLoginCode, http.StatusUnauthorized, "SSO_INVALID_LOGIN_CODE"},
 		{service.ErrSSOConnectionInactive, http.StatusBadRequest, "SSO_CONNECTION_INACTIVE"},
+		{service.ErrSSOMembershipInactive, http.StatusForbidden, "SSO_MEMBERSHIP_INACTIVE"},
 	} {
 		if errors.Is(err, m.target) {
 			c.JSON(m.status, gin.H{"error": err.Error(), "code": m.code})
@@ -87,7 +88,7 @@ func (h *SSOHandler) CreateConnection(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if !h.ensureOrgAdmin(c, ctx, userID, orgID) {
+	if !h.ensureOrgOwner(c, ctx, userID, orgID) {
 		return
 	}
 
@@ -187,7 +188,7 @@ func (h *SSOHandler) UpdateConnection(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if !h.ensureOrgAdmin(c, ctx, userID, orgID) {
+	if !h.ensureOrgOwner(c, ctx, userID, orgID) {
 		return
 	}
 
@@ -230,7 +231,7 @@ func (h *SSOHandler) DeleteConnection(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if !h.ensureOrgAdmin(c, ctx, userID, orgID) {
+	if !h.ensureOrgOwner(c, ctx, userID, orgID) {
 		return
 	}
 	conn, err := h.ssoService.GetConnection(ctx, connID)
@@ -262,7 +263,7 @@ func (h *SSOHandler) ActivateConnection(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if !h.ensureOrgAdmin(c, ctx, userID, orgID) {
+	if !h.ensureOrgOwner(c, ctx, userID, orgID) {
 		return
 	}
 
@@ -298,7 +299,7 @@ func (h *SSOHandler) VerifyDomain(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if !h.ensureOrgAdmin(c, ctx, userID, orgID) {
+	if !h.ensureOrgOwner(c, ctx, userID, orgID) {
 		return
 	}
 	existing, err := h.ssoService.GetConnection(ctx, connID)
@@ -552,6 +553,20 @@ func (h *SSOHandler) ensureOrgAdmin(c *gin.Context, ctx context.Context, userID,
 	if !membership.IsAdmin() {
 		logger.Warnf("SSO org admin required: user_id=%d org_id=%d role=%s", userID, orgID, membership.Role)
 		c.JSON(http.StatusForbidden, gin.H{"error": "organization admin access required"})
+		return false
+	}
+	return true
+}
+
+// ensureOrgOwner limits identity-provider configuration to owners: whoever
+// controls the IdP can sign in as any member of the verified domain.
+func (h *SSOHandler) ensureOrgOwner(c *gin.Context, ctx context.Context, userID, orgID uint) bool {
+	if !h.ensureOrgAdmin(c, ctx, userID, orgID) {
+		return false
+	}
+	membership, err := h.orgService.GetMembership(ctx, userID, orgID)
+	if err != nil || membership == nil || !membership.IsOwner() {
+		c.JSON(http.StatusForbidden, gin.H{"error": "organization owner access required", "code": "ORG_OWNER_REQUIRED"})
 		return false
 	}
 	return true

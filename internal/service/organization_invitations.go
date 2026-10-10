@@ -173,6 +173,9 @@ func (s *organizationService) InviteMember(ctx context.Context, orgID, inviterUs
 				return invitationErr(409, InvitationCodeAlreadyMember, "this person is already a member of the organization")
 			}
 			if err := s.checkSingleOrganizationPolicy(txCtx, orgID, invitee.ID); err != nil {
+				if !errors.Is(err, ErrSingleOrganizationPolicy) {
+					return err
+				}
 				return invitationErr(409, InvitationCodeSingleOrgPolicy, err.Error())
 			}
 		}
@@ -429,6 +432,9 @@ func (s *organizationService) AcceptReceivedInvitation(ctx context.Context, invi
 			}
 		}
 		if err := s.checkSingleOrganizationPolicy(txCtx, orgID, userID); err != nil {
+			if !errors.Is(err, ErrSingleOrganizationPolicy) {
+				return err
+			}
 			return invitationErr(409, InvitationCodeSingleOrgPolicy, err.Error())
 		}
 

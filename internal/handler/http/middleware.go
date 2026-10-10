@@ -46,7 +46,12 @@ func AuthMiddleware(authService service.AuthService) gin.HandlerFunc {
 		c.Set(constants.ContextKeySessionID, claims.SessionUUID)
 
 		// Enforce mandatory org-level 2FA setup for authenticated APIs.
-		// Allow only setup/status/disable endpoints and signout until setup is complete.
+		// Setup/status/disable endpoints and signout always stay reachable.
+		path := c.Request.URL.Path
+		if strings.HasPrefix(path, "/api/users/me/2fa/") || path == "/api/signout" {
+			c.Next()
+			return
+		}
 		req, err := authService.GetMandatoryTwoFactorSetupRequirement(c.Request.Context(), claims.UserID)
 		if err != nil {
 			// Fail closed: without the requirement we cannot tell whether the
@@ -56,16 +61,12 @@ func AuthMiddleware(authService service.AuthService) gin.HandlerFunc {
 			return
 		}
 		if req != nil {
-			path := c.Request.URL.Path
-			allowedPath := strings.HasPrefix(path, "/api/users/me/2fa/") || path == "/api/signout"
-			if !allowedPath {
-				c.JSON(http.StatusForbidden, gin.H{
-					"error":                    "two_factor_setup_required",
-					"require_two_factor_setup": req,
-				})
-				c.Abort()
-				return
-			}
+			c.JSON(http.StatusForbidden, gin.H{
+				"error":                    "two_factor_setup_required",
+				"require_two_factor_setup": req,
+			})
+			c.Abort()
+			return
 		}
 
 		c.Next()

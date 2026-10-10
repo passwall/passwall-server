@@ -545,7 +545,7 @@ func samlResponseXML(o samlFixtureOpts) string {
 			o.email,
 		)
 	}
-	return fmt.Sprintf(`<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_response1" Version="2.0" IssueInstant="%s" Destination="%s"><saml:Issuer>%s</saml:Issuer><samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status><saml:Assertion ID="_assertion1" Version="2.0" IssueInstant="%s"><saml:Issuer>%s</saml:Issuer><saml:Subject><saml:NameID>%s</saml:NameID><saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer"><saml:SubjectConfirmationData Recipient="%s" NotOnOrAfter="%s"/></saml:SubjectConfirmation></saml:Subject><saml:Conditions NotBefore="%s" NotOnOrAfter="%s"><saml:AudienceRestriction><saml:Audience>%s</saml:Audience></saml:AudienceRestriction></saml:Conditions>%s</saml:Assertion></samlp:Response>`,
+	return fmt.Sprintf(`<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_response1" Version="2.0" IssueInstant="%s" Destination="%s"><saml:Issuer>%s</saml:Issuer><samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status><saml:Assertion ID="_assertion1" Version="2.0" IssueInstant="%s"><saml:Issuer>%s</saml:Issuer><saml:Subject><saml:NameID>%s</saml:NameID><saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer"><saml:SubjectConfirmationData InResponseTo="_req-valid" Recipient="%s" NotOnOrAfter="%s"/></saml:SubjectConfirmation></saml:Subject><saml:Conditions NotBefore="%s" NotOnOrAfter="%s"><saml:AudienceRestriction><saml:Audience>%s</saml:Audience></saml:AudienceRestriction></saml:Conditions>%s</saml:Assertion></samlp:Response>`,
 		now, o.destination, o.issuer,
 		now, o.issuer, o.email,
 		o.recipient, o.subjNotOnOrAfter.Format(time.RFC3339),
@@ -604,6 +604,7 @@ func newSignedSAMLEnv(t *testing.T) (*ssoService, *fakeSSOStateRepo, *rsa.Privat
 		State:          "valid-state",
 		ConnectionID:   testConnID,
 		OrganizationID: testOrgID,
+		SAMLRequestID:  "_req-valid",
 		ExpiresAt:      time.Now().Add(10 * time.Minute),
 	}
 	userRepo := newFakeUserRepo()
@@ -1503,4 +1504,14 @@ func newExchangeEnv(t *testing.T, authSvc *fakeAuthService) (*ssoService, string
 	result, err := svc.completeSSOLogin(context.Background(), conn, testLoginState(), "alice@acme.com")
 	require.NoError(t, err)
 	return svc, result.Code
+}
+
+func TestHandleSAMLCallback_RejectsResponseForAnotherRequest(t *testing.T) {
+	t.Parallel()
+	svc, stateRepo, key, cert := newSignedSAMLEnv(t)
+	// A captured response replayed against a fresh sign-in request.
+	stateRepo.states["valid-state"].SAMLRequestID = "_req-other"
+	signed := signResponseRoot(t, key, cert, samlResponseXML(defaultFixtureOpts()))
+	_, err := svc.HandleSAMLCallback(context.Background(), "valid-state", signed)
+	assert.ErrorIs(t, err, ErrSSOInvalidSAMLResponse)
 }

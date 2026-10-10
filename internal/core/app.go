@@ -407,6 +407,7 @@ func (a *App) Run(ctx context.Context) error {
 		AllowLocalhostRedirect: !config.IsProduction(a.config.Server.Env),
 		Entitlements:           entitlementService,
 		JoinPolicies:           organizationService,
+		Members:                organizationService,
 	})
 
 	// SCIM service
@@ -426,7 +427,7 @@ func (a *App) Run(ctx context.Context) error {
 	userPreferencesHandler := httpHandler.NewUserPreferencesHandler(preferencesService)
 	invitationHandler := httpHandler.NewInvitationHandler(invitationService, userService, organizationService, userActivityService)
 
-	itemShareHandler := httpHandler.NewItemShareHandler(itemShareService)
+	itemShareHandler := httpHandler.NewItemShareHandler(itemShareService, policyFirewallService)
 	excludedDomainHandler := httpHandler.NewExcludedDomainHandler(excludedDomainService)
 	compatTelemetryHandler := httpHandler.NewCompatTelemetryHandler(compatTelemetryService)
 

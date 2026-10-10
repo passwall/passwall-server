@@ -84,6 +84,10 @@ func NewOrganizationService(
 // plan, billing cycle, or seat count the plan catalog cannot satisfy.
 var ErrInvalidOrganizationPlan = errors.New("invalid organization plan")
 
+// ErrSingleOrganizationPolicy marks a membership blocked by the
+// single_organization policy (other errors are lookups failing).
+var ErrSingleOrganizationPolicy = errors.New("single organization policy")
+
 const (
 	defaultTeamName       = "All Members"
 	defaultTeamDesc       = "System default team (cannot be deleted)"
@@ -190,6 +194,9 @@ func (s *organizationService) Create(ctx context.Context, userID uint, req *doma
 	creator, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, repository.ErrForbidden
+	}
+	if err := s.checkCreateAllowedBySingleOrgPolicy(ctx, userID); err != nil {
+		return nil, err
 	}
 	creatorEmail := creator.Email
 	creatorName := creator.Name
@@ -815,6 +822,38 @@ func isSupportedOrgRole(role domain.OrganizationRole) bool {
 	}
 }
 
+// checkCreateAllowedBySingleOrgPolicy stops members of an organization that
+// enforces single_organization from creating another shared organization.
+// Owners and admins of the enforcing organization are exempt.
+func (s *organizationService) checkCreateAllowedBySingleOrgPolicy(ctx context.Context, userID uint) error {
+	if s.policyRepo == nil {
+		return nil
+	}
+	memberships, err := s.orgUserRepo.ListByUser(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to check existing memberships: %w", err)
+	}
+	for _, m := range memberships {
+		if m.Status != domain.OrgUserStatusAccepted && m.Status != domain.OrgUserStatusConfirmed {
+			continue
+		}
+		if (m.Organization != nil && m.Organization.IsPersonal) || m.IsAdmin() {
+			continue
+		}
+		policy, err := s.policyRepo.GetByOrgAndType(ctx, m.OrganizationID, domain.PolicySingleOrganization)
+		if errors.Is(err, repository.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("failed to check single organization policy: %w", err)
+		}
+		if policy != nil && policy.Enabled {
+			return fmt.Errorf("%w: your organization does not allow joining or creating other organizations", ErrSingleOrganizationPolicy)
+		}
+	}
+	return nil
+}
+
 // checkSingleOrganizationPolicy verifies that neither the target organization nor the
 // user's existing organizations enforce the Single Organization policy.
 func (s *organizationService) checkSingleOrganizationPolicy(ctx context.Context, targetOrgID uint, userID uint) error {
@@ -863,7 +902,7 @@ func (s *organizationService) checkSingleOrganizationPolicy(ctx context.Context,
 		return err
 	}
 	if targetEnforces {
-		return fmt.Errorf("organization policy requires single organization membership; user belongs to another organization")
+		return fmt.Errorf("%w: organization requires single organization membership; user belongs to another organization", ErrSingleOrganizationPolicy)
 	}
 	for _, orgID := range others {
 		enforces, err := policyEnabled(orgID)
@@ -871,7 +910,7 @@ func (s *organizationService) checkSingleOrganizationPolicy(ctx context.Context,
 			return err
 		}
 		if enforces {
-			return fmt.Errorf("user's existing organization enforces single organization membership")
+			return fmt.Errorf("%w: user's existing organization enforces single organization membership", ErrSingleOrganizationPolicy)
 		}
 	}
 	return nil

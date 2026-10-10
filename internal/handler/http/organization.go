@@ -70,6 +70,10 @@ func (h *OrganizationHandler) Create(c *gin.Context) {
 
 	org, err := h.service.Create(ctx, userID, &req)
 	if err != nil {
+		if errors.Is(err, service.ErrSingleOrganizationPolicy) {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error(), "code": "SINGLE_ORGANIZATION_POLICY"})
+			return
+		}
 		if errors.Is(err, service.ErrInvalidOrganizationPlan) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid plan selection", "details": err.Error()})
 			return
@@ -462,6 +466,10 @@ func (h *OrganizationHandler) ConfirmProvisionedMember(c *gin.Context) {
 		}
 		if errors.Is(err, repository.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+			return
+		}
+		if errors.Is(err, service.ErrSingleOrganizationPolicy) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error(), "code": "SINGLE_ORGANIZATION_POLICY"})
 			return
 		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to confirm provisioned member", "details": err.Error()})

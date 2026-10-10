@@ -75,8 +75,12 @@ func (h *SendHandler) Create(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid send data"})
 			return
 		}
+		if errors.Is(err, service.ErrSendDisabledByPolicy) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Send is disabled by your organization's policy", "code": "POLICY_SEND_DISABLED"})
+			return
+		}
 		if errors.Is(err, repository.ErrForbidden) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "send creation is disabled by organization policy"})
+			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create send"})
@@ -163,6 +167,10 @@ func (h *SendHandler) Update(c *gin.Context) {
 	})
 	if err != nil {
 		if respondEntitlementError(c, err) {
+			return
+		}
+		if errors.Is(err, service.ErrSendDisabledByPolicy) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Send is disabled by your organization's policy", "code": "POLICY_SEND_DISABLED"})
 			return
 		}
 		if errors.Is(err, repository.ErrForbidden) {

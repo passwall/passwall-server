@@ -260,7 +260,11 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 
 	// Check failed login policy: is this account blocked from this IP by any
 	// of the user's organizations?
-	userOrgIDs := s.getUserOrgIDs(ctx, user.ID)
+	userOrgIDs, err := s.getUserOrgIDs(ctx, user.ID)
+	if err != nil {
+		// Fail closed: without memberships the lockout policy cannot be checked.
+		return nil, fmt.Errorf("authentication failed: %w", err)
+	}
 	if s.failedLoginTracker != nil && creds.ClientIP != "" {
 		for _, orgID := range userOrgIDs {
 			if blocked, msg := s.failedLoginTracker.IsBlocked(ctx, orgID, user.ID, creds.ClientIP); blocked {
@@ -1147,10 +1151,10 @@ func (s *authService) GetMandatoryTwoFactorSetupRequirement(ctx context.Context,
 }
 
 // getUserOrgIDs returns the IDs of organizations a user actively belongs to.
-func (s *authService) getUserOrgIDs(ctx context.Context, userID uint) []uint {
+func (s *authService) getUserOrgIDs(ctx context.Context, userID uint) ([]uint, error) {
 	memberships, err := s.orgUserRepo.ListByUser(ctx, userID)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	var ids []uint
 	for _, m := range memberships {
@@ -1158,7 +1162,7 @@ func (s *authService) getUserOrgIDs(ctx context.Context, userID uint) []uint {
 			ids = append(ids, m.OrganizationID)
 		}
 	}
-	return ids
+	return ids, nil
 }
 
 func (s *authService) RequestRecoveryDelete(ctx context.Context, email string) error {

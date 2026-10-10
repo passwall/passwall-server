@@ -123,6 +123,9 @@ type OrganizationService interface {
 	// CheckJoinPolicies reports whether policies (single organization) allow
 	// userID to join orgID. Used by SSO/SCIM provisioning.
 	CheckJoinPolicies(ctx context.Context, orgID, userID uint) error
+	// ProvisionMember adds a provisioned (key-less) member under the
+	// organization lock, checking seats and join policies.
+	ProvisionMember(ctx context.Context, orgID, userID uint) (*domain.OrganizationUser, error)
 	Create(ctx context.Context, userID uint, req *domain.CreateOrganizationRequest) (*domain.Organization, error)
 	GetByID(ctx context.Context, id uint, userID uint) (*domain.Organization, error)
 	List(ctx context.Context, userID uint) ([]*domain.Organization, error)

@@ -124,3 +124,18 @@ func TestGetEffectivePoliciesMergesAndExemptsAdmins(t *testing.T) {
 	require.Len(t, resp.Policies[0].Organizations, 1)
 	require.Equal(t, f.org.ID, resp.Policies[0].Organizations[0].ID)
 }
+
+func TestSingleOrganizationBlocksCreatingAnotherOrg(t *testing.T) {
+	f := newAccessFixture(t)
+	require.NoError(t, f.db.AutoMigrate(&domain.OrganizationPolicy{}))
+	f.svc.policyRepo = gormrepo.NewOrganizationPolicyRepository(f.db)
+	ctx := context.Background()
+
+	member, _ := f.member(t, f.org, "creator@example.com", domain.OrgRoleMember, domain.OrgUserStatusConfirmed)
+	admin, _ := f.member(t, f.org, "creatoradmin@example.com", domain.OrgRoleAdmin, domain.OrgUserStatusConfirmed)
+	require.NoError(t, f.svc.checkCreateAllowedBySingleOrgPolicy(ctx, member.ID))
+
+	enablePolicy(t, f, f.org.ID, domain.PolicySingleOrganization)
+	require.ErrorIs(t, f.svc.checkCreateAllowedBySingleOrgPolicy(ctx, member.ID), ErrSingleOrganizationPolicy)
+	require.NoError(t, f.svc.checkCreateAllowedBySingleOrgPolicy(ctx, admin.ID), "owners and admins are exempt")
+}
