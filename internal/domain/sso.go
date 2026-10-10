@@ -99,8 +99,15 @@ type SSOConnection struct {
 	Protocol       SSOProtocol `json:"protocol" gorm:"type:varchar(10);not null"`
 
 	// Display
-	Name   string `json:"name" gorm:"type:varchar(255);not null"`
-	Domain string `json:"domain" gorm:"type:varchar(255);not null;uniqueIndex"`
+	Name string `json:"name" gorm:"type:varchar(255);not null"`
+	// Domain is unique only among verified connections (partial index in
+	// migration 00009), so an unverified claim cannot block the real owner.
+	Domain string `json:"domain" gorm:"type:varchar(255);not null;index"`
+
+	// DNS TXT domain ownership proof. Login and provisioning require a
+	// verified domain.
+	DomainVerificationToken string     `json:"-" gorm:"type:varchar(64)"`
+	DomainVerifiedAt        *time.Time `json:"domain_verified_at,omitempty"`
 
 	// Protocol-specific configuration (stored as JSONB)
 	SAMLConfig *SAMLConfig `json:"saml_config,omitempty" gorm:"type:jsonb"`
@@ -112,11 +119,12 @@ type SSOConnection struct {
 	SPMetadata string `json:"-" gorm:"type:text"`
 
 	// Behaviour
-	AutoProvision    bool                `json:"auto_provision" gorm:"default:true"`
-	DefaultRole      OrganizationRole    `json:"default_role" gorm:"type:varchar(20);default:'member'"`
-	JITProvisioning  bool                `json:"jit_provisioning" gorm:"default:true"`
-	KeyEscrowEnabled bool                `json:"key_escrow_enabled" gorm:"default:false"`
-	Status           SSOConnectionStatus `json:"status" gorm:"type:varchar(20);not null;default:'draft'"`
+	// No GORM defaults on the booleans: with default:true GORM omits a false
+	// value on insert and the database default silently turns it back on.
+	AutoProvision   bool                `json:"auto_provision" gorm:"not null"`
+	DefaultRole     OrganizationRole    `json:"default_role" gorm:"type:varchar(20);default:'member'"`
+	JITProvisioning bool                `json:"jit_provisioning" gorm:"not null"`
+	Status          SSOConnectionStatus `json:"status" gorm:"type:varchar(20);not null;default:'draft'"`
 
 	// Associations
 	Organization *Organization `json:"organization,omitempty" gorm:"foreignKey:OrganizationID"`
@@ -142,18 +150,53 @@ func (s *SSOConnection) IsActive() bool {
 	return s.Status == SSOStatusActive
 }
 
+// IsDomainVerified reports whether the organization proved it owns Domain.
+func (s *SSOConnection) IsDomainVerified() bool {
+	return s.DomainVerifiedAt != nil
+}
+
+// ProvisionsMembers reports whether SSO sign-in may add new members.
+func (s *SSOConnection) ProvisionsMembers() bool {
+	return s.JITProvisioning || s.AutoProvision
+}
+
+// SSODomainVerificationPrefix starts the TXT record value.
+const SSODomainVerificationPrefix = "passwall-verification="
+
+// DomainVerificationRecordName is the DNS name that must hold the TXT record.
+func (s *SSOConnection) DomainVerificationRecordName() string {
+	return "_passwall-verification." + s.Domain
+}
+
+// DomainVerificationRecordValue is the TXT record value proving ownership.
+func (s *SSOConnection) DomainVerificationRecordValue() string {
+	if s.DomainVerificationToken == "" {
+		return ""
+	}
+	return SSODomainVerificationPrefix + s.DomainVerificationToken
+}
+
+// SSODefaultRoleAllowed reports whether a role may be given automatically to
+// members who join through SSO. Elevated roles must be granted by an admin.
+func SSODefaultRoleAllowed(role OrganizationRole) bool {
+	return NormalizeOrgRole(role) == OrgRoleMember
+}
+
 // SSOState stores transient SSO authentication state (CSRF protection)
 type SSOState struct {
 	ID        uint      `gorm:"primary_key" json:"id"`
 	CreatedAt time.Time `json:"created_at"`
 
-	State          string    `json:"state" gorm:"type:varchar(512);not null;uniqueIndex"`
-	ConnectionID   uint      `json:"connection_id" gorm:"not null;index;constraint:OnDelete:CASCADE"`
-	OrganizationID uint      `json:"organization_id" gorm:"not null;index"`
-	RedirectURL    string    `json:"redirect_url" gorm:"type:varchar(2048)"`
-	CodeVerifier   string    `json:"-" gorm:"type:varchar(512)"`
-	Nonce          string    `json:"-" gorm:"type:varchar(512)"`
-	ExpiresAt      time.Time `json:"expires_at" gorm:"not null;index"`
+	State          string `json:"state" gorm:"type:varchar(512);not null;uniqueIndex"`
+	ConnectionID   uint   `json:"connection_id" gorm:"not null;index;constraint:OnDelete:CASCADE"`
+	OrganizationID uint   `json:"organization_id" gorm:"not null;index"`
+	RedirectURL    string `json:"redirect_url" gorm:"type:varchar(2048)"`
+	CodeVerifier   string `json:"-" gorm:"type:varchar(512)"`
+	Nonce          string `json:"-" gorm:"type:varchar(512)"`
+	// ClientCodeChallenge binds the login code to the browser that started
+	// the flow (S256 of a verifier the client keeps).
+	ClientCodeChallenge string    `json:"-" gorm:"type:varchar(128)"`
+	ExpiresAt           time.Time `json:"expires_at" gorm:"not null;index"`
 }
 
 // TableName specifies the table name
@@ -164,6 +207,25 @@ func (SSOState) TableName() string {
 // IsExpired checks if the state has expired
 func (s *SSOState) IsExpired() bool {
 	return time.Now().After(s.ExpiresAt)
+}
+
+// SSOLoginCode is a single-use code handed to the client after a successful
+// IdP callback. The client exchanges it (with its PKCE verifier) for a
+// session, so no token travels in a URL.
+type SSOLoginCode struct {
+	ID                  uint      `gorm:"primary_key" json:"id"`
+	CreatedAt           time.Time `json:"created_at"`
+	CodeHash            string    `json:"-" gorm:"type:varchar(64);not null;uniqueIndex"`
+	UserID              uint      `json:"user_id" gorm:"not null"`
+	ConnectionID        uint      `json:"connection_id" gorm:"not null;index;constraint:OnDelete:CASCADE"`
+	OrganizationID      uint      `json:"organization_id" gorm:"not null"`
+	ClientCodeChallenge string    `json:"-" gorm:"type:varchar(128);not null"`
+	ExpiresAt           time.Time `json:"expires_at" gorm:"not null;index"`
+}
+
+// TableName specifies the table name
+func (SSOLoginCode) TableName() string {
+	return "sso_login_codes"
 }
 
 // --- DTOs ---
@@ -181,14 +243,25 @@ type SSOConnectionDTO struct {
 	AutoProvision    bool                `json:"auto_provision"`
 	DefaultRole      OrganizationRole    `json:"default_role"`
 	JITProvisioning  bool                `json:"jit_provisioning"`
-	KeyEscrowEnabled bool                `json:"key_escrow_enabled"`
+	KeyEscrowEnabled bool                `json:"key_escrow_enabled"` // always false; key escrow was removed
 	Status           SSOConnectionStatus `json:"status"`
 	CreatedAt        time.Time           `json:"created_at"`
 	UpdatedAt        time.Time           `json:"updated_at"`
 
+	DomainVerified     bool                      `json:"domain_verified"`
+	DomainVerifiedAt   *time.Time                `json:"domain_verified_at,omitempty"`
+	DomainVerification *SSODomainVerificationDTO `json:"domain_verification,omitempty"`
+
 	// Protocol-specific (admin-visible only)
 	SAMLConfig *SAMLConfigDTO `json:"saml_config,omitempty"`
 	OIDCConfig *OIDCConfigDTO `json:"oidc_config,omitempty"`
+}
+
+// SSODomainVerificationDTO tells the admin which DNS record to publish.
+type SSODomainVerificationDTO struct {
+	Type  string `json:"type"`
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }
 
 // SAMLConfigDTO strips the certificate body for list views
@@ -231,10 +304,18 @@ func ToSSOConnectionDTO(conn *SSOConnection) *SSOConnectionDTO {
 		AutoProvision:    conn.AutoProvision,
 		DefaultRole:      conn.DefaultRole,
 		JITProvisioning:  conn.JITProvisioning,
-		KeyEscrowEnabled: conn.KeyEscrowEnabled,
 		Status:           conn.Status,
 		CreatedAt:        conn.CreatedAt,
 		UpdatedAt:        conn.UpdatedAt,
+		DomainVerified:   conn.IsDomainVerified(),
+		DomainVerifiedAt: conn.DomainVerifiedAt,
+	}
+	if value := conn.DomainVerificationRecordValue(); value != "" {
+		dto.DomainVerification = &SSODomainVerificationDTO{
+			Type:  "TXT",
+			Name:  conn.DomainVerificationRecordName(),
+			Value: value,
+		}
 	}
 
 	if conn.SAMLConfig != nil {
@@ -280,39 +361,64 @@ type CreateSSOConnectionRequest struct {
 
 // UpdateSSOConnectionRequest for updating an SSO connection
 type UpdateSSOConnectionRequest struct {
-	Name             *string              `json:"name,omitempty" binding:"omitempty,max=255"`
-	Domain           *string              `json:"domain,omitempty" binding:"omitempty,max=255"`
-	SAMLConfig       *SAMLConfig          `json:"saml_config,omitempty"`
-	OIDCConfig       *OIDCConfig          `json:"oidc_config,omitempty"`
-	AutoProvision    *bool                `json:"auto_provision,omitempty"`
-	DefaultRole      *OrganizationRole    `json:"default_role,omitempty"`
-	JITProvisioning  *bool                `json:"jit_provisioning,omitempty"`
-	KeyEscrowEnabled *bool                `json:"key_escrow_enabled,omitempty"`
-	Status           *SSOConnectionStatus `json:"status,omitempty" binding:"omitempty,oneof=draft active inactive"`
+	Name            *string           `json:"name,omitempty" binding:"omitempty,max=255"`
+	Domain          *string           `json:"domain,omitempty" binding:"omitempty,max=255"`
+	SAMLConfig      *SAMLConfig       `json:"saml_config,omitempty"`
+	OIDCConfig      *OIDCConfig       `json:"oidc_config,omitempty"`
+	AutoProvision   *bool             `json:"auto_provision,omitempty"`
+	DefaultRole     *OrganizationRole `json:"default_role,omitempty"`
+	JITProvisioning *bool             `json:"jit_provisioning,omitempty"`
+	// Activation goes through the activate endpoint, which validates config
+	// and domain ownership.
+	Status *SSOConnectionStatus `json:"status,omitempty" binding:"omitempty,oneof=draft inactive"`
 }
 
 // SSOInitiateRequest for starting SSO login
 type SSOInitiateRequest struct {
 	Domain      string `json:"domain" binding:"required"`
 	RedirectURL string `json:"redirect_url,omitempty"`
+	// CodeChallenge is base64url(SHA-256(code_verifier)); the verifier is
+	// required to exchange the login code.
+	CodeChallenge string `json:"code_challenge" binding:"required,min=43,max=128"`
 }
 
-// SSOCallbackResult returned after successful SSO authentication
+// SSOExchangeRequest trades a single-use login code for a session.
+type SSOExchangeRequest struct {
+	Code         string `json:"code" binding:"required,max=128"`
+	CodeVerifier string `json:"code_verifier" binding:"required,min=43,max=128"`
+	App          string `json:"app,omitempty" binding:"omitempty,max=32"`
+	DeviceID     string `json:"device_id,omitempty" binding:"omitempty,max=64"`
+}
+
+// SSOCallbackResult is the outcome of a validated IdP callback.
 type SSOCallbackResult struct {
-	User             *User         `json:"user"`
-	AuthUser         *UserAuthDTO  `json:"auth_user,omitempty"`
-	Organization     *Organization `json:"organization"`
-	IsNewUser        bool          `json:"is_new_user"`
-	AccessToken      string        `json:"access_token"`
-	RefreshToken     string        `json:"refresh_token"`
-	ProtectedUserKey string        `json:"protected_user_key,omitempty"`
-	KdfConfig        *KdfConfig    `json:"kdf_config,omitempty"`
-	RedirectURL      string        `json:"redirect_url,omitempty"`
-
-	// Key Escrow: when enabled, the server returns the raw Org Key
-	// so the client can unlock org vault items without master password.
-	// Personal vault remains locked (requires master password).
-	OrgKey        string `json:"org_key,omitempty"`
-	OrgID         uint   `json:"org_id,omitempty"`
-	KeyEscrowUsed bool   `json:"key_escrow_used"`
+	Code        string `json:"-"`
+	RedirectURL string `json:"-"`
+	UserID      uint   `json:"-"`
+	OrgID       uint   `json:"-"`
+	// Provisioned is true when this sign-in created the membership (JIT).
+	Provisioned bool `json:"-"`
 }
+
+// SSOOrganizationDTO identifies the organization the user signed in through.
+type SSOOrganizationDTO struct {
+	ID       uint   `json:"id"`
+	PublicID string `json:"public_id"`
+	Name     string `json:"name"`
+}
+
+// SSOExchangeResponse is a regular sign-in response plus the organization.
+// When the user has 2FA, only two_factor_required/two_factor_token are set.
+type SSOExchangeResponse struct {
+	*AuthResponse
+	Organization *SSOOrganizationDTO `json:"organization,omitempty"`
+}
+
+// SSO activity types (organization audit log).
+const (
+	ActivityTypeSSOSignIn            ActivityType = "sso_signin"
+	ActivityTypeSSOMemberProvisioned ActivityType = "sso_member_provisioned"
+	ActivityTypeSSOConnectionChanged ActivityType = "sso_connection_changed"
+	ActivityTypeSSODomainVerified    ActivityType = "sso_domain_verified"
+	ActivityTypeSCIMMemberChanged    ActivityType = "scim_member_changed"
+)

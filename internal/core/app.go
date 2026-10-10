@@ -391,28 +391,30 @@ func (a *App) Run(ctx context.Context) error {
 	ssoStateRepo := gormrepo.NewSSOStateRepository(a.db.DB())
 	scimTokenRepo := gormrepo.NewSCIMTokenRepository(a.db.DB())
 
-	// Key Escrow repos and service
-	keyEscrowRepo := gormrepo.NewKeyEscrowRepository(a.db.DB())
-	orgEscrowKeyRepo := gormrepo.NewOrgEscrowKeyRepository(a.db.DB())
-	keyEscrowService := service.NewKeyEscrowService(
-		keyEscrowRepo, orgEscrowKeyRepo, ssoConnRepo,
-		a.config.Server.EscrowMasterKey, serviceLogger,
-	)
-
 	// SSO service
 	serverBaseURL := a.config.Server.Domain
-	ssoService := service.NewSSOService(
-		ssoConnRepo, ssoStateRepo, userRepo, orgUserRepo, orgRepo,
-		authService, keyEscrowService, serviceLogger, serverBaseURL,
-		entitlementService,
-	)
+	ssoService := service.NewSSOService(service.SSOServiceDeps{
+		ConnRepo:               ssoConnRepo,
+		StateRepo:              ssoStateRepo,
+		LoginCodeRepo:          gormrepo.NewSSOLoginCodeRepository(a.db.DB()),
+		UserRepo:               userRepo,
+		OrgUserRepo:            orgUserRepo,
+		OrgRepo:                orgRepo,
+		AuthService:            authService,
+		Logger:                 serviceLogger,
+		BaseURL:                serverBaseURL,
+		RedirectOrigins:        append([]string{a.config.Server.FrontendURL}, a.config.Server.AllowedOrigins...),
+		AllowLocalhostRedirect: !config.IsProduction(a.config.Server.Env),
+		Entitlements:           entitlementService,
+		JoinPolicies:           organizationService,
+	})
 
 	// SCIM service
-	scimService := service.NewSCIMService(
+	scimService := service.WithProvisioningGuards(service.NewSCIMService(
 		scimTokenRepo, userRepo, orgUserRepo, teamRepo, teamUserRepo,
 		serviceLogger, serverBaseURL,
 		entitlementService,
-	)
+	), ssoConnRepo, organizationService)
 
 	// Initialize handlers
 	activityHandler := httpHandler.NewActivityHandler(userActivityService)
@@ -475,10 +477,9 @@ func (a *App) Run(ctx context.Context) error {
 	organizationPolicyHandler := httpHandler.NewOrganizationPolicyHandler(organizationPolicyService, service.NewActivityLogger(userActivityService))
 	organizationSettingsHandler := httpHandler.NewOrganizationSettingsHandler(organizationSettingsService)
 
-	// SSO, SCIM & Key Escrow handlers
-	ssoHandler := httpHandler.NewSSOHandler(ssoService, organizationService)
+	// SSO & SCIM handlers
+	ssoHandler := httpHandler.NewSSOHandler(ssoService, organizationService, service.NewActivityLogger(userActivityService), a.config.Server.FrontendURL)
 	scimHandler := httpHandler.NewSCIMHandler(scimService, organizationService)
-	keyEscrowHandler := httpHandler.NewKeyEscrowHandler(keyEscrowService, organizationService)
 
 	// Breach monitor handler
 	breachMonitorHandler := httpHandler.NewBreachMonitorHandler(breachMonitorService)
@@ -536,7 +537,6 @@ func (a *App) Run(ctx context.Context) error {
 		ssoHandler,
 		scimHandler,
 		scimService,
-		keyEscrowHandler,
 		breachMonitorHandler,
 		compromisedCheckHandler,
 		compatTelemetryHandler,

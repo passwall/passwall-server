@@ -45,7 +45,17 @@ func newFakeSSOConnRepo() *fakeSSOConnRepo {
 	}
 }
 
+// add stores a connection as domain-verified (the normal state for a usable
+// connection); use addUnverified for the other case.
 func (f *fakeSSOConnRepo) add(conn *domain.SSOConnection) {
+	if conn.DomainVerifiedAt == nil {
+		verifiedAt := time.Now()
+		conn.DomainVerifiedAt = &verifiedAt
+	}
+	f.addUnverified(conn)
+}
+
+func (f *fakeSSOConnRepo) addUnverified(conn *domain.SSOConnection) {
 	f.conns[conn.ID] = conn
 	f.byDomain[conn.Domain] = conn
 }
@@ -65,22 +75,21 @@ func (f *fakeSSOConnRepo) GetByID(_ context.Context, id uint) (*domain.SSOConnec
 func (f *fakeSSOConnRepo) GetByUUID(_ context.Context, uuid string) (*domain.SSOConnection, error) {
 	return nil, repository.ErrNotFound
 }
-func (f *fakeSSOConnRepo) GetAnyByDomain(_ context.Context, d string) (*domain.SSOConnection, error) {
-	c, ok := f.byDomain[d]
-	if !ok {
-		return nil, repository.ErrNotFound
+func (f *fakeSSOConnRepo) GetVerifiedByDomain(_ context.Context, d string) (*domain.SSOConnection, error) {
+	for _, c := range f.conns {
+		if c.Domain == d && c.IsDomainVerified() {
+			return c, nil
+		}
 	}
-	return c, nil
+	return nil, repository.ErrNotFound
 }
 func (f *fakeSSOConnRepo) GetByDomain(_ context.Context, d string) (*domain.SSOConnection, error) {
-	c, ok := f.byDomain[d]
-	if !ok {
-		return nil, repository.ErrNotFound
+	for _, c := range f.conns {
+		if c.Domain == d && c.IsActive() && c.IsDomainVerified() {
+			return c, nil
+		}
 	}
-	if !c.IsActive() {
-		return nil, repository.ErrNotFound
-	}
-	return c, nil
+	return nil, repository.ErrNotFound
 }
 func (f *fakeSSOConnRepo) GetByOrganizationID(_ context.Context, orgID uint) (*domain.SSOConnection, error) {
 	for _, c := range f.conns {
@@ -133,6 +142,17 @@ func (f *fakeSSOStateRepo) GetByState(_ context.Context, state string) (*domain.
 	}
 	return s, nil
 }
+func (f *fakeSSOStateRepo) Consume(_ context.Context, state string) (*domain.SSOState, error) {
+	s, ok := f.states[state]
+	if !ok {
+		return nil, repository.ErrNotFound
+	}
+	delete(f.states, state)
+	if s.IsExpired() {
+		return nil, repository.ErrNotFound
+	}
+	return s, nil
+}
 func (f *fakeSSOStateRepo) Delete(_ context.Context, id uint) error {
 	for k, v := range f.states {
 		if v.ID == id {
@@ -142,6 +162,32 @@ func (f *fakeSSOStateRepo) Delete(_ context.Context, id uint) error {
 	return nil
 }
 func (f *fakeSSOStateRepo) DeleteExpired(_ context.Context) (int64, error) { return 0, nil }
+
+// fakeSSOLoginCodeRepo implements repository.SSOLoginCodeRepository
+type fakeSSOLoginCodeRepo struct {
+	codes map[string]*domain.SSOLoginCode
+}
+
+func newFakeSSOLoginCodeRepo() *fakeSSOLoginCodeRepo {
+	return &fakeSSOLoginCodeRepo{codes: make(map[string]*domain.SSOLoginCode)}
+}
+
+func (f *fakeSSOLoginCodeRepo) Create(_ context.Context, code *domain.SSOLoginCode) error {
+	f.codes[code.CodeHash] = code
+	return nil
+}
+func (f *fakeSSOLoginCodeRepo) Consume(_ context.Context, codeHash string) (*domain.SSOLoginCode, error) {
+	c, ok := f.codes[codeHash]
+	if !ok {
+		return nil, repository.ErrNotFound
+	}
+	delete(f.codes, codeHash)
+	if time.Now().After(c.ExpiresAt) {
+		return nil, repository.ErrNotFound
+	}
+	return c, nil
+}
+func (f *fakeSSOLoginCodeRepo) DeleteExpired(_ context.Context) (int64, error) { return 0, nil }
 
 // fakeUserRepo implements repository.UserRepository (minimal)
 type fakeUserRepo struct {
@@ -293,6 +339,7 @@ func (f *fakeOrgRepo) GetCountsByIDs(_ context.Context, _ []uint) (map[uint]repo
 // fakeAuthService implements AuthService (minimal)
 type fakeAuthService struct {
 	shouldFail bool
+	twoFactor  bool
 }
 
 func (f *fakeAuthService) SignUp(_ context.Context, _ *domain.SignUpRequest) (*domain.User, error) {
@@ -313,14 +360,17 @@ func (f *fakeAuthService) RefreshToken(_ context.Context, _ string) (*domain.Tok
 func (f *fakeAuthService) ValidateToken(_ context.Context, _ string) (*domain.TokenClaims, error) {
 	return nil, nil
 }
-func (f *fakeAuthService) IssueTokenForUser(_ context.Context, userID uint, _ string, _ string) (*domain.AuthResponse, error) {
+func (f *fakeAuthService) IssueSSOSession(_ context.Context, userID uint, _ string, _ string) (*domain.AuthResponse, error) {
 	if f.shouldFail {
 		return nil, errors.New("token issue failed")
+	}
+	if f.twoFactor {
+		return &domain.AuthResponse{TwoFactorRequired: true, TwoFactorToken: "test-2fa-token"}, nil
 	}
 	return &domain.AuthResponse{
 		AccessToken:  "test-access-token",
 		RefreshToken: "test-refresh-token",
-		User:         &domain.UserAuthDTO{},
+		User:         &domain.UserAuthDTO{ID: userID},
 	}, nil
 }
 func (f *fakeAuthService) SignOut(_ context.Context, _ string) error { return nil }
@@ -376,7 +426,7 @@ func (f *inactiveSSOConnRepo) GetByID(_ context.Context, id uint) (*domain.SSOCo
 func (f *inactiveSSOConnRepo) GetByUUID(_ context.Context, _ string) (*domain.SSOConnection, error) {
 	return nil, repository.ErrNotFound
 }
-func (f *inactiveSSOConnRepo) GetAnyByDomain(_ context.Context, _ string) (*domain.SSOConnection, error) {
+func (f *inactiveSSOConnRepo) GetVerifiedByDomain(_ context.Context, _ string) (*domain.SSOConnection, error) {
 	if f.conn != nil {
 		return f.conn, nil
 	}
@@ -433,14 +483,17 @@ func newTestSSOService(
 		authService = &fakeAuthService{}
 	}
 	return &ssoService{
-		connRepo:    connRepo,
-		stateRepo:   stateRepo,
-		userRepo:    userRepo,
-		orgUserRepo: orgUserRepo,
-		orgRepo:     orgRepo,
-		authService: authService,
-		logger:      noopLogger{},
-		baseURL:     testBaseURL,
+		connRepo:        connRepo,
+		stateRepo:       stateRepo,
+		codeRepo:        newFakeSSOLoginCodeRepo(),
+		userRepo:        userRepo,
+		orgUserRepo:     orgUserRepo,
+		orgRepo:         orgRepo,
+		authService:     authService,
+		logger:          noopLogger{},
+		baseURL:         testBaseURL,
+		redirectOrigins: []string{"https://vault.passwall.io"},
+		allowLocalhost:  true,
 	}
 }
 
@@ -554,7 +607,7 @@ func newSignedSAMLEnv(t *testing.T) (*ssoService, *fakeSSOStateRepo, *rsa.Privat
 		ExpiresAt:      time.Now().Add(10 * time.Minute),
 	}
 	userRepo := newFakeUserRepo()
-	userRepo.add(&domain.User{ID: testUserID, Email: "user@acme.com"})
+	userRepo.add(&domain.User{ID: testUserID, IsVerified: true, Email: "user@acme.com"})
 	orgUserRepo := newFakeOrgUserRepo()
 	orgUserRepo.add(&domain.OrganizationUser{
 		OrganizationID: testOrgID,
@@ -777,9 +830,9 @@ func TestHandleSAMLCallback_HappyPath_SignedResponse(t *testing.T) {
 	result, err := svc.HandleSAMLCallback(ctx, "valid-state", signed)
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.Equal(t, "test-access-token", result.AccessToken)
-	assert.Equal(t, testOrgID, result.Organization.ID)
-	assert.Equal(t, "user@acme.com", result.User.Email)
+	assert.NotEmpty(t, result.Code)
+	assert.Equal(t, testOrgID, result.OrgID)
+	assert.Equal(t, testUserID, result.UserID)
 }
 
 func TestHandleSAMLCallback_UnsignedResponseRejected(t *testing.T) {
@@ -933,7 +986,7 @@ func TestHandleSAMLCallback_XSWInjectedAssertion(t *testing.T) {
 		// If processing somehow succeeded, it must NOT have trusted the forged
 		// attacker assertion.
 		require.NotNil(t, result)
-		assert.Equal(t, "user@acme.com", result.User.Email,
+		assert.Equal(t, testUserID, result.UserID,
 			"forged assertion must never be trusted")
 	}
 }
@@ -961,15 +1014,14 @@ func TestCompleteSSOLogin_UserNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	conn := &domain.SSOConnection{ID: testConnID, OrganizationID: testOrgID}
-	_, err := svc.completeSSOLogin(ctx, conn, "unknown@acme.com")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "user does not exist")
+	_, err := svc.completeSSOLogin(ctx, conn, testLoginState(), "unknown@acme.com")
+	assert.ErrorIs(t, err, ErrSSOUserNotFound)
 }
 
 func TestCompleteSSOLogin_NotMemberNotProvisioning(t *testing.T) {
 	t.Parallel()
 	userRepo := newFakeUserRepo()
-	userRepo.add(&domain.User{ID: testUserID, Email: "alice@acme.com"})
+	userRepo.add(&domain.User{ID: testUserID, IsVerified: true, Email: "alice@acme.com"})
 	orgUserRepo := newFakeOrgUserRepo() // empty: no membership
 
 	svc := newTestSSOService(nil, nil, userRepo, orgUserRepo, nil, nil)
@@ -981,15 +1033,14 @@ func TestCompleteSSOLogin_NotMemberNotProvisioning(t *testing.T) {
 		JITProvisioning: false,
 		AutoProvision:   false,
 	}
-	_, err := svc.completeSSOLogin(ctx, conn, "alice@acme.com")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not a member")
+	_, err := svc.completeSSOLogin(ctx, conn, testLoginState(), "alice@acme.com")
+	assert.ErrorIs(t, err, ErrSSONotMember)
 }
 
 func TestCompleteSSOLogin_JITProvisioningCreatesNewMember(t *testing.T) {
 	t.Parallel()
 	userRepo := newFakeUserRepo()
-	userRepo.add(&domain.User{ID: testUserID, Email: "alice@acme.com"})
+	userRepo.add(&domain.User{ID: testUserID, IsVerified: true, Email: "alice@acme.com"})
 	orgUserRepo := newFakeOrgUserRepo() // no existing membership
 	orgRepo := newFakeOrgRepo()
 	orgRepo.add(&domain.Organization{ID: testOrgID, Name: "Acme Corp"})
@@ -1003,10 +1054,11 @@ func TestCompleteSSOLogin_JITProvisioningCreatesNewMember(t *testing.T) {
 		JITProvisioning: true,
 		DefaultRole:     domain.OrgRoleMember,
 	}
-	result, err := svc.completeSSOLogin(ctx, conn, "alice@acme.com")
+	result, err := svc.completeSSOLogin(ctx, conn, testLoginState(), "alice@acme.com")
 	require.NoError(t, err)
-	assert.Equal(t, "test-access-token", result.AccessToken)
-	assert.Equal(t, testOrgID, result.Organization.ID)
+	assert.NotEmpty(t, result.Code)
+	assert.True(t, result.Provisioned)
+	assert.Equal(t, testOrgID, result.OrgID)
 
 	// Verify membership was created
 	member, err := orgUserRepo.GetByOrgAndUser(ctx, testOrgID, testUserID)
@@ -1019,7 +1071,7 @@ func TestCompleteSSOLogin_JITProvisioningCreatesNewMember(t *testing.T) {
 func TestCompleteSSOLogin_SuspendedMemberRejected(t *testing.T) {
 	t.Parallel()
 	userRepo := newFakeUserRepo()
-	userRepo.add(&domain.User{ID: testUserID, Email: "alice@acme.com"})
+	userRepo.add(&domain.User{ID: testUserID, IsVerified: true, Email: "alice@acme.com"})
 	orgUserRepo := newFakeOrgUserRepo()
 	orgUserRepo.add(&domain.OrganizationUser{
 		OrganizationID: testOrgID,
@@ -1031,9 +1083,8 @@ func TestCompleteSSOLogin_SuspendedMemberRejected(t *testing.T) {
 	ctx := context.Background()
 
 	conn := &domain.SSOConnection{ID: testConnID, OrganizationID: testOrgID}
-	_, err := svc.completeSSOLogin(ctx, conn, "alice@acme.com")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "membership is not active")
+	_, err := svc.completeSSOLogin(ctx, conn, testLoginState(), "alice@acme.com")
+	assert.ErrorIs(t, err, ErrSSOMembershipInactive)
 }
 
 func TestCompleteSSOLogin_AllowedStatuses(t *testing.T) {
@@ -1049,7 +1100,7 @@ func TestCompleteSSOLogin_AllowedStatuses(t *testing.T) {
 		t.Run(string(status), func(t *testing.T) {
 			t.Parallel()
 			userRepo := newFakeUserRepo()
-			userRepo.add(&domain.User{ID: testUserID, Email: "alice@acme.com"})
+			userRepo.add(&domain.User{ID: testUserID, IsVerified: true, Email: "alice@acme.com"})
 			orgUserRepo := newFakeOrgUserRepo()
 			orgUserRepo.add(&domain.OrganizationUser{
 				OrganizationID: testOrgID,
@@ -1063,32 +1114,19 @@ func TestCompleteSSOLogin_AllowedStatuses(t *testing.T) {
 			ctx := context.Background()
 
 			conn := &domain.SSOConnection{ID: testConnID, OrganizationID: testOrgID}
-			result, err := svc.completeSSOLogin(ctx, conn, "alice@acme.com")
+			result, err := svc.completeSSOLogin(ctx, conn, testLoginState(), "alice@acme.com")
 			require.NoError(t, err)
-			assert.Equal(t, "test-access-token", result.AccessToken)
+			assert.NotEmpty(t, result.Code)
+			assert.False(t, result.Provisioned)
 		})
 	}
 }
 
-func TestCompleteSSOLogin_TokenIssueFails(t *testing.T) {
+func TestExchangeLoginCode_TokenIssueFails(t *testing.T) {
 	t.Parallel()
-	userRepo := newFakeUserRepo()
-	userRepo.add(&domain.User{ID: testUserID, Email: "alice@acme.com"})
-	orgUserRepo := newFakeOrgUserRepo()
-	orgUserRepo.add(&domain.OrganizationUser{
-		OrganizationID: testOrgID,
-		UserID:         testUserID,
-		Status:         domain.OrgUserStatusAccepted,
-	})
-
-	authSvc := &fakeAuthService{shouldFail: true}
-	svc := newTestSSOService(nil, nil, userRepo, orgUserRepo, nil, authSvc)
-	ctx := context.Background()
-
-	conn := &domain.SSOConnection{ID: testConnID, OrganizationID: testOrgID}
-	_, err := svc.completeSSOLogin(ctx, conn, "alice@acme.com")
+	svc, code := newExchangeEnv(t, &fakeAuthService{shouldFail: true})
+	_, err := svc.ExchangeLoginCode(context.Background(), &domain.SSOExchangeRequest{Code: code, CodeVerifier: testVerifier})
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to create Passwall session")
 }
 
 // ─── InitiateLogin Tests ────────────────────────────────────────────────────────
@@ -1098,7 +1136,7 @@ func TestInitiateLogin_DomainNotFound(t *testing.T) {
 	svc := newTestSSOService(nil, nil, nil, nil, nil, nil)
 	ctx := context.Background()
 
-	_, err := svc.InitiateLogin(ctx, &domain.SSOInitiateRequest{Domain: "unknown.com"})
+	_, err := svc.InitiateLogin(ctx, &domain.SSOInitiateRequest{Domain: "unknown.com", CodeChallenge: testChallenge})
 	assert.ErrorIs(t, err, ErrSSOConnectionNotFound)
 }
 
@@ -1128,7 +1166,7 @@ func TestInitiateLogin_InactiveConnection(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	_, err := svc.InitiateLogin(ctx, &domain.SSOInitiateRequest{Domain: "acme.com"})
+	_, err := svc.InitiateLogin(ctx, &domain.SSOInitiateRequest{Domain: "acme.com", CodeChallenge: testChallenge})
 	assert.ErrorIs(t, err, ErrSSOConnectionInactive)
 }
 
@@ -1154,7 +1192,8 @@ func TestInitiateLogin_SAML_GeneratesRedirect(t *testing.T) {
 	ctx := context.Background()
 
 	redirectURL, err := svc.InitiateLogin(ctx, &domain.SSOInitiateRequest{
-		Domain: "acme.com",
+		Domain:        "acme.com",
+		CodeChallenge: testChallenge,
 	})
 	require.NoError(t, err)
 
@@ -1169,6 +1208,7 @@ func TestInitiateLogin_SAML_GeneratesRedirect(t *testing.T) {
 		assert.Equal(t, testConnID, s.ConnectionID)
 		assert.Equal(t, testOrgID, s.OrganizationID)
 		assert.True(t, s.ExpiresAt.After(time.Now()))
+		assert.Equal(t, testChallenge, s.ClientCodeChallenge)
 	}
 }
 
@@ -1195,8 +1235,11 @@ func TestInitiateLogin_RedirectURLValidation(t *testing.T) {
 		redirectURL string
 		wantInState string
 	}{
-		{"allowed passwall domain", "https://vault.passwall.io/done", "https://vault.passwall.io/done"},
-		{"allowed connection domain", "https://acme.com/sso-complete", "https://acme.com/sso-complete"},
+		{"allowed client origin", "https://vault.passwall.io/done", "https://vault.passwall.io/done"},
+		{"connection domain is not a client origin", "https://acme.com/sso-complete", ""},
+		{"other passwall host rejected", "https://evil.passwall.io/x", ""},
+		{"plain http rejected", "http://vault.passwall.io/done", ""},
+		{"localhost allowed in dev", "http://localhost:5173", "http://localhost:5173"},
 		{"rejected foreign domain", "https://evil.com/steal", ""},
 		{"empty redirect", "", ""},
 	}
@@ -1209,8 +1252,9 @@ func TestInitiateLogin_RedirectURLValidation(t *testing.T) {
 			ctx := context.Background()
 
 			_, err := svc.InitiateLogin(ctx, &domain.SSOInitiateRequest{
-				Domain:      "acme.com",
-				RedirectURL: tt.redirectURL,
+				Domain:        "acme.com",
+				RedirectURL:   tt.redirectURL,
+				CodeChallenge: testChallenge,
 			})
 			require.NoError(t, err)
 
@@ -1277,8 +1321,7 @@ func TestCreateConnection_EmptyDomain(t *testing.T) {
 		Name:     "Test",
 		Domain:   "",
 	})
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "domain is required")
+	assert.ErrorIs(t, err, ErrSSOInvalidDomain)
 }
 
 func TestCreateConnection_SAMLMissingConfig(t *testing.T) {
@@ -1311,6 +1354,7 @@ func TestCreateConnection_SAMLIncompleteConfig(t *testing.T) {
 
 func TestCreateConnection_DuplicateDomain(t *testing.T) {
 	t.Parallel()
+	_, _, certPEM := generateSelfSignedCert(t)
 	connRepo := newFakeSSOConnRepo()
 	connRepo.add(&domain.SSOConnection{
 		ID:             1,
@@ -1325,11 +1369,10 @@ func TestCreateConnection_DuplicateDomain(t *testing.T) {
 		SAMLConfig: &domain.SAMLConfig{
 			EntityID:    "idp",
 			SSOURL:      "https://idp.acme.com/sso",
-			Certificate: "cert",
+			Certificate: certPEM,
 		},
 	})
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "already configured")
+	assert.ErrorIs(t, err, ErrSSODomainTaken)
 }
 
 // ─── ActivateConnection Tests ───────────────────────────────────────────────────
@@ -1423,4 +1466,41 @@ func TestGetSPMetadata_ReturnsStored(t *testing.T) {
 	metadata, err := svc.GetSPMetadata(context.Background(), testConnID)
 	require.NoError(t, err)
 	assert.Contains(t, metadata, "custom")
+}
+
+// ─── Login code helpers ─────────────────────────────────────────────────────────
+
+const (
+	testVerifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+	// testChallenge is base64url(SHA-256(testVerifier)).
+	testChallenge = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+)
+
+func testLoginState() *domain.SSOState {
+	return &domain.SSOState{ClientCodeChallenge: testChallenge}
+}
+
+// newExchangeEnv completes an IdP login for an accepted member and returns the
+// service plus the issued login code.
+func newExchangeEnv(t *testing.T, authSvc *fakeAuthService) (*ssoService, string) {
+	t.Helper()
+	connRepo := newFakeSSOConnRepo()
+	connRepo.add(&domain.SSOConnection{
+		ID:             testConnID,
+		OrganizationID: testOrgID,
+		Protocol:       domain.SSOProtocolOIDC,
+		Domain:         "acme.com",
+		Status:         domain.SSOStatusActive,
+	})
+	userRepo := newFakeUserRepo()
+	userRepo.add(&domain.User{ID: testUserID, IsVerified: true, Email: "alice@acme.com"})
+	orgUserRepo := newFakeOrgUserRepo()
+	orgUserRepo.add(&domain.OrganizationUser{OrganizationID: testOrgID, UserID: testUserID, Status: domain.OrgUserStatusConfirmed})
+	orgRepo := newFakeOrgRepo()
+	orgRepo.add(&domain.Organization{ID: testOrgID, PublicID: "acmePublic01", Name: "Acme Corp"})
+	svc := newTestSSOService(connRepo, nil, userRepo, orgUserRepo, orgRepo, authSvc)
+	conn, _ := connRepo.GetByID(context.Background(), testConnID)
+	result, err := svc.completeSSOLogin(context.Background(), conn, testLoginState(), "alice@acme.com")
+	require.NoError(t, err)
+	return svc, result.Code
 }

@@ -303,7 +303,8 @@ type SSOConnectionRepository interface {
 	Create(ctx context.Context, conn *domain.SSOConnection) error
 	GetByID(ctx context.Context, id uint) (*domain.SSOConnection, error)
 	GetByUUID(ctx context.Context, uuid string) (*domain.SSOConnection, error)
-	GetAnyByDomain(ctx context.Context, domain string) (*domain.SSOConnection, error)
+	// GetVerifiedByDomain returns the connection that proved ownership of domain.
+	GetVerifiedByDomain(ctx context.Context, domain string) (*domain.SSOConnection, error)
 	GetByDomain(ctx context.Context, domain string) (*domain.SSOConnection, error)
 	GetByOrganizationID(ctx context.Context, orgID uint) (*domain.SSOConnection, error)
 	ListByOrganization(ctx context.Context, orgID uint) ([]*domain.SSOConnection, error)
@@ -315,7 +316,17 @@ type SSOConnectionRepository interface {
 type SSOStateRepository interface {
 	Create(ctx context.Context, state *domain.SSOState) error
 	GetByState(ctx context.Context, state string) (*domain.SSOState, error)
+	// Consume atomically deletes and returns an unexpired state.
+	Consume(ctx context.Context, state string) (*domain.SSOState, error)
 	Delete(ctx context.Context, id uint) error
+	DeleteExpired(ctx context.Context) (int64, error)
+}
+
+// SSOLoginCodeRepository stores single-use SSO login codes
+type SSOLoginCodeRepository interface {
+	Create(ctx context.Context, code *domain.SSOLoginCode) error
+	// Consume atomically deletes and returns an unexpired code.
+	Consume(ctx context.Context, codeHash string) (*domain.SSOLoginCode, error)
 	DeleteExpired(ctx context.Context) (int64, error)
 }
 
@@ -374,24 +385,6 @@ type SendRepository interface {
 	SoftDelete(ctx context.Context, id uint) error
 	IncrementAccessCount(ctx context.Context, id uint) error
 	DeleteExpired(ctx context.Context) (int64, error)
-}
-
-// KeyEscrowRepository defines key escrow data access methods
-type KeyEscrowRepository interface {
-	Create(ctx context.Context, escrow *domain.KeyEscrow) error
-	GetByUserAndOrg(ctx context.Context, userID, orgID uint) (*domain.KeyEscrow, error)
-	ListByOrganization(ctx context.Context, orgID uint) ([]*domain.KeyEscrow, error)
-	Update(ctx context.Context, escrow *domain.KeyEscrow) error
-	Delete(ctx context.Context, id uint) error
-	DeleteByUserAndOrg(ctx context.Context, userID, orgID uint) error
-}
-
-// OrgEscrowKeyRepository defines org escrow key data access methods
-type OrgEscrowKeyRepository interface {
-	Create(ctx context.Context, key *domain.OrgEscrowKey) error
-	GetByOrganizationID(ctx context.Context, orgID uint) (*domain.OrgEscrowKey, error)
-	Update(ctx context.Context, key *domain.OrgEscrowKey) error
-	Delete(ctx context.Context, id uint) error
 }
 
 // ItemShareRepository defines item share data access methods

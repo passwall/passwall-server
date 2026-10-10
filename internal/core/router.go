@@ -54,7 +54,6 @@ func SetupRouter(
 	ssoHandler *httpHandler.SSOHandler,
 	scimHandler *httpHandler.SCIMHandler,
 	scimService service.SCIMService,
-	keyEscrowHandler *httpHandler.KeyEscrowHandler,
 	breachMonitorHandler *httpHandler.BreachMonitorHandler,
 	compromisedCheckHandler *httpHandler.CompromisedCheckHandler,
 	compatTelemetryHandler *httpHandler.CompatTelemetryHandler,
@@ -89,18 +88,23 @@ func SetupRouter(
 	// ============================================================
 	// SSO ENDPOINTS (public — no JWT auth, IdP-driven)
 	// ============================================================
+	ssoRateLimiter := httpHandler.NewRateLimiter(3*time.Second, 20)
 	ssoGroup := router.Group("/sso")
+	ssoGroup.Use(httpHandler.RateLimitMiddleware(ssoRateLimiter))
 	{
 		ssoGroup.POST("/login", ssoHandler.InitiateLogin)
 		ssoGroup.GET("/callback", ssoHandler.OIDCCallback)
 		ssoGroup.POST("/callback", ssoHandler.OIDCCallback)
+		ssoGroup.POST("/exchange", ssoHandler.ExchangeLoginCode)
 		ssoGroup.GET("/metadata/:connId", ssoHandler.GetSPMetadata)
 	}
 
 	// ============================================================
 	// SCIM 2.0 ENDPOINTS (authenticated via SCIM bearer token)
 	// ============================================================
+	scimRateLimiter := httpHandler.NewRateLimiter(50*time.Millisecond, 200)
 	scimGroup := router.Group("/scim/v2")
+	scimGroup.Use(httpHandler.RateLimitMiddleware(scimRateLimiter))
 	scimGroup.Use(httpHandler.SCIMAuthMiddleware(scimService))
 	{
 		scimGroup.GET("/ServiceProviderConfig", scimHandler.ServiceProviderConfig)
@@ -484,11 +488,7 @@ func SetupRouter(
 			orgsGroup.PUT("/:id/sso/:connId", ssoHandler.UpdateConnection)
 			orgsGroup.DELETE("/:id/sso/:connId", ssoHandler.DeleteConnection)
 			orgsGroup.POST("/:id/sso/:connId/activate", ssoHandler.ActivateConnection)
-
-			// Key Escrow (SSO passwordless vault unlock)
-			orgsGroup.POST("/:id/key-escrow/enroll", keyEscrowHandler.Enroll)
-			orgsGroup.GET("/:id/key-escrow/status", keyEscrowHandler.GetStatus)
-			orgsGroup.DELETE("/:id/key-escrow/users/:userId", keyEscrowHandler.Revoke)
+			orgsGroup.POST("/:id/sso/:connId/verify-domain", ssoHandler.VerifyDomain)
 
 			// SCIM token management (org admin)
 			orgsGroup.POST("/:id/scim/tokens", scimHandler.CreateToken)

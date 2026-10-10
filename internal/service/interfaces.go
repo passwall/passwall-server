@@ -28,7 +28,9 @@ type AuthService interface {
 	ChangeMasterPassword(ctx context.Context, req *domain.ChangeMasterPasswordRequest) error
 	RefreshToken(ctx context.Context, refreshToken string) (*domain.TokenDetails, error)
 	ValidateToken(ctx context.Context, token string) (*domain.TokenClaims, error)
-	IssueTokenForUser(ctx context.Context, userID uint, app string, deviceID string) (*domain.AuthResponse, error)
+	// IssueSSOSession signs in a user the IdP already authenticated. Users
+	// with 2FA get a two-factor token instead of a session.
+	IssueSSOSession(ctx context.Context, userID uint, app string, deviceID string) (*domain.AuthResponse, error)
 	// SignOut revokes only the current session (device), not all sessions.
 	// Use token UUID (from JWT claims) to locate and revoke the session.
 	SignOut(ctx context.Context, tokenUUID string) error
@@ -118,6 +120,9 @@ type OrganizationFolderService interface {
 
 // OrganizationService defines the business logic for organizations
 type OrganizationService interface {
+	// CheckJoinPolicies reports whether policies (single organization) allow
+	// userID to join orgID. Used by SSO/SCIM provisioning.
+	CheckJoinPolicies(ctx context.Context, orgID, userID uint) error
 	Create(ctx context.Context, userID uint, req *domain.CreateOrganizationRequest) (*domain.Organization, error)
 	GetByID(ctx context.Context, id uint, userID uint) (*domain.Organization, error)
 	List(ctx context.Context, userID uint) ([]*domain.Organization, error)

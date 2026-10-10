@@ -135,7 +135,7 @@ func SCIMAuthMiddleware(scimService service.SCIMService) gin.HandlerFunc {
 
 		orgID, err := scimService.ValidateToken(c.Request.Context(), parts[1])
 		if err != nil {
-			if respondSCIMEntitlementError(c, err) {
+			if respondSCIMError(c, err) {
 				c.Abort()
 				return
 			}
@@ -240,6 +240,9 @@ func (h *SCIMHandler) ListUsers(c *gin.Context) {
 
 	result, err := h.scimService.ListUsers(ctx, orgID, filter, startIndex, count)
 	if err != nil {
+		if respondSCIMError(c, err) {
+			return
+		}
 		scimError(c, http.StatusInternalServerError, "failed to list users")
 		return
 	}
@@ -279,7 +282,7 @@ func (h *SCIMHandler) CreateUser(c *gin.Context) {
 
 	user, err := h.scimService.CreateUser(ctx, orgID, &scimUser)
 	if err != nil {
-		if respondSCIMEntitlementError(c, err) {
+		if respondSCIMError(c, err) {
 			return
 		}
 		if errors.Is(err, service.ErrSCIMUserExists) {
@@ -311,7 +314,7 @@ func (h *SCIMHandler) UpdateUser(c *gin.Context) {
 
 	user, err := h.scimService.UpdateUser(ctx, orgID, userID, &scimUser)
 	if err != nil {
-		if respondSCIMEntitlementError(c, err) {
+		if respondSCIMError(c, err) {
 			return
 		}
 		if errors.Is(err, service.ErrSCIMUserNotFound) {
@@ -339,7 +342,7 @@ func (h *SCIMHandler) PatchUser(c *gin.Context) {
 
 	user, err := h.scimService.PatchUser(ctx, orgID, userID, &patch)
 	if err != nil {
-		if respondSCIMEntitlementError(c, err) {
+		if respondSCIMError(c, err) {
 			return
 		}
 		if errors.Is(err, service.ErrSCIMUserNotFound) {
@@ -360,7 +363,7 @@ func (h *SCIMHandler) DeleteUser(c *gin.Context) {
 	userID := c.Param("id")
 
 	if err := h.scimService.DeleteUser(ctx, orgID, userID); err != nil {
-		if respondSCIMEntitlementError(c, err) {
+		if respondSCIMError(c, err) {
 			return
 		}
 		if errors.Is(err, service.ErrSCIMUserNotFound) {
@@ -426,7 +429,7 @@ func (h *SCIMHandler) CreateGroup(c *gin.Context) {
 
 	group, err := h.scimService.CreateGroup(ctx, orgID, &scimGroup)
 	if err != nil {
-		if respondSCIMEntitlementError(c, err) {
+		if respondSCIMError(c, err) {
 			return
 		}
 		scimError(c, http.StatusBadRequest, err.Error())
@@ -450,7 +453,7 @@ func (h *SCIMHandler) UpdateGroup(c *gin.Context) {
 
 	group, err := h.scimService.UpdateGroup(ctx, orgID, groupID, &scimGroup)
 	if err != nil {
-		if respondSCIMEntitlementError(c, err) {
+		if respondSCIMError(c, err) {
 			return
 		}
 		if errors.Is(err, service.ErrSCIMGroupNotFound) {
@@ -478,7 +481,7 @@ func (h *SCIMHandler) PatchGroup(c *gin.Context) {
 
 	group, err := h.scimService.PatchGroup(ctx, orgID, groupID, &patch)
 	if err != nil {
-		if respondSCIMEntitlementError(c, err) {
+		if respondSCIMError(c, err) {
 			return
 		}
 		if errors.Is(err, service.ErrSCIMGroupNotFound) {
@@ -499,7 +502,7 @@ func (h *SCIMHandler) DeleteGroup(c *gin.Context) {
 	groupID := c.Param("id")
 
 	if err := h.scimService.DeleteGroup(ctx, orgID, groupID); err != nil {
-		if respondSCIMEntitlementError(c, err) {
+		if respondSCIMError(c, err) {
 			return
 		}
 		if errors.Is(err, service.ErrSCIMGroupNotFound) {
@@ -520,6 +523,27 @@ func scimError(c *gin.Context, status int, detail string) {
 		Detail:  detail,
 		Status:  strconv.Itoa(status),
 	})
+}
+
+// respondSCIMError answers known SCIM service and entitlement errors.
+func respondSCIMError(c *gin.Context, err error) bool {
+	switch {
+	case errors.Is(err, service.ErrSCIMInvalidFilter):
+		c.JSON(http.StatusBadRequest, domain.SCIMError{
+			Schemas:  []string{domain.SCIMSchemaError},
+			Detail:   err.Error(),
+			Status:   strconv.Itoa(http.StatusBadRequest),
+			ScimType: "invalidFilter",
+		})
+		return true
+	case errors.Is(err, service.ErrSCIMLastOwner):
+		scimError(c, http.StatusConflict, err.Error())
+		return true
+	case errors.Is(err, service.ErrSCIMDomainNotVerified):
+		scimError(c, http.StatusBadRequest, err.Error())
+		return true
+	}
+	return respondSCIMEntitlementError(c, err)
 }
 
 func respondSCIMEntitlementError(c *gin.Context, err error) bool {
@@ -545,6 +569,10 @@ func respondSCIMEntitlementError(c *gin.Context, err error) bool {
 func (h *SCIMHandler) ensureOrgAdmin(c *gin.Context, ctx context.Context, userID, orgID uint) bool {
 	membership, err := h.orgService.GetMembership(ctx, userID, orgID)
 	if err != nil || membership == nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "organization access denied"})
+		return false
+	}
+	if membership.Status != domain.OrgUserStatusAccepted && membership.Status != domain.OrgUserStatusConfirmed {
 		c.JSON(http.StatusForbidden, gin.H{"error": "organization access denied"})
 		return false
 	}

@@ -41,7 +41,6 @@ func TestLoad_DefaultConfig(t *testing.T) {
 func TestLoad_WithEnvironmentVariables(t *testing.T) {
 	// Set environment variables using t.Setenv (automatic cleanup)
 	t.Setenv("PW_SERVER_PORT", "8080")
-	t.Setenv("PW_SERVER_ESCROW_MASTER_KEY", "escrow-key")
 	t.Setenv("PW_DB_NAME", "test_db")
 	t.Setenv("PW_DB_HOST", "testhost")
 	t.Setenv("PW_DB_MAX_OPEN_CONNS", "25")
@@ -57,7 +56,6 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "8080", cfg.Server.Port)
-	assert.Equal(t, "escrow-key", cfg.Server.EscrowMasterKey)
 	assert.Equal(t, "test_db", cfg.Database.Name)
 	assert.Equal(t, "testhost", cfg.Database.Host)
 	assert.Equal(t, 25, cfg.Database.MaxOpenConns)

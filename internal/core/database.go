@@ -152,9 +152,8 @@ func autoMigrateSchema(gormDB *gorm.DB) error {
 	if err := gormDB.AutoMigrate(
 		&domain.SSOConnection{},
 		&domain.SSOState{},
+		&domain.SSOLoginCode{},
 		&domain.SCIMToken{},
-		&domain.OrgEscrowKey{},
-		&domain.KeyEscrow{},
 	); err != nil {
 		return fmt.Errorf("failed to migrate SSO/SCIM tables: %w", err)
 	}
