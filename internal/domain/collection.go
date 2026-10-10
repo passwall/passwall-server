@@ -113,6 +113,10 @@ type CollectionDTO struct {
 	// response is built for a specific user.
 	Permission  CollectionPermission `json:"permission,omitempty"`
 	Permissions *ItemPermissions     `json:"permissions,omitempty"`
+	// CanManage: the caller may edit the collection and its access.
+	CanManage *bool `json:"can_manage,omitempty"`
+	// CanDelete: the caller may delete the collection.
+	CanDelete *bool `json:"can_delete,omitempty"`
 
 	// Stats (optional)
 	ItemCount *int `json:"item_count,omitempty"`

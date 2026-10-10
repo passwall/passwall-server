@@ -280,3 +280,106 @@ func TestRewrapOwnOrgKey(t *testing.T) {
 	require.NoError(t, f.db.Model(suspended).Update("encrypted_org_key", "cnNhLXdyYXBwZWQta2V5").Error)
 	require.ErrorIs(t, f.svc.RewrapOwnOrgKey(ctx, f.org.ID, suspendedUser.ID, userWrapped), repository.ErrForbidden)
 }
+
+func TestListForUserCountsWriteOnlyLegacyGrants(t *testing.T) {
+	f := newAccessFixture(t)
+	ctx := context.Background()
+	user, membership := f.member(t, f.org, "writer@example.com", domain.OrgRoleMember, domain.OrgUserStatusConfirmed)
+	legacy := f.collection(t, f.org, "Legacy")
+	require.NoError(t, f.db.Create(&domain.CollectionUser{CollectionID: legacy.ID, OrganizationUserID: membership.ID, CanWrite: true}).Error)
+	require.NoError(t, f.db.Model(&domain.CollectionUser{}).Where("collection_id = ?", legacy.ID).Update("can_read", false).Error)
+
+	collections, err := gormrepo.NewCollectionRepository(f.db).ListForUser(ctx, f.org.ID, user.ID)
+	require.NoError(t, err)
+	require.Len(t, collections, 1, "a write grant implies read, as in the access resolver")
+}
+
+func TestHiddenPasswordsCannotBeShared(t *testing.T) {
+	f := newAccessFixture(t)
+	ctx := context.Background()
+	editor, editorMembership := f.member(t, f.org, "editor@example.com", domain.OrgRoleMember, domain.OrgUserStatusConfirmed)
+	colleague, _ := f.member(t, f.org, "colleague2@example.com", domain.OrgRoleMember, domain.OrgUserStatusConfirmed)
+	vault := f.collection(t, f.org, "Restricted")
+	f.grant(t, vault, editorMembership, true, false, true) // edit_except_passwords
+	itemUUID := uuid.New()
+	require.NoError(t, f.db.Exec(
+		`INSERT INTO organization_items (uuid, support_id, organization_id, collection_id, item_type, data, metadata, created_by_user_id, revision, created_at, updated_at)
+		 VALUES (?, 2, ?, ?, ?, ?, CAST('{}' AS BLOB), ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		itemUUID.String(), f.org.ID, vault.ID, domain.ItemTypePassword, "2.cipher", editor.ID,
+	).Error)
+
+	_, err := f.shares.Create(ctx, editor.ID, &CreateItemShareRequest{
+		ItemUUID: itemUUID.String(), SharedWithUserID: &colleague.ID, EncryptedKey: "rsa",
+	})
+	require.ErrorIs(t, err, repository.ErrForbidden)
+}
+
+func TestCollectionManagementSettings(t *testing.T) {
+	f := newAccessFixture(t)
+	ctx := context.Background()
+	member, membership := f.member(t, f.org, "creator@example.com", domain.OrgRoleMember, domain.OrgUserStatusConfirmed)
+	admin, adminMembership := f.member(t, f.org, "orgadmin@example.com", domain.OrgRoleAdmin, domain.OrgUserStatusConfirmed)
+	// Owners and admins are created with access_all; the setting must still apply.
+	require.NoError(t, f.db.Model(adminMembership).Update("access_all", true).Error)
+
+	// Members can create collections by default and manage what they create.
+	created, err := f.collections.Create(ctx, f.org.ID, member.ID, &domain.CreateCollectionRequest{Name: "Team secrets"})
+	require.NoError(t, err)
+	caller, err := f.collections.CallerAccess(ctx, f.org.ID, created.ID, member.ID)
+	require.NoError(t, err)
+	assert.Equal(t, domain.CollectionPermissionManage, caller.Access.Permission())
+	assert.True(t, caller.CanManage)
+	assert.True(t, caller.CanDelete)
+
+	// Members with manage cannot delete once the organization turns that off.
+	require.NoError(t, f.db.Model(f.org).Update("manage_can_delete_collections", false).Error)
+	require.ErrorIs(t, f.collections.Delete(ctx, created.ID, member.ID), repository.ErrForbidden)
+
+	// Creation can be limited to owners and admins.
+	require.NoError(t, f.db.Model(f.org).Update("collection_creation_limited", true).Error)
+	_, err = f.collections.Create(ctx, f.org.ID, member.ID, &domain.CreateCollectionRequest{Name: "Blocked"})
+	require.ErrorIs(t, err, repository.ErrForbidden)
+	_, err = f.collections.Create(ctx, f.org.ID, admin.ID, &domain.CreateCollectionRequest{Name: "Allowed"})
+	require.NoError(t, err)
+
+	// With "owners and admins manage all" off, an unassigned admin keeps
+	// managing access but no longer reads the items.
+	require.NoError(t, f.db.Model(f.org).Update("admins_manage_all_collections", false).Error)
+	caller, err = f.collections.CallerAccess(ctx, f.org.ID, created.ID, admin.ID)
+	require.NoError(t, err)
+	assert.False(t, caller.Access.CanRead, "admin is not assigned to the collection")
+	assert.True(t, caller.CanManage)
+	assert.True(t, caller.CanDelete)
+	require.NoError(t, f.collections.GrantUserAccess(ctx, created.ID, membership.ID, admin.ID,
+		&domain.GrantCollectionAccessRequest{Permission: domain.CollectionPermissionEdit}))
+	_ = adminMembership
+}
+
+func TestOrganizationCollectionSettingsAreOwnerOnly(t *testing.T) {
+	f := newAccessFixture(t)
+	ctx := context.Background()
+	admin, _ := f.member(t, f.org, "settingsadmin@example.com", domain.OrgRoleAdmin, domain.OrgUserStatusConfirmed)
+	off := false
+
+	_, err := f.svc.Update(ctx, f.org.ID, admin.ID, &domain.UpdateOrganizationRequest{AdminsManageAllCollections: &off})
+	require.ErrorIs(t, err, repository.ErrForbidden)
+
+	updated, err := f.svc.Update(ctx, f.org.ID, f.owner.ID, &domain.UpdateOrganizationRequest{AdminsManageAllCollections: &off})
+	require.NoError(t, err)
+	assert.False(t, updated.AdminsManageAllCollections)
+}
+
+func TestManagerRoleIsRetired(t *testing.T) {
+	f := newAccessFixture(t)
+	ctx := context.Background()
+	_, target := f.member(t, f.org, "promoted@example.com", domain.OrgRoleMember, domain.OrgUserStatusConfirmed)
+
+	require.NoError(t, f.svc.UpdateMemberRole(ctx, f.org.ID, target.ID, f.owner.ID, &domain.UpdateOrgUserRoleRequest{Role: domain.OrgRoleManager}))
+	var reloaded domain.OrganizationUser
+	require.NoError(t, f.db.First(&reloaded, target.ID).Error)
+	assert.Equal(t, domain.OrgRoleMember, reloaded.Role, "older clients sending manager get member")
+
+	require.NoError(t, f.svc.UpdateMemberRole(ctx, f.org.ID, target.ID, f.owner.ID, &domain.UpdateOrgUserRoleRequest{Role: domain.OrgRoleBilling}))
+	require.NoError(t, f.db.First(&reloaded, target.ID).Error)
+	assert.Equal(t, domain.OrgRoleBilling, reloaded.Role)
+}

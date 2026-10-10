@@ -179,7 +179,15 @@ type CollectionService interface {
 	GetUserAccess(ctx context.Context, collectionID uint, requestingUserID uint) ([]*domain.CollectionUser, error)
 	GetTeamAccess(ctx context.Context, collectionID uint, requestingUserID uint) ([]*domain.CollectionTeam, error)
 	// CallerAccess is the requesting user's effective access to a collection.
-	CallerAccess(ctx context.Context, orgID, collectionID, userID uint) (*authz.CollectionAccess, error)
+	CallerAccess(ctx context.Context, orgID, collectionID, userID uint) (*CollectionCallerAccess, error)
+}
+
+// CollectionCallerAccess is a user's access to a collection plus what they
+// may do with the collection itself.
+type CollectionCallerAccess struct {
+	Access    *authz.CollectionAccess
+	CanManage bool
+	CanDelete bool
 }
 
 // OrganizationItemService defines the business logic for organization items (shared vault)

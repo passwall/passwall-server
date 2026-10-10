@@ -150,7 +150,7 @@ func (s *itemShareService) authorizeItemShare(
 	if err != nil || orgUser == nil {
 		return repository.ErrForbidden
 	}
-	if orgUser.IsAdmin() || orgUser.AccessAll {
+	if authz.HasUnrestrictedItemAccess(orgUser) {
 		return nil
 	}
 
@@ -173,6 +173,11 @@ func (s *itemShareService) authorizeItemShare(
 		return err
 	}
 	if !access.CanWrite && !access.CanAdmin {
+		return repository.ErrForbidden
+	}
+	// Sharing hands the recipient the item's secrets, so it needs password
+	// visibility too (edit_except_passwords cannot share).
+	if access.HidePasswords {
 		return repository.ErrForbidden
 	}
 

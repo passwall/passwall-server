@@ -124,6 +124,7 @@ func (s *organizationService) InviteMember(ctx context.Context, orgID, inviterUs
 	if err := s.requireInvites(); err != nil {
 		return nil, err
 	}
+	req.Role = domain.NormalizeOrgRole(req.Role)
 	if !isSupportedOrgRole(req.Role) {
 		return nil, invitationErr(400, InvitationCodeInvalidRole, "invalid organization role")
 	}
