@@ -160,6 +160,13 @@ func TestOrganizationItemHandler_ListV2(t *testing.T) {
 	assert.EqualValues(t, 8, itemSvc.v2Request.SinceRevision)
 	assert.Contains(t, rec.Body.String(), `"deleted":true`)
 	assert.NotContains(t, rec.Body.String(), `"data"`)
+	assert.False(t, itemSvc.v2Request.ClientHidesPasswords, "clients without the capability get hidden data withheld")
+
+	capable := httptest.NewRequest(http.MethodGet, "/api/v2/organizations/abc/items", nil)
+	capable.Header.Set(CryptoCapsHeader, "itemkeys, HIDEPW-CLIENT")
+	router.ServeHTTP(httptest.NewRecorder(), capable)
+	assert.True(t, itemSvc.v2Request.ClientHidesPasswords, "declared capability is passed to the service")
+	assert.False(t, itemSvc.v2Request.IncludePermissions, "permissions are opt-in for the strict sync schema")
 
 	invalid := httptest.NewRequest(http.MethodGet, "/api/v2/organizations/abc/items?limit=501", nil)
 	invalidRec := httptest.NewRecorder()

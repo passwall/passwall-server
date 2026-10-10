@@ -27,6 +27,48 @@ type CollectionAccess struct {
 	HidePasswords bool
 }
 
+// Permission expresses the merged access as a single level.
+func (a *CollectionAccess) Permission() domain.CollectionPermission {
+	if a == nil {
+		return domain.CollectionPermissionNone
+	}
+	return domain.CollectionPermissionFromFlags(a.CanRead, a.CanWrite, a.CanAdmin, a.HidePasswords)
+}
+
+// ItemPermissions is what the access allows on an item in the collection.
+func (a *CollectionAccess) ItemPermissions() *domain.ItemPermissions {
+	return domain.ItemPermissionsFor(a.Permission())
+}
+
+// grantMerge combines grants the way Bitwarden does: the most permissive
+// grant wins, so passwords stay hidden only when every grant hides them.
+type grantMerge struct {
+	result   *CollectionAccess
+	anyGrant bool
+	allHide  bool
+}
+
+func (m *grantMerge) add(canRead, canWrite, canAdmin, hide bool) {
+	if !canRead && !canWrite && !canAdmin {
+		return
+	}
+	m.result.CanRead = true
+	m.result.CanWrite = m.result.CanWrite || canWrite || canAdmin
+	m.result.CanAdmin = m.result.CanAdmin || canAdmin
+	if !m.anyGrant {
+		m.allHide = true
+	}
+	m.anyGrant = true
+	if !hide || canAdmin {
+		m.allHide = false
+	}
+}
+
+func (m *grantMerge) finish() *CollectionAccess {
+	m.result.HidePasswords = m.anyGrant && m.allHide
+	return m.result
+}
+
 func ComputeCollectionAccess(
 	ctx context.Context,
 	orgUser *domain.OrganizationUser,
@@ -48,14 +90,11 @@ func ComputeCollectionAccess(
 		}, nil
 	}
 
-	result := &CollectionAccess{}
+	merge := &grantMerge{result: &CollectionAccess{}}
 
 	direct, err := collectionUserRepo.GetByCollectionAndOrgUser(ctx, collectionID, orgUser.ID)
 	if err == nil && direct != nil {
-		result.CanRead = result.CanRead || direct.CanRead
-		result.CanWrite = result.CanWrite || direct.CanWrite
-		result.CanAdmin = result.CanAdmin || direct.CanAdmin
-		result.HidePasswords = result.HidePasswords || direct.HidePasswords
+		merge.add(direct.CanRead, direct.CanWrite, direct.CanAdmin, direct.HidePasswords)
 	} else if err != nil && err != repository.ErrNotFound {
 		return nil, fmt.Errorf("failed to load direct collection access: %w", err)
 	}
@@ -65,7 +104,7 @@ func ComputeCollectionAccess(
 		return nil, fmt.Errorf("failed to load team membership: %w", err)
 	}
 	if len(teamUsers) == 0 {
-		return result, nil
+		return merge.finish(), nil
 	}
 
 	teamIDs := make(map[uint]struct{}, len(teamUsers))
@@ -81,11 +120,8 @@ func ComputeCollectionAccess(
 		if _, ok := teamIDs[ta.TeamID]; !ok {
 			continue
 		}
-		result.CanRead = result.CanRead || ta.CanRead
-		result.CanWrite = result.CanWrite || ta.CanWrite
-		result.CanAdmin = result.CanAdmin || ta.CanAdmin
-		result.HidePasswords = result.HidePasswords || ta.HidePasswords
+		merge.add(ta.CanRead, ta.CanWrite, ta.CanAdmin, ta.HidePasswords)
 	}
 
-	return result, nil
+	return merge.finish(), nil
 }

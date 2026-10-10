@@ -172,13 +172,35 @@ func TestComputeCollectionAccess_HidePasswords(t *testing.T) {
 		}
 	})
 
-	t.Run("restrictive wins across grants", func(t *testing.T) {
+	t.Run("most permissive grant wins", func(t *testing.T) {
 		t.Parallel()
 		access, err := ComputeCollectionAccess(
 			context.Background(), orgUser, 100,
 			&fakeCollectionUserRepo{grant: &domain.CollectionUser{CanRead: true, HidePasswords: false}},
 			&fakeCollectionTeamRepo{grants: []*domain.CollectionTeam{
-				{TeamID: 10, CanRead: true, HidePasswords: true},
+				{TeamID: 10, CanRead: true, CanWrite: true, HidePasswords: true},
+			}},
+			&fakeTeamUserRepo{memberships: []*domain.TeamUser{{TeamID: 10}}},
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if access.HidePasswords {
+			t.Fatal("expected passwords visible: one grant shows them")
+		}
+		if got := access.Permission(); got != domain.CollectionPermissionEdit {
+			t.Fatalf("expected edit, got %q", got)
+		}
+	})
+
+	t.Run("hidden only when every grant hides", func(t *testing.T) {
+		t.Parallel()
+		access, err := ComputeCollectionAccess(
+			context.Background(), orgUser, 100,
+			&fakeCollectionUserRepo{grant: &domain.CollectionUser{CanRead: true, HidePasswords: true}},
+			&fakeCollectionTeamRepo{grants: []*domain.CollectionTeam{
+				{TeamID: 10, CanRead: true, CanWrite: true, HidePasswords: true},
+				{TeamID: 99, CanRead: true, CanAdmin: true},
 			}},
 			&fakeTeamUserRepo{memberships: []*domain.TeamUser{{TeamID: 10}}},
 		)
@@ -186,7 +208,10 @@ func TestComputeCollectionAccess_HidePasswords(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if !access.HidePasswords {
-			t.Fatal("expected HidePasswords=true (restrictive wins)")
+			t.Fatal("expected passwords hidden: every applicable grant hides them")
+		}
+		if got := access.Permission(); got != domain.CollectionPermissionEditExceptPasswords {
+			t.Fatalf("expected edit_except_passwords, got %q", got)
 		}
 	})
 

@@ -178,6 +178,8 @@ type CollectionService interface {
 	RevokeTeamAccess(ctx context.Context, collectionID uint, teamID uint, requestingUserID uint) error
 	GetUserAccess(ctx context.Context, collectionID uint, requestingUserID uint) ([]*domain.CollectionUser, error)
 	GetTeamAccess(ctx context.Context, collectionID uint, requestingUserID uint) ([]*domain.CollectionTeam, error)
+	// CallerAccess is the requesting user's effective access to a collection.
+	CallerAccess(ctx context.Context, orgID, collectionID, userID uint) (*authz.CollectionAccess, error)
 }
 
 // OrganizationItemService defines the business logic for organization items (shared vault)

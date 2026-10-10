@@ -258,6 +258,9 @@ func (s *collectionService) Delete(ctx context.Context, id uint, userID uint) er
 }
 
 func (s *collectionService) GrantUserAccess(ctx context.Context, collectionID uint, orgUserID uint, requestingUserID uint, req *domain.GrantCollectionAccessRequest) error {
+	if req == nil || !req.Normalize() {
+		return repository.ErrInvalidInput
+	}
 	collection, err := s.collectionRepo.GetByID(ctx, collectionID)
 	if err != nil {
 		return fmt.Errorf("collection not found: %w", err)
@@ -329,6 +332,9 @@ func (s *collectionService) GrantUserAccess(ctx context.Context, collectionID ui
 }
 
 func (s *collectionService) GrantTeamAccess(ctx context.Context, collectionID uint, teamID uint, requestingUserID uint, req *domain.GrantCollectionAccessRequest) error {
+	if req == nil || !req.Normalize() {
+		return repository.ErrInvalidInput
+	}
 	collection, err := s.collectionRepo.GetByID(ctx, collectionID)
 	if err != nil {
 		return fmt.Errorf("collection not found: %w", err)
@@ -512,6 +518,15 @@ func (s *collectionService) GetTeamAccess(ctx context.Context, collectionID uint
 	}
 
 	return teams, nil
+}
+
+// CallerAccess returns the requesting user's merged access to a collection.
+func (s *collectionService) CallerAccess(ctx context.Context, orgID, collectionID, userID uint) (*authz.CollectionAccess, error) {
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
+	if err != nil {
+		return nil, repository.ErrForbidden
+	}
+	return authz.ComputeCollectionAccess(ctx, orgUser, collectionID, s.collectionUserRepo, s.collectionTeamRepo, s.teamUserRepo)
 }
 
 // Helper methods for permission checking

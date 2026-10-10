@@ -96,11 +96,13 @@ type OrganizationItemDTO struct {
 	Revision           int64        `json:"revision"`
 	SyncVersion        int          `json:"sync_version"`
 	HidePasswords      bool         `json:"hide_passwords"`
-	CreatedByUserID    uint         `json:"created_by_user_id"`
-	CreatedByUserEmail string       `json:"created_by_user_email,omitempty"`
-	CreatedAt          time.Time    `json:"created_at"`
-	UpdatedAt          time.Time    `json:"updated_at"`
-	ArchivedAt         *time.Time   `json:"archived_at,omitempty"`
+	// Permissions is the caller's effective access to the item.
+	Permissions        *ItemPermissions `json:"permissions,omitempty"`
+	CreatedByUserID    uint             `json:"created_by_user_id"`
+	CreatedByUserEmail string           `json:"created_by_user_email,omitempty"`
+	CreatedAt          time.Time        `json:"created_at"`
+	UpdatedAt          time.Time        `json:"updated_at"`
+	ArchivedAt         *time.Time       `json:"archived_at,omitempty"`
 }
 
 type OrganizationItemSyncDTO struct {
@@ -121,12 +123,14 @@ type OrganizationItemSyncDTO struct {
 	Revision           int64         `json:"revision"`
 	SyncVersion        int           `json:"sync_version,omitempty"`
 	HidePasswords      bool          `json:"hide_passwords,omitempty"`
-	CreatedByUserID    uint          `json:"created_by_user_id,omitempty"`
-	CreatedAt          time.Time     `json:"created_at,omitempty"`
-	UpdatedAt          time.Time     `json:"updated_at,omitempty"`
-	ArchivedAt         *time.Time    `json:"archived_at,omitempty"`
-	Deleted            bool          `json:"deleted"`
-	DeletedAt          *time.Time    `json:"deleted_at,omitempty"`
+	// Permissions is the caller's effective access to the item.
+	Permissions     *ItemPermissions `json:"permissions,omitempty"`
+	CreatedByUserID uint             `json:"created_by_user_id,omitempty"`
+	CreatedAt       time.Time        `json:"created_at,omitempty"`
+	UpdatedAt       time.Time        `json:"updated_at,omitempty"`
+	ArchivedAt      *time.Time       `json:"archived_at,omitempty"`
+	Deleted         bool             `json:"deleted"`
+	DeletedAt       *time.Time       `json:"deleted_at,omitempty"`
 }
 
 func ToOrganizationItemSyncDTO(item *OrganizationItem) *OrganizationItemSyncDTO {
