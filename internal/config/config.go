@@ -50,7 +50,6 @@ type ServerConfig struct {
 	AllowedOrigins             []string `mapstructure:"allowed_origins"`
 	RecaptchaSecretKey         string   `mapstructure:"recaptcha_secret_key"`
 	RecaptchaThreshold         float64  `mapstructure:"recaptcha_threshold"`
-	EscrowMasterKey            string   `mapstructure:"escrow_master_key"` // hex-encoded 256-bit key for SSO key escrow
 	// AdminAPIKey is the bearer credential for the read-only admin directory API.
 	// It is not a user session token. Empty disables that API.
 	AdminAPIKey string `mapstructure:"admin_api_key"`
@@ -421,7 +420,6 @@ func bindEnvVariables(v *viper.Viper) {
 	bind("server.allowed_origins", "PW_SERVER_ALLOWED_ORIGINS", "ALLOWED_ORIGINS")
 	bind("server.recaptcha_secret_key", "PW_RECAPTCHA_SECRET_KEY", "RECAPTCHA_SECRET_KEY")
 	bind("server.recaptcha_threshold", "PW_RECAPTCHA_THRESHOLD", "RECAPTCHA_THRESHOLD")
-	bind("server.escrow_master_key", "PW_SERVER_ESCROW_MASTER_KEY")
 	bind("server.admin_api_key", "PW_SERVER_ADMIN_API_KEY")
 
 	// Database bindings

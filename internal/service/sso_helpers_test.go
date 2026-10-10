@@ -19,161 +19,55 @@ import (
 
 // ─── validateRedirectURL ────────────────────────────────────────────────────────
 
-func TestValidateRedirectURL_EmptyInput(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "", validateRedirectURL("", "https://api.passwall.io", "acme.com"))
-	assert.Equal(t, "", validateRedirectURL("   ", "https://api.passwall.io", "acme.com"))
-}
-
-func TestValidateRedirectURL_SameOriginAsServer(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name      string
-		redirect  string
-		serverURL string
-		domain    string
-		want      string
-	}{
-		{
-			name:      "exact server origin",
-			redirect:  "https://api.passwall.io/sso/complete",
-			serverURL: "https://api.passwall.io",
-			domain:    "acme.com",
-			want:      "https://api.passwall.io/sso/complete",
-		},
-		{
-			name:      "server with trailing slash",
-			redirect:  "https://api.passwall.io/callback",
-			serverURL: "https://api.passwall.io/",
-			domain:    "acme.com",
-			want:      "https://api.passwall.io/callback",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := validateRedirectURL(tt.redirect, tt.serverURL, tt.domain)
-			assert.Equal(t, tt.want, got)
-		})
+func redirectTestService(allowLocalhost bool) *ssoService {
+	return &ssoService{
+		redirectOrigins: []string{"https://vault.passwall.io", "https://vault.acme-selfhost.com/"},
+		allowLocalhost:  allowLocalhost,
 	}
 }
 
-func TestValidateRedirectURL_SSOConnectionDomain(t *testing.T) {
+func TestValidateRedirectURL_Allowed(t *testing.T) {
 	t.Parallel()
-	tests := []struct {
-		name     string
-		redirect string
-		domain   string
-		want     string
-	}{
-		{
-			name:     "exact domain match",
-			redirect: "https://acme.com/dashboard",
-			domain:   "acme.com",
-			want:     "https://acme.com/dashboard",
-		},
-		{
-			name:     "subdomain match",
-			redirect: "https://vault.acme.com/login",
-			domain:   "acme.com",
-			want:     "https://vault.acme.com/login",
-		},
-		{
-			name:     "deeply nested subdomain",
-			redirect: "https://a.b.c.acme.com/x",
-			domain:   "acme.com",
-			want:     "https://a.b.c.acme.com/x",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := validateRedirectURL(tt.redirect, "https://api.passwall.io", tt.domain)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func TestValidateRedirectURL_PasswallDomains(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name     string
-		redirect string
-		want     string
-	}{
-		{
-			name:     "passwall.io root",
-			redirect: "https://passwall.io/vault",
-			want:     "https://passwall.io/vault",
-		},
-		{
-			name:     "vault.passwall.io",
-			redirect: "https://vault.passwall.io/sso-complete",
-			want:     "https://vault.passwall.io/sso-complete",
-		},
-		{
-			name:     "passwall.com subdomain",
-			redirect: "https://app.passwall.com/done",
-			want:     "https://app.passwall.com/done",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := validateRedirectURL(tt.redirect, "https://api.passwall.io", "unrelated.org")
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func TestValidateRedirectURL_Localhost(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name     string
-		redirect string
-	}{
-		{"localhost http", "http://localhost:3000/callback"},
-		{"localhost https", "https://localhost/done"},
-		{"127.0.0.1", "http://127.0.0.1:8080/sso"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := validateRedirectURL(tt.redirect, "https://api.passwall.io", "acme.com")
-			assert.Equal(t, tt.redirect, got)
-		})
+	svc := redirectTestService(false)
+	for _, redirect := range []string{
+		"https://vault.passwall.io/sso-complete",
+		"https://VAULT.PASSWALL.IO/done",
+		"https://vault.acme-selfhost.com/x",
+	} {
+		assert.Equal(t, redirect, svc.validateRedirectURL(redirect), redirect)
 	}
 }
 
 func TestValidateRedirectURL_Rejected(t *testing.T) {
 	t.Parallel()
-	tests := []struct {
-		name     string
-		redirect string
-	}{
-		{"completely foreign domain", "https://evil.com/steal"},
-		{"domain suffix attack", "https://notacme.com/fake"},
-		{"domain prefix attack", "https://acme.com.evil.com/x"},
-		{"javascript scheme", "javascript:alert(1)"},
-		{"data URI scheme", "data:text/html,<h1>x</h1>"},
-		{"ftp scheme", "ftp://files.acme.com/data"},
-		{"relative path", "/sso/callback"},
-		{"protocol-relative", "//evil.com/path"},
-		{"malformed URL", "ht tp://broken url"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := validateRedirectURL(tt.redirect, "https://api.passwall.io", "acme.com")
-			assert.Equal(t, "", got, "should reject redirect URL: %s", tt.redirect)
-		})
+	svc := redirectTestService(false)
+	for _, redirect := range []string{
+		"",
+		"   ",
+		"https://evil.com/steal",
+		"https://passwall.io/vault",            // not a configured client origin
+		"https://other.passwall.io/x",          // sibling host
+		"https://vault.passwall.io.evil.com/x", // suffix attack
+		"https://vault.passwall.io:8443/x",     // other port
+		"http://vault.passwall.io/x",           // plain http
+		"https://user@vault.passwall.io/x",     // userinfo
+		"http://localhost:3000/callback",       // localhost outside dev
+		"javascript:alert(1)",
+		"data:text/html,<h1>x</h1>",
+		"/sso/callback",
+		"//evil.com/path",
+		"ht tp://broken url",
+	} {
+		assert.Equal(t, "", svc.validateRedirectURL(redirect), "should reject %q", redirect)
 	}
 }
 
-func TestValidateRedirectURL_CaseInsensitiveDomain(t *testing.T) {
+func TestValidateRedirectURL_LocalhostInDev(t *testing.T) {
 	t.Parallel()
-	got := validateRedirectURL("https://VAULT.PASSWALL.IO/done", "https://api.passwall.io", "acme.com")
-	assert.Equal(t, "https://VAULT.PASSWALL.IO/done", got)
+	svc := redirectTestService(true)
+	for _, redirect := range []string{"http://localhost:3000/callback", "https://localhost/done", "http://127.0.0.1:8080/sso"} {
+		assert.Equal(t, redirect, svc.validateRedirectURL(redirect))
+	}
 }
 
 // ─── matchesDomain ──────────────────────────────────────────────────────────────

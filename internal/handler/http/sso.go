@@ -2,8 +2,6 @@ package http
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
@@ -21,6 +19,10 @@ type SSOHandler struct {
 	orgService interface {
 		GetMembership(ctx context.Context, userID uint, orgID uint) (*domain.OrganizationUser, error)
 	}
+	activityLogger *service.ActivityLogger
+	// fallbackRedirect is where the IdP callback returns when the login did
+	// not carry a valid client origin (the configured frontend URL).
+	fallbackRedirect string
 }
 
 // NewSSOHandler creates a new SSO handler
@@ -29,8 +31,51 @@ func NewSSOHandler(
 	orgService interface {
 		GetMembership(ctx context.Context, userID uint, orgID uint) (*domain.OrganizationUser, error)
 	},
+	activityLogger *service.ActivityLogger,
+	fallbackRedirect string,
 ) *SSOHandler {
-	return &SSOHandler{ssoService: ssoService, orgService: orgService}
+	return &SSOHandler{ssoService: ssoService, orgService: orgService, activityLogger: activityLogger, fallbackRedirect: fallbackRedirect}
+}
+
+// respondSSOError maps SSO service errors to stable API codes.
+func respondSSOError(c *gin.Context, err error, fallback string) {
+	if respondEntitlementError(c, err) {
+		return
+	}
+	type mapping struct {
+		target error
+		status int
+		code   string
+	}
+	for _, m := range []mapping{
+		{service.ErrSSOConnectionNotFound, http.StatusNotFound, "SSO_CONNECTION_NOT_FOUND"},
+		{service.ErrSSOInvalidDomain, http.StatusBadRequest, "SSO_INVALID_DOMAIN"},
+		{service.ErrSSODomainTaken, http.StatusConflict, "SSO_DOMAIN_TAKEN"},
+		{service.ErrSSODomainNotVerified, http.StatusBadRequest, "SSO_DOMAIN_NOT_VERIFIED"},
+		{service.ErrSSODefaultRoleNotAllowed, http.StatusBadRequest, "SSO_DEFAULT_ROLE_NOT_ALLOWED"},
+		{service.ErrSSOProtocolMismatch, http.StatusBadRequest, "SSO_CONFIG_INVALID"},
+		{service.ErrSSOConfigInvalid, http.StatusBadRequest, "SSO_CONFIG_INVALID"},
+		{service.ErrSSOInvalidCodeChallenge, http.StatusBadRequest, "SSO_INVALID_CODE_CHALLENGE"},
+		{service.ErrSSOInvalidLoginCode, http.StatusUnauthorized, "SSO_INVALID_LOGIN_CODE"},
+		{service.ErrSSOConnectionInactive, http.StatusBadRequest, "SSO_CONNECTION_INACTIVE"},
+	} {
+		if errors.Is(err, m.target) {
+			c.JSON(m.status, gin.H{"error": err.Error(), "code": m.code})
+			return
+		}
+	}
+	c.JSON(http.StatusInternalServerError, gin.H{"error": fallback})
+}
+
+func (h *SSOHandler) logOrgActivity(c *gin.Context, userID uint, activityType domain.ActivityType, orgID uint, details service.ActivityDetails) {
+	if h.activityLogger == nil {
+		return
+	}
+	if details == nil {
+		details = service.ActivityDetails{}
+	}
+	details[service.ActivityFieldOrganizationID] = orgID
+	_ = h.activityLogger.LogActivity(c.Request.Context(), userID, activityType, GetIPAddress(c), c.Request.UserAgent(), details)
 }
 
 // CreateConnection creates a new SSO connection for an organization
@@ -55,19 +100,12 @@ func (h *SSOHandler) CreateConnection(c *gin.Context) {
 
 	conn, err := h.ssoService.CreateConnection(ctx, orgID, userID, &req)
 	if err != nil {
-		if respondEntitlementError(c, err) {
-			return
-		}
-		logger.Errorf("SSO CreateConnection failed: user_id=%d org_id=%d protocol=%s domain=%s err=%v", userID, orgID, req.Protocol, req.Domain, err)
-		if errors.Is(err, service.ErrSSOProtocolMismatch) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create SSO connection"})
+		logger.Errorf("SSO CreateConnection failed: user_id=%d org_id=%d protocol=%s err=%v", userID, orgID, req.Protocol, err)
+		respondSSOError(c, err, "failed to create SSO connection")
 		return
 	}
 
-	logger.Infof("SSO CreateConnection success: user_id=%d org_id=%d conn_id=%d protocol=%s domain=%s", userID, orgID, conn.ID, conn.Protocol, conn.Domain)
+	h.logOrgActivity(c, userID, domain.ActivityTypeSSOConnectionChanged, orgID, service.ActivityDetails{"action": "created", "connection_id": conn.ID, "domain": conn.Domain})
 	c.JSON(http.StatusCreated, domain.ToSSOConnectionDTO(conn))
 }
 
@@ -170,19 +208,12 @@ func (h *SSOHandler) UpdateConnection(c *gin.Context) {
 
 	conn, err := h.ssoService.UpdateConnection(ctx, connID, userID, &req)
 	if err != nil {
-		if respondEntitlementError(c, err) {
-			return
-		}
 		logger.Errorf("SSO UpdateConnection failed: user_id=%d org_id=%d conn_id=%d err=%v", userID, orgID, connID, err)
-		if errors.Is(err, service.ErrSSOConnectionNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "SSO connection not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update SSO connection"})
+		respondSSOError(c, err, "failed to update SSO connection")
 		return
 	}
 
-	logger.Infof("SSO UpdateConnection success: user_id=%d org_id=%d conn_id=%d", userID, orgID, connID)
+	h.logOrgActivity(c, userID, domain.ActivityTypeSSOConnectionChanged, orgID, service.ActivityDetails{"action": "updated", "connection_id": conn.ID, "domain": conn.Domain, "status": conn.Status})
 	c.JSON(http.StatusOK, domain.ToSSOConnectionDTO(conn))
 }
 
@@ -209,20 +240,13 @@ func (h *SSOHandler) DeleteConnection(c *gin.Context) {
 		return
 	}
 	if err := h.ssoService.DeleteConnection(ctx, connID, userID); err != nil {
-		if respondEntitlementError(c, err) {
-			return
-		}
 		logger.Errorf("SSO DeleteConnection failed: user_id=%d org_id=%d conn_id=%d err=%v", userID, orgID, connID, err)
-		if errors.Is(err, service.ErrSSOConnectionNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "SSO connection not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete SSO connection"})
+		respondSSOError(c, err, "failed to delete SSO connection")
 		return
 	}
 
-	logger.Infof("SSO DeleteConnection success: user_id=%d org_id=%d conn_id=%d", userID, orgID, connID)
-	c.JSON(http.StatusNoContent, nil)
+	h.logOrgActivity(c, userID, domain.ActivityTypeSSOConnectionChanged, orgID, service.ActivityDetails{"action": "deleted", "connection_id": connID, "domain": conn.Domain})
+	c.Status(http.StatusNoContent)
 }
 
 // ActivateConnection activates an SSO connection (validates config first)
@@ -252,19 +276,58 @@ func (h *SSOHandler) ActivateConnection(c *gin.Context) {
 
 	conn, err := h.ssoService.ActivateConnection(ctx, connID, userID)
 	if err != nil {
-		if respondEntitlementError(c, err) {
-			return
-		}
 		logger.Errorf("SSO ActivateConnection failed: user_id=%d org_id=%d conn_id=%d err=%v", userID, orgID, connID, err)
-		if errors.Is(err, service.ErrSSOConnectionNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "SSO connection not found"})
-			return
-		}
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondSSOError(c, err, "failed to activate SSO connection")
 		return
 	}
 
-	logger.Infof("SSO ActivateConnection success: user_id=%d org_id=%d conn_id=%d", userID, orgID, connID)
+	h.logOrgActivity(c, userID, domain.ActivityTypeSSOConnectionChanged, orgID, service.ActivityDetails{"action": "activated", "connection_id": conn.ID, "domain": conn.Domain})
+	c.JSON(http.StatusOK, domain.ToSSOConnectionDTO(conn))
+}
+
+// VerifyDomain checks the DNS TXT record for the connection's domain.
+func (h *SSOHandler) VerifyDomain(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := GetCurrentUserID(c)
+
+	connID, ok := GetUintParam(c, "connId")
+	if !ok {
+		return
+	}
+	orgID, ok := GetResolvedOrgID(c)
+	if !ok {
+		return
+	}
+	if !h.ensureOrgAdmin(c, ctx, userID, orgID) {
+		return
+	}
+	existing, err := h.ssoService.GetConnection(ctx, connID)
+	if err != nil || existing.OrganizationID != orgID {
+		c.JSON(http.StatusNotFound, gin.H{"error": "SSO connection not found", "code": "SSO_CONNECTION_NOT_FOUND"})
+		return
+	}
+	wasVerified := existing.IsDomainVerified()
+
+	conn, err := h.ssoService.VerifyDomain(ctx, connID, userID)
+	if err != nil {
+		if errors.Is(err, service.ErrSSODomainNotVerified) {
+			current, _ := h.ssoService.GetConnection(ctx, connID)
+			if current == nil {
+				current = existing
+			}
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":      "the TXT record was not found; DNS changes can take a while to appear",
+				"code":       "SSO_DOMAIN_NOT_VERIFIED",
+				"connection": domain.ToSSOConnectionDTO(current),
+			})
+			return
+		}
+		respondSSOError(c, err, "failed to verify domain")
+		return
+	}
+	if !wasVerified {
+		h.logOrgActivity(c, userID, domain.ActivityTypeSSODomainVerified, orgID, service.ActivityDetails{"connection_id": conn.ID, "domain": conn.Domain})
+	}
 	c.JSON(http.StatusOK, domain.ToSSOConnectionDTO(conn))
 }
 
@@ -279,23 +342,18 @@ func (h *SSOHandler) InitiateLogin(c *gin.Context) {
 		return
 	}
 
-	logger.Infof("SSO InitiateLogin attempt: domain=%s redirect_url_present=%t", req.Domain, strings.TrimSpace(req.RedirectURL) != "")
 	redirectURL, err := h.ssoService.InitiateLogin(ctx, &req)
 	if err != nil {
-		logger.Errorf("SSO InitiateLogin failed: domain=%s err=%v", req.Domain, err)
-		if errors.Is(err, service.ErrSSOConnectionNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "no SSO connection found for this domain"})
+		if errors.Is(err, service.ErrSSOConnectionNotFound) || errors.Is(err, service.ErrSSOConnectionInactive) {
+			// One answer for unknown and inactive domains.
+			c.JSON(http.StatusNotFound, gin.H{"error": "no SSO connection found for this domain", "code": "SSO_CONNECTION_NOT_FOUND"})
 			return
 		}
-		if errors.Is(err, service.ErrSSOConnectionInactive) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "SSO connection is not active"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to initiate SSO login"})
+		logger.Errorf("SSO InitiateLogin failed: err=%v", err)
+		respondSSOError(c, err, "failed to initiate SSO login")
 		return
 	}
 
-	logger.Infof("SSO InitiateLogin success: domain=%s", req.Domain)
 	c.JSON(http.StatusOK, gin.H{
 		"redirect_url": redirectURL,
 		"auth_url":     redirectURL,
@@ -335,7 +393,7 @@ func (h *SSOHandler) OIDCCallback(c *gin.Context) {
 
 	if errParam != "" {
 		errDesc := c.Query("error_description")
-		logger.Warnf("SSO OIDCCallback provider error: state=%s error=%s description=%s", state, errParam, errDesc)
+		logger.Warnf("SSO callback provider error: error=%s", errParam)
 		h.redirectToVaultCallback(c, redirectBase, false, "", errParam, errDesc)
 		return
 	}
@@ -348,7 +406,6 @@ func (h *SSOHandler) OIDCCallback(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "missing RelayState parameter"})
 			return
 		}
-		logger.Infof("SSO SAML callback start: relay_state_present=%t", relayState != "")
 		result, err = h.ssoService.HandleSAMLCallback(ctx, relayState, samlResponse)
 	} else {
 		if state == "" || code == "" {
@@ -356,34 +413,52 @@ func (h *SSOHandler) OIDCCallback(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "missing state or code parameter"})
 			return
 		}
-		logger.Infof("SSO OIDC callback start: state=%s", state)
 		result, err = h.ssoService.HandleOIDCCallback(ctx, state, code)
 	}
 	if err != nil {
-		logger.Errorf("SSO callback failed: state=%s relay_state_present=%t err=%v", state, relayState != "", err)
-		if errors.Is(err, service.ErrSSOInvalidState) {
+		logger.Errorf("SSO callback failed: err=%v", err)
+		switch {
+		case errors.Is(err, service.ErrSSOInvalidState):
 			h.redirectToVaultCallback(c, redirectBase, false, "", "invalid_state", "invalid or expired SSO state")
+		case errors.Is(err, service.ErrSSOUserNotFound):
+			h.redirectToVaultCallback(c, redirectBase, false, "", "user_not_found", "create a Passwall account with this email first")
+		case errors.Is(err, service.ErrSSONotMember):
+			h.redirectToVaultCallback(c, redirectBase, false, "", "not_member", "you are not a member of this organization")
+		case errors.Is(err, service.ErrSSOMembershipInactive):
+			h.redirectToVaultCallback(c, redirectBase, false, "", "membership_inactive", "your organization membership is not active")
+		default:
+			h.redirectToVaultCallback(c, redirectBase, false, "", "sso_callback_failed", "SSO authentication failed")
+		}
+		return
+	}
+	if result.Provisioned {
+		h.logOrgActivity(c, result.UserID, domain.ActivityTypeSSOMemberProvisioned, result.OrgID, nil)
+	}
+	h.redirectToVaultCallback(c, result.RedirectURL, true, result.Code, "", "")
+}
+
+// ExchangeLoginCode trades the single-use code from the callback for a
+// session (public; the PKCE verifier proves the caller started the login).
+func (h *SSOHandler) ExchangeLoginCode(c *gin.Context) {
+	var req domain.SSOExchangeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+	resp, err := h.ssoService.ExchangeLoginCode(c.Request.Context(), &req)
+	if err != nil {
+		logger.Warnf("SSO code exchange failed: err=%v", err)
+		if errors.Is(err, service.ErrDeviceLimit) {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error(), "code": "DEVICE_LIMIT_REACHED"})
 			return
 		}
-		h.redirectToVaultCallback(c, redirectBase, false, "", "sso_callback_failed", "SSO authentication failed")
+		respondSSOError(c, err, "failed to complete SSO sign-in")
 		return
 	}
-	userID := uint(0)
-	orgID := uint(0)
-	if result != nil && result.User != nil {
-		userID = result.User.ID
+	if resp.AuthResponse != nil && !resp.TwoFactorRequired && resp.User != nil && resp.Organization != nil {
+		h.logOrgActivity(c, resp.User.ID, domain.ActivityTypeSSOSignIn, resp.Organization.ID, nil)
 	}
-	if result != nil && result.Organization != nil {
-		orgID = result.Organization.ID
-	}
-	logger.Infof("SSO callback success: user_id=%d org_id=%d", userID, orgID)
-	payload, err := buildSSOCallbackPayload(result)
-	if err != nil {
-		logger.Errorf("SSO callback payload encode failed: user_id=%d org_id=%d err=%v", userID, orgID, err)
-		h.redirectToVaultCallback(c, result.RedirectURL, false, "", "sso_callback_failed", "SSO authentication succeeded but response packaging failed")
-		return
-	}
-	h.redirectToVaultCallback(c, result.RedirectURL, true, payload, "", "")
+	c.JSON(http.StatusOK, resp)
 }
 
 // GetSPMetadata returns SAML SP metadata for a connection
@@ -406,42 +481,21 @@ func (h *SSOHandler) GetSPMetadata(c *gin.Context) {
 	c.String(http.StatusOK, metadata)
 }
 
-func buildSSOCallbackPayload(result *domain.SSOCallbackResult) (string, error) {
-	data := map[string]interface{}{
-		"user":               result.AuthUser,
-		"organization":       result.Organization,
-		"access_token":       result.AccessToken,
-		"refresh_token":      result.RefreshToken,
-		"protected_user_key": result.ProtectedUserKey,
-		"kdf_config":         result.KdfConfig,
-		"redirect_url":       result.RedirectURL,
-		"key_escrow_used":    result.KeyEscrowUsed,
-	}
-	if result.OrgKey != "" {
-		data["org_key"] = result.OrgKey
-		data["org_id"] = result.OrgID
-	}
-	raw, err := json.Marshal(data)
-	if err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(raw), nil
-}
-
 func (h *SSOHandler) redirectToVaultCallback(
 	c *gin.Context,
 	redirectBase string,
 	success bool,
-	payload string,
+	code string,
 	errCode string,
 	errDesc string,
 ) {
-	target := buildVaultCallbackURL(redirectBase)
+	target := buildVaultCallbackURL(redirectBase, h.fallbackRedirect)
 	if success {
 		q := target.Query()
 		q.Set("status", "success")
 		target.RawQuery = q.Encode()
-		target.Fragment = "payload=" + url.QueryEscape(payload)
+		// Fragment: never sent to servers or logged by proxies.
+		target.Fragment = "code=" + url.QueryEscape(code)
 		c.Redirect(http.StatusFound, target.String())
 		return
 	}
@@ -458,8 +512,11 @@ func (h *SSOHandler) redirectToVaultCallback(
 	c.Redirect(http.StatusFound, target.String())
 }
 
-func buildVaultCallbackURL(base string) *url.URL {
-	fallback, _ := url.Parse("https://vault.passwall.io/sign-in")
+func buildVaultCallbackURL(base, fallbackBase string) *url.URL {
+	fallback, err := url.Parse(strings.TrimRight(strings.TrimSpace(fallbackBase), "/") + "/sign-in")
+	if err != nil || !fallback.IsAbs() {
+		fallback, _ = url.Parse("https://vault.passwall.io/sign-in")
+	}
 	base = strings.TrimSpace(base)
 	if base == "" {
 		return fallback
@@ -485,6 +542,10 @@ func (h *SSOHandler) ensureOrgAdmin(c *gin.Context, ctx context.Context, userID,
 	membership, err := h.orgService.GetMembership(ctx, userID, orgID)
 	if err != nil || membership == nil {
 		logger.Warnf("SSO org access denied: user_id=%d org_id=%d err=%v", userID, orgID, err)
+		c.JSON(http.StatusForbidden, gin.H{"error": "organization access denied"})
+		return false
+	}
+	if membership.Status != domain.OrgUserStatusAccepted && membership.Status != domain.OrgUserStatusConfirmed {
 		c.JSON(http.StatusForbidden, gin.H{"error": "organization access denied"})
 		return false
 	}

@@ -22,7 +22,13 @@ var (
 	ErrSCIMGroupNotFound       = errors.New("SCIM group not found")
 	ErrSCIMUserExists          = errors.New("SCIM user already exists in organization")
 	ErrSCIMProvisioningBlocked = errors.New("SCIM auto-provisioning is blocked until secure org-key exchange is implemented")
+	ErrSCIMInvalidFilter       = errors.New("unsupported SCIM filter")
+	ErrSCIMLastOwner           = errors.New("the last owner of an organization cannot be deprovisioned through SCIM")
+	ErrSCIMDomainNotVerified   = errors.New("the user's email domain is not verified for this organization; invite the user from Passwall instead")
 )
+
+// pendingOrgKey marks a membership that has not received the org key yet.
+const pendingOrgKey = "pending_key_exchange"
 
 // SCIMService handles SCIM 2.0 provisioning operations
 type SCIMService interface {
@@ -50,6 +56,10 @@ type SCIMService interface {
 }
 
 type scimService struct {
+	connRepo     repository.SSOConnectionRepository
+	joinPolicies interface {
+		CheckJoinPolicies(ctx context.Context, orgID, userID uint) error
+	}
 	tokenRepo    repository.SCIMTokenRepository
 	userRepo     repository.UserRepository
 	orgUserRepo  repository.OrganizationUserRepository
@@ -84,6 +94,18 @@ func NewSCIMService(
 		service.entitlements = entitlements[0]
 	}
 	return service
+}
+
+// WithProvisioningGuards adds the verified-domain and join-policy checks
+// used when SCIM creates memberships.
+func WithProvisioningGuards(svc SCIMService, connRepo repository.SSOConnectionRepository, joinPolicies interface {
+	CheckJoinPolicies(ctx context.Context, orgID, userID uint) error
+}) SCIMService {
+	if s, ok := svc.(*scimService); ok {
+		s.connRepo = connRepo
+		s.joinPolicies = joinPolicies
+	}
+	return svc
 }
 
 // --- Token Management ---
@@ -203,9 +225,11 @@ func (s *scimService) ListUsers(ctx context.Context, orgID uint, filter string, 
 		return nil, err
 	}
 
-	// Apply filter if present (basic "userName eq" support)
 	if filter != "" {
-		orgUsers = s.filterOrgUsers(orgUsers, filter)
+		orgUsers, err = s.filterOrgUsers(orgUsers, filter)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	total := len(orgUsers)
@@ -265,15 +289,28 @@ func (s *scimService) CreateUser(ctx context.Context, orgID uint, scimUser *doma
 		return nil, fmt.Errorf("SCIM user must have a primary email")
 	}
 
-	existingUser, err := s.userRepo.GetByEmail(ctx, strings.ToLower(email))
+	email = strings.ToLower(strings.TrimSpace(email))
+	if err := s.ensureVerifiedDomain(ctx, orgID, email); err != nil {
+		return nil, err
+	}
+
+	existingUser, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
-		s.logger.Info("SCIM CreateUser: user not found in system, cannot provision", "email", email, "org_id", orgID)
+		s.logger.Info("SCIM CreateUser: user not found in system, cannot provision", "org_id", orgID)
 		return nil, fmt.Errorf("user %s does not have a Passwall account yet; they must sign up first", email)
 	}
 
 	_, err = s.orgUserRepo.GetByOrgAndUser(ctx, orgID, existingUser.ID)
 	if err == nil {
 		return nil, ErrSCIMUserExists
+	}
+	if !errors.Is(err, repository.ErrNotFound) {
+		return nil, err
+	}
+	if s.joinPolicies != nil {
+		if err := s.joinPolicies.CheckJoinPolicies(ctx, orgID, existingUser.ID); err != nil {
+			return nil, err
+		}
 	}
 
 	now := time.Now()
@@ -282,7 +319,7 @@ func (s *scimService) CreateUser(ctx context.Context, orgID uint, scimUser *doma
 		OrganizationID:  orgID,
 		UserID:          existingUser.ID,
 		Role:            domain.OrgRoleMember,
-		EncryptedOrgKey: "pending_key_exchange",
+		EncryptedOrgKey: pendingOrgKey,
 		AccessAll:       false,
 		Status:          domain.OrgUserStatusProvisioned,
 		InvitedAt:       &now,
@@ -327,12 +364,15 @@ func (s *scimService) UpdateUser(ctx context.Context, orgID uint, userID string,
 		if err := s.authorizeSCIM(ctx, orgID, domain.CapabilitySCIMDeprovision); err != nil {
 			return nil, err
 		}
+		if err := s.ensureNotLastOwner(ctx, orgUser); err != nil {
+			return nil, err
+		}
 		orgUser.Status = domain.OrgUserStatusSuspended
 	} else if scimUser.Active && orgUser.Status == domain.OrgUserStatusSuspended {
 		if err := s.authorizeSCIM(ctx, orgID, domain.CapabilitySCIMManage, domain.CapabilityMemberInvite); err != nil {
 			return nil, err
 		}
-		orgUser.Status = domain.OrgUserStatusConfirmed
+		orgUser.Status = reactivatedStatus(orgUser)
 	} else if err := s.authorizeSCIMMutation(ctx, orgID); err != nil {
 		return nil, err
 	}
@@ -350,27 +390,51 @@ func (s *scimService) PatchUser(ctx context.Context, orgID uint, userID string, 
 		return nil, ErrSCIMUserNotFound
 	}
 
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, uint(id))
+	current, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, uint(id))
 	if err != nil {
 		return nil, ErrSCIMUserNotFound
 	}
+	// Apply the operations to a copy; nothing changes unless all checks pass.
+	updated := *current
+	orgUser := &updated
 	wasActive := orgUser.Status == domain.OrgUserStatusAccepted ||
 		orgUser.Status == domain.OrgUserStatusConfirmed
 
+	setActive := func(active bool) {
+		switch {
+		case !active:
+			orgUser.Status = domain.OrgUserStatusSuspended
+		case orgUser.Status == domain.OrgUserStatusSuspended:
+			orgUser.Status = reactivatedStatus(orgUser)
+		}
+	}
 	for _, op := range patch.Operations {
-		switch strings.ToLower(op.Op) {
-		case "replace":
-			if op.Path == "active" || op.Path == "" {
-				active := parseBoolValue(op.Value)
-				if !active {
-					orgUser.Status = domain.OrgUserStatusSuspended
-				} else {
-					orgUser.Status = domain.OrgUserStatusConfirmed
-				}
+		opName := strings.ToLower(op.Op)
+		if opName != "replace" && opName != "add" {
+			continue
+		}
+		switch strings.ToLower(strings.TrimSpace(op.Path)) {
+		case "active":
+			setActive(parseBoolValue(op.Value))
+		case "externalid":
+			if v, ok := op.Value.(string); ok {
+				orgUser.ExternalID = ptrString(v)
 			}
-			if op.Path == "externalId" {
-				if v, ok := op.Value.(string); ok {
-					orgUser.ExternalID = &v
+		case "":
+			// Path-less op: the value is a partial resource. Only touch
+			// attributes that are present.
+			values, ok := op.Value.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			for key, value := range values {
+				switch strings.ToLower(key) {
+				case "active":
+					setActive(parseBoolValue(value))
+				case "externalid":
+					if v, ok := value.(string); ok {
+						orgUser.ExternalID = ptrString(v)
+					}
 				}
 			}
 		}
@@ -382,8 +446,11 @@ func (s *scimService) PatchUser(ctx context.Context, orgID uint, userID string, 
 		if err := s.authorizeSCIM(ctx, orgID, domain.CapabilitySCIMManage, domain.CapabilityMemberInvite); err != nil {
 			return nil, err
 		}
-	case orgUser.Status == domain.OrgUserStatusSuspended:
+	case orgUser.Status == domain.OrgUserStatusSuspended && wasActive:
 		if err := s.authorizeSCIM(ctx, orgID, domain.CapabilitySCIMDeprovision); err != nil {
+			return nil, err
+		}
+		if err := s.ensureNotLastOwner(ctx, orgUser); err != nil {
 			return nil, err
 		}
 	default:
@@ -413,6 +480,9 @@ func (s *scimService) DeleteUser(ctx context.Context, orgID uint, userID string)
 		return ErrSCIMUserNotFound
 	}
 
+	if err := s.ensureNotLastOwner(ctx, orgUser); err != nil {
+		return err
+	}
 	s.logger.Info("SCIM deprovisioning user from org", "user_id", id, "org_id", orgID)
 	return s.orgUserRepo.Delete(ctx, orgUser.ID)
 }
@@ -742,21 +812,104 @@ func (s *scimService) handleGroupMemberRemove(ctx context.Context, team *domain.
 	_ = s.teamUserRepo.DeleteByTeamAndOrgUser(ctx, team.ID, orgUser.ID)
 }
 
-func (s *scimService) filterOrgUsers(orgUsers []*domain.OrganizationUser, filter string) []*domain.OrganizationUser {
-	// Basic SCIM filter: userName eq "user@example.com"
-	filter = strings.TrimSpace(filter)
-	if strings.HasPrefix(filter, `userName eq "`) && strings.HasSuffix(filter, `"`) {
-		email := filter[len(`userName eq "`) : len(filter)-1]
-		email = strings.ToLower(email)
-		var result []*domain.OrganizationUser
-		for _, ou := range orgUsers {
-			if ou.User != nil && strings.ToLower(ou.User.Email) == email {
+// filterOrgUsers supports the equality filters IdPs use to look users up:
+// userName, externalId and emails.value. Anything else is rejected rather
+// than ignored, so an IdP never mistakes "all users" for a match.
+func (s *scimService) filterOrgUsers(orgUsers []*domain.OrganizationUser, filter string) ([]*domain.OrganizationUser, error) {
+	attr, value, ok := parseSCIMEqFilter(filter)
+	if !ok {
+		return nil, ErrSCIMInvalidFilter
+	}
+	var result []*domain.OrganizationUser
+	for _, ou := range orgUsers {
+		if ou.User == nil {
+			continue
+		}
+		switch attr {
+		case "username", "emails.value", "emails[type eq \"work\"].value":
+			if strings.EqualFold(ou.User.Email, value) {
 				result = append(result, ou)
 			}
+		case "externalid":
+			if ou.ExternalID != nil && *ou.ExternalID == value {
+				result = append(result, ou)
+			}
+		default:
+			return nil, ErrSCIMInvalidFilter
 		}
-		return result
 	}
-	return orgUsers
+	return result, nil
+}
+
+// parseSCIMEqFilter parses `<attr> eq "<value>"` (attribute is lowercased).
+func parseSCIMEqFilter(filter string) (string, string, bool) {
+	filter = strings.TrimSpace(filter)
+	idx := strings.Index(strings.ToLower(filter), " eq ")
+	if idx <= 0 {
+		return "", "", false
+	}
+	attr := strings.ToLower(strings.TrimSpace(filter[:idx]))
+	value := strings.TrimSpace(filter[idx+4:])
+	if len(value) < 2 || !strings.HasPrefix(value, `"`) || !strings.HasSuffix(value, `"`) {
+		return "", "", false
+	}
+	value = strings.ReplaceAll(value[1:len(value)-1], `\"`, `"`)
+	return attr, value, true
+}
+
+// reactivatedStatus restores a suspended member. Members who never received
+// the org key go back to "provisioned" so an admin still has to confirm them.
+func reactivatedStatus(ou *domain.OrganizationUser) domain.OrganizationUserStatus {
+	key := strings.TrimSpace(ou.EncryptedOrgKey)
+	if key == "" || key == pendingOrgKey {
+		return domain.OrgUserStatusProvisioned
+	}
+	return domain.OrgUserStatusConfirmed
+}
+
+// ensureNotLastOwner keeps the IdP from removing an organization's last
+// active owner.
+func (s *scimService) ensureNotLastOwner(ctx context.Context, target *domain.OrganizationUser) error {
+	if target.Role != domain.OrgRoleOwner {
+		return nil
+	}
+	members, err := s.orgUserRepo.ListByOrganization(ctx, target.OrganizationID)
+	if err != nil {
+		return fmt.Errorf("failed to check owners: %w", err)
+	}
+	for _, m := range members {
+		if m.ID == target.ID || m.Role != domain.OrgRoleOwner {
+			continue
+		}
+		if m.Status == domain.OrgUserStatusAccepted || m.Status == domain.OrgUserStatusConfirmed {
+			return nil
+		}
+	}
+	return ErrSCIMLastOwner
+}
+
+// ensureVerifiedDomain requires the email's domain to be verified by an SSO
+// connection of this organization before SCIM adds the user without an
+// invitation.
+func (s *scimService) ensureVerifiedDomain(ctx context.Context, orgID uint, email string) error {
+	if s.connRepo == nil {
+		return ErrSCIMDomainNotVerified
+	}
+	at := strings.LastIndex(email, "@")
+	if at < 0 || at == len(email)-1 {
+		return fmt.Errorf("SCIM user must have a valid email")
+	}
+	conn, err := s.connRepo.GetVerifiedByDomain(ctx, email[at+1:])
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return ErrSCIMDomainNotVerified
+		}
+		return err
+	}
+	if conn.OrganizationID != orgID {
+		return ErrSCIMDomainNotVerified
+	}
+	return nil
 }
 
 func hashToken(token string) string {
