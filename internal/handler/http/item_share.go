@@ -82,6 +82,13 @@ func (h *ItemShareHandler) Create(c *gin.Context) {
 		if respondEntitlementError(c, err) {
 			return
 		}
+		if errors.Is(err, service.ErrSecureSharingUnavailable) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error": "Sharing outside the organization is temporarily unavailable.",
+				"code":  "SECURE_SHARING_UNAVAILABLE",
+			})
+			return
+		}
 		if errors.Is(err, service.ErrShareInviteSent) {
 			c.JSON(http.StatusAccepted, gin.H{
 				"invitation_sent": true,
@@ -310,6 +317,13 @@ func (h *ItemShareHandler) ReShare(c *gin.Context) {
 	})
 	if err != nil {
 		if respondEntitlementError(c, err) {
+			return
+		}
+		if errors.Is(err, service.ErrSecureSharingUnavailable) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error": "Sharing outside the organization is temporarily unavailable.",
+				"code":  "SECURE_SHARING_UNAVAILABLE",
+			})
 			return
 		}
 		if errors.Is(err, service.ErrShareInviteSent) {

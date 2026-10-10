@@ -18,7 +18,9 @@ const (
 	ActivityTypeItemCreated    ActivityType = "item_created"
 	ActivityTypeItemUpdated    ActivityType = "item_updated"
 	ActivityTypeItemDeleted    ActivityType = "item_deleted"
-	ActivityTypeFailedSignIn   ActivityType = "failed_signin"
+	// ActivityTypeItemAutofillSecret records a secret released for autofill.
+	ActivityTypeItemAutofillSecret ActivityType = "item_autofill_secret"
+	ActivityTypeFailedSignIn       ActivityType = "failed_signin"
 
 	// Admin / Audit activities (admin-only visibility in UI)
 	ActivityTypeAdminUserCreated ActivityType = "admin_user_created"

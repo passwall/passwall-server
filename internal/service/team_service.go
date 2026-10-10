@@ -189,8 +189,14 @@ func (s *teamService) AddMember(ctx context.Context, teamID uint, userID uint, r
 	}
 
 	// Check if requesting user can manage team members
-	if err := s.checkTeamMemberManagePermission(ctx, team.OrganizationID, teamID, userID); err != nil {
+	isOrgAdmin, err := s.checkTeamMemberManagePermission(ctx, team.OrganizationID, teamID, userID)
+	if err != nil {
 		return err
+	}
+	// Only organization admins appoint team managers; a team manager must not
+	// be able to hand out the same power.
+	if req.IsManager && !isOrgAdmin {
+		return repository.ErrForbidden
 	}
 
 	// Verify that the target user is a member of the organization
@@ -201,6 +207,9 @@ func (s *teamService) AddMember(ctx context.Context, teamID uint, userID uint, r
 
 	if targetOrgUser.OrganizationID != team.OrganizationID {
 		return fmt.Errorf("user is not a member of this organization")
+	}
+	if targetOrgUser.Status == domain.OrgUserStatusSuspended {
+		return fmt.Errorf("suspended members cannot be added to a team")
 	}
 
 	// Check if already a member
@@ -252,13 +261,21 @@ func (s *teamService) UpdateMember(ctx context.Context, teamID uint, teamUserID 
 	}
 
 	// Check if user can manage team members
-	if err := s.checkTeamMemberManagePermission(ctx, team.OrganizationID, teamID, userID); err != nil {
+	isOrgAdmin, err := s.checkTeamMemberManagePermission(ctx, team.OrganizationID, teamID, userID)
+	if err != nil {
 		return err
+	}
+	// Changing who manages a team is reserved for organization admins.
+	if !isOrgAdmin {
+		return repository.ErrForbidden
 	}
 
 	teamUser, err := s.teamUserRepo.GetByID(ctx, teamUserID)
 	if err != nil {
 		return fmt.Errorf("team member not found: %w", err)
+	}
+	if teamUser.TeamID != teamID {
+		return repository.ErrNotFound
 	}
 
 	// Update
@@ -280,8 +297,16 @@ func (s *teamService) RemoveMember(ctx context.Context, teamID uint, teamUserID 
 	}
 
 	// Check if user can manage team members
-	if err := s.checkTeamMemberManagePermission(ctx, team.OrganizationID, teamID, userID); err != nil {
+	if _, err := s.checkTeamMemberManagePermission(ctx, team.OrganizationID, teamID, userID); err != nil {
 		return err
+	}
+
+	teamUser, err := s.teamUserRepo.GetByID(ctx, teamUserID)
+	if err != nil {
+		return fmt.Errorf("team member not found: %w", err)
+	}
+	if teamUser.TeamID != teamID {
+		return repository.ErrNotFound
 	}
 
 	if err := s.teamUserRepo.Delete(ctx, teamUserID); err != nil {
@@ -319,30 +344,32 @@ func (s *teamService) checkTeamManagePermission(ctx context.Context, orgID, user
 	return s.authorizeTeamManagement(ctx, orgID)
 }
 
-func (s *teamService) checkTeamMemberManagePermission(ctx context.Context, orgID, teamID, userID uint) error {
-	// Organization admins can always manage
+// checkTeamMemberManagePermission allows organization admins and the team's
+// own managers. It reports whether the requester is an organization admin so
+// callers can keep admin-only operations away from team managers.
+func (s *teamService) checkTeamMemberManagePermission(ctx context.Context, orgID, teamID, userID uint) (bool, error) {
 	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
-		return repository.ErrForbidden
+		return false, repository.ErrForbidden
 	}
 
 	if orgUser.IsAdmin() {
-		return s.authorizeTeamManagement(ctx, orgID)
+		return true, s.authorizeTeamManagement(ctx, orgID)
 	}
 
 	// Check if user is a team manager
 	teamMembers, err := s.teamUserRepo.ListByTeam(ctx, teamID)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	for _, tm := range teamMembers {
 		if tm.OrganizationUserID == orgUser.ID && tm.IsManager {
-			return s.authorizeTeamManagement(ctx, orgID)
+			return false, s.authorizeTeamManagement(ctx, orgID)
 		}
 	}
 
-	return repository.ErrForbidden
+	return false, repository.ErrForbidden
 }
 
 func (s *teamService) authorizeTeamManagement(ctx context.Context, orgID uint) error {
