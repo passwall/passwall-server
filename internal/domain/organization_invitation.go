@@ -76,7 +76,7 @@ func (i *OrganizationInvitation) EffectiveStatus(now time.Time) OrganizationInvi
 // CreateOrgInvitationRequest invites someone to an organization.
 type CreateOrgInvitationRequest struct {
 	Email string           `json:"email" binding:"required,email"`
-	Role  OrganizationRole `json:"role" binding:"required,oneof=owner admin manager member"`
+	Role  OrganizationRole `json:"role" binding:"required,oneof=owner admin manager member billing"`
 	// EncryptedOrgKey is the org key wrapped with the invitee's RSA public key.
 	// Sent when the invitee has an account with a key pair; ignored otherwise.
 	EncryptedOrgKey string `json:"encrypted_org_key"`

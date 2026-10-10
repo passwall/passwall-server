@@ -411,6 +411,25 @@ func (s *organizationService) Update(ctx context.Context, id uint, userID uint, 
 	if req.BillingEmail != nil {
 		org.BillingEmail = *req.BillingEmail
 	}
+	if req.ChangesCollectionManagement() {
+		// Admins must not be able to widen their own reach.
+		requester, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, id, userID)
+		if err != nil || !requester.IsOwner() {
+			return nil, repository.ErrForbidden
+		}
+		if org.IsPersonal {
+			return nil, repository.ErrForbidden
+		}
+		if req.AdminsManageAllCollections != nil {
+			org.AdminsManageAllCollections = *req.AdminsManageAllCollections
+		}
+		if req.CollectionCreationLimited != nil {
+			org.CollectionCreationLimited = *req.CollectionCreationLimited
+		}
+		if req.ManageCanDeleteCollections != nil {
+			org.ManageCanDeleteCollections = *req.ManageCanDeleteCollections
+		}
+	}
 
 	if err := s.orgRepo.Update(ctx, org); err != nil {
 		s.logger.Error("failed to update organization", "org_id", id, "error", err)
@@ -519,6 +538,7 @@ func (s *organizationService) GetMembers(ctx context.Context, orgID uint, reques
 }
 
 func (s *organizationService) UpdateMemberRole(ctx context.Context, orgID, orgUserID uint, requestingUserID uint, req *domain.UpdateOrgUserRoleRequest) error {
+	req.Role = domain.NormalizeOrgRole(req.Role)
 	if !isSupportedOrgRole(req.Role) {
 		return fmt.Errorf("invalid organization role: %s", req.Role)
 	}
@@ -784,7 +804,7 @@ func (s *organizationService) checkPermission(ctx context.Context, orgID, userID
 
 func isSupportedOrgRole(role domain.OrganizationRole) bool {
 	switch role {
-	case domain.OrgRoleOwner, domain.OrgRoleAdmin, domain.OrgRoleManager, domain.OrgRoleMember:
+	case domain.OrgRoleOwner, domain.OrgRoleAdmin, domain.OrgRoleMember, domain.OrgRoleBilling:
 		return true
 	default:
 		return false

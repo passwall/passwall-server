@@ -56,9 +56,11 @@ func (h *CollectionHandler) collectionDTOForCaller(ctx context.Context, col *dom
 	if dto == nil {
 		return nil
 	}
-	if access, err := h.service.CallerAccess(ctx, col.OrganizationID, col.ID, userID); err == nil {
-		dto.Permission = access.Permission()
-		dto.Permissions = access.ItemPermissions()
+	if caller, err := h.service.CallerAccess(ctx, col.OrganizationID, col.ID, userID); err == nil {
+		dto.Permission = caller.Access.Permission()
+		dto.Permissions = caller.Access.ItemPermissions()
+		dto.CanManage = &caller.CanManage
+		dto.CanDelete = &caller.CanDelete
 	}
 	return dto
 }

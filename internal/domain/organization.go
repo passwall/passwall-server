@@ -83,6 +83,17 @@ type Organization struct {
 	CreatedByUserEmail *string `json:"created_by_user_email,omitempty" gorm:"type:varchar(255)"`
 	CreatedByUserName  *string `json:"created_by_user_name,omitempty" gorm:"type:varchar(255)"`
 
+	// Collection management (Bitwarden style). Defaults keep today's behavior.
+	// AdminsManageAllCollections: owners and admins can see and manage every
+	// collection and item. When off, they manage collection access but only
+	// see items in collections they are assigned to.
+	AdminsManageAllCollections bool `json:"admins_manage_all_collections" gorm:"not null;default:true"`
+	// CollectionCreationLimited: only owners and admins create collections.
+	CollectionCreationLimited bool `json:"collection_creation_limited" gorm:"not null;default:false"`
+	// ManageCanDeleteCollections: members with "manage" on a collection can
+	// delete it. Owners and admins always can.
+	ManageCanDeleteCollections bool `json:"manage_can_delete_collections" gorm:"not null;default:true"`
+
 	// Note: Plan limits are NOT stored here - they come from subscriptions + plans tables
 	// Use service methods to get plan limits via JOIN
 
@@ -209,6 +220,16 @@ func (ou *OrganizationUser) CanManageUsers() bool {
 }
 
 // CanManageCollections checks if the user can manage collections
+// NormalizeOrgRole maps retired roles to their replacement. The manager role
+// became the per-collection "manage" permission; older clients may still
+// send it, and those members become regular members.
+func NormalizeOrgRole(role OrganizationRole) OrganizationRole {
+	if role == OrgRoleManager {
+		return OrgRoleMember
+	}
+	return role
+}
+
 func (ou *OrganizationUser) CanManageCollections() bool {
 	return ou.Role == OrgRoleOwner || ou.Role == OrgRoleAdmin || ou.Role == OrgRoleManager
 }
@@ -233,6 +254,11 @@ type OrganizationDTO struct {
 	IsActive           bool               `json:"is_active"`
 	CreatedAt          time.Time          `json:"created_at"`
 	UpdatedAt          time.Time          `json:"updated_at"`
+
+	// Collection management settings.
+	AdminsManageAllCollections bool `json:"admins_manage_all_collections"`
+	CollectionCreationLimited  bool `json:"collection_creation_limited"`
+	ManageCanDeleteCollections bool `json:"manage_can_delete_collections"`
 
 	// Subscription (optional)
 	Subscription *SubscriptionDTO `json:"subscription,omitempty"`
@@ -360,12 +386,23 @@ func ToOrganizationDTOWithSubscription(org *Organization, sub *Subscription) *Or
 type UpdateOrganizationRequest struct {
 	Name         *string `json:"name,omitempty" validate:"omitempty,max=255"`
 	BillingEmail *string `json:"billing_email,omitempty" validate:"omitempty,email"`
+
+	// Collection management settings (owners only).
+	AdminsManageAllCollections *bool `json:"admins_manage_all_collections,omitempty"`
+	CollectionCreationLimited  *bool `json:"collection_creation_limited,omitempty"`
+	ManageCanDeleteCollections *bool `json:"manage_can_delete_collections,omitempty"`
+}
+
+// ChangesCollectionManagement reports whether the request touches the
+// owner-only collection management settings.
+func (r *UpdateOrganizationRequest) ChangesCollectionManagement() bool {
+	return r.AdminsManageAllCollections != nil || r.CollectionCreationLimited != nil || r.ManageCanDeleteCollections != nil
 }
 
 // InviteUserToOrgRequest for inviting users
 type InviteUserToOrgRequest struct {
 	Email string           `json:"email" binding:"required,email"`
-	Role  OrganizationRole `json:"role" binding:"required,oneof=owner admin manager member"`
+	Role  OrganizationRole `json:"role" binding:"required,oneof=owner admin manager member billing"`
 	// EncryptedOrgKey is the org key wrapped with the invitee's public key. It is
 	// required for registered invitees and omitted for people who have not signed
 	// up yet; those receive the key when an admin confirms them after sign-up.
@@ -386,7 +423,7 @@ type PendingOrgInvitationDTO struct {
 
 // UpdateOrgUserRoleRequest for updating user role
 type UpdateOrgUserRoleRequest struct {
-	Role      OrganizationRole `json:"role" binding:"required,oneof=owner admin manager member"`
+	Role      OrganizationRole `json:"role" binding:"required,oneof=owner admin manager member billing"`
 	AccessAll *bool            `json:"access_all,omitempty"`
 }
 
@@ -420,6 +457,10 @@ func ToOrganizationDTO(org *Organization) *OrganizationDTO {
 		CollectionCount: org.CollectionCount,
 		ItemCount:       org.ItemCount,
 		EncryptedOrgKey: org.EncryptedOrgKey, // User's copy (safe to send)
+
+		AdminsManageAllCollections: org.AdminsManageAllCollections,
+		CollectionCreationLimited:  org.CollectionCreationLimited,
+		ManageCanDeleteCollections: org.ManageCanDeleteCollections,
 	}
 
 	return dto

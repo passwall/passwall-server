@@ -140,7 +140,7 @@ func (s *organizationItemService) Create(ctx context.Context, orgID, userID uint
 		}
 
 		// Check collection access (enforce write permission for non-admin users)
-		if !orgUser.IsAdmin() && !orgUser.AccessAll {
+		if !authz.HasUnrestrictedItemAccess(orgUser) {
 			access, err := authz.ComputeCollectionAccess(
 				ctx,
 				orgUser,
@@ -211,7 +211,7 @@ func (s *organizationItemService) GetByID(ctx context.Context, id, userID uint) 
 		return nil, repository.ErrForbidden
 	}
 
-	if orgUser.IsAdmin() || orgUser.AccessAll {
+	if authz.HasUnrestrictedItemAccess(orgUser) {
 		return item, nil
 	}
 
@@ -249,7 +249,7 @@ func (s *organizationItemService) ListByOrganization(ctx context.Context, orgID,
 	}
 
 	allowedCollectionIDs := map[uint]struct{}{}
-	restrictByCollections := !orgUser.IsAdmin() && !orgUser.AccessAll
+	restrictByCollections := !authz.HasUnrestrictedItemAccess(orgUser)
 	if restrictByCollections {
 		allowedCollections, err := s.collectionRepo.ListForUser(ctx, orgID, userID)
 		if err != nil {
@@ -334,7 +334,7 @@ func (s *organizationItemService) ListV2(ctx context.Context, orgID, userID uint
 		UpToRevision:   cursor.HeadRevision,
 		Limit:          req.Limit,
 	}
-	if !orgUser.IsAdmin() && !orgUser.AccessAll {
+	if !authz.HasUnrestrictedItemAccess(orgUser) {
 		collections, err := s.collectionRepo.ListForUser(ctx, orgID, userID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get allowed collections: %w", err)
@@ -424,7 +424,7 @@ func (s *organizationItemService) ListByCollection(ctx context.Context, collecti
 	}
 
 	// Check access (admins/access_all can view all; others are scoped to assigned collections)
-	if !orgUser.IsAdmin() && !orgUser.AccessAll {
+	if !authz.HasUnrestrictedItemAccess(orgUser) {
 		access, err := authz.ComputeCollectionAccess(
 			ctx,
 			orgUser,
@@ -471,7 +471,7 @@ func (s *organizationItemService) Update(ctx context.Context, id, userID uint, r
 	}
 
 	// Non-admin users need write/admin on current collection.
-	if !orgUser.IsAdmin() && !orgUser.AccessAll {
+	if !authz.HasUnrestrictedItemAccess(orgUser) {
 		// Legacy safety for orphaned items: only creator can edit.
 		if item.CollectionID == nil {
 			if item.CreatedByUserID != userID {
@@ -504,7 +504,7 @@ func (s *organizationItemService) Update(ctx context.Context, id, userID uint, r
 		if collection.OrganizationID != item.OrganizationID {
 			return nil, repository.ErrForbidden
 		}
-		if !orgUser.IsAdmin() && !orgUser.AccessAll {
+		if !authz.HasUnrestrictedItemAccess(orgUser) {
 			access, err := authz.ComputeCollectionAccess(
 				ctx,
 				orgUser,
@@ -578,7 +578,7 @@ func (s *organizationItemService) Delete(ctx context.Context, id, userID uint) (
 	}
 
 	// Only admins or creator can delete
-	if !orgUser.IsAdmin() && !orgUser.AccessAll {
+	if !authz.HasUnrestrictedItemAccess(orgUser) {
 		// Legacy safety for orphaned items: only creator can delete.
 		if item.CollectionID == nil {
 			if item.CreatedByUserID != userID {
@@ -647,7 +647,7 @@ func (s *organizationItemService) GetAutofillSecret(ctx context.Context, itemID,
 		return nil, repository.ErrForbidden
 	}
 
-	if orgUser.IsAdmin() || orgUser.AccessAll {
+	if authz.HasUnrestrictedItemAccess(orgUser) {
 		return item, nil
 	}
 

@@ -67,7 +67,9 @@ func (s *collectionService) Create(ctx context.Context, orgID uint, userID uint,
 		return nil, repository.ErrForbidden
 	}
 
-	if !orgUser.CanManageCollections() {
+	// Members create collections unless the organization limits creation to
+	// owners and admins.
+	if orgUser.Organization != nil && orgUser.Organization.CollectionCreationLimited && !orgUser.IsAdmin() {
 		return nil, repository.ErrForbidden
 	}
 
@@ -95,6 +97,23 @@ func (s *collectionService) Create(ctx context.Context, orgID uint, userID uint,
 	if err := s.collectionRepo.Create(ctx, collection); err != nil {
 		s.logger.Error("failed to create collection", "org_id", orgID, "name", req.Name, "error", err)
 		return nil, fmt.Errorf("failed to create collection: %w", err)
+	}
+
+	// Whoever creates a collection without unrestricted access manages it;
+	// otherwise they could not even see what they created.
+	if !authz.HasUnrestrictedItemAccess(orgUser) {
+		canRead, canWrite, canAdmin, hide := domain.CollectionPermissionManage.Flags()
+		if err := s.collectionUserRepo.Create(ctx, &domain.CollectionUser{
+			CollectionID:       collection.ID,
+			OrganizationUserID: orgUser.ID,
+			CanRead:            canRead,
+			CanWrite:           canWrite,
+			CanAdmin:           canAdmin,
+			HidePasswords:      hide,
+		}); err != nil {
+			s.logger.Error("failed to grant creator access", "collection_id", collection.ID, "error", err)
+			return nil, fmt.Errorf("failed to grant creator access: %w", err)
+		}
 	}
 
 	s.logger.Info("collection created", "collection_id", collection.ID, "org_id", orgID, "name", collection.Name, "created_by", userID)
@@ -224,13 +243,13 @@ func (s *collectionService) Delete(ctx context.Context, id uint, userID uint) er
 		return fmt.Errorf("cannot delete default collection")
 	}
 
-	// Only org admins can delete collections
+	// Owners and admins delete any collection; members with "manage" on it
+	// can too unless the organization turned that off.
 	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, collection.OrganizationID, userID)
 	if err != nil {
 		return repository.ErrForbidden
 	}
-
-	if !orgUser.IsAdmin() {
+	if !s.canDeleteCollection(ctx, orgUser, id) {
 		return repository.ErrForbidden
 	}
 	if err := s.authorizeCollectionMutation(ctx, collection.OrganizationID, domain.CapabilityCollectionDelete); err != nil {
@@ -520,13 +539,33 @@ func (s *collectionService) GetTeamAccess(ctx context.Context, collectionID uint
 	return teams, nil
 }
 
-// CallerAccess returns the requesting user's merged access to a collection.
-func (s *collectionService) CallerAccess(ctx context.Context, orgID, collectionID, userID uint) (*authz.CollectionAccess, error) {
+// CallerAccess returns the requesting user's access to a collection and
+// whether they may manage (settings and access) or delete it.
+func (s *collectionService) CallerAccess(ctx context.Context, orgID, collectionID, userID uint) (*CollectionCallerAccess, error) {
 	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
 		return nil, repository.ErrForbidden
 	}
-	return authz.ComputeCollectionAccess(ctx, orgUser, collectionID, s.collectionUserRepo, s.collectionTeamRepo, s.teamUserRepo)
+	access, err := authz.ComputeCollectionAccess(ctx, orgUser, collectionID, s.collectionUserRepo, s.collectionTeamRepo, s.teamUserRepo)
+	if err != nil {
+		return nil, err
+	}
+	return &CollectionCallerAccess{
+		Access:    access,
+		CanManage: authz.CanAdministerCollections(orgUser) || access.CanAdmin,
+		CanDelete: s.canDeleteCollection(ctx, orgUser, collectionID),
+	}, nil
+}
+
+func (s *collectionService) canDeleteCollection(ctx context.Context, orgUser *domain.OrganizationUser, collectionID uint) bool {
+	if authz.CanAdministerCollections(orgUser) {
+		return true
+	}
+	if orgUser.Organization != nil && !orgUser.Organization.ManageCanDeleteCollections {
+		return false
+	}
+	access, err := authz.ComputeCollectionAccess(ctx, orgUser, collectionID, s.collectionUserRepo, s.collectionTeamRepo, s.teamUserRepo)
+	return err == nil && access.CanAdmin
 }
 
 // Helper methods for permission checking
@@ -535,6 +574,9 @@ func (s *collectionService) checkCollectionAccess(ctx context.Context, orgID, co
 	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
 		return false, repository.ErrForbidden
+	}
+	if authz.CanAdministerCollections(orgUser) {
+		return true, nil
 	}
 	access, err := authz.ComputeCollectionAccess(
 		ctx,
@@ -554,6 +596,9 @@ func (s *collectionService) checkCollectionManagePermission(ctx context.Context,
 	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
 		return false, repository.ErrForbidden
+	}
+	if authz.CanAdministerCollections(orgUser) {
+		return true, nil
 	}
 	access, err := authz.ComputeCollectionAccess(
 		ctx,

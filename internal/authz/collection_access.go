@@ -20,6 +20,30 @@ type TeamMembershipReader interface {
 	ListByOrgUser(ctx context.Context, orgUserID uint) ([]*domain.TeamUser, error)
 }
 
+// HasUnrestrictedItemAccess reports whether a member sees every collection's
+// items without grants: legacy access-all members, and owners/admins unless
+// the organization turned off "owners and admins can manage all
+// collections". Managing collection access is separate (see
+// CanAdministerCollections).
+func HasUnrestrictedItemAccess(orgUser *domain.OrganizationUser) bool {
+	if orgUser == nil {
+		return false
+	}
+	// For owners and admins the organization setting decides; their
+	// access_all flag (set when organizations are created) is redundant.
+	if orgUser.IsAdmin() {
+		return orgUser.Organization == nil || orgUser.Organization.AdminsManageAllCollections
+	}
+	// Legacy access-all members keep seeing everything.
+	return orgUser.AccessAll
+}
+
+// CanAdministerCollections reports whether a member can manage any
+// collection's settings and access regardless of grants (owners and admins).
+func CanAdministerCollections(orgUser *domain.OrganizationUser) bool {
+	return orgUser != nil && orgUser.IsAdmin()
+}
+
 type CollectionAccess struct {
 	CanRead       bool
 	CanWrite      bool
@@ -81,8 +105,8 @@ func ComputeCollectionAccess(
 		return &CollectionAccess{}, repository.ErrForbidden
 	}
 
-	// Org admins and access_all users are unrestricted.
-	if orgUser.IsAdmin() || orgUser.AccessAll {
+	// Unrestricted members (see HasUnrestrictedItemAccess) see everything.
+	if HasUnrestrictedItemAccess(orgUser) {
 		return &CollectionAccess{
 			CanRead:  true,
 			CanWrite: true,

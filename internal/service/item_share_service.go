@@ -150,7 +150,7 @@ func (s *itemShareService) authorizeItemShare(
 	if err != nil || orgUser == nil {
 		return repository.ErrForbidden
 	}
-	if orgUser.IsAdmin() || orgUser.AccessAll {
+	if authz.HasUnrestrictedItemAccess(orgUser) {
 		return nil
 	}
 

@@ -141,7 +141,7 @@ func (s *ssoService) CreateConnection(ctx context.Context, orgID, userID uint, r
 	}
 
 	if req.DefaultRole != "" {
-		conn.DefaultRole = req.DefaultRole
+		conn.DefaultRole = domain.NormalizeOrgRole(req.DefaultRole)
 	}
 	if req.AutoProvision != nil {
 		conn.AutoProvision = *req.AutoProvision
@@ -226,7 +226,7 @@ func (s *ssoService) UpdateConnection(ctx context.Context, id, userID uint, req 
 		conn.AutoProvision = *req.AutoProvision
 	}
 	if req.DefaultRole != nil {
-		conn.DefaultRole = *req.DefaultRole
+		conn.DefaultRole = domain.NormalizeOrgRole(*req.DefaultRole)
 	}
 	if req.JITProvisioning != nil {
 		conn.JITProvisioning = *req.JITProvisioning
@@ -783,7 +783,7 @@ func (s *ssoService) jitProvisionMember(ctx context.Context, conn *domain.SSOCon
 		UUID:            uuid.New(),
 		OrganizationID:  conn.OrganizationID,
 		UserID:          user.ID,
-		Role:            conn.DefaultRole,
+		Role:            domain.NormalizeOrgRole(conn.DefaultRole),
 		EncryptedOrgKey: "pending_key_exchange",
 		AccessAll:       false,
 		Status:          domain.OrgUserStatusProvisioned,
