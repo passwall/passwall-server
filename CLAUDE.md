@@ -6,7 +6,7 @@ depends on it, so API changes must stay backward compatible.
 
 ## Stack
 
-Go 1.25 (`go.mod`), Gin, GORM (PostgreSQL; SQLite only in tests), goose v3
+Go 1.26 (`go.mod`, toolchain go1.26.9), Gin, GORM (PostgreSQL; SQLite only in tests), goose v3
 migrations, stripe-go v81, golang-jwt, viper. Module `github.com/passwall/passwall-server`.
 
 ## Commands
