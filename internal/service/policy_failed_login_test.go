@@ -83,3 +83,17 @@ func TestFailedLoginFailsClosedOnPolicyErrors(t *testing.T) {
 	blocked, _ = disabled.IsBlocked(ctx, 1, 10, "ip")
 	assert.False(t, blocked)
 }
+
+func TestFailedLoginLongBlockSurvivesCleanup(t *testing.T) {
+	ctx := context.Background()
+	tracker := newTestTracker(stubPolicyData{data: domain.PolicyData{"max_attempts": float64(3), "window_minutes": float64(15), "block_duration_minutes": float64(1440)}})
+	for i := 0; i < 3; i++ {
+		tracker.RecordFailedAttempt(ctx, 1, 10, "198.51.100.1")
+	}
+	tracker.prune(time.Now().Add(3 * time.Hour))
+	blocked, _ := tracker.IsBlocked(ctx, 1, 10, "198.51.100.1")
+	assert.True(t, blocked, "a 24h block outlives the old 2h cleanup")
+
+	tracker.prune(time.Now().Add(25 * time.Hour))
+	assert.Empty(t, tracker.entries)
+}

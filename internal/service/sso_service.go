@@ -102,6 +102,10 @@ type SSOServiceDeps struct {
 		CheckJoinPolicies(ctx context.Context, orgID, userID uint) error
 	}
 	Resolver TXTResolver
+	// Members provisions JIT members under the organization lock.
+	Members interface {
+		ProvisionMember(ctx context.Context, orgID, userID uint) (*domain.OrganizationUser, error)
+	}
 }
 
 type ssoService struct {
@@ -121,7 +125,10 @@ type ssoService struct {
 		CheckJoinPolicies(ctx context.Context, orgID, userID uint) error
 	}
 	resolver TXTResolver
-	now      func() time.Time
+	members  interface {
+		ProvisionMember(ctx context.Context, orgID, userID uint) (*domain.OrganizationUser, error)
+	}
+	now func() time.Time
 }
 
 // NewSSOService creates a new SSO service
@@ -145,6 +152,7 @@ func NewSSOService(deps SSOServiceDeps) SSOService {
 		entitlements:    deps.Entitlements,
 		joinPolicies:    deps.JoinPolicies,
 		resolver:        resolver,
+		members:         deps.Members,
 	}
 }
 
@@ -275,6 +283,7 @@ func (s *ssoService) UpdateConnection(ctx context.Context, id, userID uint, req 
 			}
 		}
 	}
+	previousIdP := idpFingerprint(conn)
 	if req.SAMLConfig != nil {
 		next := *req.SAMLConfig
 		// The certificate is never returned to clients; keep it when omitted.
@@ -295,6 +304,11 @@ func (s *ssoService) UpdateConnection(ctx context.Context, id, userID uint, req 
 			next.ClientSecret = conn.OIDCConfig.ClientSecret
 		}
 		conn.OIDCConfig = &next
+	}
+	// A different identity provider can assert any user of the domain, so a
+	// changed IdP needs a deliberate re-activation.
+	if idpFingerprint(conn) != previousIdP && conn.Status == domain.SSOStatusActive {
+		conn.Status = domain.SSOStatusDraft
 	}
 	if req.AutoProvision != nil {
 		conn.AutoProvision = *req.AutoProvision
@@ -475,6 +489,10 @@ func (s *ssoService) InitiateLogin(ctx context.Context, req *domain.SSOInitiateR
 	if !conn.IsActive() || !conn.IsDomainVerified() {
 		return "", ErrSSOConnectionInactive
 	}
+	// SSO is a plan feature; a frozen or downgraded org signs in with passwords.
+	if err := s.authorizeSSOManagement(ctx, conn.OrganizationID); err != nil {
+		return "", ErrSSOConnectionInactive
+	}
 
 	stateToken, err := generateRandomState()
 	if err != nil {
@@ -594,15 +612,22 @@ func (s *ssoService) initiateSAML(ctx context.Context, conn *domain.SSOConnectio
 		return "", err
 	}
 
+	// Build a standards-compliant AuthnRequest (HTTP-Redirect binding):
+	// deflated + base64 + URL-encoded SAMLRequest with RelayState. Required by
+	// most IdPs (Okta, Entra/Azure AD, Google, OneLogin) for SP-initiated SSO.
+	doc, err := sp.BuildAuthRequestDocument()
+	if err != nil {
+		return "", fmt.Errorf("failed to build SAML AuthnRequest: %w", err)
+	}
+	ssoState.SAMLRequestID = doc.Root().SelectAttrValue("ID", "")
+	if ssoState.SAMLRequestID == "" {
+		return "", fmt.Errorf("SAML AuthnRequest has no ID")
+	}
 	if err := s.stateRepo.Create(ctx, ssoState); err != nil {
 		s.logger.Error("SSO SAML initiate persist state failed", "conn_id", conn.ID, "err", err)
 		return "", fmt.Errorf("failed to persist SSO state: %w", err)
 	}
-
-	// Build a standards-compliant AuthnRequest (HTTP-Redirect binding):
-	// deflated + base64 + URL-encoded SAMLRequest with RelayState. Required by
-	// most IdPs (Okta, Entra/Azure AD, Google, OneLogin) for SP-initiated SSO.
-	authURL, err := sp.BuildAuthURL(ssoState.State)
+	authURL, err := sp.BuildAuthURLFromDocument(ssoState.State, doc)
 	if err != nil {
 		s.logger.Error("SSO SAML initiate build auth URL failed", "conn_id", conn.ID, "err", err)
 		return "", fmt.Errorf("failed to build SAML AuthnRequest: %w", err)
@@ -790,6 +815,11 @@ func (s *ssoService) HandleSAMLCallback(ctx context.Context, relayState, samlRes
 		}
 	}
 
+	if !samlAnswersRequest(assertionInfo, ssoState.SAMLRequestID) {
+		s.logger.Warn("SSO SAML callback InResponseTo mismatch", "conn_id", conn.ID)
+		return nil, fmt.Errorf("%w: response does not answer this sign-in request", ErrSSOInvalidSAMLResponse)
+	}
+
 	email := extractSAMLEmailFromAssertion(assertionInfo)
 	if email == "" {
 		s.logger.Error("SSO SAML callback missing email in assertion", "conn_id", conn.ID)
@@ -901,6 +931,16 @@ func (s *ssoService) ExchangeLoginCode(ctx context.Context, req *domain.SSOExcha
 	if err != nil || !conn.IsActive() || !conn.IsDomainVerified() {
 		return nil, ErrSSOConnectionInactive
 	}
+	// The membership may have been suspended or removed since the callback.
+	membership, err := s.orgUserRepo.GetByOrgAndUser(ctx, loginCode.OrganizationID, loginCode.UserID)
+	if err != nil {
+		return nil, ErrSSOMembershipInactive
+	}
+	switch membership.Status {
+	case domain.OrgUserStatusAccepted, domain.OrgUserStatusConfirmed, domain.OrgUserStatusProvisioned:
+	default:
+		return nil, ErrSSOMembershipInactive
+	}
 
 	app := strings.TrimSpace(req.App)
 	if app == "" {
@@ -923,6 +963,14 @@ func (s *ssoService) ExchangeLoginCode(ctx context.Context, req *domain.SSOExcha
 // jitProvisionMember creates a "provisioned" membership on first SSO sign-in.
 // The member has no org key yet; an admin confirms them to share it.
 func (s *ssoService) jitProvisionMember(ctx context.Context, conn *domain.SSOConnection, user *domain.User) (*domain.OrganizationUser, error) {
+	if s.members != nil {
+		member, err := s.members.ProvisionMember(ctx, conn.OrganizationID, user.ID)
+		if err != nil {
+			return nil, err
+		}
+		member.User = user
+		return member, nil
+	}
 	if s.joinPolicies != nil {
 		if err := s.joinPolicies.CheckJoinPolicies(ctx, conn.OrganizationID, user.ID); err != nil {
 			return nil, err
@@ -1164,4 +1212,29 @@ func isValidCodeChallenge(challenge string) bool {
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
+// idpFingerprint identifies the identity provider a connection trusts.
+func idpFingerprint(conn *domain.SSOConnection) string {
+	var b strings.Builder
+	if c := conn.SAMLConfig; c != nil {
+		b.WriteString("saml|" + c.EntityID + "|" + c.SSOURL + "|" + strings.TrimSpace(c.Certificate))
+	}
+	if c := conn.OIDCConfig; c != nil {
+		b.WriteString("|oidc|" + c.Issuer + "|" + c.ClientID + "|" + c.AuthURL + "|" + c.TokenURL + "|" + c.EmailClaim)
+	}
+	return b.String()
+}
+
+// samlAnswersRequest checks that the signature-validated assertion was issued
+// for our AuthnRequest. IdP-initiated responses are not accepted.
+func samlAnswersRequest(info *saml2.AssertionInfo, requestID string) bool {
+	if info == nil || requestID == "" || len(info.Assertions) == 0 {
+		return false
+	}
+	subject := info.Assertions[0].Subject
+	if subject == nil || subject.SubjectConfirmation == nil || subject.SubjectConfirmation.SubjectConfirmationData == nil {
+		return false
+	}
+	return subject.SubjectConfirmation.SubjectConfirmationData.InResponseTo == requestID
 }

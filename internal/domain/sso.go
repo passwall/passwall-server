@@ -195,8 +195,11 @@ type SSOState struct {
 	Nonce          string `json:"-" gorm:"type:varchar(512)"`
 	// ClientCodeChallenge binds the login code to the browser that started
 	// the flow (S256 of a verifier the client keeps).
-	ClientCodeChallenge string    `json:"-" gorm:"type:varchar(128)"`
-	ExpiresAt           time.Time `json:"expires_at" gorm:"not null;index"`
+	ClientCodeChallenge string `json:"-" gorm:"type:varchar(128)"`
+	// SAMLRequestID is the AuthnRequest ID; the signed assertion must answer
+	// it (InResponseTo), so a captured response cannot be replayed.
+	SAMLRequestID string    `json:"-" gorm:"type:varchar(128)"`
+	ExpiresAt     time.Time `json:"expires_at" gorm:"not null;index"`
 }
 
 // TableName specifies the table name

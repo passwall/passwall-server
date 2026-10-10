@@ -69,4 +69,15 @@ func TestMigrateDatabaseBootstrapsAndIsIdempotent(t *testing.T) {
 	version, err = goose.GetDBVersionContext(ctx, sqlDB)
 	require.NoError(t, err)
 	require.EqualValues(t, 9, version)
+
+	// The SSO migration rolls back and applies again on an existing schema.
+	goose.SetBaseFS(migrationFiles)
+	require.NoError(t, goose.SetDialect("postgres"))
+	require.NoError(t, goose.DownToContext(ctx, sqlDB, "migrations", 8))
+	require.NoError(t, MigrateDatabase(ctx, db))
+	var fkCount int
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		`SELECT count(*) FROM pg_constraint WHERE conname = 'fk_sso_login_codes_connection'`).Scan(&fkCount))
+	require.Equal(t, 1, fkCount)
+	require.True(t, db.DB().Migrator().HasColumn("sso_states", "saml_request_id"))
 }

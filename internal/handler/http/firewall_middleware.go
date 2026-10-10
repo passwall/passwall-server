@@ -1,10 +1,12 @@
 package http
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/passwall/passwall-server/internal/repository"
 	"github.com/passwall/passwall-server/internal/service"
 	"github.com/passwall/passwall-server/pkg/constants"
 )
@@ -75,8 +77,13 @@ func FirewallForResourceMiddleware(firewallService service.PolicyFirewallService
 			return
 		}
 		orgID, err := firewallService.ResolveOrganization(c.Request.Context(), kind, uint(id))
-		if err != nil || orgID == 0 {
-			c.Next()
+		if errors.Is(err, repository.ErrNotFound) || (err == nil && orgID == 0) {
+			c.Next() // the handler answers 404
+			return
+		}
+		if err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "firewall check failed"})
+			c.Abort()
 			return
 		}
 		if !enforceFirewall(c, firewallService, orgID) {

@@ -13,11 +13,56 @@ import (
 )
 
 type ItemShareHandler struct {
-	service service.ItemShareService
+	service  service.ItemShareService
+	firewall service.PolicyFirewallService
 }
 
-func NewItemShareHandler(svc service.ItemShareService) *ItemShareHandler {
-	return &ItemShareHandler{service: svc}
+// NewItemShareHandler creates the handler. The firewall applies the shared
+// item's organization IP rules to shares, like the /org-items routes.
+func NewItemShareHandler(svc service.ItemShareService, firewall ...service.PolicyFirewallService) *ItemShareHandler {
+	h := &ItemShareHandler{service: svc}
+	if len(firewall) > 0 {
+		h.firewall = firewall[0]
+	}
+	return h
+}
+
+// visibleShares drops shares whose organization firewall rejects this client.
+func (h *ItemShareHandler) visibleShares(c *gin.Context, shares []*service.ItemShareWithItem) ([]*service.ItemShareWithItem, bool) {
+	if h.firewall == nil {
+		return shares, true
+	}
+	out := make([]*service.ItemShareWithItem, 0, len(shares))
+	allowedByOrg := map[uint]bool{}
+	for _, share := range shares {
+		orgID := share.Share.OrganizationID
+		allowed, seen := allowedByOrg[orgID]
+		if !seen {
+			result, err := h.firewall.CheckAccess(c.Request.Context(), orgID, GetIPAddress(c))
+			if err != nil {
+				c.JSON(http.StatusServiceUnavailable, gin.H{"error": "firewall check failed"})
+				return nil, false
+			}
+			allowed = result.Allowed
+			allowedByOrg[orgID] = allowed
+		}
+		if allowed {
+			out = append(out, share)
+		}
+	}
+	return out, true
+}
+
+// shareFirewallAllows applies the firewall of the share's organization.
+func (h *ItemShareHandler) shareFirewallAllows(c *gin.Context, userID uint, shareUUID string) bool {
+	if h.firewall == nil {
+		return true
+	}
+	result, err := h.service.GetByUUID(c.Request.Context(), userID, shareUUID)
+	if err != nil {
+		return true // the handler answers not found / forbidden itself
+	}
+	return enforceFirewall(c, h.firewall, result.Share.OrganizationID)
 }
 
 type createItemShareRequest struct {
@@ -144,6 +189,10 @@ func (h *ItemShareHandler) ListReceived(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list received shares"})
 		return
 	}
+	shares, ok := h.visibleShares(c, shares)
+	if !ok {
+		return
+	}
 
 	response := make([]gin.H, 0, len(shares))
 	for _, share := range shares {
@@ -178,6 +227,10 @@ func (h *ItemShareHandler) GetByUUID(c *gin.Context) {
 		return
 	}
 
+	if h.firewall != nil && !enforceFirewall(c, h.firewall, result.Share.OrganizationID) {
+		return
+	}
+
 	// Include encrypted key only when the requester is the recipient.
 	includeEncryptedKey := result.Share.SharedWithUserID != nil && *result.Share.SharedWithUserID == userID
 	c.JSON(http.StatusOK, buildItemShareResponse(result, includeEncryptedKey))
@@ -197,6 +250,9 @@ func (h *ItemShareHandler) UpdateSharedItem(c *gin.Context) {
 	var req updateSharedItemRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
+		return
+	}
+	if !h.shareFirewallAllows(c, userID, shareUUID) {
 		return
 	}
 

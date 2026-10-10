@@ -169,7 +169,7 @@ func (h *OrganizationPolicyHandler) GetEffectivePolicies(c *gin.Context) {
 	userID := GetCurrentUserID(c)
 	resp, err := h.service.GetEffectivePolicies(c.Request.Context(), userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load policies"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to load policies", "code": "POLICIES_UNAVAILABLE"})
 		return
 	}
 	c.JSON(http.StatusOK, resp)

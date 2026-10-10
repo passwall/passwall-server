@@ -41,7 +41,7 @@ func (h *SCIMHandler) CreateToken(c *gin.Context) {
 		return
 	}
 	userID := GetCurrentUserID(c)
-	if !h.ensureOrgAdmin(c, ctx, userID, orgID) {
+	if !h.ensureOrgOwner(c, ctx, userID, orgID) {
 		return
 	}
 
@@ -94,7 +94,7 @@ func (h *SCIMHandler) RevokeToken(c *gin.Context) {
 		return
 	}
 	userID := GetCurrentUserID(c)
-	if !h.ensureOrgAdmin(c, ctx, userID, orgID) {
+	if !h.ensureOrgOwner(c, ctx, userID, orgID) {
 		return
 	}
 
@@ -578,6 +578,20 @@ func (h *SCIMHandler) ensureOrgAdmin(c *gin.Context, ctx context.Context, userID
 	}
 	if !membership.IsAdmin() {
 		c.JSON(http.StatusForbidden, gin.H{"error": "organization admin access required"})
+		return false
+	}
+	return true
+}
+
+// ensureOrgOwner limits identity-provider configuration to owners: whoever
+// controls the IdP can sign in as any member of the verified domain.
+func (h *SCIMHandler) ensureOrgOwner(c *gin.Context, ctx context.Context, userID, orgID uint) bool {
+	if !h.ensureOrgAdmin(c, ctx, userID, orgID) {
+		return false
+	}
+	membership, err := h.orgService.GetMembership(ctx, userID, orgID)
+	if err != nil || membership == nil || !membership.IsOwner() {
+		c.JSON(http.StatusForbidden, gin.H{"error": "organization owner access required", "code": "ORG_OWNER_REQUIRED"})
 		return false
 	}
 	return true

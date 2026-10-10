@@ -23,6 +23,9 @@ type failedLoginEntry struct {
 	Attempts  int
 	FirstFail time.Time
 	BlockedAt *time.Time
+	// KeepUntil is when the entry may be dropped: the end of its block or
+	// counting window (blocks can last up to 24 hours).
+	KeepUntil time.Time
 }
 
 type failedLoginTracker struct {
@@ -74,9 +77,13 @@ func (t *failedLoginTracker) RecordFailedAttempt(ctx context.Context, orgID, use
 
 	entry.Attempts++
 
+	entry.KeepUntil = entry.FirstFail.Add(windowDuration)
 	if entry.Attempts >= config.MaxAttempts && entry.BlockedAt == nil {
 		now := time.Now()
 		entry.BlockedAt = &now
+	}
+	if entry.BlockedAt != nil {
+		entry.KeepUntil = entry.BlockedAt.Add(blockDuration)
 	}
 }
 
@@ -156,18 +163,16 @@ func (t *failedLoginTracker) cleanup() {
 	defer ticker.Stop()
 
 	for range ticker.C {
-		t.mu.Lock()
-		now := time.Now()
-		for k, entry := range t.entries {
-			maxAge := 2 * time.Hour
-			if entry.BlockedAt != nil {
-				if now.Sub(*entry.BlockedAt) > maxAge {
-					delete(t.entries, k)
-				}
-			} else if now.Sub(entry.FirstFail) > maxAge {
-				delete(t.entries, k)
-			}
+		t.prune(time.Now())
+	}
+}
+
+func (t *failedLoginTracker) prune(now time.Time) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for k, entry := range t.entries {
+		if now.After(entry.KeepUntil) {
+			delete(t.entries, k)
 		}
-		t.mu.Unlock()
 	}
 }

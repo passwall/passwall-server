@@ -88,7 +88,9 @@ func SetupRouter(
 	// ============================================================
 	// SSO ENDPOINTS (public — no JWT auth, IdP-driven)
 	// ============================================================
-	ssoRateLimiter := httpHandler.NewRateLimiter(3*time.Second, 20)
+	// A sign-in is three requests (login, callback, exchange); leave room for
+	// an office behind one NAT.
+	ssoRateLimiter := httpHandler.NewRateLimiter(time.Second, 60)
 	ssoGroup := router.Group("/sso")
 	ssoGroup.Use(httpHandler.RateLimitMiddleware(ssoRateLimiter))
 	{
@@ -476,7 +478,6 @@ func SetupRouter(
 			// Organization settings (preferences)
 			orgsGroup.GET("/:id/settings", organizationSettingsHandler.ListSettings)
 			orgsGroup.PUT("/:id/settings", organizationSettingsHandler.UpsertSettings)
-
 
 			// 2FA compliance (org admin dashboard)
 			orgsGroup.GET("/:id/2fa-compliance", twoFactorHandler.Compliance)
