@@ -78,7 +78,10 @@ const (
 	ActivityTypeInvitationAccepted ActivityType = "invitation_accepted"
 	ActivityTypeInvitationDeclined ActivityType = "invitation_declined"
 	ActivityTypeInvitationRevoked  ActivityType = "invitation_revoked"
-	ActivityTypeInvitationResent   ActivityType = "invitation_resent"
+	// ActivityTypeOrgPolicyChanged records enabling, disabling or changing an
+	// organization policy.
+	ActivityTypeOrgPolicyChanged ActivityType = "org_policy_changed"
+	ActivityTypeInvitationResent ActivityType = "invitation_resent"
 
 	// Secure Send
 	ActivityTypeSendCreated  ActivityType = "send_created"

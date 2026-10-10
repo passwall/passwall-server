@@ -11,11 +11,16 @@ import (
 )
 
 type OrganizationPolicyHandler struct {
-	service service.OrganizationPolicyService
+	service        service.OrganizationPolicyService
+	activityLogger *service.ActivityLogger
 }
 
-func NewOrganizationPolicyHandler(service service.OrganizationPolicyService) *OrganizationPolicyHandler {
-	return &OrganizationPolicyHandler{service: service}
+func NewOrganizationPolicyHandler(service service.OrganizationPolicyService, activityLogger ...*service.ActivityLogger) *OrganizationPolicyHandler {
+	handler := &OrganizationPolicyHandler{service: service}
+	if len(activityLogger) > 0 {
+		handler.activityLogger = activityLogger[0]
+	}
+	return handler
 }
 
 // ListPolicies godoc
@@ -125,11 +130,30 @@ func (h *OrganizationPolicyHandler) UpdatePolicy(c *gin.Context) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
 		}
+		if errors.Is(err, domain.ErrPolicyNotAvailable) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "code": "POLICY_NOT_AVAILABLE"})
+			return
+		}
+		var invalid *domain.PolicyValidationError
+		if errors.As(err, &invalid) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": invalid.Error(), "code": "POLICY_INVALID_DATA", "field": invalid.Field})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, policy)
+
+	// Policy changes shape what every member may do; keep an audit trail.
+	if h.activityLogger != nil {
+		details := service.ActivityDetails{
+			service.ActivityFieldOrganizationID: orgID,
+			"policy_type":                       string(policyType),
+			"enabled":                           policy.Enabled,
+		}
+		_ = h.activityLogger.LogActivity(ctx, userID, domain.ActivityTypeOrgPolicyChanged, GetIPAddress(c), GetUserAgent(c), details)
+	}
 }
 
 // ListPolicyDefinitions godoc
@@ -139,6 +163,18 @@ func (h *OrganizationPolicyHandler) UpdatePolicy(c *gin.Context) {
 // @Produce json
 // @Success 200 {array} domain.PolicyDefinition
 // @Router /policies/definitions [get]
+// GetEffectivePolicies returns the policies that bind the current user across
+// all organizations, merged into their strictest form.
+func (h *OrganizationPolicyHandler) GetEffectivePolicies(c *gin.Context) {
+	userID := GetCurrentUserID(c)
+	resp, err := h.service.GetEffectivePolicies(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load policies"})
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
 func (h *OrganizationPolicyHandler) ListPolicyDefinitions(c *gin.Context) {
 	c.JSON(http.StatusOK, domain.AllPolicyDefinitions())
 }

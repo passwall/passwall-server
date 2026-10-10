@@ -353,8 +353,30 @@ func (a *App) Run(ctx context.Context) error {
 	breachMonitorService := service.NewBreachMonitorService(breachMonitorRepo, hibpClient, featureService, orgUserRepo)
 
 	// Organization policy enforcement services
-	policyEnforcementService := service.NewPolicyEnforcementService(organizationPolicyService)
-	policyFirewallService := service.NewPolicyFirewallService(organizationPolicyService)
+	policyEnforcementService := service.NewPolicyEnforcementService(organizationPolicyService, orgUserRepo)
+	policyFirewallService := service.NewPolicyFirewallService(organizationPolicyService, map[service.FirewallResource]service.FirewallOrgLookup{
+		service.FirewallResourceItem: func(ctx context.Context, id uint) (uint, error) {
+			item, err := orgItemRepo.GetByID(ctx, id)
+			if err != nil {
+				return 0, err
+			}
+			return item.OrganizationID, nil
+		},
+		service.FirewallResourceCollection: func(ctx context.Context, id uint) (uint, error) {
+			collection, err := collectionRepo.GetByID(ctx, id)
+			if err != nil {
+				return 0, err
+			}
+			return collection.OrganizationID, nil
+		},
+		service.FirewallResourceTeam: func(ctx context.Context, id uint) (uint, error) {
+			team, err := teamRepo.GetByID(ctx, id)
+			if err != nil {
+				return 0, err
+			}
+			return team.OrganizationID, nil
+		},
+	})
 
 	// Organization settings service (uses existing preferences repo)
 	organizationSettingsService := service.NewOrganizationSettingsService(
@@ -450,7 +472,7 @@ func (a *App) Run(ctx context.Context) error {
 	twoFactorHandler := httpHandler.NewTwoFactorHandler(authService)
 
 	// Organization policy & settings handlers
-	organizationPolicyHandler := httpHandler.NewOrganizationPolicyHandler(organizationPolicyService)
+	organizationPolicyHandler := httpHandler.NewOrganizationPolicyHandler(organizationPolicyService, service.NewActivityLogger(userActivityService))
 	organizationSettingsHandler := httpHandler.NewOrganizationSettingsHandler(organizationSettingsService)
 
 	// SSO, SCIM & Key Escrow handlers

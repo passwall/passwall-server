@@ -35,21 +35,52 @@ type FirewallCheckResult struct {
 // PolicyFirewallService handles firewall rules enforcement
 type PolicyFirewallService interface {
 	CheckAccess(ctx context.Context, orgID uint, clientIP string) (*FirewallCheckResult, error)
+	// ResolveOrganization returns the organization that owns a resource
+	// addressed by ID (routes like /org-items/:id), so its firewall applies.
+	ResolveOrganization(ctx context.Context, kind FirewallResource, id uint) (uint, error)
 }
+
+// FirewallResource names resources reached by ID outside /organizations/:id.
+type FirewallResource string
+
+const (
+	FirewallResourceItem       FirewallResource = "item"
+	FirewallResourceCollection FirewallResource = "collection"
+	FirewallResourceTeam       FirewallResource = "team"
+)
+
+// FirewallOrgLookup returns the organization of a resource.
+type FirewallOrgLookup func(ctx context.Context, id uint) (uint, error)
 
 type policyFirewallService struct {
 	policyService OrganizationPolicyService
+	lookups       map[FirewallResource]FirewallOrgLookup
 }
 
-// NewPolicyFirewallService creates a new firewall enforcement service
-func NewPolicyFirewallService(policyService OrganizationPolicyService) PolicyFirewallService {
-	return &policyFirewallService{policyService: policyService}
+// NewPolicyFirewallService creates a new firewall enforcement service.
+// lookups resolve the organization of resources addressed by ID.
+func NewPolicyFirewallService(policyService OrganizationPolicyService, lookups ...map[FirewallResource]FirewallOrgLookup) PolicyFirewallService {
+	svc := &policyFirewallService{policyService: policyService, lookups: map[FirewallResource]FirewallOrgLookup{}}
+	if len(lookups) > 0 {
+		svc.lookups = lookups[0]
+	}
+	return svc
+}
+
+func (s *policyFirewallService) ResolveOrganization(ctx context.Context, kind FirewallResource, id uint) (uint, error) {
+	lookup, ok := s.lookups[kind]
+	if !ok {
+		return 0, fmt.Errorf("no organization lookup for %s", kind)
+	}
+	return lookup(ctx, id)
 }
 
 func (s *policyFirewallService) CheckAccess(ctx context.Context, orgID uint, clientIP string) (*FirewallCheckResult, error) {
 	data, err := s.policyService.GetPolicyData(ctx, orgID, domain.PolicyFirewallRules)
 	if err != nil {
-		return &FirewallCheckResult{Allowed: true}, nil
+		// Fail closed: the caller answers with an error instead of letting the
+		// request through unchecked.
+		return nil, fmt.Errorf("failed to load firewall policy: %w", err)
 	}
 	if data == nil {
 		return &FirewallCheckResult{Allowed: true}, nil
@@ -95,7 +126,7 @@ func (s *policyFirewallService) CheckAccess(ctx context.Context, orgID uint, cli
 				return &FirewallCheckResult{
 					Allowed:     false,
 					MatchedRule: &rule,
-					Reason:      fmt.Sprintf("access denied by firewall rule: %s %s", rule.Type, rule.Value),
+					Reason:      "access denied by organization firewall rule",
 				}, nil
 			case FirewallActionAllow:
 				return &FirewallCheckResult{
@@ -115,9 +146,11 @@ func (s *policyFirewallService) CheckAccess(ctx context.Context, orgID uint, cli
 
 	// Default: if rules exist but none matched, check for default deny
 	// If there are any "allow" rules, treat unmatched as implicit deny
+	// Only rules that can match count: unsupported types (e.g. country, which
+	// needs a GeoIP database) must not turn into an implicit deny-all.
 	hasAllowRules := false
 	for _, rule := range rules {
-		if rule.Action == FirewallActionAllow {
+		if rule.Action == FirewallActionAllow && (rule.Type == "ip" || rule.Type == "cidr") {
 			hasAllowRules = true
 			break
 		}

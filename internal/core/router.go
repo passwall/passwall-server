@@ -64,6 +64,7 @@ func SetupRouter(
 ) *gin.Engine {
 	// Create router without default middleware
 	router := gin.New()
+	ConfigureClientIP(router, serverConfig.TrustedProxies)
 
 	// Use our custom logger middleware
 	router.Use(logger.GinLogger())
@@ -234,6 +235,7 @@ func SetupRouter(
 
 		// Policy & settings definitions catalog (authenticated, no org context needed)
 		apiGroup.GET("/policies/definitions", organizationPolicyHandler.ListPolicyDefinitions)
+		apiGroup.GET("/policies/effective", organizationPolicyHandler.GetEffectivePolicies)
 		apiGroup.GET("/settings/definitions", organizationSettingsHandler.ListSettingsDefinitions)
 
 		// Compromised password check (batch SHA-1 hash check via HIBP Pwned Passwords)
@@ -411,6 +413,18 @@ func SetupRouter(
 		// Organizations CRUD
 		// OrgPublicIDResolverMiddleware resolves the short public_id in :id to a numeric org ID,
 		// then FirewallMiddleware checks IP-based access for that org.
+		// Organization policies are not behind the organization firewall: an
+		// owner or admin who sets a wrong IP rule must still be able to fix it.
+		// The handlers require owner/admin (or membership for /active).
+		orgPoliciesGroup := apiGroup.Group("/organizations")
+		orgPoliciesGroup.Use(httpHandler.OrgPublicIDResolverMiddleware(orgRepo))
+		{
+			orgPoliciesGroup.GET("/:id/policies", organizationPolicyHandler.ListPolicies)
+			orgPoliciesGroup.GET("/:id/policies/active", organizationPolicyHandler.GetActivePolicies)
+			orgPoliciesGroup.GET("/:id/policies/:policyType", organizationPolicyHandler.GetPolicy)
+			orgPoliciesGroup.PUT("/:id/policies/:policyType", organizationPolicyHandler.UpdatePolicy)
+		}
+
 		orgsGroup := apiGroup.Group("/organizations")
 		orgsGroup.Use(httpHandler.OrgPublicIDResolverMiddleware(orgRepo))
 		orgsGroup.Use(httpHandler.FirewallMiddleware(firewallService))
@@ -459,11 +473,6 @@ func SetupRouter(
 			orgsGroup.GET("/:id/settings", organizationSettingsHandler.ListSettings)
 			orgsGroup.PUT("/:id/settings", organizationSettingsHandler.UpsertSettings)
 
-			// Organization policies
-			orgsGroup.GET("/:id/policies", organizationPolicyHandler.ListPolicies)
-			orgsGroup.GET("/:id/policies/active", organizationPolicyHandler.GetActivePolicies)
-			orgsGroup.GET("/:id/policies/:policyType", organizationPolicyHandler.GetPolicy)
-			orgsGroup.PUT("/:id/policies/:policyType", organizationPolicyHandler.UpdatePolicy)
 
 			// 2FA compliance (org admin dashboard)
 			orgsGroup.GET("/:id/2fa-compliance", twoFactorHandler.Compliance)
@@ -512,6 +521,7 @@ func SetupRouter(
 
 		// Teams (direct access by ID)
 		teamsGroup := apiGroup.Group("/teams")
+		teamsGroup.Use(httpHandler.FirewallForResourceMiddleware(firewallService, service.FirewallResourceTeam))
 		{
 			teamsGroup.GET("/:id", teamHandler.GetByID)
 			teamsGroup.PUT("/:id", teamHandler.Update)
@@ -526,6 +536,7 @@ func SetupRouter(
 
 		// Collections (direct access by ID)
 		collectionsGroup := apiGroup.Group("/collections")
+		collectionsGroup.Use(httpHandler.FirewallForResourceMiddleware(firewallService, service.FirewallResourceCollection))
 		{
 			collectionsGroup.GET("/:id", collectionHandler.GetByID)
 			collectionsGroup.PUT("/:id", collectionHandler.Update)
@@ -547,6 +558,7 @@ func SetupRouter(
 
 		// Organization Items (direct access)
 		orgItemsGroup := apiGroup.Group("/org-items")
+		orgItemsGroup.Use(httpHandler.FirewallForResourceMiddleware(firewallService, service.FirewallResourceItem))
 		{
 			orgItemsGroup.GET("/:id", organizationItemHandler.GetByID)
 			orgItemsGroup.GET("/:id/autofill-secret", organizationItemHandler.AutofillSecret)

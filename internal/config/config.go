@@ -54,6 +54,9 @@ type ServerConfig struct {
 	// AdminAPIKey is the bearer credential for the read-only admin directory API.
 	// It is not a user session token. Empty disables that API.
 	AdminAPIKey string `mapstructure:"admin_api_key"`
+	// TrustedProxies are the networks whose X-Real-IP / X-Forwarded-For
+	// headers are believed. Requests from anywhere else use the TCP peer.
+	TrustedProxies []string `mapstructure:"trusted_proxies"`
 }
 
 // DatabaseConfig contains database-related configuration
@@ -342,6 +345,9 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("server.idle_timeout", 60)
 	v.SetDefault("server.shutdown_timeout", 30)
 	v.SetDefault("server.generated_password_length", 16)
+	// The server is reached through a reverse proxy on the host or a
+	// container network; it must not be exposed directly.
+	v.SetDefault("server.trusted_proxies", []string{"127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7"})
 	v.SetDefault("server.access_token_expire_duration", "30m")
 	v.SetDefault("server.refresh_token_expire_duration", "15d")
 	v.SetDefault("server.frontend_url", "http://localhost:5173")

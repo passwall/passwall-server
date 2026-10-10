@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/passwall/passwall-server/internal/domain"
@@ -10,6 +11,11 @@ import (
 // PolicyEnforcementService provides enforcement check methods that other
 // services and handlers can call to gate features based on active org policies.
 type PolicyEnforcementService interface {
+	// CheckPersonalVaultItemAllowed returns an error when the target is the
+	// user's Personal Vault and an organization they belong to (as a member,
+	// not owner/admin) disables personal vault storage.
+	CheckPersonalVaultItemAllowed(ctx context.Context, targetOrgID, userID uint) error
+
 	// CheckTwoFactorRequired returns an error if 2FA is required but the user has not set it up
 	CheckTwoFactorRequired(ctx context.Context, orgID uint, userHas2FA bool) error
 
@@ -81,11 +87,62 @@ type PasswordExpirationPolicy struct {
 
 type policyEnforcementService struct {
 	policyService OrganizationPolicyService
+	memberships   membershipLister
+}
+
+type membershipLister interface {
+	ListByUser(ctx context.Context, userID uint) ([]*domain.OrganizationUser, error)
 }
 
 // NewPolicyEnforcementService creates a new policy enforcement service
-func NewPolicyEnforcementService(policyService OrganizationPolicyService) PolicyEnforcementService {
-	return &policyEnforcementService{policyService: policyService}
+func NewPolicyEnforcementService(policyService OrganizationPolicyService, memberships ...membershipLister) PolicyEnforcementService {
+	svc := &policyEnforcementService{policyService: policyService}
+	if len(memberships) > 0 {
+		svc.memberships = memberships[0]
+	}
+	return svc
+}
+
+// ErrPersonalVaultDisabled is returned when an organization policy requires
+// items to live in organization collections.
+var ErrPersonalVaultDisabled = errors.New("your organization requires items to be stored in organization collections")
+
+func (s *policyEnforcementService) CheckPersonalVaultItemAllowed(ctx context.Context, targetOrgID, userID uint) error {
+	if s.memberships == nil {
+		return nil
+	}
+	memberships, err := s.memberships.ListByUser(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to check personal vault policy: %w", err)
+	}
+	targetIsPersonal := false
+	for _, m := range memberships {
+		if m.OrganizationID == targetOrgID && m.Organization != nil && m.Organization.IsPersonal {
+			targetIsPersonal = true
+		}
+	}
+	if !targetIsPersonal {
+		return nil
+	}
+	for _, m := range memberships {
+		if m.Organization == nil || m.Organization.IsPersonal {
+			continue
+		}
+		if m.Status != domain.OrgUserStatusAccepted && m.Status != domain.OrgUserStatusConfirmed {
+			continue
+		}
+		if m.Role == domain.OrgRoleOwner || m.Role == domain.OrgRoleAdmin {
+			continue
+		}
+		enabled, err := s.policyService.IsPolicyEnabled(ctx, m.OrganizationID, domain.PolicyDisablePersonalVault)
+		if err != nil {
+			return fmt.Errorf("failed to check personal vault policy: %w", err)
+		}
+		if enabled {
+			return ErrPersonalVaultDisabled
+		}
+	}
+	return nil
 }
 
 func (s *policyEnforcementService) CheckTwoFactorRequired(ctx context.Context, orgID uint, userHas2FA bool) error {

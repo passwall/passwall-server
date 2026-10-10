@@ -74,7 +74,17 @@ func (h *OrganizationItemHandler) Create(c *gin.Context) {
 
 	if h.policyEnforcement != nil && req.ItemType == domain.ItemTypeCard {
 		if err := h.policyEnforcement.CheckCardTypeAllowed(ctx, orgID); err != nil {
-			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error(), "code": "POLICY_CARD_TYPE_REMOVED"})
+			return
+		}
+	}
+	if h.policyEnforcement != nil {
+		if err := h.policyEnforcement.CheckPersonalVaultItemAllowed(ctx, orgID, userID); err != nil {
+			if errors.Is(err, service.ErrPersonalVaultDisabled) {
+				c.JSON(http.StatusForbidden, gin.H{"error": err.Error(), "code": "POLICY_PERSONAL_VAULT_DISABLED"})
+				return
+			}
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to check organization policies"})
 			return
 		}
 	}

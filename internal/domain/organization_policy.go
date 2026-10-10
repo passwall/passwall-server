@@ -150,17 +150,28 @@ type PolicyDefinition struct {
 	Category     string       `json:"category"`
 	Tier         PolicyTier   `json:"tier"`
 	Dependencies []PolicyType `json:"dependencies,omitempty"`
+	// Available is false for policies nothing enforces yet; they are shown
+	// as "coming soon" and cannot be enabled.
+	Available bool `json:"available"`
 }
 
 // AllPolicyDefinitions returns the complete catalog of available policies.
 // This is used to present the full list to clients, regardless of which are
 // currently persisted in the database.
 func AllPolicyDefinitions() []PolicyDefinition {
+	definitions := policyCatalog()
+	for i := range definitions {
+		definitions[i].Available = IsPolicyAvailable(definitions[i].Type)
+	}
+	return definitions
+}
+
+func policyCatalog() []PolicyDefinition {
 	return []PolicyDefinition{
 		// Authentication & Access
 		{
 			Type: PolicyRequireTwoFactor, Name: "Require Two-Factor Authentication",
-			Description: "Require all members to use two-step login for vault access",
+			Description: "Require members to use two-step login for vault access (owners and admins are exempt so they can always manage the organization)",
 			Category:    "authentication", Tier: PolicyTierTeam,
 		},
 		{

@@ -736,6 +736,10 @@ func (s *organizationService) ConfirmProvisionedMember(ctx context.Context, orgI
 		}
 	}
 
+	if err := s.checkSingleOrganizationPolicy(ctx, orgID, orgUser.UserID); err != nil {
+		return err
+	}
+
 	// Set the encrypted org key and update status to confirmed
 	orgUser.EncryptedOrgKey = encryptedOrgKey
 	orgUser.Status = domain.OrgUserStatusConfirmed
@@ -818,38 +822,57 @@ func (s *organizationService) checkSingleOrganizationPolicy(ctx context.Context,
 		return nil
 	}
 
-	isActiveMembership := func(status domain.OrganizationUserStatus) bool {
-		return status == domain.OrgUserStatusAccepted || status == domain.OrgUserStatusConfirmed
-	}
-
-	// Check if the target org requires single organization membership
-	targetPolicy, err := s.policyRepo.GetByOrgAndType(ctx, targetOrgID, domain.PolicySingleOrganization)
-	if err == nil && targetPolicy != nil && targetPolicy.Enabled {
-		memberships, err := s.orgUserRepo.ListByUser(ctx, userID)
+	// Fail closed: a lookup error must not let a member slip past the policy.
+	policyEnabled := func(orgID uint) (bool, error) {
+		policy, err := s.policyRepo.GetByOrgAndType(ctx, orgID, domain.PolicySingleOrganization)
+		if errors.Is(err, repository.ErrNotFound) {
+			return false, nil
+		}
 		if err != nil {
-			return fmt.Errorf("failed to check existing memberships: %w", err)
+			return false, fmt.Errorf("failed to check single organization policy: %w", err)
 		}
-		for _, m := range memberships {
-			if m.OrganizationID != targetOrgID && isActiveMembership(m.Status) {
-				return fmt.Errorf("organization policy requires single organization membership; user belongs to another organization")
-			}
-		}
+		return policy != nil && policy.Enabled, nil
 	}
 
-	// Check if any of the user's existing organizations enforces single organization
 	memberships, err := s.orgUserRepo.ListByUser(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("failed to check existing memberships: %w", err)
 	}
+
+	// Other shared organizations the user actively belongs to. Personal vaults
+	// never count: every user has one.
+	var others []uint
 	for _, m := range memberships {
-		if m.OrganizationID == targetOrgID || !isActiveMembership(m.Status) {
+		if m.OrganizationID == targetOrgID {
 			continue
 		}
-		existingPolicy, err := s.policyRepo.GetByOrgAndType(ctx, m.OrganizationID, domain.PolicySingleOrganization)
-		if err == nil && existingPolicy != nil && existingPolicy.Enabled {
+		if m.Status != domain.OrgUserStatusAccepted && m.Status != domain.OrgUserStatusConfirmed {
+			continue
+		}
+		if m.Organization != nil && m.Organization.IsPersonal {
+			continue
+		}
+		others = append(others, m.OrganizationID)
+	}
+	if len(others) == 0 {
+		return nil
+	}
+
+	targetEnforces, err := policyEnabled(targetOrgID)
+	if err != nil {
+		return err
+	}
+	if targetEnforces {
+		return fmt.Errorf("organization policy requires single organization membership; user belongs to another organization")
+	}
+	for _, orgID := range others {
+		enforces, err := policyEnabled(orgID)
+		if err != nil {
+			return err
+		}
+		if enforces {
 			return fmt.Errorf("user's existing organization enforces single organization membership")
 		}
 	}
-
 	return nil
 }
