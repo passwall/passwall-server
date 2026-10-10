@@ -17,6 +17,12 @@ import (
 // ErrShareInviteSent indicates a signup email was sent for non-registered recipient.
 var ErrShareInviteSent = errors.New("share invite email sent")
 
+// ErrSecureSharingUnavailable is returned for shares outside the item's
+// organization. Today a share hands the recipient a key that decrypts the
+// whole vault, so it is only allowed between members who already hold that
+// key. Sharing with anyone else returns with per-item keys.
+var ErrSecureSharingUnavailable = errors.New("sharing outside the organization is temporarily unavailable")
+
 // CreateItemShareRequest represents a request to share an organization item.
 type CreateItemShareRequest struct {
 	ItemUUID         string
@@ -173,6 +179,28 @@ func (s *itemShareService) authorizeItemShare(
 	return nil
 }
 
+// externalSharingEnabled stays false until shares carry a per-item key
+// instead of the organization key.
+const externalSharingEnabled = false
+
+func (s *itemShareService) isActiveMember(ctx context.Context, orgID, userID uint) bool {
+	member, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
+	return err == nil && member != nil
+}
+
+// shareStillAuthorized re-checks a share against current access: the owner
+// must still be allowed to share the item and the recipient must still be an
+// active member. A share never outlives the access it was created from.
+func (s *itemShareService) shareStillAuthorized(ctx context.Context, share *domain.ItemShare, item *domain.OrganizationItem) bool {
+	if err := s.authorizeItemShare(ctx, share.OwnerID, item); err != nil {
+		return false
+	}
+	if share.SharedWithUserID == nil {
+		return false
+	}
+	return s.isActiveMember(ctx, item.OrganizationID, *share.SharedWithUserID)
+}
+
 func (s *itemShareService) createShareInternal(
 	ctx context.Context,
 	ownerID uint,
@@ -184,6 +212,10 @@ func (s *itemShareService) createShareInternal(
 	if sharedWithUserID == nil && req.SharedWithEmail != "" {
 		user, err := s.userRepo.GetByEmail(ctx, req.SharedWithEmail)
 		if err != nil || user == nil {
+			// An unregistered recipient cannot be an organization member.
+			if !externalSharingEnabled {
+				return nil, ErrSecureSharingUnavailable
+			}
 			if s.emailSender == nil || s.emailBuilder == nil {
 				return nil, repository.ErrNotFound
 			}
@@ -221,6 +253,9 @@ func (s *itemShareService) createShareInternal(
 		}
 		if *sharedWithUserID == ownerID {
 			return nil, repository.ErrInvalidInput
+		}
+		if !externalSharingEnabled && !s.isActiveMember(ctx, item.OrganizationID, *sharedWithUserID) {
+			return nil, ErrSecureSharingUnavailable
 		}
 	}
 
@@ -342,6 +377,9 @@ func (s *itemShareService) ListReceived(ctx context.Context, userID uint) ([]*It
 			}
 			return nil, err
 		}
+		if !s.shareStillAuthorized(ctx, share, item) {
+			continue
+		}
 		results = append(results, &ItemShareWithItem{Share: share, Item: item})
 	}
 
@@ -365,6 +403,9 @@ func (s *itemShareService) GetByUUID(ctx context.Context, userID uint, shareUUID
 	item, err := s.orgItemRepo.GetByUUID(ctx, share.ItemUUID.String())
 	if err != nil {
 		return nil, err
+	}
+	if share.OwnerID != userID && !s.shareStillAuthorized(ctx, share, item) {
+		return nil, repository.ErrForbidden
 	}
 
 	return &ItemShareWithItem{Share: share, Item: item}, nil
@@ -421,6 +462,14 @@ func (s *itemShareService) UpdateSharedItem(
 	if err != nil {
 		return nil, err
 	}
+	if !s.shareStillAuthorized(ctx, share, item) {
+		return nil, repository.ErrForbidden
+	}
+	// Editing through a share writes the organization item, so the recipient
+	// needs the same collection write access as any other edit.
+	if err := s.authorizeItemShare(ctx, userID, item); err != nil {
+		return nil, err
+	}
 	if s.entitlements != nil {
 		if err := s.entitlements.Authorize(ctx, item.OrganizationID, domain.CapabilityItemUpdate); err != nil {
 			return nil, err
@@ -465,10 +514,17 @@ func (s *itemShareService) ReShare(
 	if err != nil {
 		return nil, err
 	}
+	if !s.shareStillAuthorized(ctx, share, item) {
+		return nil, repository.ErrForbidden
+	}
 	if s.entitlements != nil {
 		if err := s.entitlements.Authorize(ctx, item.OrganizationID, domain.CapabilitySharingCreate); err != nil {
 			return nil, err
 		}
+	}
+	// A re-share cannot grant more than the re-sharer received.
+	if req.CanEdit != nil && *req.CanEdit && !share.CanEdit {
+		return nil, repository.ErrForbidden
 	}
 
 	return s.createShareInternal(ctx, share.OwnerID, item, req)

@@ -544,6 +544,9 @@ func (s *organizationService) UpdateMemberRole(ctx context.Context, orgID, orgUs
 	if err != nil {
 		return fmt.Errorf("member not found: %w", err)
 	}
+	if orgUser.OrganizationID != orgID {
+		return repository.ErrNotFound
+	}
 
 	// Cannot change owner role
 	if orgUser.Role == domain.OrgRoleOwner {
@@ -705,8 +708,10 @@ func (s *organizationService) GetCollectionCount(ctx context.Context, orgID uint
 	return s.orgRepo.GetCollectionCount(ctx, orgID)
 }
 
+// checkPermission requires an active (accepted/confirmed) membership, so a
+// suspended or not-yet-confirmed admin cannot act on the organization.
 func (s *organizationService) checkPermission(ctx context.Context, orgID, userID uint, requireAdmin bool) error {
-	orgUser, err := s.orgUserRepo.GetByOrgAndUser(ctx, orgID, userID)
+	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
 	if err != nil {
 		if err == repository.ErrNotFound {
 			return repository.ErrForbidden

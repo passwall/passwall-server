@@ -63,7 +63,8 @@ func parseOrgIDFromDetails(details string) (uint, bool) {
 }
 
 // ListOrganizationActivities returns recent activities related to an organization.
-// Visibility: any organization member can view.
+// Visibility: organization owners and admins. The log covers every member's
+// actions, so regular members do not get to read it.
 // Note: Activities are stored per-user; we aggregate members' activities and filter by details.organization_id.
 func (h *OrganizationActivityHandler) ListOrganizationActivities(c *gin.Context) {
 	ctx := c.Request.Context()
@@ -75,12 +76,17 @@ func (h *OrganizationActivityHandler) ListOrganizationActivities(c *gin.Context)
 	}
 
 	// Membership check
-	if _, err := h.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID); err != nil {
+	membership, err := h.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
+	if err != nil {
 		if err == repository.ErrNotFound {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check membership"})
+		return
+	}
+	if !membership.IsAdmin() {
+		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 		return
 	}
 	if h.entitlements != nil {

@@ -47,7 +47,15 @@ func AuthMiddleware(authService service.AuthService) gin.HandlerFunc {
 
 		// Enforce mandatory org-level 2FA setup for authenticated APIs.
 		// Allow only setup/status/disable endpoints and signout until setup is complete.
-		if req, err := authService.GetMandatoryTwoFactorSetupRequirement(c.Request.Context(), claims.UserID); err == nil && req != nil {
+		req, err := authService.GetMandatoryTwoFactorSetupRequirement(c.Request.Context(), claims.UserID)
+		if err != nil {
+			// Fail closed: without the requirement we cannot tell whether the
+			// organization's 2FA policy applies to this user.
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to verify account requirements"})
+			c.Abort()
+			return
+		}
+		if req != nil {
 			path := c.Request.URL.Path
 			allowedPath := strings.HasPrefix(path, "/api/users/me/2fa/") || path == "/api/signout"
 			if !allowedPath {

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/passwall/passwall-server/internal/authz"
@@ -284,6 +285,11 @@ func (s *collectionService) GrantUserAccess(ctx context.Context, collectionID ui
 	if targetOrgUser.OrganizationID != collection.OrganizationID {
 		return fmt.Errorf("user is not a member of this organization")
 	}
+	if err := s.checkGrantWithinOwnAccess(ctx, collection.OrganizationID, collectionID, requestingUserID, req, func(requester *domain.OrganizationUser) (bool, error) {
+		return targetOrgUser.ID == requester.ID, nil
+	}); err != nil {
+		return err
+	}
 
 	// Check if access already exists
 	existing, err := s.collectionUserRepo.GetByCollectionAndOrgUser(ctx, collectionID, orgUserID)
@@ -350,6 +356,18 @@ func (s *collectionService) GrantTeamAccess(ctx context.Context, collectionID ui
 	if team.OrganizationID != collection.OrganizationID {
 		return fmt.Errorf("team is not in the same organization")
 	}
+	if err := s.checkGrantWithinOwnAccess(ctx, collection.OrganizationID, collectionID, requestingUserID, req, func(requester *domain.OrganizationUser) (bool, error) {
+		membership, err := s.teamUserRepo.GetByTeamAndOrgUser(ctx, teamID, requester.ID)
+		if err != nil {
+			if errors.Is(err, repository.ErrNotFound) {
+				return false, nil
+			}
+			return false, err
+		}
+		return membership != nil, nil
+	}); err != nil {
+		return err
+	}
 
 	// Check if access already exists
 	existing, err := s.collectionTeamRepo.GetByCollectionAndTeam(ctx, collectionID, teamID)
@@ -403,7 +421,8 @@ func (s *collectionService) RevokeUserAccess(ctx context.Context, collectionID u
 	if !canManage {
 		return repository.ErrForbidden
 	}
-	if err := s.authorizeCollectionMutation(ctx, collection.OrganizationID, domain.CapabilityItemUpdate); err != nil {
+	// Revoking access must keep working on frozen organizations.
+	if err := s.authorizeCollectionMutation(ctx, collection.OrganizationID, domain.CapabilityAccessRevoke); err != nil {
 		return err
 	}
 
@@ -431,7 +450,8 @@ func (s *collectionService) RevokeTeamAccess(ctx context.Context, collectionID u
 	if !canManage {
 		return repository.ErrForbidden
 	}
-	if err := s.authorizeCollectionMutation(ctx, collection.OrganizationID, domain.CapabilityItemUpdate); err != nil {
+	// Revoking access must keep working on frozen organizations.
+	if err := s.authorizeCollectionMutation(ctx, collection.OrganizationID, domain.CapabilityAccessRevoke); err != nil {
 		return err
 	}
 
@@ -532,6 +552,40 @@ func (s *collectionService) checkCollectionManagePermission(ctx context.Context,
 		return false, err
 	}
 	return access.CanAdmin, nil
+}
+
+// checkGrantWithinOwnAccess keeps collection managers who are not
+// organization admins from escalating: they cannot change their own access
+// (directly or through a team they belong to) and cannot grant password
+// visibility they do not have themselves.
+func (s *collectionService) checkGrantWithinOwnAccess(
+	ctx context.Context,
+	orgID, collectionID, requestingUserID uint,
+	req *domain.GrantCollectionAccessRequest,
+	affectsRequester func(requester *domain.OrganizationUser) (bool, error),
+) error {
+	requester, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, requestingUserID)
+	if err != nil {
+		return repository.ErrForbidden
+	}
+	if requester.IsAdmin() {
+		return nil
+	}
+	self, err := affectsRequester(requester)
+	if err != nil {
+		return err
+	}
+	if self {
+		return repository.ErrForbidden
+	}
+	access, err := authz.ComputeCollectionAccess(ctx, requester, collectionID, s.collectionUserRepo, s.collectionTeamRepo, s.teamUserRepo)
+	if err != nil {
+		return err
+	}
+	if access.HidePasswords && !req.HidePasswords {
+		return repository.ErrForbidden
+	}
+	return nil
 }
 
 func (s *collectionService) authorizeCollectionMutation(

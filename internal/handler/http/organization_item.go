@@ -185,7 +185,8 @@ func (h *OrganizationItemHandler) ListByOrganization(c *gin.Context) {
 			cid := *item.CollectionID
 			if _, ok := accessCache[cid]; !ok {
 				access, err := h.service.GetCollectionAccess(ctx, orgID, userID, cid)
-				hide := err == nil && access.HidePasswords
+				// Fail closed: if access cannot be resolved, withhold the secret.
+				hide := err != nil || access.HidePasswords
 				accessCache[cid] = &hide
 			}
 			if accessCache[cid] != nil && *accessCache[cid] {
@@ -273,7 +274,8 @@ func (h *OrganizationItemHandler) ListByCollection(c *gin.Context) {
 		dtos[i] = domain.ToOrganizationItemDTO(item)
 		if hidePasswords == nil && item.CollectionID != nil {
 			access, err := h.service.GetCollectionAccess(ctx, item.OrganizationID, userID, *item.CollectionID)
-			hide := err == nil && access.HidePasswords
+			// Fail closed: if access cannot be resolved, withhold the secret.
+			hide := err != nil || access.HidePasswords
 			hidePasswords = &hide
 		}
 		if hidePasswords != nil && *hidePasswords {
@@ -321,7 +323,8 @@ func (h *OrganizationItemHandler) GetByID(c *gin.Context) {
 	dto := domain.ToOrganizationItemDTO(item)
 	if item.CollectionID != nil {
 		access, err := h.service.GetCollectionAccess(ctx, item.OrganizationID, userID, *item.CollectionID)
-		if err == nil && access.HidePasswords {
+		// Fail closed: if access cannot be resolved, withhold the secret.
+		if err != nil || access.HidePasswords {
 			dto.HidePasswords = true
 			dto.Data = ""
 		}
@@ -468,4 +471,18 @@ func (h *OrganizationItemHandler) AutofillSecret(c *gin.Context) {
 		"id":   item.ID,
 		"data": item.Data,
 	})
+
+	// Every secret handed out for autofill is audited, including items whose
+	// passwords are hidden from the user.
+	if h.activityLogger != nil {
+		details := service.ActivityDetails{
+			service.ActivityFieldOrganizationID: item.OrganizationID,
+			service.ActivityFieldItemID:         item.ID,
+			service.ActivityFieldItemType:       strconv.FormatInt(int64(item.ItemType), 10),
+		}
+		if item.CollectionID != nil {
+			details[service.ActivityFieldCollectionID] = *item.CollectionID
+		}
+		_ = h.activityLogger.LogActivity(ctx, userID, domain.ActivityTypeItemAutofillSecret, c.ClientIP(), c.GetHeader("User-Agent"), details)
+	}
 }
