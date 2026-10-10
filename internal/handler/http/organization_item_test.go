@@ -121,6 +121,10 @@ func (s *stubPolicyEnforcementService) GetSessionTimeoutPolicy(ctx context.Conte
 	return nil, nil
 }
 
+func (s *stubPolicyEnforcementService) CheckPersonalVaultItemAllowed(context.Context, uint, uint) error {
+	return nil
+}
+
 func (s *stubPolicyEnforcementService) CheckCardTypeAllowed(ctx context.Context, orgID uint) error {
 	s.checkCardCalled = true
 	return s.checkCardErr

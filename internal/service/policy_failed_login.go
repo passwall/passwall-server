@@ -9,12 +9,14 @@ import (
 	"github.com/passwall/passwall-server/internal/domain"
 )
 
-// FailedLoginTracker tracks failed login attempts per IP per organization and
-// temporarily blocks IPs that exceed the configured threshold.
+// FailedLoginTracker enforces the failed_login_limit policy. Attempts are
+// counted per organization, account and client IP: one person guessing at
+// one account is blocked, without letting an attacker lock out a whole
+// organization or clear the counter by signing in to another account.
 type FailedLoginTracker interface {
-	RecordFailedAttempt(ctx context.Context, orgID uint, ip string)
-	IsBlocked(ctx context.Context, orgID uint, ip string) (bool, string)
-	RecordSuccess(ctx context.Context, orgID uint, ip string)
+	RecordFailedAttempt(ctx context.Context, orgID, userID uint, ip string)
+	IsBlocked(ctx context.Context, orgID, userID uint, ip string) (bool, string)
+	RecordSuccess(ctx context.Context, orgID, userID uint, ip string)
 }
 
 type failedLoginEntry struct {
@@ -26,7 +28,7 @@ type failedLoginEntry struct {
 type failedLoginTracker struct {
 	policyService OrganizationPolicyService
 	mu            sync.RWMutex
-	entries       map[string]*failedLoginEntry // key: "orgID:ip"
+	entries       map[string]*failedLoginEntry // key: "orgID:userID:ip"
 }
 
 // NewFailedLoginTracker creates a new failed login tracker
@@ -39,17 +41,17 @@ func NewFailedLoginTracker(policyService OrganizationPolicyService) FailedLoginT
 	return t
 }
 
-func (t *failedLoginTracker) key(orgID uint, ip string) string {
-	return fmt.Sprintf("%d:%s", orgID, ip)
+func (t *failedLoginTracker) key(orgID, userID uint, ip string) string {
+	return fmt.Sprintf("%d:%d:%s", orgID, userID, ip)
 }
 
-func (t *failedLoginTracker) RecordFailedAttempt(ctx context.Context, orgID uint, ip string) {
+func (t *failedLoginTracker) RecordFailedAttempt(ctx context.Context, orgID, userID uint, ip string) {
 	config := t.getConfig(ctx, orgID)
 	if config == nil {
 		return
 	}
 
-	k := t.key(orgID, ip)
+	k := t.key(orgID, userID, ip)
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -59,9 +61,12 @@ func (t *failedLoginTracker) RecordFailedAttempt(ctx context.Context, orgID uint
 		t.entries[k] = entry
 	}
 
-	// Reset window if outside the time window
+	// A served block starts a fresh count, so repeated guessing is blocked
+	// again; otherwise reset once the window has passed.
 	windowDuration := time.Duration(config.WindowMinutes) * time.Minute
-	if time.Since(entry.FirstFail) > windowDuration {
+	blockDuration := time.Duration(config.BlockDurationMinutes) * time.Minute
+	blockServed := entry.BlockedAt != nil && time.Since(*entry.BlockedAt) > blockDuration
+	if blockServed || (entry.BlockedAt == nil && time.Since(entry.FirstFail) > windowDuration) {
 		entry.Attempts = 0
 		entry.FirstFail = time.Now()
 		entry.BlockedAt = nil
@@ -75,13 +80,13 @@ func (t *failedLoginTracker) RecordFailedAttempt(ctx context.Context, orgID uint
 	}
 }
 
-func (t *failedLoginTracker) IsBlocked(ctx context.Context, orgID uint, ip string) (bool, string) {
+func (t *failedLoginTracker) IsBlocked(ctx context.Context, orgID, userID uint, ip string) (bool, string) {
 	config := t.getConfig(ctx, orgID)
 	if config == nil {
 		return false, ""
 	}
 
-	k := t.key(orgID, ip)
+	k := t.key(orgID, userID, ip)
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -103,8 +108,8 @@ func (t *failedLoginTracker) IsBlocked(ctx context.Context, orgID uint, ip strin
 	return true, fmt.Sprintf("too many failed login attempts, try again in %d minutes", int(remaining.Minutes())+1)
 }
 
-func (t *failedLoginTracker) RecordSuccess(ctx context.Context, orgID uint, ip string) {
-	k := t.key(orgID, ip)
+func (t *failedLoginTracker) RecordSuccess(ctx context.Context, orgID, userID uint, ip string) {
+	k := t.key(orgID, userID, ip)
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	delete(t.entries, k)
@@ -117,15 +122,19 @@ type failedLoginConfig struct {
 }
 
 func (t *failedLoginTracker) getConfig(ctx context.Context, orgID uint) *failedLoginConfig {
-	data, err := t.policyService.GetPolicyData(ctx, orgID, domain.PolicyFailedLoginLimit)
-	if err != nil || data == nil {
-		return nil
-	}
-
 	config := &failedLoginConfig{
 		MaxAttempts:          5,
 		WindowMinutes:        15,
 		BlockDurationMinutes: 30,
+	}
+	data, err := t.policyService.GetPolicyData(ctx, orgID, domain.PolicyFailedLoginLimit)
+	if err != nil {
+		// Fail closed: without the policy we cannot tell whether limits apply,
+		// so the strictest defaults do.
+		return config
+	}
+	if data == nil {
+		return nil
 	}
 
 	if v, ok := data["max_attempts"].(float64); ok && v > 0 {

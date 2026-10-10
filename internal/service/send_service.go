@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -90,11 +91,10 @@ func (s *sendService) Create(ctx context.Context, creatorID uint, req *domain.Cr
 		}
 	}
 
-	// Check RemoveSend policy: if enabled, non-admin members cannot create sends
-	if req.OrganizationID > 0 {
-		if err := s.checkRemoveSendPolicy(ctx, req.OrganizationID, creatorID); err != nil {
-			return nil, err
-		}
+	// RemoveSend: members of an organization that disables Send cannot create
+	// one, including personal Sends.
+	if err := s.checkRemoveSendPolicy(ctx, creatorID); err != nil {
+		return nil, err
 	}
 
 	accessID, err := generateAccessID()
@@ -249,6 +249,9 @@ func (s *sendService) Update(ctx context.Context, creatorID uint, sendUUID strin
 	if err := s.authorizeSendMutation(ctx, creatorID, send, domain.CapabilityItemUpdate); err != nil {
 		return nil, err
 	}
+	if err := s.checkRemoveSendPolicy(ctx, creatorID); err != nil {
+		return nil, err
+	}
 
 	if req.Name != nil {
 		send.Name = *req.Name
@@ -393,25 +396,40 @@ func (s *sendService) NotifyRecipient(ctx context.Context, creatorID uint, sendU
 	return nil
 }
 
-// checkRemoveSendPolicy checks if the RemoveSend policy blocks this user
-func (s *sendService) checkRemoveSendPolicy(ctx context.Context, orgID, userID uint) error {
-	policy, err := s.policyRepo.GetByOrgAndType(ctx, orgID, domain.PolicyRemoveSend)
-	if err != nil {
-		return nil // policy not found = not enforced
-	}
-	if !policy.Enabled {
+// ErrSendDisabledByPolicy is returned when an organization policy disables Send.
+var ErrSendDisabledByPolicy = fmt.Errorf("%w: Send is disabled by your organization's policy", repository.ErrForbidden)
+
+// checkRemoveSendPolicy blocks creating or editing Sends when any shared
+// organization the user belongs to enables RemoveSend and the user is not an
+// owner or admin there. It fails closed on lookup errors.
+func (s *sendService) checkRemoveSendPolicy(ctx context.Context, userID uint) error {
+	if s.policyRepo == nil || s.orgUserRepo == nil {
 		return nil
 	}
-
-	// Check if user is admin/owner in org (admins are exempt)
-	orgUser, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
+	memberships, err := s.orgUserRepo.ListByUser(ctx, userID)
 	if err != nil {
-		return repository.ErrForbidden
+		return fmt.Errorf("failed to check Send policy: %w", err)
 	}
-
-	if orgUser.Role == domain.OrgRoleOwner || orgUser.Role == domain.OrgRoleAdmin {
-		return nil
+	for _, m := range memberships {
+		if m.Status != domain.OrgUserStatusAccepted && m.Status != domain.OrgUserStatusConfirmed {
+			continue
+		}
+		if m.Organization != nil && m.Organization.IsPersonal {
+			continue
+		}
+		if m.Role == domain.OrgRoleOwner || m.Role == domain.OrgRoleAdmin {
+			continue
+		}
+		policy, err := s.policyRepo.GetByOrgAndType(ctx, m.OrganizationID, domain.PolicyRemoveSend)
+		if errors.Is(err, repository.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("failed to check Send policy: %w", err)
+		}
+		if policy.Enabled {
+			return ErrSendDisabledByPolicy
+		}
 	}
-
-	return repository.ErrForbidden
+	return nil
 }

@@ -178,6 +178,16 @@ func (s *organizationPolicyService) UpdatePolicy(ctx context.Context, orgID, use
 
 	// Enabling: validate dependency chain
 	enabling := req.Enabled != nil && *req.Enabled
+	if enabling && !domain.IsPolicyAvailable(policyType) {
+		return nil, domain.ErrPolicyNotAvailable
+	}
+	var cleanData domain.PolicyData
+	if req.Data != nil {
+		var err error
+		if cleanData, err = domain.ValidatePolicyData(policyType, req.Data); err != nil {
+			return nil, err
+		}
+	}
 	if enabling {
 		deps := domain.GetPolicyDependencies(policyType)
 		for _, dep := range deps {
@@ -222,6 +232,9 @@ func (s *organizationPolicyService) UpdatePolicy(ctx context.Context, orgID, use
 		}
 	}
 
+	wasEnabled := policy.Enabled
+	previousEnabledAt := policy.Data["enabled_at"]
+
 	if req.Enabled != nil {
 		policy.Enabled = *req.Enabled
 		if *req.Enabled {
@@ -231,16 +244,21 @@ func (s *organizationPolicyService) UpdatePolicy(ctx context.Context, orgID, use
 		}
 	}
 
-	if req.Data != nil {
-		policy.Data = req.Data
+	if cleanData != nil {
+		policy.Data = cleanData
+	}
+	if policy.Data == nil {
+		policy.Data = make(domain.PolicyData)
 	}
 
-	// Auto-populate enabled_at for 2FA policy when first enabled
-	if enabling && policyType == domain.PolicyRequireTwoFactor {
-		if _, hasEnabledAt := policy.Data["enabled_at"]; !hasEnabledAt {
-			if policy.Data == nil {
-				policy.Data = make(domain.PolicyData)
-			}
+	// 2FA grace period: it starts when the policy is switched on (again) and
+	// is not restarted by later configuration changes.
+	if policyType == domain.PolicyRequireTwoFactor && policy.Enabled {
+		if enabling && !wasEnabled {
+			policy.Data["enabled_at"] = time.Now().UTC().Format(time.RFC3339)
+		} else if previousEnabledAt != nil {
+			policy.Data["enabled_at"] = previousEnabledAt
+		} else if _, ok := policy.Data["enabled_at"]; !ok {
 			policy.Data["enabled_at"] = time.Now().UTC().Format(time.RFC3339)
 		}
 		if _, hasGrace := policy.Data["grace_period_days"]; !hasGrace {
@@ -305,7 +323,11 @@ func (s *organizationPolicyService) ListEnabledPolicies(ctx context.Context, org
 }
 
 func (s *organizationPolicyService) GetActivePolicySummary(ctx context.Context, orgID, userID uint) (map[domain.PolicyType]domain.PolicyData, error) {
-	if err := s.requireOrgMember(ctx, orgID, userID); err != nil {
+	member, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, repository.ErrForbidden
+		}
 		return nil, err
 	}
 
@@ -316,9 +338,22 @@ func (s *organizationPolicyService) GetActivePolicySummary(ctx context.Context, 
 
 	summary := make(map[domain.PolicyType]domain.PolicyData, len(policies))
 	for _, p := range policies {
+		// Members learn that a policy applies, not how security controls are
+		// configured (IP allow lists, lockout thresholds).
+		if !member.IsAdmin() && adminOnlyPolicyData[p.Type] {
+			summary[p.Type] = domain.PolicyData{}
+			continue
+		}
 		summary[p.Type] = p.Data
 	}
 	return summary, nil
+}
+
+// adminOnlyPolicyData are policies whose configuration is hidden from
+// non-admin members.
+var adminOnlyPolicyData = map[domain.PolicyType]bool{
+	domain.PolicyFirewallRules:    true,
+	domain.PolicyFailedLoginLimit: true,
 }
 
 // --- Helpers ---
@@ -333,17 +368,6 @@ func (s *organizationPolicyService) requireOrgAdmin(ctx context.Context, orgID, 
 	}
 	if !orgUser.IsAdmin() {
 		return repository.ErrForbidden
-	}
-	return nil
-}
-
-func (s *organizationPolicyService) requireOrgMember(ctx context.Context, orgID, userID uint) error {
-	_, err := s.orgUserRepo.GetActiveByOrgAndUser(ctx, orgID, userID)
-	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			return repository.ErrForbidden
-		}
-		return err
 	}
 	return nil
 }

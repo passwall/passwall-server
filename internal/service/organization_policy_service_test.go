@@ -502,7 +502,7 @@ func TestUpdatePolicy_EnableWithUnmetDependency(t *testing.T) {
 
 	// require_sso depends on single_organization
 	_, err := s.service.UpdatePolicy(ctx, policyTestOrgID, policyTestOwnerID,
-		domain.PolicyRequireSSO, &domain.UpdateOrganizationPolicyRequest{Enabled: boolPtr(true)})
+		domain.PolicySessionTimeout, &domain.UpdateOrganizationPolicyRequest{Enabled: boolPtr(true)})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), string(domain.PolicySingleOrganization))
 }
@@ -519,7 +519,7 @@ func TestUpdatePolicy_EnableWithSatisfiedDependency(t *testing.T) {
 
 	// Now enable the dependent policy
 	result, err := s.service.UpdatePolicy(ctx, policyTestOrgID, policyTestOwnerID,
-		domain.PolicyRequireSSO, &domain.UpdateOrganizationPolicyRequest{Enabled: boolPtr(true)})
+		domain.PolicySessionTimeout, &domain.UpdateOrganizationPolicyRequest{Enabled: boolPtr(true)})
 	require.NoError(t, err)
 	assert.True(t, result.Enabled)
 }
@@ -535,7 +535,7 @@ func TestUpdatePolicy_DisableDependencyWithActiveDependents(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = s.service.UpdatePolicy(ctx, policyTestOrgID, policyTestOwnerID,
-		domain.PolicyRequireSSO, &domain.UpdateOrganizationPolicyRequest{Enabled: boolPtr(true)})
+		domain.PolicySessionTimeout, &domain.UpdateOrganizationPolicyRequest{Enabled: boolPtr(true)})
 	require.NoError(t, err)
 
 	// Try to disable single_organization (require_sso depends on it)
@@ -543,7 +543,7 @@ func TestUpdatePolicy_DisableDependencyWithActiveDependents(t *testing.T) {
 		domain.PolicySingleOrganization, &domain.UpdateOrganizationPolicyRequest{Enabled: boolPtr(false)})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot disable")
-	assert.Contains(t, err.Error(), string(domain.PolicyRequireSSO))
+	assert.Contains(t, err.Error(), string(domain.PolicySessionTimeout))
 }
 
 func TestUpdatePolicy_DisableDependencyAfterDependentDisabled(t *testing.T) {
@@ -556,12 +556,12 @@ func TestUpdatePolicy_DisableDependencyAfterDependentDisabled(t *testing.T) {
 		domain.PolicySingleOrganization, &domain.UpdateOrganizationPolicyRequest{Enabled: boolPtr(true)})
 	require.NoError(t, err)
 	_, err = s.service.UpdatePolicy(ctx, policyTestOrgID, policyTestOwnerID,
-		domain.PolicyRequireSSO, &domain.UpdateOrganizationPolicyRequest{Enabled: boolPtr(true)})
+		domain.PolicySessionTimeout, &domain.UpdateOrganizationPolicyRequest{Enabled: boolPtr(true)})
 	require.NoError(t, err)
 
 	// Disable the dependent first
 	_, err = s.service.UpdatePolicy(ctx, policyTestOrgID, policyTestOwnerID,
-		domain.PolicyRequireSSO, &domain.UpdateOrganizationPolicyRequest{Enabled: boolPtr(false)})
+		domain.PolicySessionTimeout, &domain.UpdateOrganizationPolicyRequest{Enabled: boolPtr(false)})
 	require.NoError(t, err)
 
 	// Now disabling the dependency should succeed
@@ -585,10 +585,10 @@ func TestUpdatePolicy_MultipleDependentsBlockDisable(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = s.service.UpdatePolicy(ctx, policyTestOrgID, policyTestOwnerID,
-		domain.PolicyAccountRecovery, &domain.UpdateOrganizationPolicyRequest{Enabled: boolPtr(true)})
+		domain.PolicyDefaultURIMatch, &domain.UpdateOrganizationPolicyRequest{Enabled: boolPtr(true)})
 	require.NoError(t, err)
 
-	// Try to disable single_organization (both session_timeout and account_recovery depend on it)
+	// Try to disable single_organization (both session_timeout and default_uri_match depend on it)
 	_, err = s.service.UpdatePolicy(ctx, policyTestOrgID, policyTestOwnerID,
 		domain.PolicySingleOrganization, &domain.UpdateOrganizationPolicyRequest{Enabled: boolPtr(false)})
 	assert.Error(t, err)

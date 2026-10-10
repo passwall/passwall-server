@@ -207,7 +207,7 @@ func (s *authService) VerifyTwoFactorSignIn(ctx context.Context, twoFactorToken 
 	}
 
 	policyReqs := s.collectPolicyRequirements(ctx, user)
-	twoFactorSetupReq := s.checkTwoFactorSetupRequired(ctx, user)
+	twoFactorSetupReq, _ := s.checkTwoFactorSetupRequired(ctx, user)
 
 	return &domain.AuthResponse{
 		AccessToken:           tokenDetails.AccessToken,

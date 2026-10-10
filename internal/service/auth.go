@@ -258,11 +258,12 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 		return nil, fmt.Errorf("authentication failed: %w", err)
 	}
 
-	// Check failed login policy: is this IP blocked for any of the user's orgs?
+	// Check failed login policy: is this account blocked from this IP by any
+	// of the user's organizations?
 	userOrgIDs := s.getUserOrgIDs(ctx, user.ID)
 	if s.failedLoginTracker != nil && creds.ClientIP != "" {
 		for _, orgID := range userOrgIDs {
-			if blocked, msg := s.failedLoginTracker.IsBlocked(ctx, orgID, creds.ClientIP); blocked {
+			if blocked, msg := s.failedLoginTracker.IsBlocked(ctx, orgID, user.ID, creds.ClientIP); blocked {
 				s.logger.Warn("login blocked by failed login policy", "email", creds.Email, "ip", creds.ClientIP, "org_id", orgID)
 				return nil, fmt.Errorf("%w: %s", ErrLoginBlocked, msg)
 			}
@@ -279,7 +280,7 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 		s.logger.Warn("invalid password attempt", "email", creds.Email)
 		if s.failedLoginTracker != nil && creds.ClientIP != "" {
 			for _, orgID := range userOrgIDs {
-				s.failedLoginTracker.RecordFailedAttempt(ctx, orgID, creds.ClientIP)
+				s.failedLoginTracker.RecordFailedAttempt(ctx, orgID, user.ID, creds.ClientIP)
 			}
 		}
 		return nil, ErrUnauthorized
@@ -288,7 +289,7 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 	// Successful password verification: clear any failed login entries
 	if s.failedLoginTracker != nil && creds.ClientIP != "" {
 		for _, orgID := range userOrgIDs {
-			s.failedLoginTracker.RecordSuccess(ctx, orgID, creds.ClientIP)
+			s.failedLoginTracker.RecordSuccess(ctx, orgID, user.ID, creds.ClientIP)
 		}
 	}
 
@@ -361,7 +362,9 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 	policyReqs := s.collectPolicyRequirements(ctx, user)
 
 	// Check if org policy requires 2FA setup (blocking for past-grace-period users)
-	twoFactorSetupReq := s.checkTwoFactorSetupRequired(ctx, user)
+	// Sign-in only reports the requirement; AuthMiddleware enforces it and
+	// fails closed on errors.
+	twoFactorSetupReq, _ := s.checkTwoFactorSetupRequired(ctx, user)
 
 	// Return auth response with protected user key
 	// Client will decrypt User Key with their Master Key
@@ -992,21 +995,30 @@ func (s *authService) collectPolicyRequirements(ctx context.Context, user *domai
 // checkTwoFactorSetupRequired checks whether any organization the user belongs to
 // has the "Require Two-Factor" policy enabled, and the user hasn't set up 2FA yet.
 // Returns nil if no action is needed, or a requirement descriptor otherwise.
-func (s *authService) checkTwoFactorSetupRequired(ctx context.Context, user *domain.User) *domain.TwoFactorSetupRequirement {
+func (s *authService) checkTwoFactorSetupRequired(ctx context.Context, user *domain.User) (*domain.TwoFactorSetupRequirement, error) {
 	if user.TwoFactorEnabled {
-		return nil
+		return nil, nil
 	}
 	if s.policyRepo == nil {
-		return nil
+		return nil, nil
 	}
 
 	memberships, err := s.orgUserRepo.ListByUser(ctx, user.ID)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to list memberships: %w", err)
 	}
 
+	// Every organization counts: a mandatory requirement anywhere wins over a
+	// grace period elsewhere, and among grace periods the earliest deadline is
+	// reported.
+	var mandatory, earliest *domain.TwoFactorSetupRequirement
 	for _, m := range memberships {
-		if m == nil || m.Status == domain.OrgUserStatusInvited {
+		if m == nil {
+			continue
+		}
+		switch m.Status {
+		case domain.OrgUserStatusAccepted, domain.OrgUserStatusConfirmed, domain.OrgUserStatusProvisioned:
+		default:
 			continue
 		}
 		// Owners/admins are exempt from enforcement (they manage the policy).
@@ -1015,45 +1027,57 @@ func (s *authService) checkTwoFactorSetupRequired(ctx context.Context, user *dom
 		}
 
 		policies, err := s.policyRepo.ListEnabledByOrganization(ctx, m.OrganizationID)
-		if err != nil || len(policies) == 0 {
-			continue
+		if err != nil {
+			return nil, fmt.Errorf("failed to load policies: %w", err)
 		}
-
 		for _, p := range policies {
 			if p.Type != domain.PolicyRequireTwoFactor {
 				continue
 			}
-
-			orgName := ""
-			if org, err := s.orgRepo.GetByID(ctx, m.OrganizationID); err == nil {
-				orgName = org.Name
-			}
-
 			req := &domain.TwoFactorSetupRequirement{
-				OrganizationID:   m.OrganizationID,
-				OrganizationName: orgName,
-				IsMandatory:      true,
+				OrganizationID: m.OrganizationID,
+				IsMandatory:    true,
 			}
-
-			// Parse grace period from policy data
-			graceDays := 0
-			if v, ok := p.Data["grace_period_days"].(float64); ok {
-				graceDays = int(v)
+			if m.Organization != nil {
+				req.OrganizationName = m.Organization.Name
 			}
-			if enabledAtStr, ok := p.Data["enabled_at"].(string); ok && graceDays > 0 {
-				if enabledAt, err := time.Parse(time.RFC3339, enabledAtStr); err == nil {
-					deadline := enabledAt.AddDate(0, 0, graceDays)
-					deadlineUnix := deadline.Unix()
-					req.GraceDeadline = &deadlineUnix
-					req.IsMandatory = time.Now().After(deadline)
+			if deadline, ok := twoFactorGraceDeadline(p.Data); ok {
+				deadlineUnix := deadline.Unix()
+				req.GraceDeadline = &deadlineUnix
+				req.IsMandatory = !time.Now().Before(deadline)
+			}
+			if req.IsMandatory {
+				if mandatory == nil {
+					mandatory = req
 				}
+			} else if earliest == nil || *req.GraceDeadline < *earliest.GraceDeadline {
+				earliest = req
 			}
-
-			return req
 		}
 	}
 
-	return nil
+	if mandatory != nil {
+		return mandatory, nil
+	}
+	return earliest, nil
+}
+
+// twoFactorGraceDeadline reads enabled_at + grace_period_days from the policy
+// data. Missing or invalid values mean no grace period.
+func twoFactorGraceDeadline(data domain.PolicyData) (time.Time, bool) {
+	graceDays, ok := data["grace_period_days"].(float64)
+	if !ok || graceDays <= 0 {
+		return time.Time{}, false
+	}
+	enabledAtStr, ok := data["enabled_at"].(string)
+	if !ok {
+		return time.Time{}, false
+	}
+	enabledAt, err := time.Parse(time.RFC3339, enabledAtStr)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return enabledAt.AddDate(0, 0, int(graceDays)), true
 }
 
 // GetTwoFactorCompliance returns 2FA adoption statistics for an organization.
@@ -1112,7 +1136,10 @@ func (s *authService) GetMandatoryTwoFactorSetupRequirement(ctx context.Context,
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
-	req := s.checkTwoFactorSetupRequired(ctx, user)
+	req, err := s.checkTwoFactorSetupRequired(ctx, user)
+	if err != nil {
+		return nil, err
+	}
 	if req == nil || !req.IsMandatory {
 		return nil, nil
 	}
