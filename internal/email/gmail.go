@@ -176,24 +176,24 @@ func (s *gmailSender) buildMessage(fromEmail, fromName string, message *EmailMes
 	fromAddress := fmt.Sprintf("%s <%s>", fromName, fromEmail)
 
 	// Build RFC 2822 email headers
-	buf.WriteString(fmt.Sprintf("From: %s\r\n", fromAddress))
-	buf.WriteString(fmt.Sprintf("To: %s\r\n", message.To))
+	fmt.Fprintf(&buf, "From: %s\r\n", fromAddress)
+	fmt.Fprintf(&buf, "To: %s\r\n", message.To)
 
 	// Add CC if present
 	if len(message.CC) > 0 {
-		buf.WriteString(fmt.Sprintf("Cc: %s\r\n", strings.Join(message.CC, ", ")))
+		fmt.Fprintf(&buf, "Cc: %s\r\n", strings.Join(message.CC, ", "))
 	}
 
 	// Add BCC if present
 	if len(bccList) > 0 {
-		buf.WriteString(fmt.Sprintf("Bcc: %s\r\n", strings.Join(bccList, ", ")))
+		fmt.Fprintf(&buf, "Bcc: %s\r\n", strings.Join(bccList, ", "))
 	}
 
-	buf.WriteString(fmt.Sprintf("Subject: %s\r\n", message.Subject))
+	fmt.Fprintf(&buf, "Subject: %s\r\n", message.Subject)
 	buf.WriteString("MIME-Version: 1.0\r\n")
 	buf.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
 	buf.WriteString("Content-Transfer-Encoding: base64\r\n")
-	buf.WriteString(fmt.Sprintf("Date: %s\r\n", time.Now().Format(time.RFC1123Z)))
+	fmt.Fprintf(&buf, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
 	buf.WriteString("\r\n")
 
 	// Encode body in base64

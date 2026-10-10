@@ -284,12 +284,12 @@ func (s *smtpSender) buildMessage(from, fromName string, message *EmailMessage) 
 	var buf bytes.Buffer
 
 	// Headers
-	buf.WriteString(fmt.Sprintf("From: %s <%s>\r\n", fromName, from))
-	buf.WriteString(fmt.Sprintf("To: %s\r\n", message.To))
+	fmt.Fprintf(&buf, "From: %s <%s>\r\n", fromName, from)
+	fmt.Fprintf(&buf, "To: %s\r\n", message.To)
 
 	// Add CC if present
 	if len(message.CC) > 0 {
-		buf.WriteString(fmt.Sprintf("Cc: %s\r\n", strings.Join(message.CC, ", ")))
+		fmt.Fprintf(&buf, "Cc: %s\r\n", strings.Join(message.CC, ", "))
 	}
 
 	// Add BCC if present (including config BCC)
@@ -299,14 +299,14 @@ func (s *smtpSender) buildMessage(from, fromName string, message *EmailMessage) 
 		bccList = append(bccList, s.config.BCC)
 	}
 	if len(bccList) > 0 {
-		buf.WriteString(fmt.Sprintf("Bcc: %s\r\n", strings.Join(bccList, ", ")))
+		fmt.Fprintf(&buf, "Bcc: %s\r\n", strings.Join(bccList, ", "))
 	}
 
-	buf.WriteString(fmt.Sprintf("Subject: %s\r\n", message.Subject))
+	fmt.Fprintf(&buf, "Subject: %s\r\n", message.Subject)
 	buf.WriteString("MIME-Version: 1.0\r\n")
 	buf.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
 	buf.WriteString("Content-Transfer-Encoding: 8bit\r\n")
-	buf.WriteString(fmt.Sprintf("Date: %s\r\n", time.Now().Format(time.RFC1123Z)))
+	fmt.Fprintf(&buf, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
 	buf.WriteString("\r\n")
 
 	// Body

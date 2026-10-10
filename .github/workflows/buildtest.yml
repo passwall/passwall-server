@@ -30,14 +30,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Read Go version from go.mod
-        id: go-version
-        run: echo "GO_VERSION=$(grep '^go ' go.mod | awk '{print $2}')" >> $GITHUB_OUTPUT
-
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ steps.go-version.outputs.GO_VERSION }}
+          go-version-file: go.mod
           cache: true
 
       - name: Display Go version
@@ -96,20 +92,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Read Go version from go.mod
-        id: go-version
-        run: echo "GO_VERSION=$(awk '/^go / {print $2}' go.mod)" >> "$GITHUB_OUTPUT"
-
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ steps.go-version.outputs.GO_VERSION }}
+          go-version-file: go.mod
           cache: true
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v8
         with:
-          version: v2.4.0
+          version: v2.13.2
           args: --timeout=5m
 
   docker:

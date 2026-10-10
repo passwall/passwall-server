@@ -46,7 +46,7 @@ generate: ## Run go generate
 install-tools: ## Install development tools (golangci-lint, gocov)
 	@echo "$(BLUE)Installing development tools...$(NC)"
 	@echo "Ensuring golangci-lint (built with current Go)..."; \
-	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.4.0
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2
 	@command -v gocov >/dev/null 2>&1 || { \
 		echo "Installing gocov (optional)..."; \
 		go install github.com/axw/gocov/gocov@latest || echo "$(YELLOW)⚠ gocov install skipped (optional, needed only for test-coverage)$(NC)"; \

@@ -394,7 +394,7 @@ Then provide a high-level **summary** paragraph covering the overall health and 
 
 `)
 
-	sb.WriteString(fmt.Sprintf("New event groups to analyze: %d (from total %d)\n\n", total, len(summaries)))
+	fmt.Fprintf(&sb, "New event groups to analyze: %d (from total %d)\n\n", total, len(summaries))
 	sb.WriteString("| # | domain | page_path | error_code | flow_type | surface | succeeded | count | step | prev_id | curr_pw | vis_issue | form_method | field_sig | first_seen | last_seen |\n")
 	sb.WriteString("|---|--------|-----------|------------|-----------|---------|-----------|-------|------|---------|---------|-----------|-------------|-----------|------------|----------|\n")
 
@@ -411,7 +411,7 @@ Then provide a high-level **summary** paragraph covering the overall health and 
 		if formMethod == "" {
 			formMethod = "—"
 		}
-		sb.WriteString(fmt.Sprintf("| %d | %s | %s | %s | %s | %s | %v | %d | %d | %v | %v | %v | %s | %s | %s | %s |\n",
+		fmt.Fprintf(&sb, "| %d | %s | %s | %s | %s | %s | %v | %d | %d | %v | %v | %v | %s | %s | %s | %s |\n",
 			i+1,
 			row.DomainETLD1,
 			row.PagePath,
@@ -428,7 +428,7 @@ Then provide a high-level **summary** paragraph covering the overall health and 
 			fieldSig,
 			row.FirstSeen.Format("2006-01-02"),
 			row.LastSeen.Format("2006-01-02"),
-		))
+		)
 	}
 
 	sb.WriteString(`
